@@ -45,7 +45,22 @@ parks itself and idles until the frame boundary.
 So an optimized routine does not need per-instruction `m.step()` calls. What it needs is for the
 frame's work to still **reach the spin before vblank**.
 
-Two caveats, both narrow, neither yet measured:
+**MEASURED CAVEAT — this only holds for MAIN-LOOP routines, NOT NMI-path routines.** The very
+first routine we took down the ladder (`handler_01c3`, game-state-0 init) exposed the boundary,
+and the harness proved it rather than us guessing. That routine runs *inside the NMI*, and the
+NMI's total cycle cost sets when it returns — which sets how long the main loop then spins
+before the next NMI. That spin count *is* the PRNG's entropy (`SPIN_COUNT` = 0x6019, feeding
+`RNG` = 0x6018). So dropping the `m.step()` charges from an NMI-path routine is observable:
+stripping them from `handler_01c3` diverged at **frame 5, address 0x6019, 65 vs 66** — one fewer
+cycle in the NMI, one extra spin, a reseeded PRNG. The charges had to stay.
+
+So the sharpened rule: **cycle distribution is unobservable for a routine that runs in the main
+loop and finishes before the vblank spin. For a routine that runs inside the NMI, its total
+cycle cost is observable through the spin count, and the `m.step()` charges must be preserved.**
+Optimizing an NMI-path routine therefore buys readability (names, structure, dropped register
+churn) but not fewer cycle charges — and the harness is what tells you which kind you have.
+
+Two further caveats, narrower:
 
 - **Overrunning frames.** If the original ever took longer than a frame, the NMI lands mid-logic
   and interleaving becomes real — and speeding that frame up would diverge from MAME by *fixing*
@@ -54,6 +69,12 @@ Two caveats, both narrow, neither yet measured:
 - **DMA and the watchdog.** Sprite DMA steals cycles and reading `0x7D00` kicks the watchdog;
   both are timing-coupled. The known ~98 px difference on Pauline during Kong's climb is a
   DMA-timing artifact — proof that timing reaches pixels at least a little.
+
+- **The calling convention is not scaffolding.** Each callee ends in its own `ret`, which pops a
+  return address; the `m.push16(retaddr)` before the call is what balances it. Drop the push and
+  the callee's `ret` unbalances SP (a register the harness compares). So `m.push16(addr); callee(m)`
+  stays as a pair even in idiomatic code — only the `m.step()` cycle charge between them is a
+  candidate for removal (and only for main-loop routines, per above).
 
 ### 3. Flags are paid for in `translated/` so they can be dropped here
 
