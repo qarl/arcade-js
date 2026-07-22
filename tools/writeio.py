@@ -7,7 +7,8 @@ THE WRITE-TRACE CONTRACT:
                    <cycle> <ADDR4hex> <VAL2hex>
                e.g.  180326 7D82 01
 
-Covered address set -- the hardware write surface outside RAM:
+Covered address set -- the hardware write surface outside RAM -- is BOARD-specific,
+loaded from the board's hardware.json via configure(). Example (Donkey Kong):
 
   0x7800-0x780F   i8257 programming
   0x7C00          ls175.3d sound latch

@@ -3,13 +3,14 @@
 
 THE FRAME CONTRACT:
 
-  frames.rgb   headerless concatenation of frames, 172032 bytes each
-               (256 * 224 * 3). No padding, no separators.
-               Row-major, top-left origin, byte order R,G,B, 8 bits/channel.
-               768 bytes per row, no row padding, 224 rows.
-               Native orientation, UNROTATED.
+  frames.rgb   headerless concatenation of frames, W*H*3 bytes each. W and H are
+               the BOARD's screen size, loaded from the board's hardware.json via
+               configure(). The wire format is constant: row-major, top-left
+               origin, byte order R,G,B, 8 bits/channel, no row padding, native
+               orientation UNROTATED. Example (Donkey Kong): 256*224*3 = 172032
+               bytes/frame, 768 bytes/row, 224 rows.
 
-  frames.json  {"width":256,"height":224,"bytes_per_frame":172032,
+  frames.json  {"width":W,"height":H,"bytes_per_frame":W*H*3,
                 "pixel_format":"RGB888","origin":"top-left","count":N,
                 "frames":[{"i":0,"sha256":"..."}, ...]}
 

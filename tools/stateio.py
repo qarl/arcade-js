@@ -3,13 +3,14 @@
 
 THE STATE CONTRACT (mirrors the frame contract deliberately):
 
-  state.bin   headerless concatenation of per-frame state, 5120 bytes each:
-                work   0x6000-0x6BFF  3072 bytes
-                sprite 0x7000-0x73FF  1024 bytes
-                video  0x7400-0x77FF  1024 bytes
-              Regions concatenated in exactly that order, no padding.
+  state.bin   headerless concatenation of per-frame state. The regions, their
+              sizes, and their order are BOARD-specific, loaded from the board's
+              hardware.json via configure() -- concatenated in that order, no
+              padding. Example (Donkey Kong): 5120 bytes/frame =
+              work 0x6000-0x6BFF (3072) + sprite 0x7000-0x73FF (1024) +
+              video 0x7400-0x77FF (1024).
 
-  state.json  {"bytes_per_frame":5120,"count":N,"regions":[...],
+  state.json  {"bytes_per_frame":N,"count":N,"regions":[...],
                "frames":[{"i":0,"sha256":"..."}, ...]}
 
 SAMPLING POINT: state[i] is sampled at the frame boundary BEFORE frame i's CPU
