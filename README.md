@@ -8,10 +8,10 @@ against frame until the pixels match.
 **Donkey Kong** is the first game. The repo is structured to host many: multiple CPUs,
 multiple arcade boards, and multiple game romsets, sharing what they genuinely share.
 
-> **Status:** under active construction. All four Donkey Kong board *types* boot and play,
-> reached via board-state pokes, and are pixel-validated against MAME 0.288; natural
-> progression and the level loop are still in progress. The multi-game restructuring and
-> the docs are in progress too.
+> **Status:** Donkey Kong plays in the browser today. All four board *types* boot and play —
+> reached via board-state pokes — and are pixel-validated frame-by-frame against MAME 0.288.
+> **Not yet done:** natural progression from board to board, the level loop, and sound (the
+> audio layer is a seam, not an implementation).
 
 ## What's here (and what isn't)
 
@@ -21,6 +21,39 @@ metadata either — `dk.asm`, `coverage.json`, `blocks.def`, `unreached.txt` und
 `games/dkong/out/` are gitignored build output; regenerate them locally with `make trace`. You
 supply your own ROM; `make rom-dkong` assembles and **sha256-verifies** it locally. See
 [`games/dkong/rom/README.md`](games/dkong/rom/README.md).
+
+### You still need the ROM — here's why
+
+The translation replaces the ROM's **logic**, not its **contents**. A ROM is not only code:
+
+- **Graphics and palette are pure data.** `gfx1` (8×8 tiles), `gfx2` (16×16 sprites) and the
+  colour `proms` have no code in them at all. Without them there is nothing to draw.
+- **The code reads the ROM as data.** Donkey Kong's first game-state handler runs
+  `ld hl,0x01ba` / `ldir`, copying a table straight out of ROM. So the engine still maps the
+  ROM into the address space and reads from it — our JavaScript is what *executes*, the ROM
+  is still what it *reads*.
+
+Which is exactly why the copyright line falls where it does: the JavaScript is our own
+expression of the logic and it ships; the original data is Nintendo's and it never does.
+
+## How we know it's right
+
+The claim "translated faithfully" is only worth as much as what can falsify it. Every gate
+below runs from a clean checkout:
+
+- **Pixel gate.** Capture a golden from **live MAME 0.288** under a pinned, determinism-
+  controlled command line, run the same input tape through our engine, and diff the frames.
+  Movement 6/6 and bonus-item 9/9 scenarios pass across all four board types.
+- **Decoder cross-check.** Our Z80 decoder is checked against `z80dasm` over the whole ROM:
+  6051 instruction boundaries, zero disagreements in either direction (`make verify`).
+- **Step audit.** Every `m.step()` target in the translation is verified to land on a real
+  instruction boundary (`make stepcheck`). The static tracer reaches ~77% of the ROM; targets
+  in the spans it hasn't reached are reported as **coverage gaps rather than quietly counted
+  as passes** — a green gate says what it actually covered.
+- **343 unit tests**, with mutation patches recorded next to the assertions they justify, so
+  a test that cannot fail is visible as such.
+- **State and write diffs.** RAM and the hardware write surface are diffed independently of
+  pixels, which separates "the CPU translation is wrong" from "the video model is wrong."
 
 ## Layout
 
@@ -63,10 +96,18 @@ without it can't be played in the browser.
 
 ## Quickstart
 
+Bring your own `dkong.zip` and you'll be playing in about a minute:
+
 ```sh
 make rom-dkong     # assemble your ROM locally (sha256-checked)
 make serve         # dev server (sets COOP/COEP), then open the printed URL
-npm test           # unit suite
+```
+
+Pick Donkey Kong, press **5** to drop a coin and **1** to start — arrows or WASD to move,
+space to jump.
+
+```sh
+npm test           # 343 unit tests (ROM-dependent ones skip cleanly if you haven't built one)
 ```
 
 (`make rom-dkong` is an alias for `make -C games/dkong rom`; `make serve` is an alias for
