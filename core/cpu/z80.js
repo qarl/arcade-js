@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /**
  * Z80 register file and ALU semantics.
  *
@@ -44,7 +45,7 @@ function sz8(v) {
 export class Regs {
   /**
    * Power-on register state, MEASURED from MAME at t=0 before a single
-   * instruction (QA, with a control read of ROM 0x0000 = 0x3E):
+   * instruction (with a control read of ROM 0x0000 = 0x3E):
    *
    *   AF = 0x0040   BC = DE = HL = 0x0000
    *   IX = IY = 0xFFFF          SP = 0x0000
@@ -90,7 +91,7 @@ export class Regs {
    *
    * IX/IY = 0xFFFF IS MAME'S CONVENTION, NOT A HARDWARE FACT. A real Z80's
    * IX/IY after reset are genuinely undefined; MAME picks 0xFFFF. We match it
-   * because the CHARTER makes MAME ground truth -- the same deliberate choice
+   * because this project treats MAME as ground truth -- the same deliberate choice
    * as power-on RAM zeros. Do not read this as silicon behaviour.
    *
    * AND IT IS A POWER-ON VALUE THAT PERSISTS ACROSS RESET. The assignment
@@ -103,7 +104,7 @@ export class Regs {
    */
   constructor() {
     this.a = 0x00;
-    this.f = 0x40; // Z set -- measured, mechanism named below [lead-verified]
+    this.f = 0x40; // Z set -- measured, mechanism named below
     this.b = 0;
     this.c = 0;
     this.d = 0;
@@ -400,7 +401,7 @@ export class Regs {
    * This matters concretely at entry_3009: `res 2,d` at 0x3043 is immediately
    * followed by `dec d`, and the exit test reads `dec d`'s flags. A res that
    * clobbered a flag would corrupt that test while leaving D correct -- the
-   * §29 compensating-error shape, invisible in a memory diff.
+   * compensating-error shape, invisible in a memory diff.
    *
    * Matches MAME 0.288 z80.cpp:567 `res` / :575 `set`, which are `value &
    * ~(1<<bit)` and `value | (1<<bit)` with no m_f access whatsoever.
@@ -484,9 +485,9 @@ export class Regs {
   /**
    * SBC HL,rr -- ED 42/52/62/72. 16-bit subtract with carry. 15 T.
    *
-   * Authored by qa (qa/drafts/primitives-cpir-sbc16.md), pinned to mame0288
-   * z80.lst:394 `sbc_hl`. I re-read the macro before merging: n=1 and the
-   * overflow term both confirmed against the source, not taken on trust.
+   * Pinned to mame0288 z80.lst:394 `sbc_hl`; the macro was re-read before
+   * integrating: n=1 and the overflow term both confirmed against the source,
+   * not taken on trust.
    *
    * NOT A SIGN-FLIPPED adcHl, and that is the trap:
    *   N        adc_hl:372 n=0        sbc_hl:405 n=1   <- SBC SETS IT
@@ -555,13 +556,13 @@ export class Regs {
    *
    * CYCLES ARE THE CALLER'S TO CHARGE: 21 T per repeating iteration, 16 T for the
    * terminating one -- `21 * (n - 1) + 16` for the returned n. Nothing here
-   * verifies the caller does that (the §72 targets-not-values gap; this does not
+   * verifies the caller does that (the targets-not-values gap; this does not
    * close it).
    *
    * BC == 0 on entry means 65536 iterations, because BC-- wraps before the test.
    * That is the real Z80 behaviour and is reproduced rather than guarded.
    *
-   * NOT MODELLED, DELIBERATELY (qa's finding, stated not hidden): while CPIR
+   * NOT MODELLED, DELIBERATELY (stated, not hidden): while CPIR
    * repeats, MAME sets F3/F5 from the PC high byte (cpir:752-755). A translated
    * routine has no PC. Omitting it is CORRECT because the next iteration's cpi
    * overwrites those bits before anything can read them -- after a completed
@@ -589,14 +590,13 @@ export class Regs {
    * ADD IY,rr -- 15 T. Sibling of addIx (mame0288 z80.lst:4321 fd09, the
    * IDENTICAL @add16 macro dd09 uses for IX; only the destination differs).
    *
-   * WHY DRAIN #20'S TWIN HAZARD DOES NOT APPLY (qa stated it explicitly and it
-   * is worth keeping): this re-implements nothing. It delegates to the SAME
-   * add16 helper that addIx and addHl already use, so the flag semantics -- S/Z/PV
-   * preserved, N cleared, C from the carry-out, F3/F5 from the result high byte
-   * -- CANNOT drift from its sibling. It is safe because it SHARES THE PATH, not
-   * because it looks similar. Had it inlined the flags, #20 would apply in full.
-   * The one real hazard is the destination register, which is what its test
-   * mutation attacks.
+   * WHY THE TWIN-IMPLEMENTATION HAZARD DOES NOT APPLY HERE: this re-implements
+   * nothing. It delegates to the SAME add16 helper that addIx and addHl already
+   * use, so the flag semantics -- S/Z/PV preserved, N cleared, C from the
+   * carry-out, F3/F5 from the result high byte -- CANNOT drift from its sibling.
+   * It is safe because it SHARES THE PATH, not because it looks similar. Had it
+   * inlined the flags, that hazard would apply in full. The one real hazard is
+   * the destination register, which is what its test mutation attacks.
    */
   addIy(v) {
     this.iy = this.add16(this.iy, v);

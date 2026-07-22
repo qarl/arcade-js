@@ -1,8 +1,9 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /**
  * Donkey Kong Z80 address space.
  *
- * Authoritative map from MAME's src/mame/nintendo/dkong.cpp, recorded in
- * ../docs/BOOT-RECON.md. Do not re-derive it from observation.
+ * Authoritative map from MAME's src/mame/nintendo/dkong.cpp. Do not
+ * re-derive it from observation.
  *
  *   0x0000-0x3FFF  ROM (region is 0x0000-0x4FFF; base dkong populates 16KB)
  *   0x6000-0x6BFF  work RAM        <- note the bound: 0x6BFF, not 0x6FFF
@@ -16,7 +17,7 @@
  *   0x7D81 grid enable | 0x7D82 flipscreen | 0x7D83 sprite bank
  *   0x7D84 NMI mask    | 0x7D85 8257 DRQ   | 0x7D86-87 palette bank (2 bits)
  *
- * THREE THINGS THIS MODEL EXISTS TO GET RIGHT (GATE-RULES §10):
+ * THREE THINGS THIS MODEL EXISTS TO GET RIGHT:
  *
  * 1. A READ AND A WRITE AT THE SAME ADDRESS ARE DIFFERENT DEVICES. 0x7C00
  *    reads IN0 but writes the sound latch. Backing that address with a single
@@ -34,7 +35,7 @@
  *    one is a bug found 400 frames later. In particular 0x6C00-0x6FFF is NOT
  *    RAM despite sitting between mapped regions.
  *
- * State lives at its real address (GATE-RULES §4): 0x6A31 is workRam[0x0A31],
+ * State lives at its real address: 0x6A31 is workRam[0x0A31],
  * never a JS field named after what it holds. Named accessors elsewhere are a
  * *view* over these arrays; the arrays are the source of truth, because they
  * are what gets diffed against MAME.
@@ -94,7 +95,7 @@ function hex4(v) {
 export class AddressSpace {
   /**
    * @param {Uint8Array} rom  16KB maincpu image (0x0000-0x3FFF)
-   * @param {object} io       I/O device model (see src/io.js)
+   * @param {object} io       I/O device model (see ./io.js)
    */
   constructor(rom, io) {
     if (rom.length !== ROM_END + 1) {
@@ -106,7 +107,7 @@ export class AddressSpace {
     // writes land in the same arrays the state diff reads.
     if (io && io.dma) io.dma.mem = this;
 
-    // Contiguous and dumpable, deliberately (GATE-RULES §4).
+    // Contiguous and dumpable, deliberately.
     this.workRam = new Uint8Array(WORK_RAM_SIZE);
     this.spriteRam = new Uint8Array(SPRITE_RAM_SIZE);
     this.videoRam = new Uint8Array(VIDEO_RAM_SIZE);

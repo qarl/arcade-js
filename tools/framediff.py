@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Pixel-diff the translated JS output against MAME golden frames.
 
 Reports the FIRST differing frame and where it differs. That is the signal the
-CHARTER's method runs on: a divergence points straight at the routine that just
+method runs on: a divergence points straight at the routine that just
 ran. Nobody should be debugging frame 900 when frame 12 already differs.
 
-THE FROZEN OFFSET (docs/HARNESS.md §4, GATE-RULES §2):
+THE FROZEN OFFSET (docs/04-integration-testing.md):
 
     JS frame M  <->  AVI frame M+1      (offset 1)
 
@@ -13,7 +14,7 @@ The MAME AVI writer LAGS ONE FRAME: AVI[N] is the image of emulated frame N-1.
 
 DERIVED BY THREE ROUTES, NO TWO SHARING AN INSTRUMENT, none a goodness-of-fit.
 
-  1. GOLDEN-SIDE, RENDERS NOTHING (this is the one that survived the night).
+  1. GOLDEN-SIDE, RENDERS NOTHING (this is the decisive one).
      Compare WHEN VRAM changes against WHEN the image changes. VRAM content
      changes at frames {3,4,5,6,7}; golden AVI changes at {4,5,6,7,8}. A clean
      +1 bijection, no extras, no gaps. Two IMPOSSIBLE-VALUE arguments carry it,
@@ -138,7 +139,7 @@ t=0.0165s = 50688 cycles = exactly one frame period.
 
 This was a CORRECTION, not a re-fit, and the distinction matters:
   * The trigger was not a failing diff -- nothing was red. It was two INDEPENDENT
-    DERIVATIONS DISAGREEING (the coder's Z80 instruction timings vs this
+    DERIVATIONS DISAGREEING (Z80 instruction timings vs this
     instrument). Nobody needed this to go green.
   * The root cause was measured directly and independently of our JS.
   * An UNRELATED ANOMALY VANISHED: state/AVI counts went 183/182 -> 183/183 and
@@ -155,8 +156,8 @@ loop's byte count, so that comparison is loose).
 
 *** This constant is an INPUT, never an output. It is NEVER re-fitted to make a
 *** failing diff pass. A failing diff means the JS is wrong until proven
-*** otherwise. --offset exists for contract-change investigation under the
-*** lead's sign-off, and it warns loudly. There is deliberately no --calibrate:
+*** otherwise. --offset exists for contract-change investigation under
+*** explicit sign-off, and it warns loudly. There is deliberately no --calibrate:
 *** fitting the reference to the implementation is how a hard gate goes soft.
 
 Usage:
@@ -171,7 +172,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import frameio  # noqa: E402
 import scope  # noqa: E402
 
-# Frozen. See module docstring and docs/HARNESS.md §4.
+# Frozen. See module docstring and docs/04-integration-testing.md.
 # 2 -> 1 -> 0 -> 1. The value is not what kept being wrong; THE BASIS WAS WRONG
 # EVERY TIME. 2 and 1 came from a transition test that scored 100% for both
 # candidates; 0 came from a frame whose arithmetic ran through a wrong tilemap
@@ -334,7 +335,7 @@ def diagnose_whole_frame(golden_buf, actual_buf):
     So test the likely hypotheses explicitly and NAME the one that fits. Each is
     a real, documented trap:
       * R/B swap    -- MAME's AVI is bgr24; getting the conversion wrong is the
-                       night-one gotcha, and it makes every pixel differ.
+                       classic gotcha, and it makes every pixel differ.
       * uniform     -- a renderer wired up but drawing nothing.
       * row shift   -- an off-by-one in row stride or the first scanline.
       * vertical flip -- DK has a real flipscreen latch, so this is a plausible
@@ -412,7 +413,7 @@ def main():
         "--offset",
         type=int,
         default=None,
-        help="OVERRIDE the frozen AVI offset. Contract change -- needs lead sign-off.",
+        help="OVERRIDE the frozen AVI offset. Contract change -- needs maintainer sign-off.",
     )
     p.add_argument("--max-frames", type=int, help="stop after comparing this many")
     p.add_argument(
@@ -427,7 +428,7 @@ def main():
         offset = args.offset
         sys.stderr.write(
             f"\n*** WARNING: overriding the FROZEN offset {FROZEN_OFFSET} with {offset}.\n"
-            f"*** GATE-RULES §2: the offset is never re-fitted to make a failing diff pass.\n"
+            f"*** The offset is never re-fitted to make a failing diff pass.\n"
             f"*** If this makes a red diff go green, the JS is still wrong.\n\n"
         )
 

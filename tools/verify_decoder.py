@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Cross-validate tools/z80_decode.py against z80dasm 1.2.0.
 
-GATE-RULES §9: two independent paths that must agree beats one authoritative
+Two independent paths that must agree beats one authoritative
 path. Our decoder is hand-written, and an instruction-LENGTH error is the
 highest-severity bug class in this project -- one wrong length desyncs the
 entire downstream instruction stream and every routine translated from it.
@@ -163,7 +164,7 @@ def check_rom(rom: str, blocks: str) -> int:
     # thousands of bogus extras. An earlier version of this filtered on
     # `tr.kind[a] == CODE_START`, which is the definition of `ours` -- making
     # the check provably empty and its clean result structurally guaranteed
-    # rather than verified (GATE-RULES §12).
+    # rather than verified.
     code_bytes = {
         a for a in range(len(mem)) if tr.kind[a] in (CODE_START, CODE_OPERAND)
     }

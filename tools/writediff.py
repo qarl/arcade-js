@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Diff hardware write traces: JS vs MAME golden (GATE-RULES §28).
+# SPDX-License-Identifier: GPL-3.0-only
+"""Diff hardware write traces: JS vs MAME golden.
 
 Gates the surface the state dump never covered -- control latches (flipscreen,
 sprite bank, palette bank), i8257 programming, and the sound latch. A latch WRITE
@@ -70,7 +71,7 @@ def main():
     golden = writeio.WriteTrace(args.golden)
     actual = writeio.WriteTrace(args.actual)
 
-    # §16: an empty trace is not a pass. A capture path that emits no writes has
+    # An empty trace is not a pass. A capture path that emits no writes has
     # verified nothing, and absence must never read as success.
     if len(golden) == 0:
         print("[writediff] FAIL -- golden write trace is EMPTY. Nothing was captured,")
@@ -170,7 +171,7 @@ def main():
         "\n  Order is part of the contract: boot writes latches as xor a / three\n"
         "  stores / inc a / one store, so the first three carry A=0 and the fourth\n"
         "  A=1. A reordered trace is a real divergence, not an equivalent one.\n"
-        "\n  §19: the FIX must trace to an independently-verifiable ROM fact.\n"
+        "\n  The FIX must trace to an independently-verifiable ROM fact.\n"
         "  This is evidence that something is wrong and where -- NOT a\n"
         "  specification of what the code should write."
     )

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Prize (bonus-item) pixel + pickup gate for the DK translation.
 
 Pauline's dropped PRIZES -- parasol/hat/purse -- are worth level-based points

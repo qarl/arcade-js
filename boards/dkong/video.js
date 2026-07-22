@@ -1,10 +1,10 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /**
  * Video ROM decode: tiles, sprites and the colour PROMs.
  *
  * Graphics come from the character/sprite ROMs and the colour PROMs, decoded
- * deterministically -- CHARTER methodology point 5. There is no guessing
- * here and no observation of screenshots; the layouts are stated facts from
- * MAME's driver, recorded in ../docs/BOOT-RECON.md.
+ * deterministically. There is no guessing here and no observation of
+ * screenshots; the layouts are stated facts from MAME's driver.
  *
  * Region layouts (verified, from the driver):
  *   gfx1  8x8x2 planar tiles, 64 colour codes.
@@ -192,9 +192,8 @@ export const VCC = 5.0;
  *     ...
  *     return int(v * 255 / vcc + 0.4);
  *
- * THIS IS WHERE THE PROM INVERSION LIVES, and both halves of that were
- * counter-intuitive enough that neither the lead nor I would have reasoned
- * to them:
+ * THIS IS WHERE THE PROM INVERSION LIVES, and both halves of that are
+ * counter-intuitive:
  *
  *  - The inversion is `vcc - v` applied to the computed VOLTAGE, AFTER the
  *    resistor network -- not a complement of the PROM byte before lookup.
@@ -293,7 +292,7 @@ export const DKONG_NET_BCK_INFO = {
  * golden byte-for-byte. THE WRONG CONSTANT PRODUCED A PERFECT MATCH BY
  * CONCEALING THE PIXELS THAT WOULD HAVE FALSIFIED IT.
  *
- * The value is now pinned by QA's block-level mapping, derived from golden
+ * The value is now pinned by a block-level mapping, derived from golden
  * artifacts alone and validated on five STATIC frames (8, 20, 60, 150, 300)
  * with zero mismatched blocks, against 200 for the alternative:
  *
@@ -301,10 +300,9 @@ export const DKONG_NET_BCK_INFO = {
  *
  * which is precisely this file's flip path with VISIBLE_Y0 = 16:
  * `ty = 16 + 224 - 1 - sy` spans rows 29..2, and `tx = 255 - sx` spans
- * columns 31..0. Two independent derivations meeting on the same mapping.
- *
- * [team-measured: QA, block mapping over five static frames]
- * [derived: agrees with the flip transform in renderTilemapPens]
+ * columns 31..0. Two independent derivations meeting on the same mapping:
+ * the block mapping over five static frames, and the flip transform in
+ * renderTilemapPens.
  */
 export const VISIBLE_Y0 = 16;
 
@@ -617,7 +615,7 @@ export function normalizeRange(palette, start = 0, end = 255, lumMin = 0, lumMax
 }
 
 /**
- * Render one frame to the RGB888 buffer QA's contract specifies:
+ * Render one frame to the RGB888 buffer the frame contract specifies:
  * 256x224, row-major, top-left origin, R,G,B per pixel, no padding,
  * NATIVE ORIENTATION UNROTATED.
  *
@@ -645,12 +643,12 @@ export function renderFrameRGB(videoRam, tiles, charColour, palette, opts = {}) 
 /**
  * Draw the sprite layer ON TOP of an already-painted tilemap frame buffer.
  *
- * A FRAME-LEVEL POST-PASS with SCANLINE-FAITHFUL selection inside -- the shape
- * the coder and QA agreed. Frame-level because QA's trace proved sprite RAM is
- * written only in vblank on all 207 sprite-bearing frames, so it is static
- * across the visible frame; scanline-faithful because dkong's hardware buffers
- * one scanline of sprites at a time with a 16-per-line limit, and MAME's
- * draw_sprites reproduces that per scanline.
+ * A FRAME-LEVEL POST-PASS with SCANLINE-FAITHFUL selection inside. Frame-level
+ * because the trace showed sprite RAM is written only in vblank on all 207
+ * sprite-bearing frames, so it is static across the visible frame;
+ * scanline-faithful because dkong's hardware buffers one scanline of sprites
+ * at a time with a 16-per-line limit, and MAME's draw_sprites reproduces that
+ * per scanline.
  *
  * TRANSCRIBED FROM MAME 0.288 dkong_v.cpp draw_sprites (the version called by
  * screen_update_dkong with mask_bank=0x40, shift_bits=1 -- NOT the 0x10,3 of
@@ -669,8 +667,7 @@ export function renderFrameRGB(videoRam, tiles, charColour, palette, opts = {}) 
  *
  * The geometry maps our output row `sy` (0..223, top origin) to MAME's raster
  * `scanline = sy + VBEND` (VBEND = 16, the first visible line). Validated
- * against golden frame-by-frame, not derived on paper alone -- the oracle may
- * say WHERE (§26).
+ * against golden frame-by-frame, not derived on paper alone.
  */
 export function drawSprites(rgb, spriteRam, sprites, palette, opts = {}) {
   const { flip = 0, paletteBank = 0, spriteBank = 0 } = opts;
@@ -756,10 +753,9 @@ export const VBEND = 16;
 /**
  * Lines of vertical blanking BEFORE the first displayed line, measured from
  * the FRAME ORIGIN -- which for this driver is the vblank point, not the top
- * of the visible display. The EVIDENCE is QA's measurement of MAME's real
- * NMI entries -- 202771 and onward, every one at frame N.000x -- not
- * BOOT-RECON's screen params, which state vbend/vbstart and are the source
- * of the REFUTED 46080 derivation rather than support for this one.
+ * of the visible display. The evidence is the measured MAME NMI entries --
+ * 202771 and onward, every one at frame N.000x. The raw screen params state
+ * vbend/vbstart but do not, on their own, fix where the frame origin sits.
  *
  * The frame runs vbstart(240) .. 263, then 0 .. 239, so the first displayed
  * line (16) sits 24 + 16 = 40 lines into the frame, not 16. Using 16 put

@@ -1,12 +1,13 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /**
  * The Donkey Kong machine: address space + I/O + register file, plus the
  * frame accounting both validation modes are indexed by.
  *
- * FRAME SAMPLING CONTRACT (QA-owned, do not drift): state and frame buffers
+ * FRAME SAMPLING CONTRACT (do not drift): state and frame buffers
  * are sampled at the frame boundary BEFORE that frame's CPU execution.
  *   state[0] = power-on state, before a single instruction runs
  *   state[N] = state after frames 0..N-1 have executed
- * This matches what MAME's frame notifier gives QA, so both sides sample
+ * This matches what MAME's frame notifier provides, so both sides sample
  * identically. Sampling after execution instead puts every frame off by one
  * and reads as a translation bug.
  */
@@ -23,7 +24,7 @@ import {
 } from "../../boards/dkong/video.js";
 
 /**
- * Z80 T-states per video frame, DERIVED not fitted (GATE-RULES §3):
+ * Z80 T-states per video frame, DERIVED not fitted:
  *
  *   frame rate = pixclock / (htotal * vtotal) = 6144000 / (384 * 264)
  *              = 60.606060... Hz
@@ -44,7 +45,7 @@ export const CYCLES_PER_FRAME = 50688;
  * The vblank NMI asserts AT THE FRAME BOUNDARY -- cycle N * 50688 -- not
  * partway into the frame.
  *
- * This was measured by QA, by tapping reads of 0x0066 (the NMI vector, so the
+ * This was measured by tapping reads of 0x0066 (the NMI vector, so the
  * tap fires when the handler's first byte is fetched): NMI entries at 202771,
  * 253451, 304141, 354826, 405518, 456213 -- every one at frame N.000x.
  *
@@ -184,7 +185,7 @@ export class Machine {
    *
    * WHY THE PC RIDES ALONG. If an NMI is accepted here, the Z80 pushes the
    * address of the next instruction, and that value lands on the stack inside
-   * the work RAM QA diffs. Keeping the PC as separate bookkeeping meant it
+   * the work RAM that is diffed against MAME. Keeping the PC as separate bookkeeping meant it
    * went stale the moment control entered a routine that did not maintain it
    * -- a review found the first real NMI pushing 0x02C5 while two calls deep
    * in 0x06xx code. Carrying it as an argument makes the stale case
@@ -201,7 +202,7 @@ export class Machine {
    * jump to 0x0066.
    *
    * THE PUSHED PC MATTERS AND IS NOT A FREE CHOICE. It lands on the stack at
-   * the top of work RAM, inside the 5120 bytes QA diffs against MAME, so it
+   * the top of work RAM, inside the 5120 bytes diffed against MAME, so it
    * must be the value the ROM would have had there -- not a sentinel, not
    * zero. That is why translated code maintains `m.pc`.
    *
@@ -297,12 +298,9 @@ export class Machine {
     // A bare tick() is an instruction whose successor address was never
     // recorded, so the PC is stale from here until the next step().
     // INVALIDATING AT THE END, after the NMI check, is what makes the guard
-    // in fireNmi able to fire at all -- a review found this line missing
-    // while two comments claimed it existed, which meant pcKnown could never
-    // return to false once any step() had run. The guard was inert, and the
-    // reason it "stopped triggering naturally" was not that every routine
-    // maintains the PC (boot.js and nmi.js still do not) but that the
-    // invalidation was never wired up.
+    // in fireNmi able to fire at all: it lets pcKnown return to false once a
+    // step() has run. Not every routine maintains the PC (boot.js and nmi.js
+    // still do not), so without this invalidation the guard would be inert.
     this.pcKnown = false;
   }
 
@@ -364,7 +362,7 @@ export class Machine {
     this.booted = true;
   }
 
-  /** Reset through the end of boot only. See bootOnly() in rom/boot.js. */
+  /** Reset through the end of boot only. See bootOnly() in ./translated/boot.js. */
   runBoot() {
     bootOnly(this);
     this.booted = true;
@@ -376,7 +374,7 @@ export class Machine {
    * Control flow between translated routines is ordinary JS calling, but that
    * is not sufficient: the Z80 stack lives at the top of work RAM (`ld
    * sp,0x6c00` puts it at 0x6BFF downward), which is inside the 5120-byte
-   * region QA diffs against MAME. If a translated `call` does not write its
+   * region diffed against MAME. If a translated `call` does not write its
    * return address to memory, our RAM differs from MAME's at addresses no
    * routine ever names.
    *
@@ -435,7 +433,7 @@ export class Machine {
   }
 
   /**
-   * Render the current frame to 256x224 RGB888, per QA's frame contract.
+   * Render the current frame to 256x224 RGB888, per the frame-sampling contract.
    * Requires gfx1 and proms at construction.
    */
   renderFrame() {
@@ -535,7 +533,7 @@ export class Machine {
     this.startRasterFrame(this.frames.length - 1);
   }
 
-  /** 5120-byte state dump: work + sprite + video, per QA's contract. */
+  /** 5120-byte state dump: work + sprite + video, per the frame-sampling contract. */
   dumpState() {
     return this.mem.dumpState();
   }

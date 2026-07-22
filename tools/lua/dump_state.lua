@@ -1,4 +1,5 @@
--- Per-emulated-frame state dump for the arcade2 validation harness.
+-- SPDX-License-Identifier: GPL-3.0-only
+-- Per-emulated-frame state dump for the validation harness.
 --
 -- Dumps three RAM regions once per emulated frame, in this fixed order:
 --   work   0x6000-0x6BFF  3072 bytes
@@ -20,7 +21,7 @@
 -- This off-by-one was live and briefly shipped. It was invisible because the boot
 -- RAM clear writes ZEROS over already-ZERO power-on RAM, so state[0] and state[1]
 -- are byte-identical and a misalignment between them cannot be seen. It surfaced
--- only when the coder derived 29 cycles/byte from Z80 instruction timings and my
+-- only when one derivation gave 29 cycles/byte from Z80 instruction timings and my
 -- indexing implied 19.4 -- a 1.5x disagreement that turned out to be exactly one
 -- frame of cycles. Two independent derivations disagreeing is what caught it.
 --
@@ -42,7 +43,7 @@ local mem = manager.machine.devices[":maincpu"].spaces["program"]
 -- DSW0 (read at 0x7D80) is an input to everything the ROM computes, and MAME
 -- persists dipswitch changes to cfg/<game>.cfg -- a stray cfg silently changes
 -- every golden frame and is invisible in the capture itself.
--- The ROM byte is a control (GATE-RULES §12): a probe reporting an expected
+-- The ROM byte is a control: a probe reporting an expected
 -- value must show it can report a non-trivial one.
 local cfgf = io.open(os.getenv("CONFIG_OUT") or "config.txt", "w")
 if cfgf then

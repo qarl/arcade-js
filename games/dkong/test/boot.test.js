@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /**
  * Boot-path tests.
  *
@@ -6,9 +7,9 @@
  * Run: node --test
  */
 
-import test from "node:test";
+import nodeTest from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 import { CYCLES_PER_FRAME, Machine } from "../machine.js";
 import { AddressSpace, STATE_DUMP_SIZE, UnmappedAccess } from "../../../boards/dkong/memory.js";
@@ -55,7 +56,17 @@ import {
 } from "../../../boards/dkong/video.js";
 import { Regs, F_C, F_H, F_N, F_PV, F_S, F_Z } from "../../../core/cpu/z80.js";
 
-const ROM = new Uint8Array(readFileSync(new URL("../rom/maincpu.bin", import.meta.url)));
+// The ROM/PROM/GFX images are copyright and not committed, so they are absent on
+// a fresh public clone. Every boot-path test drives a Machine built from the ROM
+// (directly or via a helper), so guard the load and skip them all with a clear
+// message when the images are missing, rather than crashing at import time.
+const ROM_DIR = new URL("../rom/", import.meta.url);
+const ROM_PRESENT = ["maincpu.bin", "gfx1.bin", "proms.bin"]
+  .every((f) => existsSync(new URL(f, ROM_DIR)));
+const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM_DIR))) : null;
+const test = ROM_PRESENT
+  ? nodeTest
+  : (name, fn) => nodeTest(name, { skip: "skipped: ROM not built — run 'make -C games/dkong rom'" }, fn);
 
 
 test("state[0] is 5120 zero bytes (QA verified this against MAME)", () => {
@@ -78,7 +89,7 @@ test("boot fills video RAM with tile 0x10 -- CONFIRMED against MAME at PC=0x02B8
   // 0x00, 0x60C0-0x60FF all 0xFF, 0x60B0 = 0x60B1 = 0xC0.
   //
   // The claim was right; the instrument was blind. A limit of one sampling
-  // strategy had been written down as a limit of reality (GATE-RULES §13).
+  // strategy had been written down as a limit of reality.
   const m = new Machine(ROM);
   m.runBoot();
   const video = m.dumpState().slice(4096, 5120);
@@ -191,7 +202,7 @@ test("runFrames captures the requested count, state[0] before any instruction", 
 });
 
 test("state[3] is the first frame capable of failing", () => {
-  // GATE-RULES §17: a green on a degenerate frame is not evidence. state[0..2]
+  // a green on a degenerate frame is not evidence. state[0..2]
   // are all-zero because boot's clear writes zeros over already-zero RAM, so
   // they match under almost any cycle count.
   const frames = new Machine(ROM).runFrames(4);
@@ -829,7 +840,7 @@ test("loc_0dd3 charges exact T-states through to the loc_0e19 boundary", () => {
 });
 
 test("sub_0f56 clears, copies a ROM table, and seeds the computed values", () => {
-  // INTEGRATED FROM A DRAFT. Pins the four products the routine exists to
+  // Pins the four products the routine exists to
   // produce, with memory POISONED first so "cleared" means cleared rather
   // than never-written -- the distinction that made my first check of this
   // routine report a false failure.
@@ -839,7 +850,7 @@ test("sub_0f56 clears, copies a ROM table, and seeds the computed values", () =>
   m.push16(0x0d62); // the return address `call 0x0f56` at 0x0D5F pushes
   // POISON FIRST, THEN set the inputs. A first version did it the other way
   // round and the poison overwrote 0x6229 -- which turned out to demonstrate
-  // the drafter's OQ5 by accident: 0xA5 * 10 = 1650 WRAPS to 0x72, +0x28 is
+  // the mod-256 overflow case by accident: 0xA5 * 10 = 1650 WRAPS to 0x72, +0x28 is
   // 0x9A, and the clamp then bounds it to 0x50. The clamp caught it only
   // because the wrapped value happened to stay above 0x51; a wrap landing
   // below it would pass silently as a small number.
@@ -850,7 +861,7 @@ test("sub_0f56 clears, copies a ROM table, and seeds the computed values", () =>
   // With 0x6227 = 1 the rst 0x28 table at 0x0FCD selects entry 1 = 0x0FD7,
   // so reaching past the dispatch PROVES it resolved -- the routine no longer
   // stops at its own tail. That the caller's return address survives the
-  // dispatch is the OQ1/OQ4 resolution, recorded at the tail.
+  // dispatch is the resolution, recorded at the tail.
   //
   // The stop address moved forward as each helper landed -- 0x122A, then
   // 0x11FA -- and loc_0fd7 IS NOW COMPLETE, so there is no stop left to pin.
@@ -861,9 +872,9 @@ test("sub_0f56 clears, copies a ROM table, and seeds the computed values", () =>
   // where execution stopped, and now measures it by where execution ARRIVES.
   // A bare doesNotThrow would be strictly weaker than what it replaces -- it
   // admits every wrong return address -- so this pins the PC as well. 0x0D62
-  // is the return address pushed above, which makes this the OQ1/OQ4
+  // is the return address pushed above, which makes this the
   // resolution stated positively: the rst 0x28 dispatch does not consume its
-  // caller's return address, and the caller IS returned to (§65).
+  // caller's return address, and the caller IS returned to.
   assert.doesNotThrow(() => sub_0f56(m), "loc_0fd7 must now run to completion");
   assert.strictEqual(
     m.pc,
@@ -999,8 +1010,8 @@ test("sub_0f56 clears, copies a ROM table, and seeds the computed values", () =>
     "sub_11a6 chain: 11ec stride-2, 122a source restore, 11d3 +3/+7/+8/+5",
   );
 
-  // OQ5 made concrete: an input that overflows the mod-256 arithmetic. This
-  // is the drafter's flagged concern, pinned rather than argued.
+  // The overflow case made concrete: an input that overflows the mod-256
+  // arithmetic. This is a real concern, pinned rather than argued.
   const w = new Machine(ROM);
   w.regs.sp = 0x6c00;
   w.push16(0x0d62);
@@ -1027,7 +1038,7 @@ test("sub_0f56 clears, copies a ROM table, and seeds the computed values", () =>
 });
 
 test("sub_2441 picks a table from 0x6227 across a flag-neutral load", () => {
-  // INTEGRATED FROM A DRAFT. The hazard the drafter flagged as OQ-2: three
+  // The hazard: three
   // `jp z` instructions test a `dec a` from TWO instructions back, across an
   // intervening `ld hl,nn` that is flag-neutral. Reorder the load and the
   // test "for readability" and the code still runs and picks the WRONG
@@ -1067,16 +1078,16 @@ test("sub_2441 picks a table from 0x6227 across a flag-neutral load", () => {
   assert.ok(m2.regs.iy >= 0x6310, "IY base 0x6310 when the head-A sum is zero");
 });
 
-// ---- loc_1dc9 (INTEGRATED FROM A DRAFT, code3) -----------------------------
+// ---- loc_1dc9 -----------------------------
 // UNGATED by execution: sub_1dbd (its only caller) is not translated, so no
-// gate reaches it. These tests exercise the drafted hazards directly. Every
+// gate reaches it. These tests exercise the hazards directly. Every
 // exit is a tail jump to an untranslated unit, so loc_1dc9 always ends in a
 // NotImplemented throw; m.pc after the throw is the tail-jump target, set by
 // the m.step that precedes it. Expected exits/values are sourced from the ROM
-// bytes at 0x1DC9-0x1DF4, never from the skeleton (§21).
+// bytes at 0x1DC9-0x1DF4, never from the skeleton.
 
 test("loc_1dc9 advances state 0x6340 -> 2 UNCONDITIONALLY, before any dispatch", () => {
-  // Draft OQ-3 / S8. `ld a,0x02 / ld (0x6340),a` at 0x1DCE-0x1DD2 precedes the
+  // `ld a,0x02 / ld (0x6340),a` at 0x1DCE-0x1DD2 precedes the
   // first branch (rra/jp c at 0x1DD6), so 0x6340 steps to 2 on EVERY entry --
   // including the earliest exit, bit 0 set -> 0x3E70. A translator who folds
   // the store into the fall-through path would leave 0x6340 unwritten here.
@@ -1099,7 +1110,7 @@ test("loc_1dc9 advances state 0x6340 -> 2 UNCONDITIONALLY, before any dispatch",
 });
 
 test("loc_1dc9 dispatches on 0x6342 bits 0,1,2 in PRIORITY ORDER", () => {
-  // Draft §4 / S6 (first translated use of rra). Three rra rotate bits 0,1,2
+  // (first translated use of rra). Three rra rotate bits 0,1,2
   // out to carry in that order; each jp c takes the FIRST set bit. Exit targets
   // are the ROM's jp operands at 0x1DD7 (0x3E70), 0x1DDB (0x1E00), 0x1DDF
   // (0x1DF5). MUTATION this catches: a wrong/swapped jp target, e.g. the bit-1
@@ -1125,7 +1136,7 @@ test("loc_1dc9 dispatches on 0x6342 bits 0,1,2 in PRIORITY ORDER", () => {
 });
 
 test("loc_1dc9's 0x6229 dispatch decs WITHOUT reloading A between the two dec a", () => {
-  // Draft §5 / S8. When 0x6342 bits 0-2 are clear, dispatch on A = mem[0x6229]:
+  // When 0x6342 bits 0-2 are clear, dispatch on A = mem[0x6229]:
   // `dec a / jp z,0x1E00 / dec a / jp z,0x1E08 / jp 0x1E10`, NO reload between
   // the decs (same idiom as sub_2441's 0x6227 dispatch). The 0x6229==2 case is
   // discriminating: the SECOND dec must see 1 (from the first dec), not a
@@ -1161,11 +1172,11 @@ test("loc_1dc9's 0x6229 dispatch decs WITHOUT reloading A between the two dec a"
 });
 
 test("sub_1dbd routes on 0x6340 through the rst 0x28 table at 0x1DC1", () => {
-  // INTEGRATED FROM A DRAFT (code3). rst 0x28 inline-jump-table dispatcher:
+  // rst 0x28 inline-jump-table dispatcher:
   // A = mem[0x6340] indexes the 4-entry table at 0x1DC1. Mechanism modelled per
   // the sub_0f56 precedent (push table base, pop it in the handler, index 2*A,
   // read target FROM ROM). Targets come from the ROM table bytes, NOT the
-  // skeleton (§21). MUTATION this catches: dropping `add a,a` (index not
+  // skeleton. MUTATION this catches: dropping `add a,a` (index not
   // doubled) sends 0x6340==2 into 0x1DC9 (=loc_1dc9) instead of 0x1E4A, and
   // 0x6340==1 to a garbage target instead of loc_1dc9.
   const romTarget = (i) => ROM[0x1dc1 + 2 * i] | (ROM[0x1dc1 + 2 * i + 1] << 8);
@@ -1217,7 +1228,7 @@ test("sub_1dbd routes on 0x6340 through the rst 0x28 table at 0x1DC1", () => {
   }
 });
 
-// ---- loc_1e15 (INTEGRATED FROM A DRAFT, code3) -- drafted TEST-SPEC, §9 ------
+// ---- loc_1e15 -----------------------------
 // loc_1e15 calls sub_309f first (harmless with power-on RAM: 0x60B0=0 ->
 // mem[0x6000] bit 7 clear -> the "slot occupied" branch returns without writing
 // 0x6343 or the planted pointer memory), then dereferences 0x6343 and ends in a
@@ -1225,7 +1236,7 @@ test("sub_1dbd routes on 0x6340 through the rst 0x28 table at 0x1DC1", () => {
 // expected values are the test's controlled synthetic memory, not the skeleton.
 
 test("loc_1e15 loads HL from the WORD at 0x6343 (indirect ld hl,(nn), not immediate)", () => {
-  // Draft §4a / TEST 1. 2A 43 63 = ld hl,(0x6343): HL = the word AT 0x6343.
+  // TEST 1. 2A 43 63 = ld hl,(0x6343): HL = the word AT 0x6343.
   // MUTATION this catches: regs.hl = 0x6343 (immediate, opcode 21) -- sets HL to
   // the literal, so it would read/clear 0x6343 and end at HL=0x6346.
   const m = new Machine(ROM);
@@ -1239,9 +1250,9 @@ test("loc_1e15 loads HL from the WORD at 0x6343 (indirect ld hl,(nn), not immedi
 });
 
 test("loc_1e15 reads byte 0 into A BEFORE clearing it (order-critical, S8)", () => {
-  // Draft §4b / TEST 2. ld a,(hl) then ld (hl),0x00 -- A carries the PRE-clear
+  // TEST 2. ld a,(hl) then ld (hl),0x00 -- A carries the PRE-clear
   // byte. MUTATION this catches: clear first, then read -> A = 0. Non-vacuous
-  // ONLY because the planted byte 0x5A != 0 (the §71 zero-vs-zero trap avoided).
+  // ONLY because the planted byte 0x5A != 0 (the zero-vs-zero trap avoided).
   const m = new Machine(ROM);
   m.regs.sp = 0x6c00; m.push16(0x4d5e);
   m.mem.write8(0x6343, 0x30);
@@ -1252,10 +1263,10 @@ test("loc_1e15 reads byte 0 into A BEFORE clearing it (order-critical, S8)", () 
 });
 
 test("loc_1e15's inc l x3 wraps within the page, no carry into H -- SYNTHETIC", () => {
-  // Draft §4c / TEST 3, LATENT. Three inc l advance L only; at L=0xFF it wraps
+  // TEST 3, LATENT. Three inc l advance L only; at L=0xFF it wraps
   // without carrying into H. MUTATION this catches: regs.hl += 3 (inc hl x3),
   // which carries into H. SYNTHETIC pointer at 0x6AFE forces the wrap -- no real
-  // tape is known to place the 0x6343 pointer at a page boundary (§34).
+  // tape is known to place the 0x6343 pointer at a page boundary.
   const m = new Machine(ROM);
   m.regs.sp = 0x6c00; m.push16(0x4d5e);
   m.mem.write8(0x6343, 0xfe);
@@ -1265,16 +1276,16 @@ test("loc_1e15's inc l x3 wraps within the page, no carry into H -- SYNTHETIC", 
   assert.equal(m.mem.read8(0x6a30), 0x5a, "byte0 read from the wrapped deref pointer 0x6AFE");
 });
 
-// ---- loc_1e00 (INTEGRATED FROM A DRAFT, code3) -- drafted TEST-SPEC, §6 ------
+// ---- loc_1e00 -----------------------------
 // loc_1e00 sets (B, DE) and tail-jumps to the real loc_1e15, so a call runs the
 // whole loc_1e15 chain and ends in loc_1e15's NotImplemented throw at 0x1E36.
 // The 0x6343 pointer is planted at a safe work-RAM address so loc_1e15's deref
 // is clean. loc_1e15 preserves B/DE, so they survive to the throw.
 
 test("loc_1e00 sets B=0x7D, DE=0x0003 -- the constants distinguishing it from siblings", () => {
-  // Draft §6 / TEST 1. S7: loc_1e00 / loc_1e08 / loc_1e10 differ ONLY in (B, DE).
+  // TEST 1: loc_1e00 / loc_1e08 / loc_1e10 differ ONLY in (B, DE).
   // Expected pair from ROM bytes 0x1E01 (B) and 0x1E03-04 (DE, little-endian),
-  // NOT the skeleton (§21). MUTATION this catches: sibling constants (0x7E,
+  // NOT the skeleton. MUTATION this catches: sibling constants (0x7E,
   // 0x0005) copied in, or a DE byte-order slip (0x0300).
   assert.equal(ROM[0x1e01], 0x7d, "ROM 0x1E01 is B's immediate 0x7D");
   assert.equal(ROM[0x1e03] | (ROM[0x1e04] << 8), 0x0003, "ROM 0x1E03-04 LE is DE=0x0003");
@@ -1287,8 +1298,8 @@ test("loc_1e00 sets B=0x7D, DE=0x0003 -- the constants distinguishing it from si
   assert.doesNotThrow(() => loc_1e00(m));
 });
 
-test("loc_1e00's jp 0x1e15 is a TAIL JUMP -- no return address pushed (SP net-zero)", () => {
-  // Draft §6 / TEST 2. S2/S4: ROM 0x1E05 = 0xC3 (jp), not 0xCD (call). A jp
+test("loc_1e00's jp 0x1e15 is a TAIL JUMP -- no return address pushed (SP balanced)", () => {
+  // TEST 2: ROM 0x1E05 = 0xC3 (jp), not 0xCD (call). A jp
   // changes SP by 0. MUTATION this catches: modelling it as a call (m.push16 +
   // call) leaves SP = sp0 - 2. The loc_1e15 chain (call 0x309f + its ret) is
   // SP-balanced, so at the 0x1E36 throw SP must equal the entry SP.
@@ -1304,13 +1315,13 @@ test("loc_1e00's jp 0x1e15 is a TAIL JUMP -- no return address pushed (SP net-ze
   assert.equal(m.pc, 0x4d5e, "returns to the pushed caller");
 });
 
-// ---- entry_1e8c / entry_1e94 (INTEGRATED FROM A DRAFT, code2) -- §3 ----------
+// ---- entry_1e8c / entry_1e94 -- ----------
 
 test("entry_1e94 is a SINGLE caller-skip: pop hl drops one frame, ret -> caller's caller", () => {
-  // Draft §3 / TEST 1 (SYNTHETIC stack). pop hl (ROM 0x1E94 = e1) discards the
+  // TEST 1 (SYNTHETIC stack). pop hl (ROM 0x1E94 = e1) discards the
   // caller's return, then ret returns to the caller's CALLER. MUTATION this
   // catches: modelling it as a plain ret (dropping the pop hl) -> returns to the
-  // caller with SP one frame lower. Two-assertion form (§71a): SP delta AND PC.
+  // caller with SP one frame lower. Two-assertion form: SP delta AND PC.
   const SENTINEL = 0x4d5e; // caller's-caller return -- declared synthetic, != 0x1980
   const m = new Machine(ROM);
   m.regs.sp = 0x6c00;
@@ -1323,10 +1334,10 @@ test("entry_1e94 is a SINGLE caller-skip: pop hl drops one frame, ret -> caller'
 });
 
 test("entry_1e8c returns on (0x6350)==0 via ret z WITHOUT calling 0x1e96", () => {
-  // Draft §3 / TEST 2. ret z (ROM 0x1E90 = c8) returns when (0x6350)==0 and falls
+  // TEST 2. ret z (ROM 0x1E90 = c8) returns when (0x6350)==0 and falls
   // through to call 0x1e96 otherwise. MUTATION this catches: inverting to ret nz
   // -> on (0x6350)==0 it does NOT return, proceeds to `call 0x1e96` and throws
-  // NotImplemented. The discriminator is whether 0x1e96 is entered (§38): correct
+  // NotImplemented. The discriminator is whether 0x1e96 is entered: correct
   // returns cleanly, the mutation throws.
   const RET = 0x4d5e; // synthetic caller return
   const m = new Machine(ROM);
@@ -1337,13 +1348,13 @@ test("entry_1e8c returns on (0x6350)==0 via ret z WITHOUT calling 0x1e96", () =>
   assert.equal(m.pc, RET, "ret z taken -> normal return to the caller; 0x1e96 not called");
 });
 
-// ---- sub_1e96 (INTEGRATED FROM A DRAFT, code2) -- rst 0x28 dispatcher, §4 ----
+// ---- sub_1e96 -- rst 0x28 dispatcher ------
 // 3-entry table at 0x1E9A, indexed by (0x6345); all targets untranslated, so a
 // dispatch throws NotImplemented and m.pc is the resolved target. Targets read
-// from ROM table bytes, not the skeleton (§21).
+// from ROM table bytes, not the skeleton.
 
 test("sub_1e96 dispatches on the INDEX (0x6345), not a neighbouring address", () => {
-  // Draft §4 / TEST 1. MUTATION this catches: reading (0x6346) as the index.
+  // TEST 1. MUTATION this catches: reading (0x6346) as the index.
   const romTarget = (i) => ROM[0x1e9a + 2 * i] | (ROM[0x1e9a + 2 * i + 1] << 8);
   assert.equal(romTarget(1), 0x1f09, "ROM table[1] is 0x1F09");
   assert.equal(romTarget(2), 0x1f23, "ROM table[2] is 0x1F23");
@@ -1360,9 +1371,9 @@ test("sub_1e96 dispatches on the INDEX (0x6345), not a neighbouring address", ()
 });
 
 test("sub_1e96 scales the index by 2 (add a,a) before the table lookup", () => {
-  // Draft §4 / TEST 2. target = word at (0x1E9A + 2*index). MUTATION this catches:
+  // TEST 2. target = word at (0x1E9A + 2*index). MUTATION this catches:
   // dropping the *2 (byte offset) -> 0x1E9A+1 = 0x1E9B, word (1e 09) = 0x091E,
-  // nonsense. Index 1 chosen: at index 0 the *2 error is invisible (§34).
+  // nonsense. Index 1 chosen: at index 0 the *2 error is invisible.
   const m = new Machine(ROM);
   m.regs.sp = 0x6c00;
   m.push16(0x4d5e); // caller return -- loc_1f09 ends in ret
@@ -1373,14 +1384,14 @@ test("sub_1e96 scales the index by 2 (add a,a) before the table lookup", () => {
   assert.equal(m.pc, 0x4d5e, "loc_1f09 ret nz -> caller");
 });
 
-// ---- entry_1ea0 (INTEGRATED FROM A DRAFT, code2) -- §3, runs to ret ----------
+// ---- entry_1ea0 -- runs to ret ----------
 // A complete routine (ret at 0x1F08). ld ix,(0x6351) reads mem[0x6351]|mem[0x6352]<<8,
 // and 0x6352 is ALSO the HL-select byte -- so setting 0x6352=0x65 both picks HL=0x69b8
 // and puts IX in safe work RAM (0x65xx). Each test pushes a return address and reads
 // memory after ret. Expected values are from the ROM bytes / controlled synthetic RAM.
 
 test("entry_1ea0 INCREMENTS 0x6345 (state advance via incMem8), not a hardcoded store", () => {
-  // Draft §3 / TEST 1. inc (hl) @ 0x1EF9 advances the 1e96 dispatch index. Two
+  // TEST 1. inc (hl) @ 0x1EF9 advances the 1e96 dispatch index. Two
   // cases separate inc from a store-of-1: MUTATION mem.write8(0x6345,1) gives 1
   // from 0 (case A passes) but 1 from 2 (case B fails).
   const run = (start6345) => {
@@ -1399,7 +1410,7 @@ test("entry_1ea0 INCREMENTS 0x6345 (state advance via incMem8), not a hardcoded 
 });
 
 test("entry_1ea0 sets 0x6342 = 0x02 if (ix+0x15)==0, else 0x04", () => {
-  // Draft §3 / TEST 2. MUTATION: jp nz polarity swaps the two. IX = 0x6500 (safe),
+  // TEST 2. MUTATION: jp nz polarity swaps the two. IX = 0x6500 (safe),
   // so (ix+0x15) = mem[0x6515].
   const run = (byteAt15) => {
     const m = new Machine(ROM);
@@ -1417,7 +1428,7 @@ test("entry_1ea0 sets 0x6342 = 0x02 if (ix+0x15)==0, else 0x04", () => {
 });
 
 test("entry_1ea0's loop advances HL by 4 each iteration (add hl,bc INSIDE the loop)", () => {
-  // Draft §3 / TEST 3. Loop (0x6354) times, HL += 4 each. MUTATION: hoist add hl,bc
+  // TEST 3. Loop (0x6354) times, HL += 4 each. MUTATION: hoist add hl,bc
   // (advance once) -> wrong copy source. (0x6354)=3, HL start 0x69b8 -> after loop
   // HL = 0x69b8 + 3*4 = 0x69c4; the byte there is copied to 0x6a2c. A hoist-once
   // lands at 0x69bc, a different byte. E=0 so add ix,de is a no-op (IX stays safe).
@@ -1434,12 +1445,12 @@ test("entry_1ea0's loop advances HL by 4 each iteration (add hl,bc INSIDE the lo
   assert.equal(m.mem.read8(0x6a2c), 0xaa, "copied from HL=0x69c4 (3x add hl,bc), not the hoist 0x69bc");
 });
 
-// ---- loc_1f09 / loc_1f1d (INTEGRATED FROM A DRAFT, code2) -- §3, delay counter -
+// ---- loc_1f09 / loc_1f1d -- delay counter -
 // Uses decMem8/incMem8 with LIVE flags (ret nz / jp z read the dec's Z). Each test
 // pushes a return address; loc_1f09 runs to one of its two rets.
 
 test("loc_1f09 delays via dec (0x6346) / ret nz -- body runs only when it hits 0", () => {
-  // Draft §3 / TEST 1. MUTATION this catches: ret z (inverted delay polarity).
+  // TEST 1. MUTATION this catches: ret z (inverted delay polarity).
   // Case A: (0x6346)=2 -> dec 1 -> ret nz TAKEN -> body skipped, 0x6347 untouched.
   const a = new Machine(ROM);
   a.regs.sp = 0x6c00; a.push16(0x4d5e);
@@ -1459,7 +1470,7 @@ test("loc_1f09 delays via dec (0x6346) / ret nz -- body runs only when it hits 0
 });
 
 test("loc_1f1d advances 0x6345 1 -> 2 and reloads 0x6347 to 4", () => {
-  // Draft §3 / TEST 2. MUTATION this catches: omit the inc (hl) (0x6345 stuck at 1).
+  // TEST 2. MUTATION this catches: omit the inc (hl) (0x6345 stuck at 1).
   const m = new Machine(ROM);
   m.regs.sp = 0x6c00; m.push16(0x4d5e);
   m.mem.write8(0x6346, 0x01); // dec -> 0, body runs
@@ -1471,9 +1482,9 @@ test("loc_1f1d advances 0x6345 1 -> 2 and reloads 0x6347 to 4", () => {
 });
 
 test("loc_1f09 uses ITS OWN constants (reload 0x06, xor 0x01), not the loc_1f23 twin's", () => {
-  // Draft §3 / TEST 3. MUTATION this catches: carrying loc_1f23's constants
+  // TEST 3. MUTATION this catches: carrying loc_1f23's constants
   // (reload 0x0c, inc on 0x6a2d). (0x6a2d)=0x03 so xor 0x01 (-> 0x02) and inc
-  // (-> 0x04) diverge (§38: avoid the coincidence at 0).
+  // (-> 0x04) diverge (avoid the coincidence at 0).
   const m = new Machine(ROM);
   m.regs.sp = 0x6c00; m.push16(0x4d5e);
   m.mem.write8(0x6346, 0x01); // body runs
@@ -1484,10 +1495,10 @@ test("loc_1f09 uses ITS OWN constants (reload 0x06, xor 0x01), not the loc_1f23 
   assert.equal(m.mem.read8(0x6a2d), 0x02, "xor 0x01 of 0x03 = 0x02 (loc_1f09), not inc's 0x04");
 });
 
-// ---- loc_1f23 / loc_1f34 (INTEGRATED FROM A DRAFT, code2) -- twin of loc_1f09 --
+// ---- loc_1f23 / loc_1f34 -- twin of loc_1f09 --
 
 test("loc_1f34 RESETS 0x6345 to 0 (closes the 0-1-2-0 cycle), not inc to 3", () => {
-  // Draft §3 / TEST 1. This test IS the bounds guarantee: MUTATION inc (copying
+  // TEST 1. This test IS the bounds guarantee: MUTATION inc (copying
   // loc_1f1d) -> 0x6345 = 3, the exact out-of-bounds index for sub_1e96's table.
   const m = new Machine(ROM);
   m.regs.sp = 0x6c00; m.push16(0x4d5e);
@@ -1501,8 +1512,8 @@ test("loc_1f34 RESETS 0x6345 to 0 (closes the 0-1-2-0 cycle), not inc to 3", () 
 });
 
 test("loc_1f23 uses ITS OWN constants (reload 0x0c, inc 0x6a2d), not the loc_1f09 twin's", () => {
-  // Draft §3 / TEST 2. MUTATION: loc_1f09's constants (reload 0x06, xor 0x01).
-  // (0x6a2d)=0x03 so inc (-> 0x04) and xor 0x01 (-> 0x02) diverge (§38).
+  // TEST 2. MUTATION: loc_1f09's constants (reload 0x06, xor 0x01).
+  // (0x6a2d)=0x03 so inc (-> 0x04) and xor 0x01 (-> 0x02) diverge.
   const m = new Machine(ROM);
   m.regs.sp = 0x6c00; m.push16(0x4d5e);
   m.mem.write8(0x6346, 0x01); // body runs
@@ -1513,11 +1524,9 @@ test("loc_1f23 uses ITS OWN constants (reload 0x0c, inc 0x6a2d), not the loc_1f0
   assert.equal(m.mem.read8(0x6a2d), 0x04, "inc of 0x03 = 0x04 (loc_1f23), not xor's 0x02");
 });
 
-// ---- entry_2913 (INTEGRATED FROM A DRAFT, code2) -----------------------------
-// The draft carried no TEST-SPEC (§3 is Open Questions), so these are authored by
-// the integrator. Its two exits differ in STACK DEPTH, so per the lead's SP-BLIND
-// warning every assertion pins SP delta AND return PC AND A AND the boolean --
-// an SP-only test cannot separate them.
+// ---- entry_2913 -----------------------------
+// Its two exits differ in STACK DEPTH, so every assertion pins SP delta AND
+// return PC AND A AND the boolean -- an SP-only test cannot separate them.
 //
 // Stack model: `call 0x2913` leaves the caller's return R on top, with the
 // caller's-caller return CC below it. HIT discards R (inc sp x2) and returns to
@@ -1542,7 +1551,7 @@ const seed2913 = (m, { active }) => {
 };
 
 test("entry_2913 HIT exit returns A=1 to the caller's CALLER (inc sp x2 skip)", () => {
-  // The dual-stack-semantics hazard (draft OQ1). MUTATION this catches: modelling
+  // The dual-stack-semantics hazard. MUTATION this catches: modelling
   // the HIT exit as a plain return (dropping the two inc sp) -> lands at R with
   // SP +2 and reports "returned normally". Asserts PC and A too, not just SP.
   const m = new Machine(ROM);
@@ -1557,7 +1566,7 @@ test("entry_2913 HIT exit returns A=1 to the caller's CALLER (inc sp x2 skip)", 
 });
 
 test("entry_2913 NORMAL exit returns A=0 to the caller, IX restored (push ix OUTSIDE the loop)", () => {
-  // Exhausts the list (all slots inactive). Also pins draft S1: `push ix` is
+  // Exhausts the list (all slots inactive). Also pins that `push ix` is
   // OUTSIDE the loop, so ONE push balances ONE pop and IX comes back as the ENTRY
   // value. MUTATION this catches: hoisting push ix INTO the loop -> the final pop
   // restores the LAST advanced IX (0x6b20), not 0x6b00, and SP is off.
@@ -1573,7 +1582,7 @@ test("entry_2913 NORMAL exit returns A=0 to the caller, IX restored (push ix OUT
 });
 
 // The indexed-bit F3/F5 property is NOT observable end-to-end inside entry_2913
-// (the flags are overwritten before anything reads them), so per qa-b it is
+// (the flags are overwritten before anything reads them), so it is
 // pinned as a SPLIT: [i] the helper SEMANTICS and [ii] the call-site ARGUMENT,
 // which chain to the whole property without F3/F5 ever needing to escape.
 // Half [i] ALREADY EXISTS -- "bit n,r and bit n,(ix+d) differ ONLY in the F3/F5
@@ -1597,8 +1606,8 @@ test("entry_2913's bit n,(ix+d) FORWARDS the EA high byte as yxFrom", () => {
   assert.equal(calls[0][2], 0x6b, "yxFrom = EA high byte (0x6B00 >> 8), NOT the operand value");
 });
 
-// ---- sub_2a22 (INTEGRATED FROM A DRAFT, code2) -------------------------------
-// Drives the REAL entry_2913 (now integrated), not the draft's stub. Stack models
+// ---- sub_2a22 -------------------------------
+// Drives the REAL entry_2913 (now integrated), not a stub. Stack models
 // `call 0x2a22` from 0x29BD: 0x29C0 on top (sub_2a22's return) with SENTINEL below
 // (the caller's caller frame, which must survive). sub_2a22 sets IX=0x6600, so the
 // record and the live-ins are seeded there.
@@ -1620,10 +1629,10 @@ const seed2a22 = (m, { hit }) => {
 };
 
 test("sub_2a22 HONOURS entry_2913's skip -- no double return (A=1 path)", () => {
-  // Draft §3 / TEST 1. entry_2913's A=1 exit discards 0x2A2E and rets to 0x29C0,
+  // TEST 1. entry_2913's A=1 exit discards 0x2A2E and rets to 0x29C0,
   // so sub_2a22 must NOT run its own ret. MUTATION this catches: ignoring the
   // boolean and running ret(m) anyway -> pops the SENTINEL that belongs to the
-  // caller's caller (PC becomes SENTINEL, SP +4). Asserts PC and SP (§71a).
+  // caller's caller (PC becomes SENTINEL, SP +4). Asserts PC and SP.
   const m = new Machine(ROM);
   const entrySP = seed2a22(m, { hit: true });
   sub_2a22(m);
@@ -1645,7 +1654,7 @@ test("sub_2a22 DOES run its own ret on entry_2913's normal (A=0) exit", () => {
   assert.equal(m.regs.sp, entrySP + 2, "same net SP as the skip path -- one frame consumed");
 });
 
-// ---- sub_29af (INTEGRATED FROM A DRAFT, code2) -------------------------------
+// ---- sub_29af -------------------------------
 // Drives the REAL chain sub_29af -> sub_2a22 -> entry_2913 (all integrated).
 // Seeds: 0x6227=3 so rst 0x30's rotate of A=0x04 lands carry-set (normal return);
 // records live at IX=0x6600 + n*0x10 with the hit record made to pass every range
@@ -1667,7 +1676,7 @@ const seed29af = (m, { hitAt }) => {
 };
 
 test("sub_29af's 0x29ED exit SKIPS the caller (inc sp x2), reporting false", () => {
-  // Draft §3 / TEST 1, two-assertion form. MUTATION this catches: modelling the
+  // TEST 1, two-assertion form. MUTATION this catches: modelling the
   // 0x29ED exit as a plain ret -> lands at R with SP +2 and reports true.
   // Also pins the stores on that path, so "took this exit" is not inferred.
   const m = new Machine(ROM);
@@ -1703,7 +1712,7 @@ test("sub_29af's rst 0x30 SKIP arm aborts the body and returns to our caller", (
 });
 
 test("sub_29af's countdown advances IX by DE (6-B) times, add ix,de INSIDE the loop", () => {
-  // Draft §3 / TEST 2. WHY THE LOOP EXISTS: entry_2913 ends with `pop ix`, so it
+  // TEST 2. WHY THE LOOP EXISTS: entry_2913 ends with `pop ix`, so it
   // RESTORES IX to the base (0x6600) on both exits -- it reports WHICH record hit
   // only through B. sub_29af's countdown re-walks IX to that record: B = 6-hitAt,
   // so A = 6-B = hitAt advances. Hit on record 2 -> B=4 -> A=2 -> IX must land on
@@ -1719,7 +1728,7 @@ test("sub_29af's countdown advances IX by DE (6-B) times, add ix,de INSIDE the l
   assert.equal(m.mem.read8(0x6205), 0x04, "read (ix+5) at 0x6625 -- two in-loop add ix,de, not one");
 });
 
-// ---- entry_2b9b (INTEGRATED FROM A DRAFT, code2) -----------------------------
+// ---- entry_2b9b -----------------------------
 // Drives the REAL sub_2ff0, whose contract is HL = 0x7400 + ((255-y)>>3)*32 +
 // ((x>>3)&0x1f). With HL = 0x0040 (y=0, x=0x40) the tile lands at 0x77E8, and the
 // `pop de` recovers the ORIGINAL HL so E = 0x40. Plant the tile at 0x77E8.
@@ -1733,14 +1742,14 @@ const seed2b9b = (m, tile) => {
 };
 
 test("entry_2b9b REJECTS on each of its three unsigned gates, and does NOT over-reject", () => {
-  // Draft OQ3: the jp c / jp nc polarity IS the gate. Three rejects:
+  // the jp c / jp nc polarity IS the gate. Three rejects:
   //   tile < 0xB0 ; (tile & 0x0F) >= 8 ; tile == 0xC0
   //
   // THE MUST-NOT-REJECT CONTROL IS LOAD-BEARING, and I added it only after a
   // mutation run proved the reject cases ALONE were weak: flipping gate 1's sense
   // (jp c -> jp nc) still rejects all three tiles, just via a DIFFERENT gate, so
   // the reject-only form was blind to it -- and would have passed an
-  // always-reject implementation outright (§38, the degenerate baseline). The
+  // always-reject implementation outright (the degenerate baseline). The
   // 0xB0 control is what makes the gates falsifiable: it MUST pass all three.
   for (const [tile, why] of [[0xaf, "tile < 0xB0"], [0xb8, "low nibble >= 8"], [0xc0, "tile == 0xC0"]]) {
     const m = new Machine(ROM);
@@ -1761,7 +1770,7 @@ test("entry_2b9b REJECTS on each of its three unsigned gates, and does NOT over-
 });
 
 test("entry_2b9b's loc_2bdc FALLS THROUGH into entry_2be1 (now translated), computing C=0x3F", () => {
-  // Draft OQ1. tile in [0xB0,0xBF] with low nibble < 8 passes all three gates and
+  // tile in [0xB0,0xBF] with low nibble < 8 passes all three gates and
   // takes jp c,0x2bdc; loc_2bdc runs off its own end into 0x2BE1 (an exit no byte
   // marks -- one only because 0x2BE1 begins entry_2be1). entry_2be1 is now
   // integrated, so the success exit is `return entry_2be1(m)`, not a throw. C is
@@ -1773,7 +1782,7 @@ test("entry_2b9b's loc_2bdc FALLS THROUGH into entry_2be1 (now translated), comp
   assert.equal(m.regs.a, 0x02, "reaches entry_2be1's loc_2bf8 plain return (A=2)");
 });
 
-// ---- entry_2333 (INTEGRATED FROM A DRAFT, code2) -- pure register transform ---
+// ---- entry_2333 -- pure register transform ---
 // H, L, B live-in; result in L. All exits plain ret, so push a return address and
 // read L back. Expected L values derived from the ROM byte semantics, not the skeleton.
 
@@ -1786,7 +1795,7 @@ const run2333 = (h, l, b) => {
 };
 
 test("entry_2333 derives the step from (H&0x0F) with the two early-exit clamps", () => {
-  // Draft TEST 1 (OQ1). L bit5-clear (0x10) so the step path is add. MUTATION this
+  // TEST 1. L bit5-clear (0x10) so the step path is add. MUTATION this
   // catches: a flipped clamp (ret c <-> ret nc) or a wrong +1/-1 assignment.
   // (a) dec-b nonzero arm, (H&F)=5 < 0x0F -> ret c -> L unchanged.
   assert.equal(run2333(0x05, 0x10, 0x02), 0x10, "(H&F)=5 < 0x0F -> ret c, L unchanged");
@@ -1797,7 +1806,7 @@ test("entry_2333 derives the step from (H&0x0F) with the two early-exit clamps",
 });
 
 test("entry_2333 special-cases L==0xF0 / 0x4C and splits sub/add on bit 5 of L", () => {
-  // Draft TEST 2 (OQ2). B forced to +1 via the dec-b-zero arm with (H&F)==0
+  // TEST 2. B forced to +1 via the dec-b-zero arm with (H&F)==0
   // (H low nibble 0, B_in=1). MUTATION this catches: dropping the 0xF0 case, or
   // swapping sub/add on the bit-5 split.
   // (a) L=0xF0, H=0x80 (bit7 set) -> loc_2360 -> step (sub b) -> 0xF0 - 1 = 0xEF.
@@ -1810,16 +1819,16 @@ test("entry_2333 special-cases L==0xF0 / 0x4C and splits sub/add on bit 5 of L",
   assert.equal(run2333(0x80, 0x00, 0x01), 0x01, "L bit5 clear -> add -> 0x01");
 });
 
-// ---- sub_236e (INTEGRATED FROM A DRAFT, code2) -- cross-partition table search -
+// ---- sub_236e -- cross-partition table search -
 // Searches 0x6300.. for A (BC entries) via cpir (cpu.js:561, FIRST executable use);
 // on a hit a secondary compare of D against two slots selects the return. cpir
 // leaves HL = M+1 (post-increment) and signals found via the Z flag, not its
 // return value (which is n, the iteration count -> the 21*(n-1)+16 cost). The
 // cpir-MISS path UNWINDS a frame (returns false), modelled like sub_0030. All
-// expected values below are derived from the ROM bytes (draft §1), not the skeleton.
+// expected values below are derived from the ROM bytes, not the skeleton.
 
 test("sub_236e miss path UNWINDS: false, HL = discarded own-return, ret to grandparent", () => {
-  // Draft §S4/OQ1 + TEST-1. `jp nz,0x239a` @0x2373 jumps PAST the push @0x2376, so
+  // TEST-1. `jp nz,0x239a` @0x2373 jumps PAST the push @0x2376, so
   // `pop hl` @0x239A takes THIS routine's return address and `ret` @0x239B pops a
   // SECOND frame -> control resumes at the caller's caller. MUTATION this catches
   // (M3): a miss that `return true`s (a normal return). The 0x6300 region is all
@@ -1835,14 +1844,14 @@ test("sub_236e miss path UNWINDS: false, HL = discarded own-return, ret to grand
   assert.equal(result, false, "miss must return false -- the boolean says 'unwound'");
   assert.equal(m.regs.hl, 0x2170, "`pop hl` @0x239A discarded THIS routine's own return address into HL");
   assert.equal(m.pc, 0x216a, "`ret` @0x239B unwound a second frame -- resumed at the caller's caller");
-  // TWO pops (pop hl + ret) => SP = entry + 4. (Draft §3 TEST-1 wrote +2/'one frame';
+  // TWO pops (pop hl + ret) => SP = entry + 4. (TEST-1 wrote +2/'one frame';
   // the bytes say two pops -- 0x2373 precedes the push @0x2376. The found-path test
   // below asserts +2, so the pair is non-vacuous.)
   assert.equal(m.regs.sp, (spEntry + 4) & 0xffff, "two frames consumed on the unwind: SP = entry + 4");
 });
 
 test("sub_236e found path returns the OTHER slot's byte; A=1 first-slot, A=0 second-slot", () => {
-  // Draft TEST-3 (the A/B contract, both variants). Key 0x42 planted at M=0x6300
+  // TEST-3 (the A/B contract, both variants). Key 0x42 planted at M=0x6300
   // (n=1). cpir leaves HL=0x6301; +0x14 -> first slot 0x6315 (M+0x15), inc c then
   // +0x15 -> second slot 0x632A (M+0x2A). EACH hit returns the OTHER slot's byte.
   // MUTATION this catches (M4): loc_238f returning A=0, or returning the matched
@@ -1874,7 +1883,7 @@ test("sub_236e found path returns the OTHER slot's byte; A=1 first-slot, A=0 sec
 });
 
 test("sub_236e second-slot path: `sbc hl,bc` back-steps HL by 0x15 (M+0x2A -> M+0x15)", () => {
-  // Draft TEST-2's path, but see the note below. Exercises loc_2395: `sbc hl,bc`
+  // TEST-2's path, but see the note below. Exercises loc_2395: `sbc hl,bc`
   // (cpu.js:488, FIRST executable use) steps HL back from M+0x2A to M+0x15 so
   // `ld b,(hl)` reads the first slot. Distinct neighbours pin the offset and guard
   // the `regs.hl = regs.sbcHl(...)` = undefined bug (sbcHl ASSIGNS this.hl, returns
@@ -1886,7 +1895,7 @@ test("sub_236e second-slot path: `sbc hl,bc` back-steps HL by 0x15 (M+0x2A -> M+
   // `jp z` gated by the EQUAL `cp (hl)` @0x2384, and an equal cp always leaves
   // carry=0; forcing entry carry does not survive that cp. So carry is provably 0
   // at `xor a`, and `sbc hl,bc` then overwrites the flag difference. We keep the
-  // faithful `regs.xor(regs.a)` (it is what the ROM does); M2 is flagged to qa-b as
+  // faithful `regs.xor(regs.a)` (it is what the ROM does); M2 is flagged as
   // a safe/equivalent mutation, not a caught one.
   const m = new Machine(ROM);
   m.regs.sp = 0x6c00;
@@ -1906,12 +1915,12 @@ test("sub_236e second-slot path: `sbc hl,bc` back-steps HL by 0x15 (M+0x2A -> M+
 });
 
 test("sub_236e charges cpir as 21*(n-1)+16, not a constant (differential on n)", () => {
-  // Draft TEST-4. Cannot isolate 0x2371's cycles from the single accumulator, so
+  // TEST-4. Cannot isolate 0x2371's cycles from the single accumulator, so
   // run the SAME found path (loc_238f) with the match at position n=1 vs n=5 and
   // assert the cycle DELTA is exactly 21*(5-1) - 21*(1-1) = 84 -- the 21-T-per-
   // repeat term, derived from the Z80 CPIR spec, independent of every OTHER cost on
   // the path (they cancel). MUTATION this catches (M1): a flat `m.step(0x2373, 16)`
-  // -> delta 0. The ABSOLUTE first-use cpir/sbc cost table is qa-b's writes-trace
+  // -> delta 0. The ABSOLUTE first-use cpir/sbc cost table is the writes-trace
   // gate, not a unit test (a test summing the same constants as the code is vacuous).
   const cyclesForMatchAt = (matchAddr) => {
     const m = new Machine(ROM);
@@ -1934,12 +1943,12 @@ test("sub_236e charges cpir as 21*(n-1)+16, not a constant (differential on n)",
 });
 
 test("sub_236e retry loop advances past the first occurrence (cpir POST-increments HL)", () => {
-  // Draft TEST-5. When D matches NEITHER slot, `jp 0x2371` re-searches from HL,
+  // TEST-5. When D matches NEITHER slot, `jp 0x2371` re-searches from HL,
   // which cpir left at M+1 (post-increment). Key planted TWICE: at 0x6300 (D
   // matches neither slot -> retry) and 0x6303 (D matches the first slot -> return).
   // Reaching the SECOND occurrence PROVES the post-increment: without it the retry
   // would re-find 0x6300 forever. (The negative -- a non-incrementing cpir hangs --
-  // is a cpu.js-level mutation with an iteration cap, qa-b's scope, not a line patch.)
+  // is a cpu.js-level mutation with an iteration cap, not a line patch.)
   const m = new Machine(ROM);
   m.regs.sp = 0x6c00;
   m.push16(0x4d5e);
@@ -1960,10 +1969,10 @@ test("sub_236e retry loop advances past the first occurrence (cpir POST-incremen
   assert.equal(m.regs.b, 0x5a, "B = M2+0x2A (0x632D) -- the retry advanced to M2, not stuck at M1");
 });
 
-// ---- sub_0514 (INTEGRATED FROM A DRAFT, code3) -- descending 3-cell fill -------
+// ---- sub_0514 -- descending 3-cell fill -------
 // Stores A, A-1, A-2 at HL, HL+DE, HL+2DE. HL/A/DE live-in; B is set to 3 (a
 // run-once prologue -- the djnz targets 0x0516, the loop head, not the entry).
-// A is IN-OUT. Expected values derived from the ROM bytes (draft §4), not the skeleton.
+// A is IN-OUT. Expected values derived from the ROM bytes, not the skeleton.
 
 test("sub_0514 fills 3 descending cells at HL, HL+DE, HL+2DE (A in-out, B->0, HL+=3DE)", () => {
   const m = new Machine(ROM);
@@ -1982,7 +1991,7 @@ test("sub_0514 fills 3 descending cells at HL, HL+DE, HL+2DE (A in-out, B->0, HL
 });
 
 test("sub_0514 A is IN-OUT: a second call (HL reloaded, A not) continues the descent", () => {
-  // Mirrors the 0x04C3->0x04C9 caller: 0x10,0x0F,0x0E then 0x0D,0x0C,0x0B (draft §4).
+  // Mirrors the 0x04C3->0x04C9 caller: 0x10,0x0F,0x0E then 0x0D,0x0C,0x0B.
   // MUTATION this catches: treating A as input-only or restoring it -> both calls
   // would write 0x10,0x0F,0x0E and the second is wrong.
   const m = new Machine(ROM);
@@ -1999,7 +2008,7 @@ test("sub_0514 A is IN-OUT: a second call (HL reloaded, A not) continues the des
   assert.equal(m.regs.a, 0x0a, "A exits 0x0A after six total decrements");
 });
 
-// ---- loc_06fe (INTEGRATED FROM A DRAFT, code3) -- rst 0x28 dispatch on 0x600A --
+// ---- loc_06fe -- rst 0x28 dispatch on 0x600A --
 // Selector A = mem[0x600A]; sub_0028 reads the target from the ROM table based at
 // 0x0702 (the rst's own return address) and tail-jumps. Targets are unintegrated,
 // so dispatchGameState throws with the target address -- which is our observable.
@@ -2008,7 +2017,7 @@ test("sub_0514 A is IN-OUT: a second call (HL reloaded, A not) continues the des
 test("loc_06fe dispatches 0x600A through the ROM table based at 0x0702 (not 0x08B6)", () => {
   // index 0 -> table[0]=0x0986; the byte-identical 0x08B2 dispatcher (base 0x08B6)
   // would give 0x08BA. A second index pins the stride+base against a hard-coded array.
-  // Now WIRED (go-live: game state 3). Table base still pinned by the null-entry test below
+  // Now WIRED (game state 3). Table base still pinned by the null-entry test below
   // (index 9 -> 0x0000, which is not a dispatch arm -> throws). Here just confirm dispatch runs.
   const withSel = (sel) => {
     const m = new Machine(ROM);
@@ -2030,7 +2039,7 @@ test("loc_06fe null table entry (index 9) resolves to target 0x0000 (surfaced, n
   assert.throws(() => loc_06fe(m), /0x0000/, "index 9 is a NULL entry -> target 0x0000");
 });
 
-// ---- loc_07c3 / loc_084b / loc_08b2 (code3 drafts) -- 0x0748 & 0x600A handlers -
+// ---- loc_07c3 / loc_084b / loc_08b2 -- 0x0748 & 0x600A handlers -
 
 test("loc_07c3 calls sub_0874 then advances the 0x600A sub-state via inc (hl)", () => {
   // MUTATION this catches: inc hl (the pointer) instead of inc (hl) (the byte), or
@@ -2044,7 +2053,7 @@ test("loc_07c3 calls sub_0874 then advances the 0x600A sub-state via inc (hl)", 
 });
 
 test("loc_084b clears 0x600A ONLY when both rst-0x20 counters expire (skip polarity)", () => {
-  // The body runs only when 0x6008 AND 0x6009 expire in the same call (draft §2).
+  // The body runs only when 0x6008 AND 0x6009 expire in the same call.
   // MUTATION this catches: an inverted gate, or running the body unconditionally.
   const run = ({ c8, c9 }) => {
     const m = new Machine(ROM);
@@ -2064,9 +2073,9 @@ test("loc_084b clears 0x600A ONLY when both rst-0x20 counters expire (skip polar
 });
 
 test("loc_08b2 is NOT loc_06fe: dispatches 0x600A through the 2-entry table at 0x08B6", () => {
-  // Byte-identical to loc_06fe but a different table base (the copy hazard, §3).
+  // Byte-identical to loc_06fe but a different table base (the copy hazard,).
   // index 0 -> 0x08B6[0]=0x08BA; loc_06fe's base 0x0702 would give 0x0986.
-  // Now WIRED (go-live: game state 2): index 0 -> loc_08ba (which inc's 0x600A), index 1 -> loc_08f8.
+  // Now WIRED (game state 2): index 0 -> loc_08ba (which inc's 0x600A), index 1 -> loc_08f8.
   const withSel = (sel) => {
     const inputs = new Inputs(); inputs._in2 = 0x00;
     const m = new Machine(ROM, { inputs });
@@ -2081,7 +2090,7 @@ test("loc_08b2 is NOT loc_06fe: dispatches 0x600A through the 2-entry table at 0
   assert.doesNotThrow(() => loc_08b2(withSel(0x01)), "index 1 -> table[1]=0x08F8");
 });
 
-// ---- loc_0c91 (INTEGRATED FROM A DRAFT, code3) -- rst 0x18 gate into loc_0c92 --
+// ---- loc_0c91 -- rst 0x18 gate into loc_0c92 --
 // A 1-byte rst 0x18 countdown gate that falls through into the existing loc_0c92
 // only when 0x6009 expires. loc_0c92's first act (after its sub_0874 call) is
 // `xor a / ld (0x638c),a`, so 0x638C == 0 iff the body ran. 0x6227=1 selects
@@ -2103,7 +2112,7 @@ test("loc_0c91 runs loc_0c92 only when the rst 0x18 counter (0x6009) expires", (
   assert.equal(run(0x02).mem.read8(0x638c), 0x77, "counter ticking -> loc_0c92 skipped (sentinel intact)");
 });
 
-// ---- sub_0852 (INTEGRATED FROM A DRAFT, code3) -- two nested fills ------------
+// ---- sub_0852 -- two nested fills ------------
 
 test("sub_0852 fills VRAM 0x7400..0x77FF with 0x10, then 0x6900..0x6A7F with 0x00", () => {
   const m = new Machine(ROM);
@@ -2125,7 +2134,7 @@ test("sub_0852 fills VRAM 0x7400..0x77FF with 0x10, then 0x6900..0x6A7F with 0x0
   assert.equal(m.pc, 0x4d5e, "returns normally");
 });
 
-// ---- loc_08ba / loc_08d5 (code3 drafts) -- 0x08B2 table arm 0 + its fall-tail --
+// ---- loc_08ba / loc_08d5 -- 0x08B2 table arm 0 + its fall-tail --
 
 test("loc_08d5 returns mem[0x7D00] & B, B chosen by 0x6001 (==1 -> 0x04, else 0x0C)", () => {
   // Gate the two calls OFF (0x601A & 7 != 0) to isolate the B path. Inject IN2 =
@@ -2172,7 +2181,7 @@ test("loc_08ba runs its inits and FALLS THROUGH into loc_08d5 (one combined ret)
   assert.equal(m.pc, 0x4d5e, "fell through into loc_08d5 and returned via its single ret");
 });
 
-// ---- sub_0977 (INTEGRATED FROM A DRAFT, code3) -- BCD-decrement 0x6001 --------
+// ---- sub_0977 -- BCD-decrement 0x6001 --------
 
 test("sub_0977 BCD-decrements 0x6001 (05->04, 10->09 borrow, 00->99 wrap)", () => {
   const run = (v) => {
@@ -2188,7 +2197,7 @@ test("sub_0977 BCD-decrements 0x6001 (05->04, 10->09 borrow, 00->99 wrap)", () =
   assert.equal(run(0x00), 0x99, "BCD 00 - 1 = 99 (wrap)");
 });
 
-// ---- loc_09ab (INTEGRATED FROM A DRAFT, code3) -- copy, deref, arm state ------
+// ---- loc_09ab -- copy, deref, arm state ------
 
 test("loc_09ab copies 8 bytes, derefs the *word at* 0x622A, and arms state on 0x600F", () => {
   const setup = (c600f) => {
@@ -2213,7 +2222,7 @@ test("loc_09ab copies 8 bytes, derefs the *word at* 0x622A, and arms state on 0x
   assert.equal(m1.mem.read8(0x600a), 0x02, "0x600F!=0 -> 0x600A = 2");
 });
 
-// ---- loc_059b (INTEGRATED FROM A DRAFT, code3) -- clear a BCD slot, then render
+// ---- loc_059b -- clear a BCD slot, then render
 
 test("loc_059b throws on payload>=3 (twin-consistent stub) and clears the selected slot", () => {
   const mk = (a) => { const m = new Machine(ROM); m.regs.sp = 0x6c00; m.push16(0x4d5e); m.regs.a = a; return m; };
@@ -2235,7 +2244,7 @@ test("loc_059b throws on payload>=3 (twin-consistent stub) and clears the select
   assert.equal(clearAt(0x02).mem.read8(0x60b8), 0x00, "payload 2 clears the 0x60B8 slot");
 });
 
-// ---- loc_0a37 / loc_0a76 (code3 drafts) -- 0x06FE table arms 5 and 7 ----------
+// ---- loc_0a37 / loc_0a76 -- 0x06FE table arms 5 and 7 ----------
 
 test("loc_0a37 advances 0x600A and seeds video (0x7740=1, 0x7720=0x25, 0x7700=0x20)", () => {
   const m = new Machine(ROM);
@@ -2250,7 +2259,7 @@ test("loc_0a37 advances 0x600A and seeds video (0x7740=1, 0x7720=0x25, 0x7700=0x
 });
 
 test("loc_0a76 dispatches 0x6385 through the NESTED table at 0x0A7A (not 0x0702)", () => {
-  // Now WIRED (go-live). index 0 -> loc_0a8a, index 1 -> loc_0abf; dispatch runs.
+  // Now WIRED. index 0 -> loc_0a8a, index 1 -> loc_0abf; dispatch runs.
   const withSel = (sel) => {
     const m = new Machine(ROM);
     m.regs.sp = 0x6c00; m.push16(0x4d5e);
@@ -2262,7 +2271,7 @@ test("loc_0a76 dispatches 0x6385 through the NESTED table at 0x0A7A (not 0x0702)
   assert.doesNotThrow(() => loc_0a76(withSel(0x01)), "index 1 -> table[1]=0x0ABF");
 });
 
-// ---- loc_0bb3 (INTEGRATED FROM A DRAFT, code3) -- wrap the 0x6385 sequence -----
+// ---- loc_0bb3 -- wrap the 0x6385 sequence -----
 
 test("loc_0bb3 wraps 0x6385 + advances selectors iff the rst 0x18 countdown expires", () => {
   const run = (c6009, sel6385 = 0x07) => {
@@ -2287,9 +2296,9 @@ test("loc_0bb3 wraps 0x6385 + advances selectors iff the rst 0x18 countdown expi
   assert.equal(m90.mem.read8(0x608b), 0x03, "cp 0x90 arm -> 0x608B = 0x03");
 });
 
-// ---- loc_0b06 (INTEGRATED FROM A DRAFT, code3) -- walk-table / terminal setup --
+// ---- loc_0b06 -- walk-table / terminal setup --
 // Tests the two non-terminal paths; the 0x7F-sentinel terminal path runs a
-// `do { sub_304a } while (0x638E != 0x0A)` loop, left to the go-live exec-tape.
+// `do { sub_304a } while (0x638E != 0x0A)` loop, left to the exec-tape.
 
 test("loc_0b06 returns early on 0x601A bit0, else advances the 0x63C2 walk pointer", () => {
   // Path 1: 0x601A bit 0 set -> rrca -> carry -> ret c, walk pointer untouched.
@@ -2370,16 +2379,16 @@ test("entry_127f dispatches 0x639D through the 0x1283 table (0->0x128B, 1->0x12A
     m.mem.write8(0x639d, i);
     return m;
   };
-  // Now WIRED (batch go-live): index 0 -> entry_128b, index 1 -> loc_12ac; dispatch runs.
+  // Now WIRED (batch): index 0 -> entry_128b, index 1 -> loc_12ac; dispatch runs.
   assert.doesNotThrow(() => entry_127f(withIdx(0x00)), "index 0 -> table[0]=0x128B");
   assert.doesNotThrow(() => entry_127f(withIdx(0x01)), "index 1 -> table[1]=0x12AC");
 });
 
 test("loc_127c calls the REAL sub_1dbd (un-staled from the draft's 0x1DBD throw)", () => {
-  // The draft threw at `call 0x1dbd` (untranslated then). Now it calls sub_1dbd,
+  // This previously threw at `call 0x1dbd` (untranslated then). Now it calls sub_1dbd,
   // which is ITSELF a rst-28 dispatcher and throws at its own as-yet-untranslated
   // target (0x1E49) -- so loc_127c doesn't reach entry_127f in this test, but the
-  // throw proves it's wired to the real sub_1dbd, not the draft's stub.
+  // throw proves it's wired to the real sub_1dbd, not a stub.
   const m = new Machine(ROM);
   m.regs.sp = 0x6c00; m.push16(0x4d5e);
   m.mem.write8(0x6227, 0x01);
@@ -2612,7 +2621,7 @@ test("sub_2523: timer gate / no-request / spawn paths", () => {
   assert.equal(m2.mem.read8(0x639b), 0x00, "no request -> ret z, timer untouched");
   // timer 0 + request + a free slot at 0x65A0 -> activate the object, reload the
   // timer. NB: 0x639B stays 0x7C (NOT dec'd) -- sub_0057 clobbers HL, so the final
-  // dec (hl) hits sub_0057's leftover address, not 0x639B (draft's "HL live" was wrong).
+  // dec (hl) hits sub_0057's leftover address, not 0x639B (an "HL live" reading was wrong).
   const m3 = mk(); m3.mem.write8(0x639b, 0x00); m3.mem.write8(0x639a, 0x01); sub_2523(m3);
   assert.equal(m3.mem.read8(0x65a0), 0x01, "spawn -> object at 0x65A0 activated (field0=1)");
   assert.equal(m3.mem.read8(0x639b), 0x7c, "spawn reloads 0x639B=0x7C (the dec (hl) does NOT hit it -- sub_0057 clobbered HL)");
@@ -2871,8 +2880,8 @@ test("sub_2fcb: gate OPENS -> body @0x2FCE decrements the 0x62b4 inner timer (no
 });
 
 // ---- Layer-0 batch: sub_1826 / sub_1a1e / entry_1d8a / sub_1d8f / entry_1da6 / sub_1f46 ----
-// All unwired dead code (callers are the held spine entry_1ac3/1d03 region or the 0x1A0A
-// rst-0x28 table) -> net-zero. Tests pin the behaviour for go-live.
+// All unwired dead code (callers are the main dispatch spine entry_1ac3/1d03 region or the 0x1A0A
+// rst-0x28 table) ->. Tests pin the behaviour for.
 
 test("sub_1826: nested 5x14 fill of 0x10 walking backward by 0x25 per row (HL live-in)", () => {
   const m = new Machine(ROM); m.regs.sp = 0x6c00; m.push16(0x4d5e);
@@ -3403,7 +3412,7 @@ test("loc_2d15: 0x7F terminator -> loc_2d8c reinit (ptr:=0x39C3, ix+0:=1, ix+f:=
 // ---- 2c-cluster chain: entry_2cb8 -> entry_2ce6 -> entry_2cf6 -> loc_2d15 ----
 // entry_2cb8: free-slot claim, (0x62AC)=0x6980+(10-B)*4, (0x62AA)=IX, then flows down.
 // entry_2ce6: (hl)>=4 -> entry_2cf6 else clear 0x69A8+(hl)*4. entry_2cf6: ix+7/8/15 init by
-// (0x6382) bit7. All UNWIRED (entry_2c8f's jp nc,0x2CB8 is still a stub -> go-live wiring).
+// (0x6382) bit7. All UNWIRED (entry_2c8f's jp nc,0x2CB8 is still a stub -> wiring).
 test("entry_2cb8: claims a free slot -- (0x62AA)=IX, (0x62AC)=0x6980+(10-B)*4, then chains", () => {
   const m = new Machine(ROM); m.regs.sp = 0x6c00; m.push16(0x4d5e);
   m.regs.ix = 0x6600; m.regs.b = 0x02; m.regs.hl = 0x6a00;
@@ -3608,7 +3617,7 @@ test("sub_017b: coin accepted, pulse below threshold -> count, no credit (ret nz
   assert.equal(m.mem.read8(0x6001), 0x00, "no credit yet");
 });
 
-// ---- <0x3000 fillers batch (unwired/net-zero): 1644/13aa/13bb/1186/1131/26de/26e9 ----
+// ---- <0x3000 fillers batch (unwired/): 1644/13aa/13bb/1186/1131/26de/26e9 ----
 test("loc_13aa: state reset -- 0x7D82=(0x6026), 0x600A=0, 0x600D/E=1", () => {
   const m = new Machine(ROM); m.regs.sp = 0x6c00; m.push16(0x4d5e);
   m.mem.write8(0x6026, 0x55); m.mem.write8(0x600a, 0x99);
@@ -3648,12 +3657,12 @@ test("sub_26e9: (0x601A)&1 gate; else (HL)=0xFF if bit7 set else 0x01", () => {
   sub_26e9(run);
   assert.equal(run.mem.read8(0x6a00), 0xff, "bit7 set -> 0xFF");
 });
-test("sub_1186 / loc_1131 / loc_1644: chain routines run without error (net-zero fillers)", () => {
+test("sub_1186 / loc_1131 / loc_1644: chain routines run without error (filler routines)", () => {
   const a = new Machine(ROM); a.regs.sp = 0x6c00; a.push16(0x4d5e);
   assert.doesNotThrow(() => sub_1186(a));
   const b = new Machine(ROM); b.regs.sp = 0x6c00; b.push16(0x4d5e);
   assert.doesNotThrow(() => loc_1131(b));
-  // loc_1644 tail-dispatches via sub_0028 to the 0x1648 ROM table (arms wired at go-live).
+  // loc_1644 tail-dispatches via sub_0028 to the 0x1648 ROM table (arms wired at).
   const c = new Machine(ROM); c.regs.sp = 0x6c00; c.push16(0x4d5e); c.mem.write8(0x6388, 0x01);
   assert.equal(typeof loc_1644, "function");
 });
@@ -4009,7 +4018,7 @@ test("loc_1880: 0x691B!=0xD0 -> ret nz; ==0xD0 -> spawn record 7F 39 01 D8 + adv
   assert.equal(go.mem.read8(0x6388), 0x06, "selector advanced");
 });
 
-// ---- sub_298c (INTEGRATED FROM A DRAFT, code2) -- tile-in-range predicate -----
+// ---- sub_298c -- tile-in-range predicate -----
 // Drives the REAL sub_2ff0: HL = 0x7400 + ((255-y)>>3)*32 + ((x>>3)&0x1f), y=H, x=L.
 // Table at (0x63c8); D = table[+0x0E] = y, E = table[+0x0F] + 0x0C = x. With y=0,
 // table[+0x0F]=0x34 -> x = 0x40 -> sub_2ff0 -> 0x77E8. Plant the tile there. Returns
@@ -4027,15 +4036,15 @@ const run298c = (tile, { rawX = 0x34, y = 0x00, addr = 0x77e8 } = {}) => {
 };
 
 test("sub_298c returns A=0 for an in-range tile, A=1 otherwise (the 3202 seam)", () => {
-  // Draft TEST 1 (OQ1). MUTATION this catches: swapped A constants, or a jp
-  // polarity flip. Three tiles on the three sides of the two thresholds (§38).
+  // TEST 1. MUTATION this catches: swapped A constants, or a jp
+  // polarity flip. Three tiles on the three sides of the two thresholds.
   assert.equal(run298c(0xb3), 0x00, "0xB3 (>=0xB0, low nibble 3) -> A=0 in range");
   assert.equal(run298c(0xa0), 0x01, "0xA0 (< 0xB0) -> A=1 via jp c");
   assert.equal(run298c(0xb9), 0x01, "0xB9 (low nibble 9 >= 8) -> A=1 via jp nc");
 });
 
 test("sub_298c assembles x = table[+0x0F] + 0x0C before the sub_2ff0 conversion", () => {
-  // Draft TEST 2 (OQ2). The +0x0C shifts x, so the tile is read at a DIFFERENT
+  // TEST 2. The +0x0C shifts x, so the tile is read at a DIFFERENT
   // VRAM column. Correct: rawX=0x34 -> x=0x40 -> 0x77E8 (in-range tile planted).
   // MUTATION (drop the +0x0C): x=0x34 -> col (0x34>>3)=6 -> 0x77E6 (out-of-range
   // tile planted). Correct code reads 0x77E8 -> A=0; the mutation reads 0x77E6 -> A=1.
@@ -4050,7 +4059,7 @@ test("sub_298c assembles x = table[+0x0F] + 0x0C before the sub_2ff0 conversion"
   assert.equal(m.regs.a, 0x00, "read the tile at the +0x0C-adjusted column (0x77E8), not 0x77E6");
 });
 
-// ---- sub_28b0 family (INTEGRATED FROM A DRAFT, code2) -- entry_2913 sweeps -----
+// ---- sub_28b0 family -- entry_2913 sweeps -----
 // TAIL dispatch targets: pop the dispatcher's HL, then N guarded calls to the REAL
 // entry_2913. The guard must be `if (!entry_2913(m)) return true` (a HIT skips the
 // rest of the routine to the dispatch's caller). Seed makes entry_2913 MISS (all
@@ -4094,7 +4103,7 @@ test("sub_28b0's call 0x2913 CARRIES the skip guard -- a HIT skips groups 2 & 3 
   const returned = sub_28b0(m);
   assert.equal(m.mem.read8(0x63b9), 0x05, "0x63b9 = group 1's B(5) -- groups 2/3 SKIPPED, not run");
   assert.equal(m.pc, 0x29c0, "the skip landed at the dispatch's caller (2913 discarded our frame)");
-  // FINDING C, and my first draft of this test got it wrong: sub_28b0 returns
+  // FINDING C, and an earlier version of this test got it wrong: sub_28b0 returns
   // TRUE even on a HIT. 2913's FALSE is about 2913's frame; sub_28b0's caller
   // still continues (tail target). So the RETURN VALUE cannot detect the guard --
   // the SKIP does (0x63b9=5, pc=caller above). The entry_06b8 scope-error lesson,
@@ -4103,7 +4112,7 @@ test("sub_28b0's call 0x2913 CARRIES the skip guard -- a HIT skips groups 2 & 3 
 });
 
 test("sub_28e0 (2 groups) and sub_2901 (1 group) sweep and return true when 2913 misses", () => {
-  // Twin backstop (S7): different group counts. With no HIT, each runs all its
+  // Twin backstop: different group counts. With no HIT, each runs all its
   // groups and returns true; 0x63b9 holds the LAST group's B.
   const e = new Machine(ROM); seed28(e);
   assert.equal(sub_28e0(e), true, "sub_28e0 completes -> true");
@@ -4114,7 +4123,7 @@ test("sub_28e0 (2 groups) and sub_2901 (1 group) sweep and return true when 2913
 });
 
 test("sub_22bd copies (HL) to 0x694B or 0x6947 selected by bit 3 of L", () => {
-  // Draft: bit 3 of L picks the destination; A = (HL) is stored there. MUTATION
+  // bit 3 of L picks the destination; A = (HL) is stored there. MUTATION
   // this catches: wrong destination constant, or inverted jp polarity (the two
   // addresses swap). Two cases pin distinct addresses; the copied byte 0x5A != 0.
   const withL = (l) => {
@@ -4134,11 +4143,10 @@ test("sub_22bd copies (HL) to 0x694B or 0x6947 selected by bit 3 of L", () => {
   assert.equal(clr.pc, 0x4d5e, "returns to the caller");
 });
 
-// ---- entry_24b4 (INTEGRATED FROM A DRAFT, code3) -- bounds gate + return splice
+// ---- entry_24b4 -- bounds gate + return splice
 // IX live-in. Three early ret cc (normal return -> true); the main path (in the
 // band (ix+5)>=0xE8 and 0x20<=(ix+3)<0x2A) pops the caller's return into HL and
-// tail-jumps to untranslated 0x21ba (NotImplemented). Integrator-authored tests
-// (draft predates TEST-SPEC).
+// tail-jumps to untranslated 0x21ba (NotImplemented).
 
 const run24b4 = (ix5, ix3, { ix15 = 0x00, latch6348 = 0x00, retAddr = 0x4d5e } = {}) => {
   const m = new Machine(ROM);
@@ -4154,7 +4162,7 @@ const run24b4 = (ix5, ix3, { ix15 = 0x00, latch6348 = 0x00, retAddr = 0x4d5e } =
 };
 
 test("entry_24b4 returns to the caller on each of its three bounds early-exits", () => {
-  // Draft OQ-1: control returns on THREE paths (ret c / ret nc / ret c). MUTATION
+  // control returns on THREE paths (ret c / ret nc / ret c). MUTATION
   // this catches: a flipped clamp polarity, which changes which side returns.
   // (a) (ix+5) < 0xE8 -> ret c
   let m = run24b4(0x50, 0x25);
@@ -4172,7 +4180,7 @@ test("entry_24b4 returns to the caller on each of its three bounds early-exits",
 });
 
 test("entry_24b4 main path POPS the caller's return (forwarded to 0x21ba), resets IX, throws", () => {
-  // Draft OQ-1/OQ-2: in the band the routine does NOT return -- it pops the
+  // in the band the routine does NOT return -- it pops the
   // caller's return into HL (forwarded to 0x21ba's exx) and tail-jumps to
   // untranslated 0x21ba. MUTATION this catches: modelling it as a plain ret
   // (no pop / no splice), or dropping the (ix) reset.
@@ -4187,7 +4195,7 @@ test("entry_24b4 main path POPS the caller's return (forwarded to 0x21ba), reset
 });
 
 test("entry_24b4 (ix+0x15) != 0 writes 0x62B9 = 3 before the reset", () => {
-  // Draft §4: the conditional side effect. (ix+15)!=0 -> 0x62B9 := 3; ==0 -> skip.
+  // the conditional side effect. (ix+15)!=0 -> 0x62B9:= 3; ==0 -> skip.
   // MUTATION this catches: dropping the conditional, or the wrong constant.
   const on = run24b4(0xf0, 0x25, { ix15: 0x01 });
   assert.throws(() => entry_24b4(on), /unmapped write to ROM at 0x0000/i);
@@ -4199,7 +4207,7 @@ test("entry_24b4 (ix+0x15) != 0 writes 0x62B9 = 3 before the reset", () => {
 });
 
 test("entry_2c72 sets bit 7 of 0x6382, preserving the low bits", () => {
-  // Draft TEST 1: or 0x80 forces bit 7, low bits unchanged. MUTATION this catches:
+  // TEST 1: or 0x80 forces bit 7, low bits unchanged. MUTATION this catches:
   // a wrong bit mask, or `and` instead of `or`. 0x0F -> 0x8F (not 0x80, not 0x0F).
   const m = new Machine(ROM);
   m.regs.sp = 0x6c00; m.push16(0x4d5e);
@@ -4209,7 +4217,7 @@ test("entry_2c72 sets bit 7 of 0x6382, preserving the low bits", () => {
   assert.equal(m.pc, 0x4d5e, "returns to the caller");
 });
 
-// ---- entry_2c8f (INTEGRATED FROM A DRAFT, code2) -- three-way twin of
+// ---- entry_2c8f -- three-way twin of
 // entry_2c03/sub_03a2; scans 10 records at 0x6700 for a free slot. The rst
 // 0x30/0x10 prologue uses the REAL caller-skip gates (sub_0030/sub_0010); both
 // flow-outs (0x2d15, entry_2cb8) are untranslated -> NotImplemented. Both gates
@@ -4228,7 +4236,7 @@ const run2c8f = ({ v6393 = 0x00, v6392 = 0x01, rec = {} } = {}) => {
 };
 
 test("entry_2c8f 0x6393 bit0 set tail-jumps to 0x2d15, jp c not ret c", () => {
-  // Draft S7/TEST 1: the prologue is byte-identical to the translated twin
+  // TEST 1: the prologue is byte-identical to the translated twin
   // sub_03a2 for 5 instructions, then this does jp c,0x2d15 where the twin does
   // ret c. A translator copying the twin returns to the caller; the ROM jumps
   // to 0x2d15. MUTATION this catches: `if (regs.fC) { ret(m); return; }` (the
@@ -4240,7 +4248,7 @@ test("entry_2c8f 0x6393 bit0 set tail-jumps to 0x2d15, jp c not ret c", () => {
 });
 
 test("entry_2c8f advances IX by 0x20 per record, add ix,de inside the loop", () => {
-  // Draft OQ2/TEST 2: the scan walks 0x6700 stride 0x20; add ix,de sits inside
+  // TEST 2: the scan walks 0x6700 stride 0x20; add ix,de sits inside
   // loc_2ca8. record 0 has bit0 set (advance); record 1 is 0x00 (bit1 clear ->
   // free slot -> entry_2cb8, untranslated). Correct reaches entry_2cb8 with
   // IX=0x6720. MUTATION this catches: add ix,de removed from the loop body --
@@ -4255,7 +4263,7 @@ test("entry_2c8f advances IX by 0x20 per record, add ix,de inside the loop", () 
 });
 
 test("entry_2c8f 0x6392 bit0 clear returns to the caller, ret nc", () => {
-  // Draft §5: the (0x6392) gate. bit0 clear -> rrca -> carry clear -> ret nc
+  // the (0x6392) gate. bit0 clear -> rrca -> carry clear -> ret nc
   // returns to the caller before the scan. MUTATION this catches: ret c instead
   // of ret nc (flipped polarity) -- that falls through to the scan (all records
   // 0x00 -> immediate free slot -> throws) instead of returning to the caller.
@@ -4264,11 +4272,11 @@ test("entry_2c8f 0x6392 bit0 clear returns to the caller, ret nc", () => {
   assert.equal(m.pc, 0x4d5e, "ret nc returned to the caller");
 });
 
-// ---- sub_26a6 (INTEGRATED FROM A DRAFT, code3) -- two-arm RMW; bit 7 of mem[DE]
+// ---- sub_26a6 -- two-arm RMW; bit 7 of mem[DE]
 // selects the direction. Both HL and DE are live-in (callers do ld de,0x69Ex /
 // ex de,hl). Each arm bumps two cells at P=HL+1 and P+4 with an exact-value wrap.
 // The arms are MIRRORS (inc<->dec, constants inverted), so the tests check all
-// four counters' directions independently (draft §4).
+// four counters' directions independently.
 const run26a6 = ({ selByte = 0x00, p = 0x10, p4 = 0x20 } = {}) => {
   const m = new Machine(ROM);
   m.regs.sp = 0x6c00;
@@ -4282,7 +4290,7 @@ const run26a6 = ({ selByte = 0x00, p = 0x10, p4 = 0x20 } = {}) => {
 };
 
 test("sub_26a6 carry-clear arm increments P and decrements P+4", () => {
-  // Draft §3/§4: bit7 of mem[DE] clear -> (P) += 1, (P+4) -= 1. MUTATION this
+  // bit7 of mem[DE] clear -> (P) += 1, (P+4) -= 1. MUTATION this
   // catches: an inc<->dec flip on EITHER counter (0x0F not 0x11, or 0x21 not
   // 0x1F), and a wrong 0x04 stride (P+4 would miss 0x69E9).
   const m = run26a6({ selByte: 0x00, p: 0x10, p4: 0x20 });
@@ -4294,7 +4302,7 @@ test("sub_26a6 carry-clear arm increments P and decrements P+4", () => {
 });
 
 test("sub_26a6 carry-clear arm wraps P at 0x53 and P+4 at 0xCF", () => {
-  // Draft OQ-1: exact-value wrap. (P) 0x52 -> inc 0x53 -> 0x50 ; (P+4) 0xD0 ->
+  // exact-value wrap. (P) 0x52 -> inc 0x53 -> 0x50; (P+4) 0xD0 ->
   // dec 0xCF -> 0xD2. MUTATION this catches: a wrong wrap constant (0x50/0xD2)
   // or a wrong cp threshold (the wrap would not fire, storing 0x53 / 0xCF).
   const m = run26a6({ selByte: 0x00, p: 0x52, p4: 0xd0 });
@@ -4304,7 +4312,7 @@ test("sub_26a6 carry-clear arm wraps P at 0x53 and P+4 at 0xCF", () => {
 });
 
 test("sub_26a6 carry-set arm decrements P and increments P+4", () => {
-  // Draft §3/§4 mirror: bit7 of mem[DE] set -> (P) -= 1, (P+4) += 1. MUTATION
+  // mirror: bit7 of mem[DE] set -> (P) -= 1, (P+4) += 1. MUTATION
   // this catches: the bit7 arm-select polarity (would run the clear arm), and an
   // inc<->dec flip on either set-arm counter (0x61 not 0x5F, or 0x3F not 0x41).
   const m = run26a6({ selByte: 0x80, p: 0x60, p4: 0x40 });
@@ -4315,7 +4323,7 @@ test("sub_26a6 carry-set arm decrements P and increments P+4", () => {
 });
 
 test("sub_26a6 carry-set arm wraps P at 0x4F and P+4 at 0xD3", () => {
-  // Draft OQ-1 mirror. (P) 0x50 -> dec 0x4F -> 0x52 ; (P+4) 0xD2 -> inc 0xD3 ->
+  // mirror. (P) 0x50 -> dec 0x4F -> 0x52; (P+4) 0xD2 -> inc 0xD3 ->
   // 0xD0. MUTATION this catches: a wrong wrap constant on the set arm (0x52/0xD0).
   const m = run26a6({ selByte: 0x80, p: 0x50, p4: 0xd2 });
   sub_26a6(m);
@@ -4323,7 +4331,7 @@ test("sub_26a6 carry-set arm wraps P at 0x4F and P+4 at 0xD3", () => {
   assert.equal(m.mem.read8(0x69e9), 0xd0, "(P+4) inc hits 0xD3 -> wraps to 0xD0");
 });
 
-// ---- entry_2c03 (INTEGRATED FROM A DRAFT, code2) -- head of the 0x2C.. cluster;
+// ---- entry_2c03 -- head of the 0x2C.. cluster;
 // twin of sub_03a2. The rst 0x30/0x10 gates are the real caller-skip pair; the
 // cluster flow-outs (0x2c7b/0x2c86/0x2c41) are untranslated -> NotImplemented.
 // The default fixture drives every gate so control reaches loc_2c33 and takes the
@@ -4343,7 +4351,7 @@ const run2c03 = (over = {}) => {
   m.mem.write8(0x6227, v.v6227); // rst 0x30 rotate count -> continue
   m.mem.write8(0x6200, v.v6200); // rst 0x10 gate bit -> continue
   m.mem.write8(0x6393, v.v6393);
-  m.mem.write8(0x6350, v.v6350); // the twin sub_03a2's cell (draft TEST 2)
+  m.mem.write8(0x6350, v.v6350); // the twin sub_03a2's cell (TEST 2)
   m.mem.write8(0x62b1, v.v62b1);
   m.mem.write8(0x62b0, v.v62b0);
   m.mem.write8(0x6382, v.v6382);
@@ -4354,7 +4362,7 @@ const run2c03 = (over = {}) => {
 };
 
 test("entry_2c03 srl a is LOGICAL not sra -- 0x80 >> 1 = 0x40", () => {
-  // Draft OQ5/TEST 1: srl a @ 0x2C36. At loc_2c33 (0x62b0)=0x80 -> srl -> 0x40,
+  // TEST 1: srl a @ 0x2C36. At loc_2c33 (0x62b0)=0x80 -> srl -> 0x40,
   // and 0x40 < C=0x50 -> jp c,0x2c41 (throws). MUTATION this catches: sra a
   // sign-extends 0x80 -> 0xC0 >= 0x50, so jp c is NOT taken, the routine falls to
   // ret nc and returns -- no throw, and A would be 0xC0 not 0x40.
@@ -4366,7 +4374,7 @@ test("entry_2c03 srl a is LOGICAL not sra -- 0x80 >> 1 = 0x40", () => {
 });
 
 test("entry_2c03 reads 0x6393 not the twin sub_03a2 cell 0x6350", () => {
-  // Draft S7/TEST 2: the prologue is byte-identical to sub_03a2 except 0x01/0x6393
+  // TEST 2: the prologue is byte-identical to sub_03a2 except 0x01/0x6393
   // vs 0x03/0x6350. Set (0x6393)=0x01 (bit0 -> ret c early) and (0x6350)=0x00.
   // Correct returns at ret c BEFORE ld c,a, so C keeps its entry sentinel.
   // MUTATION this catches: reading 0x6350 (=0x00) instead -> no carry -> continues
@@ -4379,7 +4387,7 @@ test("entry_2c03 reads 0x6393 not the twin sub_03a2 cell 0x6350", () => {
 });
 
 test("entry_2c03 djnz loop compares A against a DECREMENTING B", () => {
-  // Draft OQ3/TEST 3: cp b is inside the loop; B counts 5,4,3 and A=3 matches on
+  // TEST 3: cp b is inside the loop; B counts 5,4,3 and A=3 matches on
   // the 3rd pass -> loc_2c33 (throws at 0x2c41). MUTATION this catches: comparing
   // against the loop-invariant initial B (5) every pass -- A=3 never equals 5, so
   // the loop exhausts to ret @ 0x2C32 and returns (no throw).
@@ -4390,7 +4398,7 @@ test("entry_2c03 djnz loop compares A against a DECREMENTING B", () => {
 });
 
 test("entry_2c03 rst 0x10 skip aborts the routine, not run as a plain call", () => {
-  // Draft OQ1/TEST 4: with (0x6200) bit0 CLEAR, sub_0010 does inc sp/inc sp/ret --
+  // TEST 4: with (0x6200) bit0 CLEAR, sub_0010 does inc sp/inc sp/ret --
   // it SKIPS the caller (returns to 0x198c, SP balanced). MUTATION this catches:
   // modelling rst 0x10 as an ordinary call (dropping the skip guard) -- the body
   // at 0x2C07+ runs anyway on a corrupted stack and control does NOT land at 0x198c.
@@ -4400,7 +4408,7 @@ test("entry_2c03 rst 0x10 skip aborts the routine, not run as a plain call", () 
   assert.equal(m.regs.sp, 0x6c00, "stack balanced by the skip's inc sp/inc sp");
 });
 
-// ---- entry_2c41 (INTEGRATED FROM A DRAFT, code2) -- continuation of entry_2c03;
+// ---- entry_2c41 -- continuation of entry_2c03;
 // MULTI-ENTRY (0x2C41 + loc_2c49/loc_2c4b/loc_2c4f from the untranslated 2c7b).
 // call 0x0057 is the translated sub_0057 (A = (0x6018)+(0x601a)+(0x6019)). Flow-
 // outs: 0x2c86 (untranslated -> NotImplemented) and entry_2c72 (translated,
@@ -4419,7 +4427,7 @@ const run2c41 = (over = {}) => {
 };
 
 test("entry_2c41 primary entry stores 0x6382=1 and 0x638f=2", () => {
-  // Draft S8/TEST 1: sub_0057 low nibble 0 -> loc_2c49 sets A=1; ld (0x6382),a;
+  // TEST 1: sub_0057 low nibble 0 -> loc_2c49 sets A=1; ld (0x6382),a;
   // inc a; ld (0x638f),a -> 0x638f = 0x6382+1. (0x62b2)!=C -> ret nz returns after
   // the stores. MUTATION this catches: dropping the inc a (0x638f would be 1).
   const m = run2c41({ v62b2: 0x99 }); // != C=0x30 -> ret nz returns
@@ -4430,7 +4438,7 @@ test("entry_2c41 primary entry stores 0x6382=1 and 0x638f=2", () => {
 });
 
 test("entry_2c41 loc_2c4b external entry stores A and A+1", () => {
-  // Draft OQ1: entry_2c7b jumps to loc_2c4b with its OWN A -> 0x6382=A, 0x638f=A+1.
+  // entry_2c7b jumps to loc_2c4b with its OWN A -> 0x6382=A, 0x638f=A+1.
   // Validates the multi-entry model. MUTATION this catches: dropping inc a (== A).
   const m = run2c41({ v62b2: 0x99 }); // != C -> ret nz returns after the stores
   m.regs.a = 0x40;
@@ -4440,7 +4448,7 @@ test("entry_2c41 loc_2c4b external entry stores A and A+1", () => {
 });
 
 test("entry_2c41 sub_0057 low nibble nonzero tail-jumps to 0x2c86", () => {
-  // Draft §5: and 0x0f; jp nz,0x2c86. sub_0057 = (0x6018)+(0x601a)+(0x6019); set
+  // and 0x0f; jp nz,0x2c86. sub_0057 = (0x6018)+(0x601a)+(0x6019); set
   // it to 0x03 (low nibble != 0) -> jp nz taken -> untranslated tail (throws).
   // MUTATION this catches: jp z polarity (would fall through to loc_2c49).
   const m = run2c41({ v6018: 0x03, v62b2: 0x99 }); // sum = 3; gate returns clean
@@ -4451,7 +4459,7 @@ test("entry_2c41 sub_0057 low nibble nonzero tail-jumps to 0x2c86", () => {
 });
 
 test("entry_2c41 ret nz returns without decrementing 0x62b2 when not equal to C", () => {
-  // Draft OQ3/TEST 3: cp c / ret nz. (0x62b2) != C -> returns BEFORE sub 0x08.
+  // TEST 3: cp c / ret nz. (0x62b2) != C -> returns BEFORE sub 0x08.
   // MUTATION this catches: ret z polarity -- it would NOT return and would
   // decrement (0x62b2) by 8.
   const m = run2c41({ v62b2: 0x20, c: 0x10 }); // 0x20 != 0x10 -> ret nz taken
@@ -4461,7 +4469,7 @@ test("entry_2c41 ret nz returns without decrementing 0x62b2 when not equal to C"
 });
 
 test("entry_2c41 free-slot loop jp z: 5 nonzero records fall through to ret", () => {
-  // Draft OQ4/TEST 2: loc_2c69 jp z finds an EMPTY (zero) record. With all 5
+  // TEST 2: loc_2c69 jp z finds an EMPTY (zero) record. With all 5
   // records non-zero it never jumps -> ret @ 0x2C71 without reaching entry_2c72.
   // MUTATION this catches: jp nz polarity -- it jumps to entry_2c72 on the FIRST
   // non-zero record, which sets bit 7 of 0x6382.
@@ -4472,8 +4480,8 @@ test("entry_2c41 free-slot loop jp z: 5 nonzero records fall through to ret", ()
   assert.equal(m.mem.read8(0x6382) & 0x80, 0x00, "entry_2c72 NOT reached -- 0x6382 bit 7 stays clear");
 });
 
-// ---- entry_2c7b / loc_2c86 (INTEGRATED FROM A DRAFT, code2) -- the multi-entry
-// SOURCES into entry_2c41 (resolves 2c41's OQ1). Both tail-jump into the
+// ---- entry_2c7b / loc_2c86 -- the multi-entry
+// SOURCES into entry_2c41 (resolves 2c41's). Both tail-jump into the
 // translated loc_2c49/loc_2c4b/loc_2c4f. A and C are entry_2c03 live-ins. The
 // (0x62b2) gate downstream returns cleanly when (0x62b2) != C.
 const run2c7b = ({ a = 0x00, c = 0x00, v62b2 = 0x99, v6382 = 0x00 } = {}) => {
@@ -4488,7 +4496,7 @@ const run2c7b = ({ a = 0x00, c = 0x00, v62b2 = 0x99, v6382 = 0x00 } = {}) => {
 };
 
 test("entry_2c7b A+2 == C jumps to loc_2c49 (A kept), else loc_2c4b with A=2", () => {
-  // Draft OQ2/TEST 1: add a,0x02 / cp c. (a) A=3,C=5 -> A+2==C -> loc_2c49 (sets
+  // TEST 1: add a,0x02 / cp c. (a) A=3,C=5 -> A+2==C -> loc_2c49 (sets
   // A=1) -> 0x6382=1, 0x638f=2. (b) A=3,C=9 -> A+2!=C -> loc_2c4b with A=0x02 ->
   // 0x6382=2, 0x638f=3. MUTATION this catches: dropping add a,0x02 -- case (a)
   // then compares 3 vs 5, misses loc_2c49, takes loc_2c4b (0x6382=2, not 1).
@@ -4504,7 +4512,7 @@ test("entry_2c7b A+2 == C jumps to loc_2c49 (A kept), else loc_2c4b with A=2", (
 });
 
 test("loc_2c86 CLEARS 0x6382 (xor a), not entry_2c72's set-bit-7", () => {
-  // Draft S7/TEST 2: loc_2c86 does xor a / ld (0x6382),a -> 0x6382 = 0. MUTATION
+  // TEST 2: loc_2c86 does xor a / ld (0x6382),a -> 0x6382 = 0. MUTATION
   // this catches: confusing it with entry_2c72's `or 0x80` -- 0x40 | 0x80 = 0xC0.
   const m = run2c7b({ a: 0x00, c: 0x10, v62b2: 0x20, v6382: 0x40 }); // (0x62b2) != C
   loc_2c86(m);
@@ -4512,7 +4520,7 @@ test("loc_2c86 CLEARS 0x6382 (xor a), not entry_2c72's set-bit-7", () => {
 });
 
 test("sub_3f24 subtracts via a wrapping add, and the carry escapes", () => {
-  // INTEGRATED FROM A DRAFT. The finding a memory diff cannot see: writing
+  // The finding a memory diff cannot see: writing
   // this as `hl -= 0x20` gets the SAME ADDRESS and produces NO FLAGS, where
   // `add hl,de` with DE=0xFFE0 sets C, sets H and clears N. Both operands
   // are literals, so the wrap is unconditional -- the carry is handed to the
@@ -4535,13 +4543,13 @@ test("sub_3f24 subtracts via a wrapping add, and the carry escapes", () => {
 });
 
 test("sub_122a replicates ONE 4-byte group down N slots at stride C+4", () => {
-  // INTEGRATED FROM A DRAFT (code2). Set up exactly as the ROM does it at
+  // Set up exactly as the ROM does it at
   // 0x1006-0x100F: source 0x101B, dest 0x6707, B=0x08, C=0x1C.
   //
   // THE TWIN DISCRIMINATOR. sub_11ec (ROM 0x11EC) is this routine with the
   // source behaviour INVERTED -- no push/pop, so its HL advances cumulatively
   // and it walks 2*B0 CONSECUTIVE source bytes at stride C+2. Translating one
-  // from the other is the failure mode the lead flagged. These assertions are
+  // from the other is the failure mode to catch. These assertions are
   // chosen to FAIL if 11ec's behaviour were transcribed here: if HL advanced,
   // the eight destination groups would hold 32 DIFFERENT bytes instead of the
   // same 4 repeated, and HL would not come back equal to its entry value.
@@ -4672,7 +4680,7 @@ test("sub_122a's outer djnz re-runs the pushes -- they are body, not setup", () 
 });
 
 test("sub_004e copies 40 bytes from caller-supplied HL, preserving carry", () => {
-  // INTEGRATED FROM A DRAFT. Two findings pinned:
+  // Two findings pinned:
   //
   // 1. HL IS AN IMPLICIT INPUT -- the routine sets DE and BC but never HL,
   //    so the ldir SOURCE comes from the caller. All 13 call sites set it
@@ -4715,7 +4723,7 @@ test("sub_11ec's `inc e` confines the destination to one page -- SYNTHETIC input
   // SYNTHETIC, and stated as such. sub_11ec takes DE from its caller, and at
   // all three ROM call sites E stays low (0x83 at 0x11AC), so `inc e` never
   // crosses 0xFF and a 16-bit `regs.de++` would be byte-identical on any real
-  // tape. §34: the boundary has to be synthesised or it is never tested.
+  // tape.: the boundary has to be synthesised or it is never tested.
   //
   // Distinct from the sub_122a case in a way that matters: sub_11ec does TWO
   // `inc e` per pass and stores at E and E+2, so a wrap can land BETWEEN the
@@ -4782,7 +4790,7 @@ test("sub_11d3's `inc l` wraps within the page, and add ix,de sets carry -- SYNT
   // IX must stay MAPPED, because the four gathers happen before the add -- so
   // the crossing is built from the STRIDE rather than from a high base.
   // 0x6A00 + 0x9600 = 0x10000 exactly. A stride this large is not far-fetched:
-  // the drafter's OQ7 noted DE may be intended as a signed downward stride,
+  // DE may be intended as a signed downward stride,
   // and 0x9600 read as signed is -0x6A00.
   c.regs.ix = 0x6a00;
   c.regs.de = 0x9600; // SYNTHETIC: IX + DE crosses 0xFFFF exactly
@@ -4822,7 +4830,7 @@ test("sub_30e4 zeros B bytes at stride 4 walking L only -- SYNTHETIC wrap bounda
   assert.equal(m.regs.l, 0x20, "L exits at 0x0C + 4*5 = 0x20");
   assert.equal(m.regs.h, 0x6a, "H is never written");
 
-  // SYNTHETIC WRAP (§34): no entry path reaches it, but `ld l,a` writes L only,
+  // SYNTHETIC WRAP: no entry path reaches it, but `ld l,a` writes L only,
   // so at L near 0xFF the pointer WRAPS within page 0x6A and does NOT carry into
   // H. A 16-bit `regs.hl += 4` would spill into page 0x6B and is the natural
   // wrong translation. Start L=0xF8, B=3 -> writes 0x6AF8, 0x6AFC, 0x6A00 (wrap).
@@ -4897,7 +4905,7 @@ test("sub_3064 copies (HL+BC) to (HL+BC+DE)", () => {
 // entry_3009 -- ROM 0x3009-0x3049. 0x1977-closure drain, UNGATED BY EXECUTION
 // (callers 0x1C9E/0x1CBA/0x23F4 are untranslated), so these HAND-TRACED unit
 // vectors are its only gate. Every expected value below is derived by stepping
-// the ROM bytes with Z80 semantics BY HAND (GATE-RULES §21), never by running
+// the ROM bytes with Z80 semantics BY HAND, never by running
 // the skeleton. The routine reads A and B live-in; D is saved from A internally.
 //
 // Trace of the loop's field structure, needed by all three vectors: the loop at
@@ -4981,12 +4989,12 @@ test("entry_3009: A=0x02,B=0x01 -> non-0x3022 path (rlca + and 0xF0), A=0x02 CAR
 
 test("entry_3009 charges exact T-states and step SEQUENCE for A=0x05,B=0x02", () => {
   // Closes the gap QA-1 named on the drain: the image gate cannot see a cycle-
-  // VALUE error that does not move a write across a boundary (§72), and
+  // VALUE error that does not move a write across a boundary, and
   // stepcheck's default mode audits step TARGETS not counts, while its --draft
   // sequence mode is unreliable on multi-block drafts (this routine has a loop).
   // Since nothing executes entry_3009 yet, THIS is the only thing gating its
   // timing. Expected total and sequence are summed from the LISTING by hand
-  // (§21), for the fully-determined A=0x05,B=0x02 vector (loop runs 4 passes).
+  // for the fully-determined A=0x05,B=0x02 vector (loop runs 4 passes).
   //
   //   prologue 0x3009-0x302D (0x3022 branch): ld d,a 4 | rrca 4 | jp c 10 |
   //     ld c 7 | rrca 4 | rrca 4 | jp nc(nt) 10 | ld c 7 | bit 2,b 8 | jp z 10
@@ -5030,7 +5038,7 @@ test("entry_3009 charges exact T-states and step SEQUENCE for A=0x05,B=0x02", ()
 // (callers 0x0AF0/0x0B38 are in an untranslated routine; nothing in translated
 // src references 0x304A). Straight-line: loads the index at 0x638E into BC
 // (B=0), calls sub_3064 twice to copy a byte 0x20 lower, decrements the index.
-// Expected values derived from the ROM listing by hand (§21).
+// Expected values derived from the ROM listing by hand.
 // ---------------------------------------------------------------------------
 
 test("sub_304a copies two bytes -0x20 (DE=0xFFE0 wrap) and decrements 0x638E", () => {
@@ -5040,7 +5048,7 @@ test("sub_304a copies two bytes -0x20 (DE=0xFFE0 wrap) and decrements 0x638E", (
   m.mem.write8(0x638e, 0x05); // the index -> BC = 5
   m.mem.write8(0x7605, 0xab); // source 1 at 0x7600 + 5
   m.mem.write8(0x75c5, 0xcd); // source 2 at 0x75C0 + 5
-  // dests power on 0x00, and 0xAB/0xCD != 0x00, so the asserts are non-vacuous (§71).
+  // dests power on 0x00, and 0xAB/0xCD != 0x00, so the asserts are non-vacuous.
   sub_304a(m);
   // add hl,de wraps: 0x7605 + 0xFFE0 = 0x75E5 ; 0x75C5 + 0xFFE0 = 0x75A5.
   assert.equal(m.mem.read8(0x75e5), 0xab, "byte 1 copied 0x20 LOWER (0x7605 -> 0x75E5)");
@@ -5055,9 +5063,9 @@ test("sub_304a copies two bytes -0x20 (DE=0xFFE0 wrap) and decrements 0x638E", (
 });
 
 test("sub_304a charges exact T-states and step SEQUENCE (incl. both sub_3064 calls)", () => {
-  // Closes §72 on this vector: image/state gates and stepcheck-targets don't
+  // Closes on this vector: image/state gates and stepcheck-targets don't
   // check cycle VALUES; this does. Total and sequence hand-summed from the
-  // listing (§21), spanning both real `call 0x3064` expansions and their rets.
+  // listing, spanning both real `call 0x3064` expansions and their rets.
   //   sub_304a own: ld de 10 | ld a,(nn) 13 | ld c,a 4 | ld b,n 7 | ld hl 10 |
   //                 call 17 | ld hl 10 | call 17 | ld hl 10 | dec (hl) 11 | ret 10
   //   sub_3064 x2 : add hl,bc 11 | ld a,(hl) 7 | add hl,de 11 | ld (hl),a 7 | ret 10
@@ -5094,7 +5102,7 @@ test("sub_304a charges exact T-states and step SEQUENCE (incl. both sub_3064 cal
 // sub_30bd -- ROM 0x30BD-0x30DA. 0x1977-closure drain, UNGATED BY EXECUTION
 // (callers 0x12A3/0x1615 untranslated). Zeros four stride-4 runs via sub_30e4:
 // three real calls + one TAIL JUMP (jp 0x30e4). Expected values hand-derived
-// from the listing (§21). The tail-jump/stack-splice is the judgement point.
+// from the listing. The tail-jump/stack-splice is the judgement point.
 // ---------------------------------------------------------------------------
 
 test("sub_30bd zeros four stride-4 runs via sub_30e4 and TAIL-JUMPS to its caller", () => {
@@ -5132,9 +5140,9 @@ test("sub_30bd zeros four stride-4 runs via sub_30e4 and TAIL-JUMPS to its calle
 });
 
 test("sub_30bd charges exact T-states and step COUNT across all four sub_30e4 calls", () => {
-  // Closes §72 on this vector (cycle VALUES + missing/extra steps, which
+  // Closes on this vector (cycle VALUES + missing/extra steps, which
   // stepcheck-targets and the image gate cannot see). All counts from the
-  // listing (§21). sub_30e4 with count B: prologue ld a,l 4 | body (ld(hl) 10 +
+  // listing. sub_30e4 with count B: prologue ld a,l 4 | body (ld(hl) 10 +
   // add 7 + ld l,a 4)=21 x B | djnz 13*(B-1)+8 | ret 10 = 34B+9 cycles, 4B+2 steps.
   const own = 10 + 7 + 17 + 7 + 7 + 17 + 7 + 7 + 17 + 10 + 7 + 10; // 123 (jp=10, calls=17)
   const call30e4Cyc = (b) => 34 * b + 9;
@@ -5162,7 +5170,7 @@ test("sub_30bd charges exact T-states and step COUNT across all four sub_30e4 ca
 // sub_306f -- ROM 0x306F-0x3095. 0x1977-closure drain, UNGATED BY EXECUTION
 // (callers 0x0AE8/0x1732/0x1757 untranslated). Every-8th-call gate at 0x62AF;
 // on the 8th, runs loc_0038 (via rst 0x38), two sub_3096, sub_0057, then toggles
-// bit 7 of 0x692D. Expected values hand-derived from the ROM listing (§21) and
+// bit 7 of 0x692D. Expected values hand-derived from the ROM listing and
 // the (separately-tested) callee bodies.
 // ---------------------------------------------------------------------------
 
@@ -5216,7 +5224,7 @@ test("sub_306f: 8th call runs the whole body -- loc_0038, DE-stride sub_3096, bi
   assert.equal(m.mem.read8(0x690b), 0x1c, "loc_0038 subtracted 4 (0x20->0x1C), first byte");
   assert.equal(m.mem.read8(0x692f), 0x1c, "loc_0038 last byte (0x690B+4*9) -- confirms count 10, stride 4");
   assert.equal(m.mem.read8(0x690a), 0xaa, "loc_0038 stride gap untouched");
-  // sub_3096 ran with DE=0x0004 (the loc_0038 side effect, draft OQ2):
+  // sub_3096 ran with DE=0x0004 (the loc_0038 side effect):
   assert.equal(m.mem.read8(0x6909), 0x81, "sub_3096 call 1, byte 0 (0x00^0x81)");
   assert.equal(m.mem.read8(0x690d), 0x81, "sub_3096 call 1, byte 1 -- 0x6909+DE proves DE=0x0004 (OQ2)");
   assert.equal(m.mem.read8(0x691d), 0x81, "sub_3096 call 2, byte 0");
@@ -5234,9 +5242,9 @@ test("sub_306f: 8th call runs the whole body -- loc_0038, DE-stride sub_3096, bi
 });
 
 test("sub_306f: 8th-call body charges exact T-states and step count", () => {
-  // Closes §72 on this vector (cycle VALUES + the rst 0x38 / call push-pop
+  // Closes on this vector (cycle VALUES + the rst 0x38 / call push-pop
   // balance, invisible to the image gate and stepcheck-targets). All counts from
-  // the listing (§21), spanning loc_0038 (+sub_003d x10), two sub_3096 (x2 each)
+  // the listing, spanning loc_0038 (sub_003d x10), two sub_3096 (x2 each)
   // and sub_0057. loc_0038=442, sub_3096=96 each, sub_0057=70, own=187.
   const own = 10 + 11 + 7 + 7 + 5 + 10 + 7 + 11 + 7 + 10 + 17 + 10 + 17 + 17 + 7 + 10 + 7 + 7 + 10; // 187
   const loc0038 = 10 + 7 + (29 * 10 + (13 * 9 + 8) + 10); // ld de+ld b + sub_003d(body*10 + djnz + ret) = 442
@@ -5272,7 +5280,7 @@ test("sub_306f: 8th-call body charges exact T-states and step count", () => {
 test("sub_31f6 returns two different values in A -- ret nz path returns 0x6018&3, not nothing", () => {
   // 0x1977-closure drain leaf, UNGATED BY EXECUTION. A is LIVE-OUT (sub_31dd
   // does cp 0x01 on it), so the early `ret nz` returns a REAL value. Values
-  // hand-derived from the ROM (§21). Run A is the discriminating case.
+  // hand-derived from the ROM. Run A is the discriminating case.
   const m = new Machine(ROM);
   m.regs.sp = 0x6c00;
   m.push16(0xbeef);
@@ -5299,13 +5307,13 @@ test("sub_31f6 returns two different values in A -- ret nz path returns 0x6018&3
   x.mem.write8(0x601a, 0x55);
   sub_31f6(x);
   assert.equal(x.regs.a, 0x02, "and 0x03 masks 0x06 -> 2 (a missing `and` would give 6, != 1, return 6)");
-  // MUTATION (draft): ignore the ret nz (always fall through) -> run A returns
+  // MUTATION: ignore the ret nz (always fall through) -> run A returns
   // 0x55 not 0x02, failing. A missing `and 0x03` -> run C returns 0x06 not 0x02.
 });
 
 test("sub_31dd: `ret m` is SIGNED (not ret c), and the write gate is 3-part", () => {
   // 0x1977-closure drain, UNGATED BY EXECUTION. Writes 2 to 0x6439/0x6479 only
-  // when 0x6380>=3 (signed) AND sub_31f6()==1. Values hand-derived (§21).
+  // when 0x6380>=3 (signed) AND sub_31f6==1. Values hand-derived.
   const mk = () => { const m = new Machine(ROM); m.regs.sp = 0x6c00; m.push16(0xbeef); return m; };
 
   // TEST 1 -- `ret m` SIGNED, SYNTHETIC + LATENT (0x6380 is clamped <6 on real
@@ -5338,12 +5346,12 @@ test("sub_31dd: `ret m` is SIGNED (not ret c), and the write gate is 3-part", ()
   sub_31dd(t3);
   assert.equal(t3.mem.read8(0x6439), 0x02, "all three conditions -> 0x6439 = 2");
   assert.equal(t3.mem.read8(0x6479), 0x02, "and 0x6479 = 2");
-  // MUTATIONS (draft): `ret c` instead of `ret m` -> TEST 1 writes (fails);
+  // MUTATIONS: `ret c` instead of `ret m` -> TEST 1 writes (fails);
   // drop the `ret nz` -> TEST 2 writes (fails).
 });
 
 test("sub_3fc0 writes 3 to 0x694D and advances HL to 0x694F (live-out)", () => {
-  // 0x1977-closure drain leaf, UNGATED BY EXECUTION. Values hand-derived (§21):
+  // 0x1977-closure drain leaf, UNGATED BY EXECUTION. Values hand-derived:
   // the 0x03 is the ROM immediate at 0x3FC4; 0x694F = 0x694D + 2 (two inc l).
   const m = new Machine(ROM);
   m.regs.sp = 0x6c00;
@@ -5355,7 +5363,7 @@ test("sub_3fc0 writes 3 to 0x694D and advances HL to 0x694F (live-out)", () => {
   assert.equal(m.mem.read8(0x694e), 0xaa, "0x694E skipped -- not written");
   assert.equal(m.regs.hl, 0x694f, "HL advanced by 2 to 0x694F (live-out; two inc l)");
   assert.equal(m.regs.h, 0x69, "inc l is L-only -- H unchanged");
-  // MUTATIONS (draft): wrong immediate (0x30) fails the 0x694D assert; omitting
+  // MUTATIONS: wrong immediate (0x30) fails the 0x694D assert; omitting
   // the two inc l leaves HL at 0x694D, failing the HL assert.
 });
 
@@ -5363,7 +5371,7 @@ test("entry_34f3 scatter-gathers object bytes in order [+3,+7,+8,+5] into a reco
   // MARQUEE (0x1977-closure drain, UNGATED). For each non-empty object at stride
   // 0x20 from 0x6400, gather mem[P+3],[P+7],[P+8],[P+5] into a 4-byte record at
   // 0x69D0. Offset 0 (the flag) is NOT copied. Offsets are the ROM's inc/dec l
-  // arithmetic (§21); bytes chosen distinct so a sequential copy fails.
+  // arithmetic; bytes chosen distinct so a sequential copy fails.
   const m = new Machine(ROM);
   m.regs.sp = 0x6c00;
   m.push16(0xbeef);
@@ -5380,7 +5388,7 @@ test("entry_34f3 scatter-gathers object bytes in order [+3,+7,+8,+5] into a reco
   assert.equal(m.mem.read8(0x69d1), 0xa7, "dest[1] = mem[P+7] (NOT P+4=0x44)");
   assert.equal(m.mem.read8(0x69d2), 0xa8, "dest[2] = mem[P+8]");
   assert.equal(m.mem.read8(0x69d3), 0xa5, "dest[3] = mem[P+5]");
-  // MUTATION (draft): sequential copy +3,+4,+5,+6 -> dest[1]=0x44 not 0xA7, fails.
+  // MUTATION: sequential copy +3,+4,+5,+6 -> dest[1]=0x44 not 0xA7, fails.
 });
 
 test("entry_34f3: an EMPTY object still advances DE by 4, keeping records aligned", () => {
@@ -5401,13 +5409,13 @@ test("entry_34f3: an EMPTY object still advances DE by 4, keeping records aligne
   assert.equal(m.mem.read8(0x69d0), 0x00, "first record slot untouched (object 0 was empty)");
   assert.equal(m.mem.read8(0x69d4), 0xb3, "object 1's record lands at 0x69D4 -- empty pass advanced DE");
   assert.equal(m.mem.read8(0x69d5), 0xb7, "object 1 dest[1] at the second record");
-  // MUTATION (draft): empty path forgets DE += 4 -> object 1 overwrites 0x69D0,
+  // MUTATION: empty path forgets DE += 4 -> object 1 overwrites 0x69D0,
   // and 0x69D4 stays 0x00 -- fails.
 });
 
 test("entry_34f3 charges exact T-states and step count for 5 empty objects", () => {
-  // §72 pin on the loop mechanics (the all-empty path is fully determinate).
-  // Counts from the listing (§21). Empty iteration (djnz taken) = 89 T / 14 steps;
+  // pin on the loop mechanics (the all-empty path is fully determinate).
+  // Counts from the listing. Empty iteration (djnz taken) = 89 T / 14 steps;
   // the last (djnz not taken) = 84 T. Prologue 27 T / 3 steps; ret 10 T / 1 step.
   const emptyIterTaken = 7 + 4 + 10 + 7 + 4 + 4 + 7 + 4 + 4 + 10 + 7 + 4 + 4 + 13; // 89
   const EXPECTED = (10 + 10 + 7) + emptyIterTaken * 4 + (emptyIterTaken - 13 + 8) + 10;
@@ -5455,7 +5463,7 @@ test("entry_330f: timer down-counts, reloads to 0x2B on expiry (dec -> 0x2A)", (
 });
 
 test("entry_330f: state goes 0 -> 1 on 0x6018 bit 0; loc_3336 (state=2) never fires", () => {
-  // Pins the draft's §3 FINDING: 0x331B resets state to 0, so the `cp 0x01` at
+  // Pins the FINDING: 0x331B resets state to 0, so the `cp 0x01` at
   // 0x3329 never matches and loc_3336 (state := 2) is UNREACHABLE. state=2 must
   // not be producible by any input.
   const m = new Machine(ROM);
@@ -5720,7 +5728,7 @@ test("sub_3478 is sub_342c's TWIN: own table 0x3AAC, direction state machine, ta
 
 test("sub_34b9 selects table by 0x6203 bit 7, indexes by (0x6019 & 6), pairs the fields", () => {
   // 0x1977-closure drain, UNGATED BY EXECUTION. IX live-in. Expected values are
-  // the ROM tables themselves (§21): 0x3AC4 = ee f0 db a0 e6 c8 d6 78,
+  // the ROM tables themselves: 0x3AC4 = ee f0 db a0 e6 c8 d6 78,
   // 0x3AD4 = 1b c8 23 a0 2b 78 12 f0.
   const mk = () => { const m = new Machine(ROM); m.regs.sp = 0x6c00; m.push16(0xbeef); m.regs.ix = 0x6400; return m; };
 
@@ -5773,7 +5781,7 @@ test("sub_32bd dispatches 0x6227 to the right handler (tests the DISPATCH, not t
   // DISTINCTIVE FINGERPRINT of each handler rather than on what the handler
   // computes: sub_32bd's three callees are themselves drained-but-unexercised,
   // so asserting their outputs here would let a wrong callee and a matching
-  // dispatch agree (a §29 compensating pair). These assertions ask only "which
+  // dispatch agree (a compensating pair). These assertions ask only "which
   // handler ran".
   const mk = () => { const m = new Machine(ROM); m.regs.sp = 0x6c00; m.push16(0xbeef); m.regs.ix = 0x6400; return m; };
 
@@ -5874,7 +5882,7 @@ test("sub_33a1: TWO different caller-skips -- rst 0x30 gate vs the inc-sp splice
 
 test("entry_313c scans 5 objects and SPLICES to the caller's caller when the count is zero", () => {
   // 0x1977-closure drain, >= 0x3000, UNGATED BY EXECUTION (only caller entry_30ed
-  // is untranslated) -- NET-ZERO. The entry_24b4 caller's-caller-skip class: the
+  // is untranslated) --. The entry_24b4 caller's-caller-skip class: the
   // count of non-empty objects (0x63A1) gates a conditional stack splice at 0x3179.
   // Skip-capable -> boolean return (cf. sub_33a1). Frame layout matches sub_33a1:
   // caller's-caller pushed first, then entry_30ed's continuation (0x30F3) on top,
@@ -5891,7 +5899,7 @@ test("entry_313c scans 5 objects and SPLICES to the caller's caller when the cou
     return m; // sp = 0x6bfc, top word = 0x30F3
   };
 
-  // TEST 1 -- MARQUEE: all 5 objects empty -> counter 0 -> SPLICE (§3).
+  // TEST 1 -- MARQUEE: all 5 objects empty -> counter 0 -> SPLICE.
   const s = mk();
   for (const k of [0, 1, 2, 3, 4]) s.mem.write8(0x6400 + k * 0x20, 0x00); // all empty
   s.mem.write8(0x6227, 0x00); // != 2 -> jp 0x3195
@@ -5911,7 +5919,7 @@ test("entry_313c scans 5 objects and SPLICES to the caller's caller when the cou
   assert.equal(n.regs.sp, 0x6bfe, "normal ret consumed only entry_30ed's frame (0x30F3)");
   assert.equal(n.pc, RET, "returned to entry_30ed's continuation 0x30F3");
 
-  // TEST 3 -- (ix+0x08) = 1, then 0 iff 0x6217 == 1 (the conditional second write, §4).
+  // TEST 3 -- (ix+0x08) = 1, then 0 iff 0x6217 == 1 (the conditional second write,).
   const a = mk();
   a.mem.write8(0x6400, 0x01);
   a.mem.write8(0x6217, 0x01);
@@ -5927,7 +5935,7 @@ test("entry_313c scans 5 objects and SPLICES to the caller's caller when the cou
   entry_313c(b);
   assert.equal(b.mem.read8(0x6408), 0x01, "0x6217!=1 -> (ix+8) stays 1");
 
-  // TEST 4 -- the loop runs 5 iterations at stride 0x20 (all objects visited, §S1).
+  // TEST 4 -- the loop runs 5 iterations at stride 0x20 (all objects visited,).
   const l = mk();
   for (const k of [0, 1, 2, 3, 4]) l.mem.write8(0x6400 + k * 0x20, 0x01); // all non-empty
   l.mem.write8(0x6217, 0x00); // each gets (ix+8)=1
@@ -5943,7 +5951,7 @@ test("the 0x3110 guard family: four DIFFERENT predicates on 0x601a, inverted at 
   // sharing one shape and differing in mask / compare / condition. Table-driven
   // ON PURPOSE: the same 0x601a value is pushed through all four, so any
   // cross-contamination between these near-identical routines shows up as a
-  // disagreement with the ROM-derived predicate. Predicates from the bytes (§21):
+  // disagreement with the ROM-derived predicate. Predicates from the bytes:
   //   3110  (v & 1) == 1   [ret z  -- EQUALITY]
   //   311b  (v & 7) <  5   [ret m  -- SIGN]
   //   3126  (v & 3) <  3   [ret m]
@@ -5993,7 +6001,7 @@ test("the 0x3110 guard family: four DIFFERENT predicates on 0x601a, inverted at 
 
 test("loc_3069 increments THROUGH the 0x63C0 pointer, gated by the rst 0x18 counter", () => {
   // 0x1977-closure drain, UNGATED BY EXECUTION (dw-table target). Values from
-  // the ROM (§21): `ld hl,(0x63c0)` is the INDIRECT load, so HL is the word AT
+  // the ROM: `ld hl,(0x63c0)` is the INDIRECT load, so HL is the word AT
   // 0x63C0. rst 0x18 polarity: sub_0018 decs 0x6009 and the BODY RUNS WHEN THE
   // COUNTER EXPIRES (ret z), skipping while it still counts down.
   const mk = (counter) => {
@@ -6034,7 +6042,7 @@ test("loc_3069 increments THROUGH the 0x63C0 pointer, gated by the rst 0x18 coun
 
 test("entry_3ec3 counts two-axis overlaps over B objects, skipping inactive ones", () => {
   // 0x1977-closure drain, UNGATED BY EXECUTION. LIVE-INS: IX, IY, B, C, DE, H, L.
-  // Predicates read off the bytes (§21): axis 1 passes when
+  // Predicates read off the bytes: axis 1 passes when
   // (|C - (ix+5)| + 1) < L, or when subtracting (ix+0x0a) from that still borrows;
   // axis 2 the same with (iy+3)-(ix+3), H and (ix+9). Both pass -> 0x6060++.
   const mk = () => {
@@ -6163,7 +6171,7 @@ test("entry_3e99 pops 3e88's HL, counts overlaps via 3ec3 twice, maps count to a
   // 0x1977-closure drain, UNGATED BY EXECUTION. Reached only via entry_3e88's
   // rst 0x28, so its first `pop hl` recovers the HL 3e88 saved (sub_0028 clobbers
   // it). LIVE-INS IY, C, H, L flow through to entry_3ec3. Code map from the
-  // bytes (§21): count 0/1/2/>=3 -> 0/1/3/7.
+  // bytes: count 0/1/2/>=3 -> 0/1/3/7.
   //
   // Object recipe that entry_3ec3 counts (same as its own test): active
   // (bit 0 of ix+0), C == (ix+5) so axis-1 |diff|+1 = 1 < L, (iy+3) == (ix+3)

@@ -7,7 +7,7 @@
 -- PINNED CONTRACT VALUES, and a second file duplicating them is a place for them
 -- to drift apart silently. Modes differ only in what happens AFTER start.
 --
--- DESIGN RULE (lead, GATE-RULES): minimise input events, maximise code reached.
+-- DESIGN RULE: minimise input events, maximise code reached.
 -- This tape presses exactly TWO buttons and then does NOTHING. It is expected to
 -- unlock game init, level setup, Kong's animation, barrel spawn and roll, the
 -- bonus timer, collision, DEATH, life decrement, respawn, the second and third
@@ -39,7 +39,7 @@ local START_FRAME    = tonumber(os.getenv("TAPE_START_FRAME") or "460")
 local START_HOLD     = tonumber(os.getenv("TAPE_START_HOLD") or "6")
 -- IN2 masks, read from the live machine rather than assumed:
 --   0x80 = Coin 1        0x04 = 1 Player Start
--- SERVICE is EXCLUDED and must never be added (GATE-RULES §6): it jumps to
+-- SERVICE is EXCLUDED and must never be added: it jumps to
 -- 0x4000, a diagnostic ROM this romset does not ship. It is the one input where
 -- REACHING the branch makes things worse.
 
@@ -75,7 +75,7 @@ assert(jump,  "IN0 'P1 Button 1' field not found")
 assert(right, "IN0 'P1 Right' field not found")
 
 -- SERVICE is present on this machine at IN2 mask 0x01 and on :SERVICE1. It is
--- NEVER touched here. GATE-RULES §6: holding it jumps to 0x4000, a diagnostic
+-- NEVER touched here. Holding it jumps to 0x4000, a diagnostic
 -- ROM this romset does not ship. It is the ONE input where REACHING the branch
 -- makes things worse, so the asymmetry is worth restating at the point of
 -- temptation -- a coverage push naturally wants to press everything.

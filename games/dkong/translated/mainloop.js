@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /**
  * Translated main loop and the routines the first iterations reach.
  *
@@ -12,7 +13,7 @@
  * cooperative boundary between the two, and it is why the NMI handler is the
  * next required piece rather than an optional one.
  *
- * Every routine carries its ROM range and original mnemonics (GATE-RULES §7).
+ * Every routine carries its ROM range and original mnemonics.
  */
 
 import { NotImplemented } from "../../../boards/dkong/io.js";
@@ -476,9 +477,8 @@ export function entry_06b8(m) {
   //
   // Returns TRUE rather than going void deliberately: with TRUE a future
   // erroneous `if (!entry_06b8(m)) return;` is INERT, whereas undefined is
-  // falsy and would make that same mistake a LIVE defect. That mistake is
-  // demonstrated, not hypothetical -- it was proposed and held tonight.
-  // Agreed with code-b, ruled by the lead. DO NOT add a guard at the callers.
+  // falsy and would make that same mistake a LIVE defect. DO NOT add a guard
+  // at the callers.
   if (!sub_0008(m)) return true;
 
   regs.b = 0x06;
@@ -571,7 +571,7 @@ export function entry_06b8(m) {
 
 // -- not yet translated ---------------------------------------------------
 // Each throws so an unexercised path names itself rather than silently
-// producing a nearly-right frame (GATE-RULES §5).
+// producing a nearly-right frame.
 
 /**
  * dispatchTask -- ROM 0x02E3-0x0306  (the main loop's task dispatch)
@@ -673,7 +673,7 @@ export function dispatchTask(m) {
   if (regs.hl === 0x051c) return entry_051c(m);
   if (regs.hl === 0x062a) return entry_062a(m);
   if (regs.hl === 0x06b8) return entry_06b8(m);
-  if (regs.hl === 0x059b) return loc_059b(m); // GO-LIVE: 0x0307 task table idx 2 (gameplay)
+  if (regs.hl === 0x059b) return loc_059b(m); // 0x0307 task table idx 2 (gameplay)
   throw new NotImplemented(
     `task handler at ROM 0x${regs.hl.toString(16).padStart(4, "0")} ` +
       `(0x0307 table index ${index}, payload 0x${regs.a.toString(16)})`,
@@ -683,10 +683,8 @@ export function dispatchTask(m) {
 /**
  * entry_062a -- ROM 0x062A-0x06B7  (142 bytes, 74 instructions, task entry 10)
  *
- * Integrated from code2's draft (062a.draft.md), bytes CLEAN via draftdiff.
- * The draft left the five loc_ blocks as a note rather than code; they are
- * written here from the listing, and every m.step target was checked against
- * the listing's own instruction boundaries.
+ * The five loc_ blocks are written out from the listing, and every m.step
+ * target was checked against the listing's own instruction boundaries.
  *
  * A IS A LIVE-IN -- `and a` at 0x062A tests it before anything sets it. It is
  * the task-dispatch payload. C IS ALSO LIVE-IN, but only on the 0x0691 arm:
@@ -1244,18 +1242,14 @@ function entry_051c(m) {
 }
 
 /*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 13 instructions,
- * 0x059B-0x05C5, 43 bytes, CLEAN. The HL-twin of handler_05c6: clears the
- * payload-selected 3-byte BCD slot, then TAIL-JUMPS to handler_05c6 to render.
- * Placed here beside its twin (both <0x3000, my partition). Exported dead code
- * -> NET-ZERO.
+ * The HL-twin of handler_05c6: clears the payload-selected 3-byte BCD slot,
+ * then TAIL-JUMPS to handler_05c6 to render.
  *
- * GO-LIVE CHOICE, flagged to qa-b: the payload>=3 branch (jp nc,0x05BD) is a
- * recursive "clear all lower slots" loop. Per the cluster's coverage discipline
- * -- the twin handler_05c6 THROWS on its analogous high-payload branch rather
- * than translate unexercised recursion -- this stubs it with NotImplemented.
- * If a real exec-tape reaches it at go-live, implement the recursion then.
- * The payload<3 path (the common one) is fully translated.
+ * The payload>=3 branch (jp nc,0x05BD) is a recursive "clear all lower slots"
+ * loop. As with the twin handler_05c6 -- which THROWS on its analogous
+ * high-payload branch rather than translate unexercised recursion -- this stubs
+ * it with NotImplemented. The payload<3 path (the common one) is fully
+ * translated.
  */
 /**
  * loc_059b -- ROM 0x059B-0x05C5  (clear a BCD slot, then render via handler_05c6)
@@ -1424,9 +1418,9 @@ function tail_05da(m) {
  * is executed and then possibly OVERWRITTEN -- the fall-through IS the
  * selection, the same shape as handler_05c6's 0x05CB/0x05D2 pair.
  *
- * TWO EXITS, both ordinary `ret`s -- no stack idiom here. Taken from the
- * integrator rather than a drafter because it is six instructions and its only
- * two callers are both inside entry_051c, at 0x051E and 0x0550.
+ * TWO EXITS, both ordinary `ret`s -- no stack idiom here. It is six
+ * instructions with only two callers, both inside entry_051c, at 0x051E and
+ * 0x0550.
  *
  * IT RETURNS ITS RESULT IN DE AND CLOBBERS A AND F. A holds (0x600D) at both
  * exits and the flags are `and a`'s -- entry_051c's second call site at 0x0550
@@ -1608,31 +1602,19 @@ function sub_0593(m) {
   // WAS `regs.ix = (regs.ix + regs.de) & 0xffff` -- arithmetically right and
   // flag-wise wrong. `add ix,rr` sets H, N and C (and the undocumented F3/F5)
   // from the 16-bit result; the open-coded version left all of them at
-  // whatever the preceding `and 0x0f` had set. The fix is correct and is not
-  // in question.
+  // whatever the preceding `and 0x0f` had set.
   //
-  // WHAT WAS IN QUESTION WAS THE WORD "LATENT", AND I HAVE WITHDRAWN IT.
-  // This comment used to say "nothing here reads carry before the next
-  // writer, so it was latent". That reasoning is scoped to a TWO-INSTRUCTION
-  // routine whose second instruction is the `ret` -- the carry leaves
-  // immediately, so "nothing here" could not establish the claim. QA found
-  // the identical error at 0x10AE (carry surviving `dec c`, the `jp nz` and
-  // three `ld`s into a callee) and named the shape: a liveness check that
-  // stops at the routine boundary can return the right verdict BY LUCK.
-  // "No reader in this routine" is not "no reader" -- the returns_normally
-  // conflation one level down.
+  // A liveness check that stops at the routine boundary can return the right
+  // verdict BY LUCK: "no reader in this routine" is not "no reader". This is a
+  // two-instruction routine whose second instruction is the `ret`, so the
+  // carry leaves immediately. Traced out of the caller loop at 0x0583:
+  //   loop-back    -- carry DIES at `rrca` (0x0584).
+  //   fall-through -- escapes `ret` 0x059A, `ret` 0x0592, reaches 0x15B0 past
+  //     three flag-neutral instructions, and escapes `ret` 0x15F9 too. STILL
+  //     LIVE three returns up.
   //
-  // Traced properly, both paths out of the caller loop at 0x0583:
-  //   loop-back  -- carry DIES at `rrca` (0x0584). Dead, as claimed.
-  //   fall-through -- escapes `ret` 0x059A, `ret` 0x0592, reaches 0x15B0
-  //     past three flag-neutral instructions, and escapes `ret` 0x15F9 too.
-  //     STILL LIVE three returns up, where the old claim said dead.
-  //
-  // Whether any reader exists further up is UNRESOLVED and deliberately not
-  // hunted: the code now sets the flags correctly, so the question is moot
-  // for correctness and only ever mattered as an assertion in a comment.
-  // Recording the limit instead of completing the trace -- an unsupported
-  // claim removed is worth more than a longer one added.
+  // Whether any reader exists further up is unresolved and does not matter for
+  // correctness now that the flags are set correctly.
   regs.addIx(regs.de);
   m.step(0x059a, 15); // add ix,de
   m.ret();
@@ -1738,7 +1720,7 @@ export function handler_05e9(m) {
       // cp/jp-z check. So `pop hl` discards THAT push-af value (not the return
       // address), and `ret` goes to the IMMEDIATE caller. A NORMAL return.
       // (The `pop hl` is load-bearing: remove it and callers return one frame
-      // short. qa-b verified this 4 ways, 2026-07-20.)
+      // short.)
       m.step(0x0026, 10);
       regs.hl = m.pop16(); // discards the outstanding push-af, NOT the return addr
       m.step(0x0027, 10);

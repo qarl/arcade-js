@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """State-diff the translated JS RAM against MAME golden state dumps.
 
 This is the FAST feedback loop, and it is available before any renderer exists.
-It also separates two failure domains (GATE-RULES §4):
+It also separates two failure domains:
 
   * RAM matches but pixels differ  -> the CPU translation is correct; the bug is
     in the hardware/video model.
@@ -127,10 +128,10 @@ def main():
 
     partial = n < expected or actual.count != expected
 
-    # GATE-RULES: a check that produces a WARNING still depends on attention; a
+    # A check that produces a WARNING still depends on attention; a
     # check that produces a FAILURE does not. The SCOPE line below states what a
-    # verdict cannot establish -- but it printed exactly that refutation in the
-    # output I was reading when I announced a milestone anyway. So callers who
+    # verdict cannot establish -- but a warning like that is easy to print and
+    # skip over. So callers who
     # DEPEND on coverage assert it here and get a failure, not a note.
     if args.must_reach:
         lm = scope.find_landmark(args.must_reach)
@@ -155,7 +156,7 @@ def main():
             )
             return EXIT_FAIL
 
-    # Free assertion: power-on RAM is all zero (verified on real MAME, HARNESS §7).
+    # Free assertion: power-on RAM is all zero (verified on real MAME).
     if actual.read(0) != b"\x00" * stateio.BYTES_PER_FRAME:
         print(
             "  NOTE: js state[0] is not all-zero. Power-on RAM is verified "
@@ -189,7 +190,7 @@ def main():
             print(scope.report(n))
             return EXIT_PARTIAL
         print(f"[statediff] PASS -- all {n} state frames identical, byte-for-byte")
-        # GATE-RULES §25: a green is evidence only about the code it executed.
+        # A green is evidence only about the code it executed.
         # A bare PASS invites the inference that everything works.
         print(scope.report(n))
         return EXIT_OK
@@ -218,7 +219,7 @@ def main():
 
     print(scope.report(n))
 
-    # GATE-RULES §26/§19, printed at the point of temptation -- same reasoning as
+    # Printed at the point of temptation -- same reasoning as
     # the SCOPE line. This report gives WHERE and HOW MUCH. It deliberately does
     # not license changing code until the numbers agree: iterated diff-driven
     # patching IS fitting to the oracle, byte by byte, and every individual
@@ -226,7 +227,7 @@ def main():
     # diff go green" is oracle-derived -- the ROM was never consulted -- which is
     # the exact failure this method exists to avoid, arriving disguised as debugging.
     print(
-        "\n  §19: the FIX must trace to an independently-verifiable ROM fact.\n"
+        "\n  The FIX must trace to an independently-verifiable ROM fact.\n"
         "  This is evidence that something is wrong and where -- NOT a\n"
         "  specification of what the code should produce."
     )

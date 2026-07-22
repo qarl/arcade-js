@@ -1,9 +1,10 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /**
  * Donkey Kong I/O devices: input ports, the ls259.6h / ls175.3d latches,
  * the discrete control writes at 0x7D80-0x7D87, the watchdog, and the i8257
  * DMA controller.
  *
- * Bit maps are from MAME's src/mame/nintendo/dkong.cpp via ../docs/BOOT-RECON.md.
+ * Bit maps are from MAME's src/mame/nintendo/dkong.cpp.
  *
  * Every stub here THROWS rather than silently accepting, because an
  * unimplemented device that quietly returns 0 is indistinguishable from a
@@ -104,11 +105,11 @@ export class NotImplemented extends Error {
  * bug which stops the NMI running produces the same reset MAME produces,
  * rather than the two silently diverging.
  *
- * UNVERIFIED: timeoutFrames = 16 is a PLACEHOLDER, not a fact. BOOT-RECON and
- * GATE-RULES both describe the kick mechanism but neither gives a count, and
- * nothing calls tickFrame() yet. Get the real value out of dkong.cpp before
+ * UNVERIFIED: timeoutFrames = 16 is a PLACEHOLDER, not a fact. The kick
+ * mechanism is understood but no count has been confirmed, and nothing calls
+ * tickFrame() yet. Get the real value out of dkong.cpp before
  * this becomes load-bearing -- an invented constant that happens to work is
- * exactly what GATE-RULES §3 warns about.
+ * exactly the hazard this guards against.
  */
 export class Watchdog {
   constructor(timeoutFrames = 16) {
@@ -207,7 +208,7 @@ export class I8257 {
    * exactly ONCE -- boot's clear loop. Nothing fills sprite RAM directly, so
    * 0x6900 must be the source.
    *
-   * PENDING CROSS-CHECK against MAME's driver (GATE-RULES §9). Both regions
+   * PENDING CROSS-CHECK against MAME's driver. Both regions
    * are inside the diffed 5120 bytes, so a reversed direction does not fail
    * safe -- it writes plausible data into both and would read as a bug in
    * whatever routine ran last.
@@ -279,7 +280,7 @@ export class IO {
 
   // -- reads --------------------------------------------------------------
   // These are input ports. Note that WRITING these same addresses hits
-  // entirely different devices; see src/memory.js.
+  // entirely different devices; see ./memory.js.
 
   // inputAssert (set by Machine.applyInputs from emit.js --input) ORs asserted
   // bits onto a port for the frames a tape entry covers -- coin/start/joystick
@@ -294,7 +295,7 @@ export class IO {
 
   /**
    * IN2 (0x7D00). THE READ KICKS THE WATCHDOG -- this is the whole reason
-   * reads route through a function instead of an array (GATE-RULES §10).
+   * reads route through a function instead of an array.
    */
   readIn2() {
     this.watchdog.kick();
@@ -380,7 +381,7 @@ export class IO {
  * defaults are "no input", and QA's tapes drive the rest.
  *
  * SERVICE is deliberately absent from the API surface beyond this flag:
- * GATE-RULES §6 makes it out-of-policy input. Holding it jumps to 0x4000, a
+ * this is out-of-policy input. Holding it jumps to 0x4000, a
  * diagnostic ROM base dkong does not ship.
  */
 export class Inputs {
@@ -394,7 +395,7 @@ export class Inputs {
     // Coinage 0x70/default 0, Cabinet 0x80/DEFAULT 0x80. Cabinet is the only
     // bit that defaults set, and it is the dangerous one: clearing it selects
     // cocktail mode, which FLIPS THE SCREEN via 0x7D82 -- a latch nothing can
-    // currently observe (GATE-RULES §28). An unpinned input feeding an
+    // currently observe. An unpinned input feeding an
     // unobservable output, so it is pinned here rather than defaulted to 0.
     this._dsw0 = 0x80;
   }

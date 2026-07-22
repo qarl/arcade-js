@@ -1,9 +1,10 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /**
  * Translated boot path: Z80 reset through main-loop entry.
  *
- * Translated in EXECUTION ORDER from the reset vector (CHARTER methodology
- * point 1). Every routine below carries its ROM address range and the
- * original mnemonics (GATE-RULES §7) so fidelity is auditable line by line.
+ * Translated in EXECUTION ORDER from the reset vector. Every routine below
+ * carries its ROM address range and the original mnemonics so fidelity is
+ * auditable line by line.
  *
  * Register state is threaded through `Regs` rather than JS locals because the
  * original passes values between routines in registers.
@@ -103,12 +104,12 @@ export function bootOnly(m) {
  * times (0 decrements to 0xFF), so the loop is 16 x 256 = 4096 bytes and
  * clears 0x6000-0x6FFF. Work RAM is only 0x6000-0x6BFF, so it over-runs real
  * RAM by 0x400 bytes; those writes are discarded and counted (see
- * DISCARD_BASE in src/memory.js). The 0x6BFF bound is right -- `ld sp,0x6c00`
+ * DISCARD_BASE in boards/dkong/memory.js). The 0x6BFF bound is right -- `ld sp,0x6c00`
  * below puts the stack top at 0x6BFF, which would be impossible if RAM ran to
  * 0x6FFF.
  *
  * Video RAM is filled with 0x10, NOT zero. (Power-on VRAM is all zeroes, but
- * that is the state QA samples *before* any instruction runs; by the time
+ * that is the state sampled *before* any instruction runs; by the time
  * boot finishes, every cell holds tile 0x10.)
  */
 export function bootInit(m) {
@@ -264,7 +265,7 @@ export function bootInit(m) {
  *
  * The shadow copy matters for us: the latch is write-only from the Z80's
  * side, so the ROM keeps its own readable mirror in RAM. That mirror lands in
- * the state dump, which means QA's state diff covers the latch contents even
+ * the state dump, which means the state diff covers the latch contents even
  * though the hardware register itself is invisible.
  *
  * Note `inc l` / `inc e` (8-bit) rather than `inc hl` / `inc de`: the high

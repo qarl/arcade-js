@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Capture golden reference frames + state dumps from MAME.
 
 This is the ground-truth side of the arcade-js validation harness. It runs MAME
 under a pinned, determinism-controlled command line and emits artifacts in
 exactly the formats the translated JS also emits, so comparison is a memcmp.
 
-DETERMINISM (proven 2026-07-18, see docs/HARNESS.md): two independent runs under
+DETERMINISM (proven, see docs/04-integration-testing.md): two independent runs under
 this command line produce BYTE-IDENTICAL AVI output. The controls that matter
 are a fresh empty -nvram_directory per run (DK writes high scores), -nonvram_save,
 -nocheat, -noautosave, -frameskip 0, -nothrottle.
@@ -17,7 +18,7 @@ Usage:
 """
 
 import argparse
-import os as _os_hl; _os_hl.environ.setdefault("SDL_VIDEODRIVER", "dummy")  # noqa: E702 -- headless: null SDL backend, no window (mame#7345). prime 2026-07-19
+import os as _os_hl; _os_hl.environ.setdefault("SDL_VIDEODRIVER", "dummy")  # noqa: E702 -- headless: null SDL backend, no window (mame#7345).
 import hashlib
 import json
 import math
@@ -42,7 +43,7 @@ REFRESH_HZ = 60.606061
 
 
 def build_mame_argv(args, workdir, avi_name="out"):
-    """The known-good command line. Every flag here is load-bearing -- see docs/HARNESS.md.
+    """The known-good command line. Every flag here is load-bearing -- see docs/04-integration-testing.md.
 
     Gotchas encoded here so nobody rediscovers them:
       * MAME boolean options take the -noX form. '-nocheat 0' is a parse error.
@@ -104,11 +105,11 @@ def build_mame_argv(args, workdir, avi_name="out"):
             fh.write("dofile(%r)\n" % inner)
         argv += ["-autoboot_script", shim]
     elif args.writes:
-        # Hardware write trace (GATE-RULES §28): gates the control latches, i8257
+        # Hardware write trace: gates the control latches, i8257
         # programming and sound latch -- the surface the state dump never covered.
         argv += ["-autoboot_script", LUA_WRITES]
     elif args.at_pc:
-        # PC-exact capture (closes the §13 frame-boundary sampling gap): emits a
+        # PC-exact capture (closes the frame-boundary sampling gap): emits a
         # single state frame at the moment PC first reaches the target address.
         argv += ["-autoboot_script", LUA_AT_PC]
     else:
@@ -293,11 +294,11 @@ def main():
                 k: v for k, v in sorted(os.environ.items()) if k.startswith("TAPE_")
             }
 
-        # Poison conditions. GATE-RULES §10: a capture we have ourselves
+        # Poison conditions. A capture we have ourselves
         # identified as suspect must HARD-FAIL, not warn and exit 0. Quietly
         # wrong reference data is worse than no reference data, and in a
         # `mame_golden.py && framediff.py` pipeline a warning flows straight
-        # through to the coder.
+        # through to the consumer.
         poison = []
 
         if not args.no_frames:
@@ -311,7 +312,7 @@ def main():
             if n == 0:
                 poison.append("capture produced 0 frames")
             else:
-                # HARNESS §3: avi_frame_count = ceil(refresh * seconds) + 1.
+                # avi_frame_count = ceil(refresh * seconds) + 1.
                 # A capture that misses this was truncated or mis-run, and is the
                 # exact input that makes a short-run false PASS possible downstream.
                 expect = math.ceil(REFRESH_HZ * args.seconds) + 1
@@ -341,7 +342,7 @@ def main():
                 n_w = sum(1 for ln in open(dst) if ln.strip())
             manifest["write_count"] = n_w
             print(f"[writes] {n_w} writes -> {args.out}/writes.txt")
-            # §16: absence must never read as success. A capture that emits no
+            # Absence must never read as success. A capture that emits no
             # writes has verified nothing.
             if n_w == 0:
                 poison.append(
@@ -374,7 +375,7 @@ def main():
                         f"--at-pc produced {n} state frames, expected exactly 1"
                     )
             else:
-                # HARNESS §3. The +1 is the power-on sample taken at Lua script
+                # The +1 is the power-on sample taken at Lua script
                 # load, before any instruction runs; the notifier then supplies
                 # one sample per emulated frame. That extra sample is what makes
                 # state[N] mean "after N frames" rather than "after N+1".
@@ -392,7 +393,7 @@ def main():
                         f"ceil({REFRESH_HZ}*{args.seconds})+1 = {expect_state} "
                         f"(truncated dump, or the Lua notifier unsubscribed)"
                     )
-                # Verified power-on invariant (HARNESS §7). If this is false the
+                # Verified power-on invariant. If this is false the
                 # capture is by definition not ground truth.
                 zero_ok = (
                     stateio.StateSet(args.out).read(0)
@@ -503,7 +504,7 @@ def main():
             elif delta != 0:
                 poison.append(
                     f"AVI/emulated frame delta is {delta}, expected exactly 0 "
-                    f"(HARNESS §3/§4 -- AVI frame 0 and state[0] are the same instant)"
+                    f"(AVI frame 0 and state[0] are the same instant)"
                 )
 
         if poison:

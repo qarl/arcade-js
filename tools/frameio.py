@@ -1,6 +1,7 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Shared frame-artifact I/O for the arcade-js pixel-diff harness.
 
-THE FRAME CONTRACT (fixed by lead in docs/BOOT-RECON.md, format chosen by QA):
+THE FRAME CONTRACT:
 
   frames.rgb   headerless concatenation of frames, 172032 bytes each
                (256 * 224 * 3). No padding, no separators.

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Z80 instruction decoder.
 
 Built from the structural x/y/z/p/q decomposition of the opcode byte rather

@@ -48,7 +48,11 @@ function makeLive(Machine) {
     }
 
     _pace() {
-      while (Atomics.load(ctrl, C_PAUSED) === 1 && Atomics.load(ctrl, C_RUNNING) === 1) {
+      while (
+        Atomics.load(ctrl, C_PAUSED) === 1 &&
+        Atomics.load(ctrl, C_RUNNING) === 1 &&
+        Atomics.load(ctrl, C_RESET) === 0
+      ) {
         Atomics.wait(ctrl, C_SLEEP, 0, 80);
         this._next = performance.now();
       }

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /**
  * Generic Z80 CPU-core tests.
  *
@@ -11,12 +12,21 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 import { Regs, F_C, F_H, F_N, F_PV, F_S, F_Z } from "../z80.js";
 import { Machine } from "../../../games/dkong/machine.js";
 
-const ROM = new Uint8Array(readFileSync(new URL("../../../games/dkong/rom/maincpu.bin", import.meta.url)));
+// The ROM image is copyright and not committed, so it is absent on a fresh
+// public clone. Guard the load: a couple of tests build a Machine only to get a
+// mapped AddressSpace; skip just those when the ROM is missing (the pure Regs
+// tests below need no ROM and always run) rather than crashing at import time.
+const ROM_PATH = new URL("../../../games/dkong/rom/maincpu.bin", import.meta.url);
+const ROM_PRESENT = existsSync(ROM_PATH);
+const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(ROM_PATH)) : null;
+const romTest = ROM_PRESENT
+  ? test
+  : (name, fn) => test(name, { skip: "skipped: ROM not built — run 'make -C games/dkong rom'" }, fn);
 
 test("dec8 wraps 0x00 -> 0xFF and sets NZ (the 256-iteration loop)", () => {
   // Boot's inner clear loop enters with C=0 and relies on this to run 256
@@ -38,7 +48,7 @@ test("inc/dec do not disturb carry", () => {
   assert.ok(r.fC, "DEC must leave carry alone");
 });
 
-test("incMem8/decMem8 do the RMW AND set flags -- the (ix+d) flag-drop the helper exists for", () => {
+romTest("incMem8/decMem8 do the RMW AND set flags -- the (ix+d) flag-drop the helper exists for", () => {
   // The shared primitive for `inc (ix+d)` / `dec (ix+d)`. The whole reason it is
   // a method: the open-coded `mem.write8(a, (v-1)&0xff)` gives the right VALUE
   // but drops S/Z/H/PV, and sub_32d6 does `dec (ix+0x1c)` then `jp nz` on the Z.
@@ -200,8 +210,8 @@ test("daa matches MAME 0.288 exhaustively -- including the N=1 branch, which has
   // after, because afterwards a red would have two candidate causes.
   //
   // The expected values are a port of MAME 0.288 z80.cpp:309 `daa()` plus the
-  // flag accessors at z80.h:191-200 -- NOT from cpu.js (§21, a test must not
-  // draw its expected value from the code under test). Same build that
+  // flag accessors at z80.h:191-200 -- NOT from cpu.js: a test must not
+  // draw its expected value from the code under test. Same build that
   // produces our golden, so this is the spec the gate measures against.
   //
   // MAME's H for daa is `h_val = A ^ a`, i.e. bit 4 of (input XOR result) --
@@ -265,8 +275,8 @@ test("CB shifts rlc/sla/sra/srl/rr match MAME 0.288 exhaustively, all 256 x carr
   // translated -- the daa discipline applied to a whole instruction group.
   //
   // Expected values are a port of MAME 0.288 z80.cpp (sla:467, sra:483,
-  // srl:515, rr:451) plus the flag accessors at z80.h:191-200, NOT from cpu.js
-  // (§21). All four share MAME's shape: S/Z/PV/F3/F5 from the result, H=N=0,
+  // srl:515, rr:451) plus the flag accessors at z80.h:191-200, NOT from cpu.js.
+  // All four share MAME's shape: S/Z/PV/F3/F5 from the result, H=N=0,
   // C from the bit shifted out; rr and sra also read state (carry / sign).
   //
   // The pairs that are one bit apart and easy to swap are the point of an
@@ -292,7 +302,7 @@ test("CB shifts rlc/sla/sra/srl/rr match MAME 0.288 exhaustively, all 256 x carr
         const got = regs[name](v);
         const exp = want(v, cin);
         assert.equal(got, exp.r, `${name}(0x${v.toString(16)}) cin=${cin} value`);
-        // H and N must be CLEARED, not left stale -- assert positively (§65)
+        // H and N must be CLEARED, not left stale -- assert positively
         assert.equal(regs.f & F_H, 0, `${name} clears H`);
         assert.equal(regs.f & F_N, 0, `${name} clears N`);
         assert.equal(regs.f, exp.f, `${name}(0x${v.toString(16)}) cin=${cin} flags`);
@@ -302,11 +312,11 @@ test("CB shifts rlc/sla/sra/srl/rr match MAME 0.288 exhaustively, all 256 x carr
 });
 
 test("bit n,r and bit n,(ix+d) differ ONLY in the F3/F5 source -- both pinned vs MAME", () => {
-  // THE REGRESSION TRAP (lead, §29): the fix for the indexed form changes a
+  // THE REGRESSION TRAP: the fix for the indexed form changes a
   // helper every `bit n,r` site already calls. Pin the REGISTER form FIRST so
   // a compensating error -- indexed right, register wrong -- cannot read clean
   // across a probe spanning both. Two pinned cases, expected values from MAME
-  // 0.288 source (z80.cpp:531 `bit`, :555 `bit_xy`), never from cpu.js (§21).
+  // 0.288 source (z80.cpp:531 `bit`, :555 `bit_xy`), never from cpu.js.
   //
   //   bit n,r        yx_val = value        (the operand)
   //   bit n,(ix+d)   yx_val = m_ea >> 8    (the effective-address high byte)
@@ -360,7 +370,7 @@ test("adc/sbc carry-in path matches MAME 0.288 exhaustively -- the branch that h
   // and CB-shift discipline applied to the arithmetic carry path.
   //
   // Expected values are ported from MAME 0.288 z80.cpp adc_a(:246) and
-  // sbc_a(:281), NOT from cpu.js (§21). The full input space is swept:
+  // sbc_a(:281), NOT from cpu.js. The full input space is swept:
   // 256 A x 256 operand x carry-in, both ops -- 393,216 cases, because the
   // carry-in changes H (nibble boundary) and C (byte boundary) at inputs a
   // sparse test would miss.
@@ -417,10 +427,10 @@ test("res n,r and set n,r modify one bit and LEAVE ALL FLAGS UNCHANGED -- vs MAM
   // THE FLAG-PRESERVATION IS THE LOAD-BEARING PROPERTY, not the bit math. At
   // 0x3043 the `res 2,d` is followed by `dec d` whose flags the exit test
   // reads -- a res that touched a flag would corrupt that test while leaving D
-  // correct, the §29 compensating-error shape a memory diff cannot see. So the
+  // correct, the compensating-error shape a memory diff cannot see. So the
   // whole flag word is asserted UNCHANGED across every possible starting flag
   // state, not just "no crash". The value is checked against MAME's formula,
-  // never against cpu.js (§21).
+  // never against cpu.js.
   const F_ALL = F_S | F_Z | F_H | F_PV | F_N | F_C | 0x28; // every documented + F3/F5 bit
   for (let value = 0; value < 256; value++) {
     for (let n = 0; n < 8; n++) {
@@ -489,9 +499,8 @@ test("adc hl,rr sets S/Z/PV that add hl,rr preserves -- pinned vs MAME 0.288 adc
 });
 
 test("sbcHl is NOT a sign-flipped adcHl -- it SETS N and uses a different overflow term", () => {
-  // Authored by qa (qa/drafts/primitives-cpir-sbc16.md), pinned to mame0288
-  // z80.lst:394. I re-read the macro before merging: n=1 and the
-  // (dd^HL)&(HL^res) overflow term both confirmed against the source (§9).
+  // Pinned to mame0288 z80.lst:394: n=1 and the (dd^HL)&(HL^res) overflow term
+  // both confirmed against the source.
   const r = new Regs();
 
   r.hl = 0x0000; r.f = 0; r.sbcHl(0x0000);
@@ -531,11 +540,10 @@ test("sbcHl is NOT a sign-flipped adcHl -- it SETS N and uses a different overfl
   // changes.
 });
 
-test("cpi PRESERVES carry, takes S/Z raw and F3/F5 from an H-ADJUSTED result", () => {
-  // qa's artifact, verified against z80.lst:457 before merging: the literal
-  // "// keep C", S/Z from the unadjusted result, and `if (h()) res -= 1` BEFORE
-  // yx_val. NOTE: qa's snippet used 0x4000, which is UNMAPPED here and throws --
-  // relocated to work RAM (0x6A00), the only edit the artifact needed.
+romTest("cpi PRESERVES carry, takes S/Z raw and F3/F5 from an H-ADJUSTED result", () => {
+  // Verified against z80.lst:457: the literal "// keep C", S/Z from the
+  // unadjusted result, and `if (h()) res -= 1` BEFORE yx_val. NOTE: 0x4000 is
+  // UNMAPPED here and throws -- these cases run in work RAM (0x6A00).
   const m = new Machine(ROM);
   const r = m.regs, mem = m.mem;
 

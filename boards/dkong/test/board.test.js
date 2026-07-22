@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /**
  * Donkey Kong board-hardware tests.
  *
@@ -12,7 +13,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 import { AddressSpace, STATE_DUMP_SIZE, UnmappedAccess } from "../memory.js";
 import { IO } from "../io.js";
@@ -22,15 +23,25 @@ import {
 } from "../video.js";
 import { Machine } from "../../../games/dkong/machine.js";
 
-const ROM = new Uint8Array(readFileSync(new URL("../../../games/dkong/rom/maincpu.bin", import.meta.url)));
+// The ROM/PROM/GFX images are copyright and not committed, so they are absent on
+// a fresh public clone. Guard the loads: tests that touch a ROM image skip
+// cleanly when it is missing, while the pure decode/normalize logic tests below
+// still run, rather than the whole file crashing at import time.
+const ROM_DIR = new URL("../../../games/dkong/rom/", import.meta.url);
+const ROM_PRESENT = ["maincpu.bin", "gfx1.bin", "gfx2.bin", "proms.bin"]
+  .every((f) => existsSync(new URL(f, ROM_DIR)));
+const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM_DIR))) : null;
+const romTest = ROM_PRESENT
+  ? test
+  : (name, fn) => test(name, { skip: "skipped: ROM not built — run 'make -C games/dkong rom'" }, fn);
 
-test("state dump is 5120 bytes: work 3072 + sprite 1024 + video 1024", () => {
+romTest("state dump is 5120 bytes: work 3072 + sprite 1024 + video 1024", () => {
   assert.equal(STATE_DUMP_SIZE, 5120);
   assert.equal(new Machine(ROM).dumpState().length, 5120);
 });
 
-test("reading 0x7D00 kicks the watchdog (the read IS the kick)", () => {
-  // GATE-RULES §10. Modelling this as a pure value read silently drops the
+romTest("reading 0x7D00 kicks the watchdog (the read IS the kick)", () => {
+  // Modelling this as a pure value read silently drops the
   // kick and MAME watchdog-resets while we sail on.
   const io = new IO({});
   const mem = new AddressSpace(ROM, io);
@@ -39,7 +50,7 @@ test("reading 0x7D00 kicks the watchdog (the read IS the kick)", () => {
   assert.equal(io.watchdog.framesSinceKick, 0);
 });
 
-test("read and write at 0x7C00 hit different devices", () => {
+romTest("read and write at 0x7C00 hit different devices", () => {
   // Reads IN0; writes the ls175.3d sound latch. A single backing array here
   // would be silently wrong.
   const io = new IO({});
@@ -49,14 +60,14 @@ test("read and write at 0x7C00 hit different devices", () => {
   assert.equal(mem.read8(0x7c00), 0x00, "read returns IN0, not the latch");
 });
 
-test("unmapped access throws rather than silently succeeding", () => {
+romTest("unmapped access throws rather than silently succeeding", () => {
   const mem = new AddressSpace(ROM, new IO({}));
   assert.throws(() => mem.read8(0x6c00), UnmappedAccess, "0x6C00 is not RAM");
   assert.throws(() => mem.read8(0x5000), UnmappedAccess);
   assert.throws(() => mem.write8(0x0100, 0), UnmappedAccess, "write to ROM");
 });
 
-test("work RAM ends at 0x6BFF", () => {
+romTest("work RAM ends at 0x6BFF", () => {
   const mem = new AddressSpace(ROM, new IO({}));
   mem.write8(0x6bff, 0x99);
   assert.equal(mem.read8(0x6bff), 0x99);
@@ -97,7 +108,7 @@ test("normalizeRange uses C++ truncation toward zero, not Math.floor", () => {
   assert.deepEqual([out[9], out[10], out[11]], [232, 7, 10]);
 });
 
-test("normalizeRange preserves chroma rather than stretching channels", () => {
+romTest("normalizeRange preserves chroma rather than stretching channels", () => {
   // The name invites the reading "scale each channel to full range". It is a
   // LUMINANCE rescale in YUV. The distinguishing prediction: a pen whose red
   // maxes at 225 does NOT come back as 255.
@@ -122,7 +133,7 @@ test("normalizeRange rejects an inverted range instead of silently doing nothing
   assert.throws(() => normalizeRange(pal, 10, 5), /no luminance range/);
 });
 
-test("screen flip is exactly a 180-degree rotation of the unflipped image", () => {
+romTest("screen flip is exactly a 180-degree rotation of the unflipped image", () => {
   // THE PROPERTY THAT DEFINES A COCKTAIL FLIP.
   //
   // HONEST SCOPE, because the first version of this comment overclaimed: at
@@ -164,7 +175,7 @@ test("screen flip is exactly a 180-degree rotation of the unflipped image", () =
   assert.notDeepEqual(Array.from(plain), Array.from(flipped), "flip must change something");
 });
 
-test("the undisplayed tilemap margin is two rows at EACH end, in both orientations", () => {
+romTest("the undisplayed tilemap margin is two rows at EACH end, in both orientations", () => {
   // Corollary of the axis being mid-window, and it contradicts what the
   // first implementation's comment claimed. Tile rows 0..3 -- the 128 VRAM
   // slots QA measured invisible -- must stay invisible in BOTH orientations.
@@ -191,7 +202,7 @@ test("the undisplayed tilemap margin is two rows at EACH end, in both orientatio
   }
 });
 
-test("renderRowRGB paints each row in the orientation it is given", () => {
+romTest("renderRowRGB paints each row in the orientation it is given", () => {
   // The compositing property itself, isolated from the machine so it can be
   // asserted exactly. Rows painted with flip=0 must match an all-unflipped
   // render, and rows painted with flip=1 an all-flipped one -- which is what
@@ -230,7 +241,7 @@ test("renderRowRGB paints each row in the orientation it is given", () => {
   );
 });
 
-test("a mid-frame palette-bank change renders as a seam, like the flip does", () => {
+romTest("a mid-frame palette-bank change renders as a seam, like the flip does", () => {
   // PRE-EMPTIVE GATE. Every one of the 517 byte-exact frames ran with
   // paletteBank = 0 -- the bank becomes 2 in image 517, the first image the
   // translation does not yet reach. So this path has NEVER executed under a
@@ -273,7 +284,7 @@ test("a mid-frame palette-bank change renders as a seam, like the flip does", ()
   );
 });
 
-test("the palette bank cannot make a black pixel lit, or the reverse", () => {
+romTest("the palette bank cannot make a black pixel lit, or the reverse", () => {
   // `pen = color*4 + pixel` and the tri-state black rule is `(pen & 3) == 0`,
   // which depends ONLY on the pixel value -- so changing the bank shifts
   // colours and can never change WHICH pixels are lit. Worth pinning because
@@ -299,8 +310,8 @@ test("the palette bank cannot make a black pixel lit, or the reverse", () => {
   }
 });
 
-test("decodeSprites maps the four gfx2 quadrants per MAME's spritelayout", () => {
-  // §21: expected positions come from MAME's spritelayout (dkong.cpp:1675),
+romTest("decodeSprites maps the four gfx2 quadrants per MAME's spritelayout", () => {
+  // Expected positions come from MAME's spritelayout (dkong.cpp:1675),
   // NOT from decodeSprites. The layout has two independent region splits --
   // plane at RGN_FRAC(1,2)=4096, sprite-half at RGN_FRAC(1,4)=2048 -- so a
   // single set bit in each quadrant must land at a SPECIFIC (code,x,y,plane).
@@ -350,12 +361,12 @@ test("drawSprites places a sprite by the dkong formula, and the placement has te
   // A STANDING version of the mutation check QA and I ran through rasterconf:
   // color=0, code+1, x+1 and dropped-transpen each dropped the gate 727->520.
   // Here the same four are caught by explicit pixel assertions, so the teeth
-  // are checked on every run, not remembered (QA's request; §48 -- a green gate
-  // is worth nothing until a wrong renderer proves it goes red).
+  // are checked on every run, not remembered -- a green gate is worth nothing
+  // until a wrong renderer proves it goes red.
   //
   // Expected pixel positions are computed from MAME's draw_sprites formula
   // (dkong_v.cpp, no-flip: add_y=0xF9, add_x=0xF7; output row sy -> raster
-  // sy+16), NOT read back from drawSprites (§21). A gray palette makes the
+  // sy+16), NOT read back from drawSprites. A gray palette makes the
   // output byte equal the pen, and a 99 background sentinel makes transparency
   // observable.
   const sprites = new Uint8Array(SPRITE_COUNT * 256);

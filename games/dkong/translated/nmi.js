@@ -1,33 +1,20 @@
+// SPDX-License-Identifier: GPL-3.0-only
 /**
  * Translated vblank NMI handler.
  *
  * DK uses NMI (0x0066), not IM1 -- the bytes at 0x0038 are an ordinary
- * subroutine, not an ISR (docs/BOOT-RECON.md).
+ * subroutine, not an ISR.
  *
- * TIMING -- THE DERIVATION BELOW IS REFUTED. Kept because naming the error
- * is worth more than deleting it, and because this file asserted the wrong
- * story for hours after machine.js recorded the right one.
- *
- * It ran: vtotal=264, vbstart=240, so vblank begins 240/264 into the frame:
- *
- *   50688 * 240 / 264 = 46080 cycles, exact integer
- *
- * and concluded the NMI fires 46080 cycles INTO each frame rather than at the
- * boundary. The arithmetic is correct. THE ZERO IS NOT: MAME's frame origin
- * for this driver IS the vblank point, so vblank begins AT the boundary and
- * the NMI fires there. QA measured real NMI entries at 202771, 253451,
- * 304141... every one at frame N.000x. `NMI_CYCLE_IN_FRAME` is 0.
- *
- * Same mistake, same quantity, third time: this project has now produced two
- * wrong constants and three mislabelled line numbers from the question "which
- * zero". State which zero, every time.
+ * TIMING: the NMI fires AT the frame boundary, not partway into it.
+ * `NMI_CYCLE_IN_FRAME` is 0 because MAME's frame origin for this driver IS the
+ * vblank point, so vblank begins at the boundary and the NMI fires there.
+ * (Real NMI entries land at frame N.000x, e.g. 202771, 253451, 304141.)
  *
  * THE HANDLER IS ALSO THE WATCHDOG KICK. `ld a,(0x7d00)` at 0x0072 reads IN2,
- * and that READ resets the watchdog (GATE-RULES §10) -- nothing ever writes a
- * watchdog register. So the dog is fed exactly once per vblank, as a side
- * effect of reading the inputs. A translation that stops running the NMI
- * therefore also stops feeding the watchdog, and MAME would reset while we
- * sail on.
+ * and that READ resets the watchdog -- nothing ever writes a watchdog
+ * register. So the dog is fed exactly once per vblank, as a side effect of
+ * reading the inputs. A translation that stops running the NMI therefore also
+ * stops feeding the watchdog, and MAME would reset while we sail on.
  */
 
 import { NotImplemented } from "../../../boards/dkong/io.js";
@@ -48,6 +35,7 @@ import {
   sub_1486, loc_196b, loc_12f2, loc_1344, loc_13a1,
 } from "./state0.js";
 import { sub_011c } from "./boot.js";
+import { sub_0030 } from "./mainloop.js";
 
 
 /**
@@ -62,8 +50,7 @@ import { sub_011c } from "./boot.js";
  *   0041  10 fa        djnz 0x003d
  *   0043  c9           ret
  *
- * ONE ROUTINE WITH TWO ENTRY POINTS, and it must be taken as one -- MANIFEST
- * records it as withheld from drafters for exactly that reason. 0x003D is not
+ * ONE ROUTINE WITH TWO ENTRY POINTS, and it must be taken as one. 0x003D is not
  * a separate routine; it is where 0x0038 falls through to, and where three
  * `call 0x003d` sites enter directly with their own DE and B.
  *
@@ -226,21 +213,21 @@ export function entry_0066(m) {
   mem.write8(0x7d84, regs.a, 10);
   m.tick(13);
 
-  // Reading IN2 KICKS THE WATCHDOG -- the read is the kick (§10).
+  // Reading IN2 KICKS THE WATCHDOG -- the read is the kick.
   regs.a = mem.read8(0x7d00);
   m.tick(13);
   regs.and(0x01);
   m.tick(7);
   if (regs.fNZ) {
     m.tick(10);
-    // GATE-RULES §6: SERVICE is out-of-policy input. 0x4000 is a diagnostic
-    // ROM base dkong does not ship; MAME reads that region as 0x00 (a NOP
-    // slide), though our AddressSpace throws there rather than modelling it.
-    // Throw rather than model it -- this converts an unknown into a coverage
-    // assertion, and a tape that reaches here is itself the bug.
+    // SERVICE is out-of-policy input. 0x4000 is a diagnostic ROM base dkong
+    // does not ship; MAME reads that region as 0x00 (a NOP slide), though our
+    // AddressSpace throws there rather than modelling it. Throw rather than
+    // model it -- this converts an unknown into a coverage assertion, and a
+    // tape that reaches here is itself the bug.
     throw new NotImplemented(
       "SERVICE switch held: jp 0x4000 at ROM 0x0077 -- out-of-policy input, " +
-        "no diagnostic ROM exists on this romset (GATE-RULES §6)",
+        "no diagnostic ROM exists on this romset",
     );
   }
   m.tick(10);
@@ -413,8 +400,8 @@ function perFrame(m) {
 }
 
 // -- not yet translated ---------------------------------------------------
-// Throwing rather than returning silently keeps an unexercised path visible
-// (GATE-RULES §5). Each names the call site that reaches it.
+// Throwing rather than returning silently keeps an unexercised path visible.
+// Each names the call site that reaches it.
 
 /**
  * sub_0141 -- ROM 0x0141-0x017A  "program the i8257 and kick the blit"
@@ -593,7 +580,7 @@ export function sub_0057(m) {
  * so holding the coin line does not repeat-credit.
  *
  * NOTE THIS READS 0x7D00 AGAIN -- a SECOND watchdog kick in the same vblank,
- * after the handler's own read at 0x0072 (GATE-RULES §10). Harmless, but only
+ * after the handler's own read at 0x0072. Harmless, but only
  * because the read is modelled as having the side effect at all.
  *
  * `daa` at 0x01B1 is the BCD credit count -- one of the places the score
@@ -1024,7 +1011,7 @@ export function sub_0018(m) {
  * The `jr z` lands on sub_0018's FIRST instruction, so it is a genuine tail
  * jump: 0x0018's `ret` returns on 0x0020's behalf, and 0x0020 never reaches
  * a `ret` of its own. That is exactly the shape the tracer misclassifies as
- * non-returning (see README known issues).
+ * non-returning.
  *
  * @returns {boolean} true when control returns after the `rst`, else false.
  */
@@ -1215,11 +1202,9 @@ function handler_123c(m) {
 }
 
 /*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 1 instruction, 0x0C91,
- * 1 byte, CLEAN. A rst 0x18 countdown gate that FALLS THROUGH into the existing
- * loc_0c92 (0x0C92) -- so it is a SECOND, GATED entry point into that body.
- * Placed here beside loc_0c92 (both <0x3000, my partition). Exported dead code
- * (loc_0c91 is the 0x0702 table's index-10 target, not wired) -> NET-ZERO.
+ * A rst 0x18 countdown gate that FALLS THROUGH into the existing loc_0c92
+ * (0x0C92) -- so it is a SECOND, GATED entry point into that body. loc_0c91 is
+ * the 0x0702 table's index-10 target.
  *
  * rst 0x18 (sub_0018) is the single-level countdown skip: it runs loc_0c92 only
  * when 0x6009 expires, else skips (control returns to loc_0c91's caller's caller
@@ -1265,7 +1250,7 @@ export function loc_0c91(m) {
  * THE FIRST WRITE OF 0x7D87 = 1 IN THE WHOLE RUN. The two palette-bank bits
  * are walked with `inc hl` again (0x7D86 then 0x7D87), and this sets bit 1
  * while clearing bit 0 -- so the palette bank becomes 2, having been 0 for
- * every frame up to here. QA's latch audit reported 0x7D87 as never varying
+ * every frame up to here. The latch audit showed 0x7D87 as never varying
  * on the short capture and varying on the long one; this is the site.
  *
  * A CASCADE OF `dec a / jp z`, not a jump table: A is 0x6227 and each `dec`
@@ -1331,7 +1316,7 @@ function loc_0c92(m) {
   // loc_0cb6 (0x0CB6-0x0CC5): board-4 rivet setup, FALLS INTO loc_0cc6 (no jp/ret).
   // Reachable -- 100m rivet is level-1's 2nd board (seq 0x3A73 has id 04).
   m.push16(0x0cb9);
-  m.step(0x0d43, 17); // call 0x0d43 -- sprite-row clear (INTEGRATED)
+  m.step(0x0d43, 17); // call 0x0d43 -- sprite-row clear
   sub_0d43(m);
   regs.hl = 0x7d86;
   m.step(0x0cbc, 10); // ld hl,0x7d86
@@ -1373,7 +1358,7 @@ function loc_0cdf(m) {
 function loc_0cf2(m) {
   const { regs, mem } = m;
   m.push16(0x0cf5);
-  m.step(0x0d27, 17); // call 0x0d27 -- sprite-row clear (INTEGRATED)
+  m.step(0x0d27, 17); // call 0x0d27 -- sprite-row clear
   sub_0d27(m);
   regs.a = 0x0a;
   m.step(0x0cf7, 7); // ld a,0x0a
@@ -1462,10 +1447,9 @@ function loc_0cd4(m) {
  * a future session translating 0x0CB6 would be told the state machine had
  * diverged when it had not.
  *
- * Left as a throw rather than a silent skip because on OUR path reaching it
- * does mean divergence. [team-measured] QA reports 0x0D00 executed by no tape
- * we hold -- a dynamic claim, distinct from its being statically reachable,
- * which it is.
+ * Left as a throw rather than a silent skip because on this path reaching it
+ * does mean divergence. Traces show 0x0D00 executed by no tape on hand -- a
+ * dynamic claim, distinct from its being statically reachable, which it is.
  */
 function loc_0cc6(m) {
   const { regs, mem } = m;
@@ -1479,7 +1463,7 @@ function loc_0cc6(m) {
   regs.cp(0x04);
   m.step(0x0cce, 7);
   if (regs.fZ) {
-    m.push16(0x0cd1); // call z,0x0d00 taken (0x6227==4, board 4 rivet) -- go-live wired
+    m.push16(0x0cd1); // call z,0x0d00 taken (0x6227==4, board 4 rivet)
     m.step(0x0d00, 17);
     sub_0d00(m);
   } else {
@@ -1515,14 +1499,11 @@ function loc_3fa0(m) {
  *   0d65  21 09 60     ld   hl,0x6009    ; entry_0d65
  *   ...
  *
- * THREE DRAFTED ROUTINES MEET HERE: 0x0F56, 0x2441 and (at 0x0D6F) 0x004E.
- * All three were integrated on inspection alone; this is the path that puts
- * them under the gate.
+ * THREE ROUTINES MEET HERE: 0x0F56, 0x2441 and (at 0x0D6F) 0x004E.
  *
- * And it is where the drafts' OQ1/OQ4 gets settled: 0x0F56 contains no
- * `ret`, so whether control reaches 0x0D62 at all was open. It does -- see
- * the note at sub_0f56's tail. The `rst 0x28` consumes its own pushed
- * continuation, not this call's.
+ * Note that 0x0F56 contains no `ret`, so whether control reaches 0x0D62 at all
+ * was a question. It does -- see the note at sub_0f56's tail. The `rst 0x28`
+ * consumes its own pushed continuation, not this call's.
  */
 function loc_0d5f(m) {
   const { regs, mem } = m;
@@ -1567,7 +1548,7 @@ function loc_0d5f(m) {
 
   if (regs.fZ) {
     // 0x6227 == 4 -- the 100m RIVETS board setup arm (0x0D8B-0x0DA6). Transcribed
-    // to make board 4 reachable (Karl: do the ENTIRE game). sub_003d / loc_0038
+    // to make board 4 reachable. sub_003d / loc_0038
     // already exist; validated downstream by playing board 4 vs MAME.
     //   0d8b  21 08 69   ld hl,0x6908    0d8e  0e 44   ld c,0x44
     //   0d90  ff  rst 0x38               0d91  11 04 00 ld de,0x0004
@@ -1608,8 +1589,9 @@ function loc_0d5f(m) {
 
   m.step(0x0d81, 7); // jr z NOT taken -- 7 T, against 12 for the taken arm
 
-  // TESTS BIT 1 OF A by rotating it into carry, the same idiom as sub_0044 --
-  // there the rotate count comes from memory, here it is a fixed two.
+  // TESTS BIT 1 OF A by rotating it into carry, the same idiom as the rst 0x30
+  // handler at 0x0044 -- there the rotate count comes from memory, here it is a
+  // fixed two.
   regs.rrca();
   m.step(0x0d82, 4); // rrca
   regs.rrca();
@@ -1695,75 +1677,6 @@ function sub_3fa6(m) {
   } while (regs.b !== 0);
 
   m.ret();
-}
-
-/**
- * sub_0030 -- ROM 0x0030, the `rst 0x30` handler
- *
- *   0030  18 12        jr   0x0044
- *
- * One instruction: an unconditional jump into sub_0044. So `rst 0x30` is
- * simply a one-byte way to call 0x0044, and 0x0044's `ret` returns past it
- * to the rst's caller.
- *
- * @returns {boolean} what sub_0044 returns -- true if control comes back
- *   after the `rst`, false if it skipped the caller's remainder.
- */
-function sub_0030(m) {
-  m.step(0x0044, 12); // jr -- unconditional, 12 T
-  return sub_0044(m);
-}
-
-/**
- * sub_0044 -- ROM 0x0044-0x004D  (reached via `rst 0x30`)
- *
- *   0044  21 27 62     ld   hl,0x6227
- *   0047  46           ld   b,(hl)
- *   0048  0f           rrca                 ; loop target
- *   0049  10 fd        djnz 0x0048
- *   004b  d8           ret  c
- *   004c  e1           pop  hl
- *   004d  c9           ret
- *
- * TESTS BIT N OF A, WHERE N COMES FROM MEMORY. `rrca` B times rotates A
- * right by the value at 0x6227, leaving the bit that started at position B
- * in the carry. `ret c` then returns normally if that bit was set.
- *
- * OTHERWISE IT SKIPS THE CALLER'S REMAINDER. `pop hl` discards this
- * routine's own return address -- clobbering HL with it -- and the following
- * `ret` returns to the CALLER'S CALLER. The fifth stack idiom in this ROM
- * and the same shape as sub_0008 and sub_0018.
- *
- * NOTE B is never checked for zero. `djnz` with B = 0 runs 256 times, and
- * 256 rotations of an 8-bit value is the identity, so a zero at 0x6227
- * leaves A untouched and tests bit 0 -- not a special case in the code, but
- * a real one in the behaviour.
- *
- * @returns {boolean} true if control returns after the `rst`, else false.
- */
-function sub_0044(m) {
-  const { regs, mem } = m;
-
-  regs.hl = 0x6227;
-  m.step(0x0047, 10);
-  regs.b = mem.read8(regs.hl);
-  m.step(0x0048, 7);
-  do {
-    regs.rrca();
-    m.step(0x0049, 4);
-    regs.djnz();
-    m.step(regs.b !== 0 ? 0x0048 : 0x004b, regs.b !== 0 ? 13 : 8);
-  } while (regs.b !== 0);
-
-  if (regs.fC) {
-    m.ret(11); // ret c taken -- the tested bit was set
-    return true;
-  }
-  m.step(0x004c, 5);
-  regs.hl = m.pop16(); // pop hl -- discards this routine's return address
-  m.step(0x004d, 10);
-  m.ret(); // returns to the CALLER'S CALLER
-  return false;
 }
 
 /**
@@ -2221,10 +2134,10 @@ function dispatchGameState(m, target, site = "0x00CA (NMI game state)") {
   if (target === 0x073c) return handler_073c(m);
   if (target === 0x0779) return handler_0779(m);
   if (target === 0x0763) return handler_0763(m);
-  if (target === 0x08b2) return loc_08b2(m); // GO-LIVE: game state 2 (GAMEPLAY) entry
+  if (target === 0x08b2) return loc_08b2(m); // game state 2 (GAMEPLAY) entry
   if (target === 0x08ba) return loc_08ba(m); // 0x08B6 table[0] (0x600A==0)
   if (target === 0x08f8) return loc_08f8(m); // 0x08B6 table[1] (0x600A==1)
-  if (target === 0x06fe) return loc_06fe(m); // GO-LIVE: game state 3, 0x0702 table by 0x600A
+  if (target === 0x06fe) return loc_06fe(m); // game state 3, 0x0702 table by 0x600A
   if (target === 0x0986) return loc_0986(m); // 0x0702 table entries (0x600A index)
   if (target === 0x09ab) return loc_09ab(m);
   if (target === 0x09d6) return sub_09d6(m);
@@ -2234,14 +2147,14 @@ function dispatchGameState(m, target, site = "0x00CA (NMI game state)") {
   if (target === 0x0a63) return loc_0a63(m);
   if (target === 0x0a76) return loc_0a76(m);
   if (target === 0x0bda) return loc_0bda(m);
-  if (target === 0x0a8a) return loc_0a8a(m); // GO-LIVE: 0x0A7A table (0x6385 seq)
+  if (target === 0x0a8a) return loc_0a8a(m); // 0x0A7A table (0x6385 seq)
   if (target === 0x0abf) return loc_0abf(m);
   if (target === 0x0ae8) return loc_0ae8(m);
   if (target === 0x0b06) return loc_0b06(m);
   if (target === 0x0b68) return loc_0b68(m);
   if (target === 0x0bb3) return loc_0bb3(m);
   if (target === 0x3069) return loc_3069(m); // shared rate-limiter (0x0A7A idx3/5)
-  // -- BATCH GO-LIVE: full dispatch-table wiring (0x0748 state-1 sub, 0x0702 idx10+, 0x1283, 0x2874, 0x1648) --
+  // -- full dispatch-table wiring (0x0748 state-1 sub, 0x0702 idx10+, 0x1283, 0x2874, 0x1648) --
   if (target === 0x07c3) return loc_07c3(m);
   if (target === 0x07cb) return loc_07cb(m);
   if (target === 0x084b) return loc_084b(m);
@@ -2271,8 +2184,8 @@ function dispatchGameState(m, target, site = "0x00CA (NMI game state)") {
   if (target === 0x16bb) return loc_16bb(m);
   if (target === 0x123c) return handler_123c(m);
   if (target === 0x1977) return handler_1977(m); // game state 1 sub-state (0x0748 table) -- THE FINALE reach-mover
-  if (target === 0x197a) return loc_197a(m); // GO-LIVE: game state 3 gameplay (0x0702 table @0x600A) enters the cascade at 0x197A (skips handler_1977's 0x1977 sub_21ee call)
-  if (target === 0x07cb) return loc_07cb(m); // 0x0748 task table (dw 0x07cb @0x0754) -- round-2 batch go-live
+  if (target === 0x197a) return loc_197a(m); // game state 3 gameplay (0x0702 table @0x600A) enters the cascade at 0x197A (skips handler_1977's 0x1977 sub_21ee call)
+  if (target === 0x07cb) return loc_07cb(m); // 0x0748 task table (dw 0x07cb @0x0754)
   // The 0x3110 guard family -- SKIP-CAPABLE targets reached via sub_30fa's
   // rst 0x28. These return a boolean ("should the dispatch caller continue?"),
   // which sub_0028 now propagates. Adding them relies on nothing new: the arms
@@ -2283,14 +2196,13 @@ function dispatchGameState(m, target, site = "0x00CA (NMI game state)") {
   if (target === 0x3131) return guard_3131(m);
   // entry_3e88's rst 0x28 table (base 0x3E8D). Reached ONLY through that
   // dispatcher, which is untranslated (called from 0x286B), so these arms never
-  // fire on the live NMI/substate/sub_30fa paths -- NET-ZERO until 0x1977 lands.
-  // 0x3E99 is mine; 0x28B0/0x28E0/0x2901 are code-b's (< 0x3000), all integrated.
+  // fire on the live NMI/substate/sub_30fa paths.
   if (target === 0x3e99) return entry_3e99(m);
   if (target === 0x28b0) return sub_28b0(m);
   if (target === 0x28e0) return sub_28e0(m);
   if (target === 0x2901) return sub_2901(m);
-  if (target === 0x2880) return sub_2880(m); // sub_286f's 0x2874 collision table (0x6227) -- go-live wired
-  if (target === 0x138f) return loc_138f(m); // 0x0702 table idx16 -- go-live wired
+  if (target === 0x2880) return sub_2880(m); // sub_286f's 0x2874 collision table (0x6227)
+  if (target === 0x138f) return loc_138f(m); // 0x0702 table idx16
   if (target === 0x13a1) return loc_13a1(m); // 0x0702 table idx17 -- twin of 138f (table-audit)
   if (target === 0x13aa) return loc_13aa(m); // 0x0702 table idx18
   if (target === 0x13bb) return loc_13bb(m); // 0x0702 table idx19

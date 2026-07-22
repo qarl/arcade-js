@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-only
 # One-command verdict: diff the translated JS against MAME golden.
 #
 # Runs state-diff FIRST, then pixel-diff, because that ordering is what makes a
-# failure interpretable (GATE-RULES §4):
+# failure interpretable:
 #   * state fails            -> the CPU translation is wrong; the renderer is irrelevant
 #   * state passes, pixels fail -> the translation is right; the bug is in the video model
 # Running pixels first would conflate those and can cost hours debugging a
@@ -28,7 +29,7 @@ if [ -z "$ACTUAL" ]; then
 fi
 
 if [ ! -d "$GOLDEN" ]; then
-  echo "no golden at '$GOLDEN'. Capture it first (docs/HARNESS.md §9):" >&2
+  echo "no golden at '$GOLDEN'. Capture it first (docs/04-integration-testing.md):" >&2
   echo "  tools/mame_golden.py --out $GOLDEN --seconds 12" >&2
   exit 2
 fi
@@ -135,7 +136,7 @@ elif [ "$rc_state" = 2 ] || [ "$rc_frames" = 2 ] || [ "$rc_writes" = 2 ]; then
   exit 2
 else
   # Name the gates that actually RAN. A bare "PASS" invites the reader to assume
-  # everything was checked -- §25 applied to the wrapper, not just the differs.
+  # everything was checked -- scope applied to the wrapper, not just the differs.
   gates=""
   [ "$ran_state" -eq 1 ] && gates="${gates}state "
   [ "$ran_writes" -eq 1 ] && gates="${gates}writes "
@@ -146,8 +147,8 @@ else
   [ "$ran_frames" -eq 0 ] && missing="${missing}pixels "
 
   if [ "$ran_state" -eq 0 ]; then
-    # A pass without the state gate is the case GATE-RULES §4 warns against
-    # mistaking for a verified translation.
+    # A pass without the state gate is the case the state-first ordering warns
+    # against mistaking for a verified translation.
     echo " VERDICT: PASS (gates run: ${gates}) -- but the STATE diff never ran,"
     echo "          so the CPU translation is UNVERIFIED. Emit state.bin."
   else

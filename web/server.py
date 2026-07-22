@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Dev server for arcade-js.
 
 Live input reaches the emulation worker through a SharedArrayBuffer, which
@@ -41,6 +42,9 @@ class Handler(SimpleHTTPRequestHandler):
 def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8917
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # repo root
+    # Loopback-only by design: this serves the whole repo tree with no auth or
+    # path restrictions. Do NOT change "127.0.0.1" to "0.0.0.0" or any other
+    # non-loopback host without adding access/path restrictions first.
     httpd = ThreadingHTTPServer(("127.0.0.1", port), partial(Handler, directory=root))
     print(f"serving {root}")
     print(f"open  http://localhost:{port}/web/index.html")

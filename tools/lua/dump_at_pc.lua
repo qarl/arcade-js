@@ -1,7 +1,7 @@
--- PC-EXACT state capture -- closes the §13 sampling gap.
+-- PC-EXACT state capture -- closes the PC-sampling gap.
 --
 -- state-diff samples at frame boundaries, so a state that exists only PARTWAY
--- through a frame is invisible to it. That is a real limit: the coder's
+-- through a frame is invisible to it. That is a real limit: the
 -- post-boot-init fingerprint (VRAM filled with 0x10) is a genuine machine state
 -- that is fully overwritten before the next boundary, so frame-boundary
 -- sampling can never see it.
@@ -33,7 +33,7 @@ local target = tonumber(os.getenv("PC_TARGET") or "0x02B8")
 -- Machine CONFIGURATION, written on every capture path. Omitting it here made
 -- --at-pc captures skip DSW0 certification entirely and still certify green --
 -- the "silent skip = false pass" class, in the very captures used to confirm
--- fingerprint claims. Control byte per GATE-RULES §12.
+-- fingerprint claims. Control byte.
 local cfgf = io.open(os.getenv("CONFIG_OUT") or "config.txt", "w")
 if cfgf then
   cfgf:setvbuf("no")

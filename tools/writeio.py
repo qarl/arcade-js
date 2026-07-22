@@ -1,4 +1,5 @@
-"""Hardware write-trace I/O and diffing (GATE-RULES §28 correction).
+# SPDX-License-Identifier: GPL-3.0-only
+"""Hardware write-trace I/O and diffing.
 
 THE WRITE-TRACE CONTRACT:
 
@@ -32,7 +33,7 @@ TWO PHASES:
 
 import os
 
-# (start, end, name) -- the lead-defined address set.
+# (start, end, name) -- the address set.
 RANGES = [
     (0x7800, 0x780F, "dma8257"),
     (0x7C00, 0x7C00, "sound_latch"),

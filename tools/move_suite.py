@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 import subprocess, os, sys, numpy as np
 S=os.path.dirname(os.path.abspath(__file__)); ROOT=os.path.dirname(S)
 WORK=os.path.join(ROOT,"out","movework"); os.makedirs(WORK,exist_ok=True); GW=172032

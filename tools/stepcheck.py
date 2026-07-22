@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Audit every m.step() target in src/rom/ against the ROM's own instruction
 boundaries.
 
@@ -25,19 +26,22 @@ passed it.
 the first thing written into this file. A MISSING step has no wrong target to
 find; --draft is the mode that catches it, by comparing the step SEQUENCE
 against the listing. Stating it because a tool's docstring is exactly the
-unchecked claim that gets believed (§53, §71).
+unchecked claim that gets believed.
 
 WHAT IT CHECKS, and what it deliberately does not:
 
   default   every literal m.step(0xADDR, ...) in src/rom/ targets the START of
             a decoded instruction. Stepping into the middle of an instruction
             is always wrong. Finds MISAIMED steps; blind to missing ones.
+            A target inside a known-unreached span (out/unreached.txt) is
+            reported as a COVERAGE GAP, not a defect -- the tracer simply never
+            decoded that byte, so there is no instruction-start record to hit.
   --draft   the stronger check, on one draft: the step sequence must match the
             listing's instruction sequence one for one, so a missing or extra
             step is caught. Works because a draft's listing order is known and
             linear. NOT usable on integrated source -- see the note in main().
   NOT       that a cycle count is right. That needs the current PC, which the
-            source does not carry (§23: this verifies a proxy).
+            source does not carry (this verifies a proxy).
 
 So a clean default run is NOT a proof the cycle accounting is right. It rules
 out one specific failure mode and is blind to the one that actually shipped.
@@ -48,6 +52,7 @@ Run:  python3 tools/stepcheck.py                     (needs `make trace`)
 """
 import argparse
 import glob
+import os
 import re
 import sys
 
@@ -72,6 +77,21 @@ def steps_in(path):
                 if g:
                     out.append((i, int(g, 16)))
     return out
+
+
+def unreached_spans(text):
+    """[(lo, hi)] inclusive byte ranges the tracer never proved reachable.
+
+    Parsed from out/unreached.txt (written by `make trace`). A step target that
+    lands inside one of these has no decoded instruction start simply because
+    that byte was never reached -- a static-coverage gap, not a bad target.
+    """
+    spans = []
+    for line in text.split("\n"):
+        m = re.match(r"\s*0x([0-9a-f]+)\s*-\s*0x([0-9a-f]+)", line)
+        if m:
+            spans.append((int(m.group(1), 16), int(m.group(2), 16)))
+    return spans
 
 
 def check_draft(path):
@@ -126,7 +146,7 @@ def check_draft(path):
         if m:
             steps.append(("plain", int(m.group(1), 16), None))
 
-    # §16 DEFAULT CLOSED, and the third state is the point. A skeleton may
+    # DEFAULT CLOSED, and the third state is the point. A skeleton may
     # carry its step targets as VARIABLES rather than literals -- sub_11d3
     # unrolls its four gathers through a `for...of` over a literal table, so
     # only 2 of its 14 steps are parseable here. Positional comparison then
@@ -134,7 +154,7 @@ def check_draft(path):
     #
     # Reporting INCONCLUSIVE rather than either verdict: claiming CLEAN would
     # be the silent-pass this file exists to prevent, and claiming DEFECT would
-    # be a false FAIL, which §14 says costs an investigation and teaches people
+    # be a false FAIL, which costs an investigation and teaches people
     # to ignore the tool. "I cannot read this skeleton" is the true answer.
     all_steps = len(re.findall(r"m\.step\(", js.group(1)))
     if all_steps != len(steps):
@@ -194,6 +214,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--asm", default="out/dk.asm")
     ap.add_argument("--src", default="src/rom/*.js")
+    ap.add_argument("--unreached", default=None,
+                    help="unreached-span list (default: unreached.txt beside --asm)")
     ap.add_argument("--selftest", action="store_true",
                     help="inject a known-bad target and require it to be caught")
     ap.add_argument("--draft", help="sequence-check one draft's skeleton")
@@ -209,7 +231,7 @@ def main():
         return 2
 
     if a.selftest:
-        # §12/§48: prove the check can return a non-trivial answer, against an
+        # Prove the check can return a non-trivial answer, against an
         # answer known in advance. 0x0D80 is the SECOND byte of the two-byte
         # `jr z,0x0d8b` at 0x0D7F, so it can never be an instruction start.
         bad = 0x0d80
@@ -220,19 +242,43 @@ def main():
               f"the check has teeth")
         return 0
 
+    # Coverage gaps vs. real defects. The recursive-descent tracer only proves
+    # ~77% of the ROM reachable; a step whose target lands inside a known-unreached
+    # span (out/unreached.txt) has no instruction-start record simply because that
+    # byte was never decoded. That is a static-coverage gap, NOT a mistranslated
+    # target, and it must not fail the audit. A target that misses a start OUTSIDE
+    # every unreached span IS a real defect.
+    unreached_path = a.unreached or os.path.join(os.path.dirname(a.asm), "unreached.txt")
+    if os.path.exists(unreached_path):
+        spans = unreached_spans(open(unreached_path).read())
+    else:
+        spans = []
+        print(f"  NOTE: {unreached_path} not found -- run `make trace` first so "
+              f"coverage gaps can be told apart from real defects")
+
+    def in_unreached(addr):
+        return any(lo <= addr <= hi for lo, hi in spans)
+
     bad = 0
+    gaps = 0
     files = sorted(glob.glob(a.src))
     total = 0
     for path in files:
         for line_no, addr in steps_in(path):
             total += 1
             if addr not in starts:
-                print(f"  {path}:{line_no}: m.step(0x{addr:04x}) is NOT an "
-                      f"instruction start")
-                bad += 1
+                if in_unreached(addr):
+                    gaps += 1
+                else:
+                    print(f"  {path}:{line_no}: m.step(0x{addr:04x}) is NOT an "
+                          f"instruction start")
+                    bad += 1
 
     print(f"CHECK 1 -- targets: {total} m.step targets across {len(files)} "
           f"file(s), {len(starts)} decoded instruction starts")
+    if gaps:
+        print(f"  {gaps} target(s) inside known-unreached spans "
+              f"(coverage gaps, not defects)")
     print("  CLEAN" if bad == 0 else f"  {bad} BAD TARGET(S)")
 
     # ---- CHECK 2 (COVERAGE) WAS ATTEMPTED AND IS NOT SHIPPED -------------
@@ -247,15 +293,15 @@ def main():
     # declared ROM range must be reachable as some successor recorded in the
     # body. Implemented, it reported 207 findings against code that passes all
     # three gates. Weakening it to "the address appears as any hex literal in
-    # the body" still left 122. Both figures are the INSTRUMENT, not the code
-    # (§48c): successors are legitimately carried as helper arguments
+    # the body" still left 122. Both figures are the INSTRUMENT, not the code:
+    # successors are legitimately carried as helper arguments
     # (`ldirAt(m, 0x0054, 0x0056)`), as entries in literal tables (sub_11d3's
     # gather list), and as COMPUTED expressions (`m.step(afterLoad + 1, 7)`) --
     # and the NMI entry advances with tick() rather than step() in places.
     #
     # Deciding a boundary is unaccounted for therefore requires evaluating
     # arbitrary JS expressions, which a regex cannot do. A checker emitting 122
-    # false positives is worse than none: §14, a false FAIL costs an
+    # false positives is worse than none: a false FAIL costs an
     # investigation, and one that cries wolf at that rate gets ignored, taking
     # its true positives with it.
     #
@@ -266,7 +312,14 @@ def main():
     # --draft for that, and treat integrated code as uncovered for this class.
 
     total_bad = bad
-    print("STEP AUDIT CLEAN" if total_bad == 0 else f"{total_bad} DEFECT(S)")
+    if total_bad == 0:
+        if gaps:
+            print(f"STEP AUDIT CLEAN ({gaps} target(s) in known-unreached spans -- "
+                  f"coverage gaps, not defects)")
+        else:
+            print("STEP AUDIT CLEAN")
+    else:
+        print(f"{total_bad} DEFECT(S)")
     return 0 if total_bad == 0 else 1
 
 

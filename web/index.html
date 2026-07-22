@@ -50,19 +50,37 @@
   }));
   grid.innerHTML = "";
   if (!cards.length) { grid.innerHTML = '<div id="empty">No games registered.</div>'; }
+  // Build cards with textContent (never innerHTML): `id` and `err` below come
+  // from the games/ registry and a caught import error respectively, and
+  // neither should ever be able to inject markup into this page.
+  const div = (className, text, color) => {
+    const n = document.createElement("div");
+    n.className = className;
+    if (color) n.style.color = color;
+    n.textContent = text;
+    return n;
+  };
+  const span = (className, text) => {
+    const n = document.createElement("span");
+    n.className = className;
+    n.textContent = text;
+    return n;
+  };
   for (const { id, m, err } of cards) {
     const a = document.createElement("a");
     a.className = "card";
     a.href = `player.html?game=${encodeURIComponent(id)}`;
     if (err) {
-      a.innerHTML = `<div class="title">${id}</div><div class="meta" style="color:#ffb0b0">manifest error: ${err}</div>`;
+      a.append(div("title", id), div("meta", `manifest error: ${err}`, "#ffb0b0"));
     } else {
-      a.innerHTML =
-        `<div class="title">${m.title}</div>` +
-        `<div class="meta">${m.manufacturer ?? ""}${m.year ? " · " + m.year : ""}</div>` +
-        `<div class="tags"><span class="tag">${m.cpu}</span>` +
-        `<span class="tag">${m.board} board</span>` +
-        `<span class="tag">${m.orientation ?? "vertical"}</span></div>`;
+      const tags = document.createElement("div");
+      tags.className = "tags";
+      tags.append(span("tag", m.cpu), span("tag", `${m.board} board`), span("tag", m.orientation ?? "vertical"));
+      a.append(
+        div("title", m.title),
+        div("meta", `${m.manufacturer ?? ""}${m.year ? " · " + m.year : ""}`),
+        tags,
+      );
     }
     grid.appendChild(a);
   }

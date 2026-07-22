@@ -13,7 +13,7 @@
  * inside it and are all we can currently produce; state[4] onward needs the
  * main loop and the NMI handler. Asking for more yields a SHORT file plus a
  * NOTE and a NONZERO exit -- state.json always records the true count, and a
- * short artifact must not exit 0 and read as complete (GATE-RULES §11).
+ * short artifact must not exit 0 and read as complete.
  */
 
 import { createHash } from "node:crypto";
@@ -137,14 +137,14 @@ function main() {
   // so a run capturing K states yields K-1 painted frames. `--frames 1` thus
   // yields ZERO -- and this check tracked state frames only, so it wrote an
   // empty frames.rgb with `count: 0` and exited 0: a complete-looking artifact
-  // containing nothing, which is precisely what GATE-RULES 11 forbids.
+  // containing nothing, which is precisely the optimistic-failure mode this guards against.
   const painted = machine.videoFrames.length;
   const shortVideo = args.framesOut && painted < want;
   const short = (frames.length < want || shortVideo) && args.frames !== "all";
 
   if (short || stopped) {
     // Report what we actually produced rather than padding: a short file that
-    // looks complete is the optimistic failure GATE-RULES §11 forbids.
+    // looks complete is the optimistic failure this guards against.
     console.error(
       `NOTE: asked for ${args.frames} frames, produced ${frames.length}` +
         (args.framesOut ? ` states / ${machine.videoFrames.length} images` : "") +

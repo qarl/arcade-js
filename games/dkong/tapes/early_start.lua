@@ -60,7 +60,7 @@ local ATTRACT_SPRITE_NONZERO = 88
 
 -- IN2 masks, read from the live machine rather than assumed:
 --   0x80 = Coin 1        0x04 = 1 Player Start
--- SERVICE is EXCLUDED and must never be added (GATE-RULES §6): it jumps to
+-- SERVICE is EXCLUDED and must never be added: it jumps to
 -- 0x4000, a diagnostic ROM this romset does not ship. It is the one input where
 -- REACHING the branch makes things worse.
 local COIN_MASK  = 0x80

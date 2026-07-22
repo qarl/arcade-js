@@ -1,10 +1,10 @@
--- HARDWARE WRITE TRACE -- gates "what the ROM computes WITH" (GATE-RULES §28).
+-- HARDWARE WRITE TRACE -- gates "what the ROM computes WITH".
 --
 -- The state dump covers RAM: what the ROM computes INTO. The machine state it
 -- manipulates alongside that -- control latches, DMA programming, sound latches
 -- -- sits outside it and was gated by nothing.
 --
--- §28 originally recorded those latches as ungated because latch STATE is
+-- Those latches were originally recorded as ungated because latch STATE is
 -- write-only and MAME exposes no `.state` for the device. That conclusion was
 -- wrong, and the correction is the useful part:
 --
@@ -14,7 +14,7 @@
 -- the part that matters here: a write is an ACTION THE CPU TAKES, so it is
 -- TRANSLATION correctness and observable now. The latch's resulting state is
 -- device-internal, so it is HARDWARE-MODEL correctness and needs a renderer.
--- §4's failure-domain split, applied to a surface nobody had separated.
+-- The failure-domain split, applied to a surface nobody had separated.
 --
 -- ORDER IS PART OF THE CONTRACT, not an implementation detail. Boot writes the
 -- latches as: xor a / three stores / inc a / one store -- the first three take

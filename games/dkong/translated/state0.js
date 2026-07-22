@@ -5,7 +5,7 @@
  * at 0x00CA). This is the attract-mode init: clear the playfield, seed the
  * task list, and queue the first tasks.
  *
- * Every routine carries its ROM range and original mnemonics (GATE-RULES §7).
+ * Every routine carries its ROM range and original mnemonics.
  */
 
 import { NotImplemented } from "../../../boards/dkong/io.js";
@@ -121,22 +121,6 @@ export function handler_01c3(m) {
   m.ret();
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 6 instructions,
- * 0x0514-0x051B, 8 bytes, CLEAN against out/dk.asm and rom/maincpu.bin.
- * RST BYTE-SCAN: no rst in range. 0x051B (ret) referenced by nothing; 0x0516 is
- * the djnz target only (draft §3) -- extent is exactly 0x0514-0x051B, no shared
- * tail with entry_051c. NET-ZERO-IMAGE, WITHIN-PARTITION (no callees; callers in
- * the un-integrated 0x0486 region), dead code this commit.
- *
- * A 3-cell descending fill: store A, A-1, A-2 at HL, HL+DE, HL+2DE. THREE live-in
- * registers in 8 bytes -- HL (dest), A (first value), DE (stride); B is the only
- * register it sets. The djnz targets 0x0516 (the loop head), NOT the entry, so
- * `ld b,0x03` is a run-once prologue -- the OPPOSITE of sub_122a whose djnz
- * targets its own entry (draft §2). A IS IN-OUT: it exits A-3 and the caller at
- * 0x04C6/0x04C9 depends on it (reloads HL but NOT A between two calls), so A must
- * NOT be treated as input-only or restored.
- */
 /**
  * sub_0514 -- ROM 0x0514-0x051B  (descending 3-cell fill; HL,A,DE live-in)
  *
@@ -148,7 +132,7 @@ export function handler_01c3(m) {
  *   051b  c9           ret
  *
  * Flags reaching the caller: S/Z/H/PV/N from the final `dec a`, C from the final
- * `add hl,de` (djnz and ret are flag-neutral). Draft §5 OQ-4.
+ * `add hl,de` (djnz and ret are flag-neutral).
  */
 export function sub_0514(m) {
   const { regs, mem } = m;
@@ -172,7 +156,7 @@ export function sub_0514(m) {
 }
 /**
  * entry_03fb -- ATTRACT / intro animation + colour-cycle driver.  ROM 0x03FB-0x0513.
- * ONE caller: loc_197a @0x19B0 (the HELD handler_1977 cascade -> unwired, net-zero).
+ * ONE caller: loc_197a @0x19B0.
  *
  * Reads (0x6227) mode selector; drives a private frame counter (0x6390), animation-table
  * copies (call 0x004e), rst 0x38 sprite offsets (loc_0038, a CALL that returns -- NOT a
@@ -508,24 +492,6 @@ function loc_0509(m) {
 /** loc_06fe's inline jump table -- the site string names the dispatch base. */
 const DISPATCH_TABLE_0702 = "0x0702 (0x600A game sub-state)";
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 2 instructions,
- * 0x06FE-0x0701, 4 bytes, CLEAN against out/dk.asm and rom/maincpu.bin. The
- * inline table 0x0702-0x073B (29 entries, 58 bytes) is DATA read from ROM by
- * sub_0028 -- deliberately NOT transcribed into a JS array (draft §1).
- *
- * loc_06fe is game-state 3's dispatch target (the 0x00CA NMI table:
- * 0->0x01c3 1->0x073c 2->0x08b2 3->0x06fe). It is NOT wired into
- * dispatchGameState here -- doing so would make it LIVE and could move reach
- * (a GO-LIVE, not a drain). Kept as exported dead code -> NET-ZERO. Wiring it
- * into dispatchGameState is a deferred go-live to be staged + flagged to qa-b.
- *
- * NO `ret`: rst 0x28 ends in `jp (hl)`, a TAIL jump, so the dispatched target's
- * `ret` returns to loc_06fe's CALLER (do not push a return address for the
- * target -- nmi.js tail-jump contract, already tested). The table base IS the
- * rst's return address 0x0702, which is why this and the byte-identical
- * dispatcher at 0x08B2 read DIFFERENT tables (draft §5 copy hazard).
- */
 /**
  * loc_06fe -- ROM 0x06FE-0x0701  (rst 0x28 dispatch on 0x600A, table at 0x0702)
  *
@@ -535,7 +501,7 @@ const DISPATCH_TABLE_0702 = "0x0702 (0x600A game sub-state)";
  * SIX ENTRIES ARE 0x0000 (idx 9, 24-28) and A is unchecked (no range check) --
  * a null or out-of-range selector dispatches to 0x0000 / off the table. The ROM
  * has no guard; dispatchGameState surfaces an unimplemented/null target as a
- * loud throw rather than a silent reset (draft §3/OQ-1).
+ * loud throw rather than a silent reset.
  */
 export function loc_06fe(m) {
   const { regs, mem } = m;
@@ -548,16 +514,6 @@ export function loc_06fe(m) {
   sub_0028(m, DISPATCH_TABLE_0702); // reads the table from ROM; ends in jp (hl)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 4 instructions,
- * 0x07C3-0x07CA, 8 bytes, CLEAN. 0x0748-table handler (entry index 5). No rst in
- * range. Exported dead code (not wired into dispatchGameState) -> NET-ZERO.
- *
- * A clean handler: call sub_0874 (an init/fill routine that loads its own inputs
- * -- takes NO register input), advance the 0x600A sub-state via `inc (hl)`, then
- * a real ret. inc (hl) is 0x34 (RMW on the BYTE), NOT inc hl (0x23, the pointer);
- * use regs.incMem8 for the flag-correct S/Z/H/PV, which reach the ret (draft §S5).
- */
 /**
  * loc_07c3 -- ROM 0x07C3-0x07CA  (0x0748 dispatch table, entry index 5)
  *
@@ -581,19 +537,6 @@ export function loc_07c3(m) {
   m.ret(); // ret (0x07CA)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 4 instructions,
- * 0x084B-0x0851, 7 bytes, CLEAN. 0x0748-table handler (entry index 7). Exported
- * dead code (not wired) -> NET-ZERO.
- *
- * GATED ON `rst 0x20` (sub_0020, nmi.js) -- a two-level countdown skip. The body
- * (clear 0x600A) runs ONLY when BOTH prescalers (0x6008 then 0x6009) expire in the
- * same call; otherwise the rst skips loc_084b's body and returns to its caller
- * with 0x600A untouched. POLARITY: "do it every Nth time", NOT "while counting"
- * (nmi.js:941 warns reading it the other way inverts it). Void return on the skip,
- * exactly as the integrated sibling handler_0763 (the ROM's only other rst 0x20
- * site) does -- do NOT synthesize a boolean it doesn't have.
- */
 /**
  * loc_084b -- ROM 0x084B-0x0851  (rst 0x20 gate, then clears 0x600A)
  *
@@ -616,19 +559,6 @@ export function loc_084b(m) {
   m.ret(); // ret (0x0851)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 2 instructions,
- * 0x08B2-0x08B5, 4 bytes, CLEAN. The inline table 0x08B6-0x08B9 (2 entries) is
- * DATA read from ROM by sub_0028, not transcribed. Exported dead code -> NET-ZERO.
- *
- * !! BYTE-IDENTICAL to loc_06fe (3a 0a 60 ef) AND NOT INTERCHANGEABLE. !! The
- * table base is the rst's RETURN ADDRESS, so the same four bytes dispatch through
- * 0x0702 (29 entries) at 0x06FE and through 0x08B6 (2 entries) here. Copying one
- * onto the other passes the byte-diff and is still semantically wrong (draft §3).
- * UNPROVEN PRECONDITION: 0x600A must be 0 or 1 here (A=2 reads code at 0x08BA ->
- * target 0x74CD). No range check added (the ROM has none); an out-of-range
- * selector surfaces as dispatchGameState's throw, not a silent excursion.
- */
 /**
  * loc_08b2 -- ROM 0x08B2-0x08B5  (rst 0x28 dispatch on 0x600A, table at 0x08B6)
  *
@@ -646,18 +576,6 @@ export function loc_08b2(m) {
   sub_0028(m, "0x08B6 (0x600A, 2-entry)"); // reads the table from ROM; ends in jp (hl)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 19 instructions,
- * 0x0852-0x0873, 34 bytes, CLEAN. No calls, no rst, no skip -- a pure double
- * fill. Exported dead code -> NET-ZERO.
- *
- * Two nested djnz fills: 0x7400-0x77FF = 0x10 (C=4 x B=256, the full 1024-byte
- * VRAM tilemap) then 0x6900-0x6A7F = 0x00 (C=2 x B=0xC0=192, 384 bytes). The two
- * halves look alike but differ in five places -- notably the inner count (B=0 =
- * 256 vs B=0xC0 = 192) and the fill value (ld a,0x10 vs xor a). HL is NOT reloaded
- * between outer passes: the walk continues across the C iterations (draft §3b).
- * `inc hl` is the 16-bit pointer inc (carries across pages), NOT inc (hl).
- */
 /**
  * sub_0852 -- ROM 0x0852-0x0873  (two nested fills)
  *
@@ -874,14 +792,6 @@ export function sub_0874(m) {
   m.ret();
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 13 instructions,
- * 0x08BA-0x08D4, 27 bytes, CLEAN. Arm 0 of loc_08b2's 2-entry table; FALLS
- * THROUGH into loc_08d5 (no ret of its own -- loc_08d5's ret returns for both).
- * Callees sub_0874 / sub_309f / sub_0965 all integrated. Exported dead code ->
- * NET-ZERO. Writes to the 0x7D8x latch use the draft's busOffset 7 (OQ-4 flagged;
- * net-zero-irrelevant while dead, matters only at go-live's cycle trace).
- */
 /**
  * loc_08ba -- ROM 0x08BA-0x08D4  (0x08B2 table arm 0; falls through to loc_08d5)
  *
@@ -931,7 +841,7 @@ export function loc_08ba(m) {
   m.step(0x08cf, 4);
   regs.hl = 0x7d86;
   m.step(0x08d2, 10); // ld hl,0x7d86
-  mem.write8(regs.hl, regs.a, 7); // 0x7D86 = 0 (OQ-4 busOffset)
+  mem.write8(regs.hl, regs.a, 7); // 0x7D86 = 0
   m.step(0x08d3, 7); // ld (hl),a
   regs.l = regs.inc8(regs.l); // inc l -- 8-bit, no carry into H
   m.step(0x08d4, 4);
@@ -941,20 +851,6 @@ export function loc_08ba(m) {
   return loc_08d5(m); // fall through -- loc_08d5's ret returns for both. NO push16.
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 12 instructions,
- * 0x08D5-0x08F7, 35 bytes, CLEAN. Independently called AND the fall-through tail
- * of loc_08ba. Returns A = mem[0x7D00] & B, where B (0x04/0x0C) and E (0x09/0x0A)
- * are chosen by the 0x6001 test. Exported dead code -> NET-ZERO.
- *
- * Callees handler_05e9 (=ROM 0x05E9, in mainloop.js) and sub_0616 both RETURN
- * NORMALLY here -- handler_05e9's `jp z,0x0026` tail cleans up its OWN extra
- * `push af` (0x05EE) and rets to this caller (empirically: its wired caller at
- * mainloop.js continues after it). So NO caller-skip / boolean is needed; loc_08d5
- * proceeds to `call 0x0616` and the tail. (Corrected an earlier misread of that
- * comment as a caller-skip.) The two calls are on the gated `(0x601A & 7) == 0`
- * branch, skipped otherwise (the common case, draft §4c).
- */
 /**
  * loc_08d5 -- ROM 0x08D5-0x08F7  (-> A = mem[0x7D00] & B)
  *
@@ -1357,16 +1253,6 @@ function sub_0965(m) {
   m.ret();
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 8 instructions,
- * 0x0977-0x0985, 15 bytes, CLEAN. Callee sub_309f integrated. Exported dead
- * code -> NET-ZERO.
- *
- * BCD decrement of 0x6001, then enqueue via sub_309f (DE=0x0400). The decrement
- * is the `ld a,0x99 / add a,(hl) / daa` idiom: 0x99 + v then daa yields BCD
- * (v - 1) (add sets H/C, daa's N=0 branch consumes them). sub_309f's push/pop is
- * balanced -- a normal call, not skip-capable (draft OQ-1).
- */
 /**
  * loc_08f8 -- ROM 0x08F8-0x095D  (arm 1 of 0x08B2's table; exits the sub-state machine)
  *
@@ -1379,7 +1265,7 @@ function sub_0965(m) {
  * machine: 0x600A = 0 (this dispatcher's selector) and 0x6005 = 3 (GAME STATE advance).
  * The two ldir blocks (0x091F.. arm-2, 0x093E.. tail) differ ONLY in DE = 0x6048/0x0101
  * vs 0x6040/0x0100 (verified byte-exact vs ROM). The ldir source at 0x095E is live DATA,
- * read twice (tracer marks it "unreached" = not executed, not dead). Unwired -> net-zero.
+ * read twice (tracer marks it "unreached" = not executed, not dead).
  */
 export function loc_08f8(m) {
   const { regs, mem } = m;
@@ -1526,13 +1412,6 @@ export function sub_0977(m) {
   m.ret(); // ret (0x0985)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 0x0986-0x09AA, CLEAN.
- * Arm 0 of loc_06fe's 0x0702 table. call sub_0852 + sub_011c, set flipscreen
- * 0x7D82=1, then on 0x600E: ==0 -> 0x600A=1; else if (0x6026)==1 keep 0x7D82=1
- * else clear 0x7D82=0, and 0x600A=3. Callees sub_0852/sub_011c integrated.
- * Exported dead code -> NET-ZERO.
- */
 export function loc_0986(m) {
   const { regs, mem } = m;
 
@@ -1583,16 +1462,6 @@ export function loc_0986(m) {
   m.ret(); // ret (0x09AA)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 20 instructions,
- * 0x09AB-0x09D5, 43 bytes, CLEAN. Arm 1 of loc_06fe's 0x0702 table. Callee is
- * only the ldir helper. Exported dead code -> NET-ZERO.
- *
- * Copies 8 bytes 0x6040->0x6228 (ldir), then dereferences an INDIRECT pointer:
- * HL = the word AT 0x622A (which the copy just populated), reads (HL), stores it
- * to 0x6227. Then arms two state cells on the 0x600F test: 0x600F==0 ->
- * (0x6009,0x600A) = (1, 5); else (0x78, 2).
- */
 /**
  * loc_09ab -- ROM 0x09AB-0x09D5  (copy 8 bytes, deref a pointer, arm state)
  *
@@ -1667,19 +1536,6 @@ export function loc_09ab(m) {
   m.ret(); // ret (0x09CF)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 17 instructions,
- * 0x0A37-0x0A62, 44 bytes, CLEAN. Arm 5 of loc_06fe's 0x0702 table. Callee
- * sub_309f only. Exported dead code -> NET-ZERO. (Draft used a JS for-loop as a
- * transcription convenience; UNROLLED here to the ROM's four straight-line
- * ld-de/call pairs, one m.step per instruction.)
- *
- * Enqueues four tasks via sub_309f (DE = 0x0304, 0x0202, 0x0200, 0x0600), advances
- * the 0x600A selector, then seeds three video cells (0x7740=1, 0x7720=0x25,
- * 0x7700=0x20). The three `ld (nn),a` writes use busOffset 10 (the ld (nn),a
- * precedent at 0x7D82; the draft annotated 7 under OQ-2 -- net-zero-irrelevant
- * while dead, corrected for the go-live cycle trace).
- */
 /**
  * loc_0a37 -- ROM 0x0A37-0x0A62  (enqueue 4 tasks, advance 0x600A, seed video)
  */
@@ -1727,16 +1583,6 @@ export function loc_0a37(m) {
   m.ret(); // ret (0x0A62)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 2 instructions,
- * 0x0A76-0x0A79, 4 bytes, CLEAN. The inline table 0x0A7A-0x0A89 (8 entries) is
- * DATA read from ROM by sub_0028. Exported dead code -> NET-ZERO.
- *
- * A NESTED rst 0x28 dispatcher: arm 7 of loc_06fe's 0x0702 table dispatches to
- * 0x0A76, which dispatches again on a DIFFERENT selector (0x6385) through its own
- * table at 0x0A7A. Same trampoline as loc_06fe/loc_08b2, different selector+base.
- * No ret -- the target's ret returns to loc_0a76's caller.
- */
 /**
  * loc_0a76 -- ROM 0x0A76-0x0A79  (rst 0x28 dispatch on 0x6385, table at 0x0A7A)
  *
@@ -1754,15 +1600,6 @@ export function loc_0a76(m) {
   sub_0028(m, "0x0A7A (0x6385 sequence)"); // reads the table from ROM; ends in jp (hl)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 12 instructions,
- * 0x0A63-0x0A75, 19 bytes, CLEAN. Callees sub_0018 (rst 0x18) + sub_0874, both
- * integrated. Exported dead code -> NET-ZERO.
- *
- * rst 0x18 countdown gate: if it expires, re-arm 0x6009 to 1, then advance the
- * 0x600A selector by 1 -- and by a SECOND +1 (total +2) iff 0x622C == 0. Void
- * return on the gate skip; `ret nz` after the 0x622C test keeps the advance at +1.
- */
 /**
  * loc_0a63 -- ROM 0x0A63-0x0A75  (rst 0x18 gate; re-arm and advance 0x600A by 1 or 2)
  *
@@ -1816,18 +1653,6 @@ export function loc_0a63(m) {
   m.ret(); // ret (0x0A75)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 0x0A8A-0x0ABE, CLEAN.
- * Arm 0 of loc_0a76's 0x6385 table -- straight-line state setup, no branches.
- * Callee sub_0da7 integrated. Exported dead code -> NET-ZERO.
- *
- * Sets the palette latch (0x7D86=0, 0x7D87=1), draws via sub_0da7 (DE=0x380D),
- * seeds video cells (0x76A3/0x7663=0x10, 0x75AA=0xD4), clears 0x62AF, and stores
- * TWO ROM pointers: 0x38B4 -> 0x63C2 (loc_0b06's walk pointer) and 0x38CB ->
- * 0x63C4 (loc_0b68's). Arms 0x6009=0x40 and advances the 0x6385 sequence.
- * The ld (nn),a hardware writes use busOffset 10 (the tree-wide ld (nn),a
- * convention; the draft annotated 7 under OQ-2 -- corrected).
- */
 /**
  * loc_0a8a -- ROM 0x0A8A-0x0ABE  (state setup; seed the two walk pointers)
  */
@@ -1884,13 +1709,6 @@ export function loc_0a8a(m) {
   m.ret(); // ret (0x0ABE)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 0x0ABF-0x0AE7, CLEAN.
- * rst 0x18 gate; copy ROM 0x388C->0x6908 (sub_004e), two rst 0x38 add-passes
- * (loc_0038, C=0x30 then C=0x99), write 0x638E=0x1F / 0x690C=0, set 0x608A=1 /
- * 0x608B=3, advance 0x6385. Callees sub_0018/sub_004e/loc_0038 integrated.
- * Exported dead code -> NET-ZERO.
- */
 export function loc_0abf(m) {
   const { regs, mem } = m;
 
@@ -1945,12 +1763,6 @@ export function loc_0abf(m) {
   m.ret(); // ret (0x0AE7)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 0x0AE8-0x0B05, CLEAN.
- * call sub_306f; if (0x62AF & 0x0F)==0 call sub_304a; then if 0x690B < 0x5D arm
- * 0x6009=0x20, advance 0x6385, seed loc_3069's 0x63C0 pointer (else ret nc).
- * Callees sub_306f/sub_304a integrated. Exported dead code -> NET-ZERO.
- */
 export function loc_0ae8(m) {
   const { regs, mem } = m;
 
@@ -2025,17 +1837,6 @@ export function sub_0a53(m) {
   m.ret();
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 0x0BB3-0x0BD9, 39 bytes,
- * CLEAN. Arm 7 (the LAST arm) of loc_0a76's 0x6385 sequence. Only external callee
- * is sub_0018 (rst 0x18). loc_0bd1 is an INTERNAL merge label (0x0BD1 is within
- * the extent, the rst 0x18 itself). Exported dead code -> NET-ZERO.
- *
- * Branches on 0x6009 (cp 0x90 / cp 0x18) to tweak 0x608A / 0x6919, then merges at
- * the rst 0x18 gate: if the countdown expires, WRAP the sequence (0x6385 = 0) and
- * advance both 0x6009 and 0x600A (the outer selector); else the gate skips the
- * body. Void return on skip (convention of loc_084b / handler_0763).
- */
 /**
  * loc_0bb3 -- ROM 0x0BB3-0x0BD9  (wrap the 0x6385 sequence, advance the selectors)
  *
@@ -2119,21 +1920,6 @@ export function loc_0bb3(m) {
   m.ret(); // ret (0x0BD9)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 0x0B06-0x0B67, CLEAN.
- * Arm 4 of loc_0a76's 0x6385 table. All callees integrated (loc_0038 = rst 0x38,
- * sub_004e, ldir, sub_304a, sub_0da7). Exported dead code -> NET-ZERO.
- *
- * Three paths off the top:
- *  - 0x601A bit0 set (rrca -> carry) -> `ret c`, an immediate return.
- *  - else walk the 0x63C2 ROM-table pointer: a non-0x7F byte -> advance the
- *    pointer, `rst 0x38` (add the byte at 0x690B), return.
- *  - a 0x7F sentinel -> TERMINAL SETUP: copy via sub_004e + ldir, two rst 0x38s,
- *    a `do { sub_304a } while (0x638E != 0x0A)` loop, then seed video/state and
- *    advance the 0x6385 sequence (seeding loc_3069's 0x63C0 pointer).
- * The ld (nn),a video writes use busOffset 10 (the ld (nn),a precedent; draft
- * annotated 7 under OQ -- net-zero-irrelevant while dead).
- */
 /**
  * loc_0b06 -- ROM 0x0B06-0x0B67  (walk a ROM table, or terminal setup)
  */
@@ -2251,19 +2037,6 @@ export function loc_0b06(m) {
   m.ret(); // ret (0x0B67)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 40 instructions,
- * 0x0B68-0x0BB2, 75 bytes, CLEAN. Arm 6 of loc_0a76's 0x6385 table; the twin of
- * loc_0b06 on a different walk pointer (0x63C4). All callees integrated
- * (loc_0038 = rst 0x38, sub_0da7). Exported dead code -> NET-ZERO.
- *
- * 0x601A bit0 -> ret c. Else walk the 0x63C4 pointer: a non-0x7F byte -> advance,
- * two rst 0x38s (add the byte at 0x690B, then add 0xFF = -1 at 0x6908), return.
- * A 0x7F sentinel -> RESET the walk pointer (loop the table), then render one
- * record: index 0x38DC by (0x638D - 1) * 16 (dec a + four rlca = nibble swap),
- * sub_0da7 to draw it, dec the 0x638D counter, `ret nz` if more records remain;
- * when the last record renders, arm 0x6009 = 0xB0 and advance the 0x6385 sequence.
- */
 /**
  * loc_0b68 -- ROM 0x0B68-0x0BB2  (walk 0x63C4 table, render records, count down)
  */
@@ -2367,22 +2140,6 @@ export function loc_0b68(m) {
   m.ret(); // ret (0x0BB2)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 0x0BDA-0x0C90, CLEAN.
- * Arm 8 of loc_06fe's 0x0702 table. The BONUS/level-setup routine: unconditional
- * sub_011c (silence), rst 0x18 gate on the rest, sub_0874 fill, enqueue, seed the
- * palette latch + state cells + the IX sprite-walk pointer (0x63A8=0x76DC), clamp
- * 0x622E<=5, sync 0x622F/0x622A, then an OUTER loop (B=0x622E) of: an INNER
- * 4-byte descending tile fill (stride 0x23, until C reaches 0x67) + an IX sprite
- * record copy from 0x3CF0[(0x63A7)*4] into (ix+0x60/0x40/0x20) with (ix-0x20)=0x8B
- * (NEGATIVE displacement), advancing 0x63A8 by -4 per sprite; epilogue enqueues
- * and advances 0x600A by 2. Callees sub_011c/sub_0018/sub_0874/sub_309f
- * integrated. Exported dead code -> NET-ZERO.
- *
- * (Draft skeleton used phantom m.pushHL/pushBC/pushIX/popBC and a no-arg
- * regs.sla() -- replaced with m.push16(regs.X)/regs.bc=m.pop16() and
- * regs.a=regs.sla(regs.a). sla is precedented (from 239c), not first-use.)
- */
 export function loc_0bda(m) {
   const { regs, mem } = m;
 
@@ -2707,13 +2464,8 @@ export function sub_309f(m) {
  *   30ea  10 f9        djnz 0x30e5
  *   30ec  c9           ret
  *
- * Integrated from code3's draft (30e4.draft.md), bytes CLEAN via draftdiff.
- * FIRST UNIT OF THE 0x1977 CLOSURE DRAIN -- ROM >= 0x3000 is integrator #1's
- * (mine) per the ROM-address partition. UNGATED BY EXECUTION: it is reached
- * only through handler_1977, which is not translated, so no tape runs it yet.
- * It is banked correct-state for the 1977 integration, and its gate is the
- * byte-diff, the unit test below, and stepcheck -- NOT a state/write diff,
- * because it does not execute. NET-ZERO on image AND on execution.
+ * Translated for completeness; not yet wired into the live dispatcher. Reached
+ * only through handler_1977, which is not translated.
  *
  * Zeros up to B bytes at stride 4, walking L ONLY. `ld a,l` is a PROLOGUE
  * (the djnz targets 0x30E5, not the entry), and it is memory/register/flag-
@@ -2776,15 +2528,13 @@ export function sub_30e4(m) {
  *   309c  10 fa        djnz 0x3098
  *   309e  c9           ret
  *
- * Integrated from code3's draft (3096.draft.md), bytes CLEAN via draftdiff.
- * Part of the 0x1977 closure drain (>= 0x3000). UNGATED BY EXECUTION -- reached
- * only via sub_306f, itself in the untranslated 1977 subtree, so no tape runs
- * it yet; net-zero image and execution, gated by the byte-diff and unit test.
+ * Translated for completeness; not yet wired into the live dispatcher. Reached
+ * only via sub_306f, itself in the untranslated 1977 subtree.
  *
  * XORs C into two bytes at HL, stride DE. B is fixed at 2. THREE LIVE-INS: HL
  * (dest), C (mask), DE (stride). DE is never set here and never set by the
  * caller sub_306f -- it is 0x0004, left as a side effect of loc_0038's
- * `ld de,0x0004` up the call chain (the drafter's OQ1). Both call sites are in
+ * `ld de,0x0004` up the call chain. Both call sites are in
  * sub_306f; no other caller.
  *
  * `xor (hl)` is a READ-modify-write: it XORs the EXISTING byte with C, so the
@@ -2824,13 +2574,13 @@ export function sub_3096(m) {
  *   30e2  06 06        ld   b,0x06
  *   (falls through into sub_30e4 at 0x30E4)
  *
- * The FIFTH entry to sub_30e4 (its OQ-4), and a fallthrough, not a call:
+ * The FIFTH entry to sub_30e4, and a fallthrough, not a call:
  * nothing is pushed at 0x30E2->0x30E4, so sub_30e4's `ret` returns to
  * entry_30db's OWN caller. Writes 0x00 to 0x694C, then sets HL = 0x6958 and
  * B = 6 so sub_30e4 zeros 0x6958/5C/60/64/68/6C. `ld l,0x58` writes L only,
  * leaving H = 0x69.
  *
- * Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY EXECUTION.
+ * Translated for completeness; not yet wired into the live dispatcher.
  */
 export function entry_30db(m) {
   const { regs, mem } = m;
@@ -2859,7 +2609,7 @@ export function entry_30db(m) {
  *
  * Copies one byte from (HL+BC) to (HL+BC+DE). Three live-ins: HL, BC, DE.
  * Both `add hl,rr` write H/N/C (regs.addHl); the final carry escapes to the
- * caller. Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY EXECUTION.
+ * caller. Not yet wired into the live dispatcher.
  */
 export function sub_3064(m) {
   const { regs, mem } = m;
@@ -2920,11 +2670,9 @@ export function sub_3064(m) {
  *   3047  3e 04        ld   a,0x04
  *   3049  c9           ret
  *
- * Integrated from code3's draft (3009.draft.md), bytes CLEAN vs rom/maincpu.bin
- * (65/65). Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY EXECUTION:
- * its three call sites (0x1C9E, 0x1CBA, 0x23F4) all live in the untranslated
- * 1977 subtree, so no tape runs it yet -- net-zero image, gated by the byte-diff
- * and the hand-traced unit test.
+ * Translated for completeness; not yet wired into the live dispatcher. Its
+ * three call sites (0x1C9E, 0x1CBA, 0x23F4) all live in the untranslated
+ * 1977 subtree.
  *
  * A and B are LIVE-IN. D holds the ORIGINAL input across the whole routine
  * (`ld d,a` at 0x3009, then nothing writes D until `res 2,d`/`dec d` at the
@@ -2946,7 +2694,7 @@ export function sub_3064(m) {
  *                  `rra`). Otherwise clear bit 2 of the saved input, `dec d`;
  *                  `ret nz` if non-zero, else return A = 0x04.
  *
- * FAITHFUL NON-TERMINATION (draft OQ-1): if no 2-bit field of C equals B, the
+ * FAITHFUL NON-TERMINATION: if no 2-bit field of C equals B, the
  * loop never terminates. B is live-in (and `dec`'d at 0x3030 on the bit-2 path).
  * A `for(;;)` reproduces the ROM's own hang exactly. NO iteration guard is
  * added -- the ROM has none, and a `for(i<4)` cap would silently turn the hang
@@ -2955,7 +2703,7 @@ export function sub_3064(m) {
  * `res 2,d` (0x3043) is now expressible: cpu.js gained `res`/`set` in b7f5da0
  * (the draft predated it and marked this line the sole blocker). regs.res leaves
  * ALL flags unchanged, which matters here: `dec d` at 0x3045 sets the Z that the
- * `ret nz` at 0x3046 reads, so a res that clobbered a flag would be a §29
+ * `ret nz` at 0x3046 reads, so a res that clobbered a flag would be a
  * compensating-error shape -- correct D, corrupt control flow.
  *
  * `entry_3022` is an INTERIOR label despite the `entry_` prefix (a tracer
@@ -2964,11 +2712,10 @@ export function sub_3064(m) {
  * loc_3017 and loc_3031 are purely internal; 0x3031 is a 3-way forward join
  * (0x3018/0x301F/0x302D) AND the loop back-edge (0x3038).
  *
- * STEP FIX ON INTEGRATION: the draft's `cp b` step targeted the jp's DESTINATION
- * (0x303B/0x3031), skipping the `jp nz` at 0x3038. `cp b` at 0x3037 is one byte,
- * so its next instruction is 0x3038; `m.step(0x3038, 4)`. stepcheck's default
- * mode is blind to this (both wrong targets are valid instruction boundaries) --
- * caught by hand-auditing every step against the listing.
+ * STEP TARGET: `cp b` at 0x3037 is one byte, so its next instruction is 0x3038;
+ * `m.step(0x3038, 4)` -- NOT the jp's destination (0x303B/0x3031), which would
+ * skip the `jp nz` at 0x3038. Both are valid instruction boundaries, so the
+ * correct target was confirmed by hand-auditing every step against the listing.
  */
 export function entry_3009(m) {
   const { regs } = m;
@@ -3104,16 +2851,15 @@ export function entry_3009(m) {
  *   3062  35           dec  (hl)          ; index at 0x638E -= 1
  *   3063  c9           ret
  *
- * Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY EXECUTION: its
+ * Its
  * callers (0x0AF0 `call z`, 0x0B38 `call`) live in an untranslated routine, and
  * nothing in translated src references 0x304A -- so this function is dormant and
- * adding it is NET-ZERO IMAGE by construction (as verified for entry_3009).
- * Bytes CLEAN vs rom/maincpu.bin (26/26).
+ * adding it is not yet wired into the live dispatcher.
  *
  * NO live-in registers: DE, A, C, B, HL are all set before any read (A from
  * memory). Straight-line, no branch, one unconditional ret.
  *
- * WHAT IT DOES (mechanism; 0x638E's meaning not named, §20): loads the index at
+ * WHAT IT DOES (mechanism; 0x638E's meaning not named): loads the index at
  * 0x638E into BC (B=0), then calls sub_3064 twice to copy one byte each from
  * 0x7600+BC and 0x75C0+BC to 0x20 bytes LOWER, then decrements the index.
  *   - `ld de,0xffe0` is -0x20: sub_3064's `add hl,de` is a 16-bit add that wraps
@@ -3177,10 +2923,9 @@ export function sub_304a(m) {
  *   30d6  06 05        ld   b,0x05
  *   30d8  c3 e4 30     jp   0x30e4        ; TAIL JUMP -- 30e4's ret returns to OUR caller
  *
- * Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY EXECUTION: callers
+ * Callers
  * 0x12A3/0x1615 are in untranslated routines (0x12A3 is past handler_123c, which
- * ends 0x127B), and nothing in translated src invokes sub_30bd -> NET-ZERO IMAGE
- * by construction. Bytes CLEAN vs rom/maincpu.bin (30/30).
+ * ends 0x127B), and nothing in translated src invokes sub_30bd
  *
  * Clears four disjoint stride-4 runs in work RAM page 0x69/0x6A by calling the
  * already-integrated sub_30e4 (zero B bytes at stride 4, walking L only) four
@@ -3192,7 +2937,7 @@ export function sub_304a(m) {
  * `m.step(0x30e4, 10); return sub_30e4(m)` with no push16 -- identical to
  * entry_30db's fallthrough, differing only in charging the jp's 10 T-states.
  * Translating the tail jump as a call (an extra push + an implied ret) would
- * splice a phantom frame onto the stack (§24, the tail-jump-is-not-a-call trap;
+ * splice a phantom frame onto the stack (the tail-jump-is-not-a-call trap;
  * cf. the rst 0x28 dispatcher that leaked a slot for the whole project).
  *
  * CROSS-CALL DEPENDENCY: `ld l,0x80` / `ld l,0xb8` reload L only, so H must
@@ -3260,37 +3005,36 @@ export function sub_30bd(m) {
  *   3094  77           ld   (hl),a
  *   3095  c9           ret
  *
- * Integrated from code2's draft (306f.draft.md), bytes CLEAN vs
- * rom/maincpu.bin (39/39). Part of the 0x1977 closure drain (>= 0x3000),
- * UNGATED BY EXECUTION: callers 0x0AE8/0x1732/0x1757 are untranslated, and
- * nothing in translated src invokes sub_306f -> NET-ZERO IMAGE by construction.
  *
- * EVERY-8TH-CALL GATE (draft OQ3): `inc (hl)` bumps the counter at 0x62AF, and
+ * Callers 0x0AE8/0x1732/0x1757 are untranslated, and
+ * nothing in translated src invokes sub_306f.
+ *
+ * EVERY-8TH-CALL GATE: `inc (hl)` bumps the counter at 0x62AF, and
  * `ret nz` after `and 0x07` returns on 7 of every 8 calls. The body (0x3077+)
  * runs only when the counter is a multiple of 8. `ret nz` FALLS THROUGH on Z --
  * stated, not assumed terminal (the drafter-contract's named defect class).
  *
  * `rst 0x38` (0x307C) is a PLAIN CALL into loc_0038, NOT the conditional-skip
- * semantics of rst 0x08/0x10 (draft OQ1). Modelled exactly as the existing
+ * semantics of rst 0x08/0x10. Modelled exactly as the existing
  * rst 0x38 site at nmi.js (push the return, step 11 T to 0x0038, call the
  * handler whose `ret` pops it) -- the same ld hl,0x690b / ld c,0xfc setup even
  * appears there.
  *
- * DE IS NEVER SET IN THIS ROUTINE (draft OQ2). sub_3096's stride comes from
+ * DE IS NEVER SET IN THIS ROUTINE. sub_3096's stride comes from
  * loc_0038's `ld de,0x0004` SIDE EFFECT: loc_0038 sets DE=0x0004, and neither
  * sub_003d (loc_0038's loop) nor sub_3096 writes DE, so DE=0x0004 survives from
  * the rst into both `call 0x3096`. Load-bearing and invisible -- reordering the
  * rst after the calls, or a loc_0038 that dropped the DE write, would break the
  * stride with nothing red in sub_306f. Verified against loc_0038's body.
  *
- * C is reloaded across the rst deliberately (draft OQ4): 0xFC (=-4) is the addend
+ * C is reloaded across the rst deliberately: 0xFC (=-4) is the addend
  * loc_0038 subtracts; 0x81 is the XOR mask sub_3096 applies. loc_0038 reads C
  * but never writes it, so the reload is a genuine operand change, not a restore.
  *
  * `call 0x0057` returns the pseudo-random sum in A; `and 0x80` keeps bit 7, and
- * `xor (hl) / ld (hl),a` toggles bit 7 of 0x692D on it (draft OQ6). `xor (hl)`
- * is a RMW of the existing byte (like sub_3096). Both exits leave live flags
- * (draft OQ5/S5): the `ret nz` hands back `and 0x07`'s, the `ret` `xor (hl)`'s.
+ * `xor (hl) / ld (hl),a` toggles bit 7 of 0x692D on it. `xor (hl)`
+ * is a RMW of the existing byte (like sub_3096). Both exits leave live flags:
+ * the `ret nz` hands back `and 0x07`'s, the `ret` `xor (hl)`'s.
  */
 export function sub_306f(m) {
   const { regs, mem } = m;
@@ -3304,14 +3048,14 @@ export function sub_306f(m) {
   regs.and(0x07);
   m.step(0x3076, 7); // and 0x07
   if (regs.fNZ) {
-    m.ret(11); // ret nz -- 7 of every 8 calls exit here (OQ3)
+    m.ret(11); // ret nz -- 7 of every 8 calls exit here
     return;
   }
   m.step(0x3077, 5); // ret nz NOT taken -- fall through
 
   regs.hl = 0x690b;
   m.step(0x307a, 10); // ld hl,0x690b
-  regs.c = 0xfc; // -4: loc_0038 subtracts 4 from each of 10 bytes (OQ4)
+  regs.c = 0xfc; // -4: loc_0038 subtracts 4 from each of 10 bytes
   m.step(0x307c, 7); // ld c,0xfc
 
   // rst 0x38 -- a real CALL to loc_0038 (push the return, ret pops it), NOT a
@@ -3320,13 +3064,13 @@ export function sub_306f(m) {
   m.step(0x0038, 11); // rst 0x38
   loc_0038(m); // sets DE=0x0004; leaves it (sub_003d only reads DE)
 
-  regs.c = 0x81; // XOR mask for the two sub_3096 calls (OQ4)
+  regs.c = 0x81; // XOR mask for the two sub_3096 calls
   m.step(0x307f, 7); // ld c,0x81
   regs.hl = 0x6909;
   m.step(0x3082, 10); // ld hl,0x6909
   m.push16(0x3085);
   m.step(0x3096, 17); // call 0x3096
-  sub_3096(m); // DE=0x0004 from the rst (OQ2); preserves DE and C
+  sub_3096(m); // DE=0x0004 from the rst; preserves DE and C
 
   regs.hl = 0x691d;
   m.step(0x3088, 10); // ld hl,0x691d
@@ -3336,7 +3080,7 @@ export function sub_306f(m) {
 
   m.push16(0x308e);
   m.step(0x0057, 17); // call 0x0057
-  sub_0057(m); // A = (0x6018)+(0x601A)+(0x6019), written back to 0x6018 (OQ6)
+  sub_0057(m); // A = (0x6018)+(0x601A)+(0x6019), written back to 0x6018
 
   regs.and(0x80); // keep bit 7 of the sum
   m.step(0x3090, 7); // and 0x80
@@ -3347,7 +3091,7 @@ export function sub_306f(m) {
   mem.write8(regs.hl, regs.a);
   m.step(0x3095, 7); // ld (hl),a
 
-  m.ret(); // 3095 -- xor (hl) flags escape to the caller (OQ5)
+  m.ret(); // 3095 -- xor (hl) flags escape to the caller
 }
 
 /**
@@ -3375,12 +3119,11 @@ export function sub_306f(m) {
  * Calls nothing (self-contained; no callee edges). entry_3195/loc_317c are
  * INTERIOR labels -- raw-ROM (maincpu.bin) reference scan: 0x3195 has one literal
  * ref (jp nz @318a, interior), 0x317c one (jp z @314f, interior), zero external
- * (a byte-scan FLOOR; OQ-2 resolved). `add ix,de` uses regs.addIx (add16 flags),
+ * (a byte-scan FLOOR). `add ix,de` uses regs.addIx (add16 flags),
  * NOT open-coded (the sub_0593 lesson).
  *
- * Integrated from code3's draft (313c.draft.md), bytes CLEAN vs rom/maincpu.bin
- * (50/50). Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY EXECUTION ->
- * NET-ZERO IMAGE by construction: only caller is 0x30F0 (entry_30ed, the
+ * Translated for completeness; not yet wired into the live dispatcher.
+ * Not yet wired into the live dispatcher: only caller is 0x30F0 (entry_30ed, the
  * orchestrator), which is not translated -- nothing in translated src reaches it.
  */
 export function entry_313c(m) {
@@ -3539,9 +3282,8 @@ export function entry_313c(m) {
  *   31f4  77           ld   (hl),a
  *   31f5  c9           ret
  *
- * Integrated from code3's draft (31dd.draft.md), bytes CLEAN vs rom/maincpu.bin
- * (25/25). Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY EXECUTION ->
- * NET-ZERO IMAGE by construction: only caller is 0x31B1 (entry_31b1, the object
+ * Translated for completeness; not yet wired into the live dispatcher.
+ * Not yet wired into the live dispatcher: only caller is 0x31B1 (entry_31b1, the object
  * processor, untranslated), and nothing in translated src invokes sub_31dd.
  *
  * A three-part gated write: writes 2 to 0x6439 AND 0x6479 only when 0x6380 >= 3
@@ -3552,9 +3294,9 @@ export function entry_313c(m) {
  * It returns on fM (F_S = bit 7 of A-3), NOT carry: for A >= 0x83 it diverges
  * from `ret c` (A=0x83 -> A-3=0x80, sign set -> ret m returns, carry clear -> ret
  * c would not). Latent on real tapes (sub_30fa clamps 0x6380 < 6), but the
- * instruction is signed -- pinned by a SYNTHETIC 0x83 test (§34). fM reads F_S,
+ * instruction is signed -- pinned by a SYNTHETIC 0x83 test. fM reads F_S,
  * which `cp` sets correctly (already tested); no cpu.js change needed. Both
- * conditional rets FALL THROUGH; 0x6380/0x6439/0x6479 not interpreted (§20).
+ * conditional rets FALL THROUGH; 0x6380/0x6439/0x6479 not interpreted.
  */
 export function sub_31dd(m) {
   const { regs, mem } = m;
@@ -3607,16 +3349,15 @@ export function sub_31dd(m) {
  *   31fe  3a 1a 60     ld   a,(0x601a)
  *   3201  c9           ret                ; returns A = 0x601a
  *
- * Integrated from code3's draft (31f6.draft.md), bytes CLEAN vs rom/maincpu.bin
- * (12/12). Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY EXECUTION:
+ *
  * only caller is 0x31E3 inside the untranslated sub_31dd, and nothing in
- * translated src references sub_31f6 -> NET-ZERO IMAGE by construction. Leaf.
+ * translated src references sub_31f6. Leaf.
  *
  * A value-returning helper: A = mem[0x6018] & 3; if that is 1, return
  * A = mem[0x601a], else return A = mem[0x6018] & 3 (one of 0/2/3). A is LIVE-OUT
  * -- sub_31dd does `cp 0x01` on it immediately -- so the early `ret nz` returns
- * a REAL value (0/2/3), not "nothing" (draft OQ2). `ret nz` FALLS THROUGH on Z;
- * stated, not assumed terminal. 0x6018/0x601a not interpreted (§20).
+ * a REAL value (0/2/3), not "nothing". `ret nz` FALLS THROUGH on Z;
+ * stated, not assumed terminal. 0x6018/0x601a not interpreted.
  */
 export function sub_31f6(m) {
   const { regs, mem } = m;
@@ -3731,9 +3472,8 @@ function loc_3445(m) {
  *   3442  dd 34 03     inc  (ix+0x03)       ; loc_3442
  *   (falls through into loc_3445 -- see above)
  *
- * Integrated from code3's draft (342c.draft.md), bytes CLEAN vs rom/maincpu.bin
- * (76/76). Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY EXECUTION ->
- * NET-ZERO IMAGE by construction: called from 0x32CE (sub_32bd, untranslated).
+ * Translated for completeness; not yet wired into the live dispatcher.
+ * Not yet wired into the live dispatcher: called from 0x32CE (sub_32bd, untranslated).
  * Calls nothing; IX live-in.
  *
  * Walks an animation table one entry per call: the saved pointer lives in
@@ -3741,7 +3481,7 @@ function loc_3445(m) {
  * the table (0x3A8C) and (ix+0x03) seeded to 0x26. Either way (ix+0x03) is then
  * incremented and the tail (loc_3445) stores the entry and advances the pointer,
  * or finalizes on the 0xAA terminator. Table contents / field meanings not
- * interpreted (§20).
+ * interpreted.
  *
  * THE ZERO TEST IS WHY adcHl EXISTS. `xor a` clears carry AND zeroes A; `ld
  * bc,0`; `adc hl,bc` then computes HL + 0 + 0 = HL purely to SET Z from the
@@ -3789,20 +3529,18 @@ export function sub_342c(m) {
  * entry_3e88 -- ROM 0x3E88-0x3E98  (5 code bytes + 12 inline-table bytes)
  *
  *   3e88  3a 27 62    ld   a,(0x6227)
- *   3e8b  e5          push hl                ; handed to the dispatch target (§2)
+ *  3e8b e5 push hl ; handed to the dispatch target
  *   3e8c  ef          rst  0x28              ; TAIL dispatch through the table below
  *   ; table 0x3E8D-0x3E98:  0x0000  0x3E99  0x28B0  0x28E0  0x2901  0x0000
  *
- * Integrated from code3's draft (3e88.draft.md), code bytes CLEAN vs
- * rom/maincpu.bin (3/3); the 12-byte table is read from ROM by sub_0028, not
- * transcribed. Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY
- * EXECUTION -> NET-ZERO IMAGE by construction: called only from 0x286B (< 0x3000,
- * code-b's, untranslated); nothing in translated src invokes entry_3e88, and its
- * four dispatch targets are reached ONLY through THIS table -- never through the
+ * the 12-byte table is read from ROM by sub_0028, not
+ * transcribed.
+ * Not yet wired into the live dispatcher: called only from 0x286B (< 0x3000,
+ * untranslated); nothing in translated src invokes entry_3e88, and its four
+ * dispatch targets are reached ONLY through THIS table -- never through the
  * executed NMI (0x00CA) / substate (0x0748) / sub_30fa (0x3104) dispatches
- * (grep-confirmed, and the state.bin/frames.rgb net-zero check proves it). So
- * wiring the four targets into dispatchGameState (nmi.js) stays net-zero; that
- * arm only fires once 0x1977 lands and this chain actually runs.
+ * (grep-confirmed). Wiring the four targets into dispatchGameState (nmi.js)
+ * becomes relevant only once handler_1977 lands and this chain actually runs.
  *
  * THE PUSH/POP-ACROSS-DISPATCH SHAPE (why this is NOT the sub_30fa tail case,
  * even though both end in rst 0x28). entry_3e88 does `push hl` BEFORE the rst
@@ -3818,22 +3556,22 @@ export function sub_342c(m) {
  * `return sub_0028(...)` therefore passes the target's value up transparently, and
  * the extra pushed HL is balanced by the target's `pop hl`.
  *
- * THE STACK-BALANCE CROSS-REGION INVARIANT (draft OQ-1, flagged not resolved).
+ * THE STACK-BALANCE CROSS-REGION INVARIANT.
  * The table's non-null targets are entry_3e99 (mine) and 0x28B0/0x28E0/0x2901
- * (< 0x3000, code-b's). entry_3e99 pops the pushed HL; whether the three code-b
+ *  (< 0x3000). entry_3e99 pops the pushed HL; whether the three
  * targets also pop is THEIR units' business. A target that does not pop leaves
- * the stack unbalanced across the dispatch. Inert today (net-zero); load-bearing
+ * the stack unbalanced across the dispatch. Inert today; load-bearing
  * when 0x1977 lands. Two `dw 0x0000` guards (indices 0 and 5) are the
  * reset-vector null guard for an out-of-range 0x6227 (its writers' business).
  * `rst 0x28` is precedented (sub_0028), applied with table base 0x3E8D, not
- * re-derived. 0x6227 not interpreted (§20).
+ * re-derived. 0x6227 not interpreted.
  */
 export function entry_3e88(m) {
   const { regs, mem } = m;
 
   regs.a = mem.read8(0x6227);
   m.step(0x3e8b, 13); // ld a,(0x6227)
-  m.push16(regs.hl); // push hl -- handed to the dispatch target through the stack (§2)
+  m.push16(regs.hl); // push hl -- handed to the dispatch target through the stack
   m.step(0x3e8c, 11); // push hl
 
   // rst 0x28 -- TAIL dispatch through the inline table at 0x3E8D. rst pushes the
@@ -3868,9 +3606,8 @@ export function entry_3e88(m) {
  *   3ec0  3e 07        ld   a,0x07
  *   3ec2  c9           ret                ; count >= 3 -> code 7
  *
- * Integrated from code3's draft (3e99.draft.md), bytes CLEAN vs rom/maincpu.bin
- * (42/42). Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY EXECUTION ->
- * NET-ZERO IMAGE by construction: reached ONLY via entry_3e88's rst 0x28 table
+ * Translated for completeness; not yet wired into the live dispatcher.
+ * Not yet wired into the live dispatcher: reached ONLY via entry_3e88's rst 0x28 table
  * (entry 1), which is untranslated. Its two callees are both entry_3ec3
  * (drain #26). LIVE-INS: HL (off the stack), IY, C, H, L (the last four passed
  * through to entry_3ec3).
@@ -3888,7 +3625,7 @@ export function entry_3e88(m) {
  * entry_3e99(m)` like the game-state handlers. `cp 0x03` then `ld a,0x03` then
  * `ret c` reads the carry from the cp ACROSS the flag-neutral `ld` -- the value
  * 0x03 is loaded before the branch that decides whether to return it. 0x6060 /
- * the object fields not interpreted (§20).
+ * the object fields not interpreted.
  */
 export function entry_3e99(m) {
   const { regs, mem } = m;
@@ -3959,14 +3696,13 @@ export function entry_3e99(m) {
  *   3103  ef           rst  0x28          ; TAIL dispatch through the table below
  *   3104: 10 31 10 31 1b 31 26 31 26 31 31 31   (dw 3110 3110 311b 3126 3126 3131)
  *
- * Integrated from code3's draft (30fa.draft.md), code bytes CLEAN vs
- * rom/maincpu.bin (10/10); the 12-byte table is read from ROM by sub_0028, not
- * transcribed. Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY
- * EXECUTION -> NET-ZERO IMAGE by construction: reached only from entry_30ed
+ * the 12-byte table is read from ROM by sub_0028, not
+ * transcribed.
+ * Not yet wired into the live dispatcher: reached only from entry_30ed
  * (untranslated), and the guard targets are reached ONLY through this table --
- * never through the executed NMI/substate dispatches (grep-confirmed). So wiring
- * this is still net-zero; the sub_0028 correctness-gate inversion only fires when
- * 1977 integrates and this chain actually runs.
+ * never through the executed NMI/substate dispatches (grep-confirmed). The
+ * sub_0028 correctness-gate inversion only fires once handler_1977 integrates
+ * and this chain actually runs.
  *
  * Clamps the index at 0x6380 to [0,5] (>= 6 becomes 5), then `rst 0x28`
  * dispatches through the inline table to one of the four 0x3110-family guards.
@@ -4040,9 +3776,9 @@ export function sub_30fa(m) {
  * mainloop.js:172-183): true = the caller was returned to normally, false = the
  * caller is skipped and must `return` immediately.
  *
- * Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY EXECUTION ->
- * NET-ZERO IMAGE by construction: reached only through entry_30fa's rst 0x28
- * table, which is untranslated. 0x601a is not interpreted (§20).
+ * Translated for completeness; not yet wired into the live dispatcher.
+ * Not yet wired into the live dispatcher: reached only through entry_30fa's rst 0x28
+ * table, which is untranslated. 0x601a is not interpreted.
  */
 function guard_3110(m) {
   const { regs, mem } = m;
@@ -4159,16 +3895,15 @@ export { guard_3110, guard_311b, guard_3126, guard_3131 };
  *   3efc  10 c5        djnz 0x3ec3
  *   3efe  c9           ret
  *
- * Integrated from code3's draft (3ec3.draft.md), bytes CLEAN vs rom/maincpu.bin
- * (60/60). Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY EXECUTION ->
- * NET-ZERO IMAGE by construction. Calls nothing. Gating-first pull.
+ * Translated for completeness; not yet wired into the live dispatcher.
+ * Not yet wired into the live dispatcher. Calls nothing.
  *
  * A djnz loop over B objects at stride DE from IX. For each ACTIVE object (bit 0
  * of (ix+0x00) set) it takes |C - (ix+0x05)| on one axis and |(iy+0x03) -
  * (ix+0x03)| on the other, compares each against a threshold in L / H and a
  * per-object span in (ix+0x0a) / (ix+0x09), and increments the counter at 0x6060
  * when both axes pass. LIVE-INS: IX (object base), IY, B (count), C, DE (stride),
- * H and L (the thresholds). Fields and 0x6060 not interpreted (§20).
+ * H and L (the thresholds). Fields and 0x6060 not interpreted.
  *
  * Both `neg` sites are the absolute-value idiom: `sub` then, only on borrow,
  * negate -- so the code takes |difference| without a signed compare.
@@ -4291,10 +4026,9 @@ export function entry_3ec3(m) {
  *   306d  34           inc  (hl)
  *   306e  c9           ret
  *
- * Integrated from code3's draft (3069.draft.md), bytes CLEAN vs rom/maincpu.bin
- * (6/6). Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY EXECUTION ->
- * NET-ZERO IMAGE by construction: reached only via a dw jump table (2 refs), all
- * in untranslated code. Gating-first pull.
+ * Translated for completeness; not yet wired into the live dispatcher.
+ * Not yet wired into the live dispatcher: reached only via a dw jump table (2 refs), all
+ * in untranslated code.
  *
  * Increments the byte POINTED AT by 0x63C0 -- `ld hl,(nn)` is the indirect load
  * (0x2A), so HL is the word stored at 0x63C0, NOT the address 0x63C0 itself. The
@@ -4312,8 +4046,7 @@ export function entry_3ec3(m) {
  * scope-error lesson). TRUE rather than void so a future erroneous
  * `if (!loc_3069(m)) return;` is INERT rather than a live defect.
  *
- * S6 (union of both trees @ 21208cf): `ld hl,(nn)` has 10 precedents --
- * 4 in code/src/rom, 6 in code-b/src/rom. Not a novel form.
+ * `ld hl,(nn)` has 10 precedents in the ROM. Not a novel form.
  *
  * REGISTER CONTRACT: sub_0018 sets HL = 0x6009 as a side effect. Harmless here
  * because 0x306A overwrites HL immediately -- but it is a side effect, not a
@@ -4347,9 +4080,8 @@ export function loc_3069(m) {
  *   33ab  33           inc  sp
  *   33ac  c9           ret                  ; -> the caller's CALLER
  *
- * Integrated from code3's draft (33a1.draft.md), bytes CLEAN vs rom/maincpu.bin
- * (12/12). Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY EXECUTION ->
- * NET-ZERO IMAGE by construction: called from 0x334A (entry_333d, untranslated).
+ * Translated for completeness; not yet wired into the live dispatcher.
+ * Not yet wired into the live dispatcher: called from 0x334A (entry_333d, untranslated).
  * IX live-in.
  *
  * TWELVE BYTES WITH TWO DIFFERENT CALLER-SKIPS, AND THEY ARE NOT THE SAME SKIP.
@@ -4420,9 +4152,8 @@ export function sub_33a1(m) {
  *   32d2  cd 78 34     call 0x3478         ; loc_32d2
  *   32d5  c9           ret
  *
- * Integrated from code2's draft (32bd.draft.md), bytes CLEAN vs rom/maincpu.bin
- * (25/25). Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY EXECUTION ->
- * NET-ZERO IMAGE by construction: called from 0x327A (entry_3202, untranslated).
+ * Translated for completeness; not yet wired into the live dispatcher.
+ * Not yet wired into the live dispatcher: called from 0x327A (entry_3202, untranslated).
  * CLOSES THE 32bd SUBTREE: all three callees landed in drains #19/#20/#21.
  *
  * A 3-way dispatch on 0x6227: == 1 calls sub_342c, == 2 calls sub_3478, and
@@ -4507,9 +4238,8 @@ export function sub_32bd(m) {
  *   34ed  21 d4 3a     ld   hl,0x3ad4       ; loc_34ed -- bit 7 SET
  *   34f0  c3 ca 34     jp   0x34ca
  *
- * Integrated from code3's draft (34b9.draft.md), bytes CLEAN vs rom/maincpu.bin
- * (58/58). Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY EXECUTION ->
- * NET-ZERO IMAGE by construction: called from 0x32CA (sub_32bd, untranslated).
+ * Translated for completeness; not yet wired into the live dispatcher.
+ * Not yet wired into the live dispatcher: called from 0x32CA (sub_32bd, untranslated).
  * Calls nothing; IX live-in. With #19 and #20 this completes sub_32bd's callees.
  *
  * A table initializer: returns immediately if 0x6227 == 3; otherwise selects one
@@ -4617,9 +4347,8 @@ export function sub_34b9(m) {
  *   34b3  dd 35 03     dec  (ix+0x03)       ; loc_34b3 -- backward: index down
  *   34b6  c3 45 34     jp   0x3445          ; TAIL JUMP
  *
- * Integrated from code3's draft (3478.draft.md), bytes CLEAN vs rom/maincpu.bin
- * (65/65). Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY EXECUTION ->
- * NET-ZERO IMAGE by construction: called from 0x32D2 (sub_32bd, untranslated).
+ * Translated for completeness; not yet wired into the live dispatcher.
+ * Not yet wired into the live dispatcher: called from 0x32D2 (sub_32bd, untranslated).
  * IX live-in.
  *
  * THE TWIN OF sub_342c -- WRITTEN FROM ITS OWN BYTES, NOT FROM 342c (S7). The
@@ -4639,7 +4368,7 @@ export function sub_34b9(m) {
  * so this edge is invisible to exactly the tooling used to find callees --
  * second instance of the shape after loc_0038/sub_003d.
  *
- * 0x6203 / the tables / the direction meaning are not interpreted (§20).
+ * 0x6203 / the tables / the direction meaning are not interpreted.
  */
 export function sub_3478(m) {
   const { regs, mem } = m;
@@ -4726,15 +4455,14 @@ export function sub_3478(m) {
  *   330b  cd 0f 33     call 0x330f          ; loc_330b (JOIN)
  *   330e  c9           ret
  *
- * Integrated from code2's draft (32d6.draft.md), bytes CLEAN vs rom/maincpu.bin
- * (57/57). Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY EXECUTION ->
- * NET-ZERO IMAGE by construction: called from 0x327E (entry_3202, untranslated).
+ * Translated for completeness; not yet wired into the live dispatcher.
+ * Not yet wired into the live dispatcher: called from 0x327E (entry_3202, untranslated).
  * Unblocked by drain #14 (its only callee, entry_330f). IX live-in.
  *
  * An object down-counter with reload: (ix+0x1c) counts down; on reaching 0 (or
  * when armed via (ix+0x1d) == 1) it compares 0x6205 against (ix+0x0f), then
  * either reloads (ix+0x1c) to 0xFF or zeroes (ix+0x19)/(ix+0x1c), and calls
- * entry_330f. Object fields / 0x6205 not interpreted (§20).
+ * entry_330f. Object fields / 0x6205 not interpreted.
  *
  * THIS IS THE CASE THE SHARED PRIMITIVE WAS BUILT FOR. `dec (ix+0x1c)` at 0x32FD
  * is a memory RMW whose Z flag is READ by the `jp nz` at 0x3300 -- the first
@@ -4846,9 +4574,8 @@ export function sub_32d6(m) {
  *   3405  dd 34 0f     inc  (ix+0x0f)      ; loc_3405
  *   3408  c9           ret
  *
- * Integrated from code3's draft (33e7.draft.md), bytes CLEAN vs rom/maincpu.bin
- * (34/34). Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY EXECUTION ->
- * NET-ZERO IMAGE by construction: called from 0x3291 (entry_3202, untranslated).
+ * Translated for completeness; not yet wired into the live dispatcher.
+ * Not yet wired into the live dispatcher: called from 0x3291 (entry_3202, untranslated).
  * Unblocked by drain #15 (its only callee, sub_3409). IX live-in.
  *
  * Adjusts (ix+0x0f) up or down according to the state (ix+0x0d) and a period-2
@@ -4856,7 +4583,7 @@ export function sub_32d6(m) {
  *   state != 8            -> inc (ix+0x0f)
  *   state == 8, timer != 0 -> dec (ix+0x14)
  *   state == 8, timer == 0 -> (ix+0x14) = 2, dec (ix+0x0f)
- * Object fields not interpreted (§20). The `call 0x3409` runs BEFORE any field
+ * Object fields not interpreted. The `call 0x3409` runs BEFORE any field
  * access, so sub_3409's own effects on (ix+0x15)/(ix+0x07) land first.
  *
  * All three memory RMW (dec (ix+0x0f), dec (ix+0x14), inc (ix+0x0f)) go through
@@ -4928,16 +4655,15 @@ export function entry_33e7(m) {
  *   3428  dd 35 15     dec  (ix+0x15)      ; loc_3428
  *   342b  c9           ret
  *
- * Integrated from code3's draft (3409.draft.md), bytes CLEAN vs rom/maincpu.bin
- * (35/35). Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY EXECUTION ->
- * NET-ZERO IMAGE by construction: called from 0x33E7 (entry_33e7) and 0x33C0
+ * Translated for completeness; not yet wired into the live dispatcher.
+ * Not yet wired into the live dispatcher: called from 0x33E7 (entry_33e7) and 0x33C0
  * (entry_33ad), both untranslated; nothing in translated src invokes sub_3409.
  * Calls nothing; IX live-in. Unblocks entry_33ad and entry_33e7.
  *
  * A frame timer: (ix+0x15) down-counts; on expiry it reloads to 2 and advances
  * the frame (ix+0x07). When the frame's LOW NIBBLE reaches 0x0F, bit 1 is
  * TOGGLED via `xor 0x02` -- a toggle, not an increment or an OR: if bit 1 was
- * already set, xor CLEARS it. Frame field / xor meaning not interpreted (§20).
+ * already set, xor CLEARS it. Frame field / xor meaning not interpreted.
  *
  * Both `inc (ix+0x07)` and `dec (ix+0x15)` are MEMORY RMW and go through the
  * shared primitives regs.incMem8 / regs.decMem8 -- flag-correct (S/Z/H/PV set,
@@ -4997,22 +4723,21 @@ export function sub_3409(m) {
  *   33c9  dd 66 0e     ld   h,(ix+0x0e)
  *   33cc  dd 6e 0f     ld   l,(ix+0x0f)   ; HL = (ix+0x0e):(ix+0x0f)
  *   33cf  dd 46 0d     ld   b,(ix+0x0d)
- *   33d2  cd 33 23     call 0x2333        ; entry_2333 (< 0x3000, code-b's) -> modified L
+ *  33d2 cd 33 23 call 0x2333 ; entry_2333 (< 0x3000) -> modified L
  *   33d5  dd 75 0f     ld   (ix+0x0f),l
  *   33d8  c9           ret
  *
- * Integrated from code3's draft (33c3.draft.md), bytes CLEAN vs rom/maincpu.bin
- * (8/8). Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY EXECUTION ->
- * NET-ZERO IMAGE by construction: called from 0x32AB (entry_3202, untranslated)
+ * Translated for completeness; not yet wired into the live dispatcher.
+ * Not yet wired into the live dispatcher: called from 0x32AB (entry_3202, untranslated)
  * AND reached by fall-through from entry_33ad; nothing in translated src invokes
- * entry_33c3. IX live-in. One callee edge: entry_2333 (< 0x3000, code-b's), which
+ * entry_33c3. IX live-in. One callee edge: entry_2333 (< 0x3000), which
  * takes HL/B and returns a modified L -- that register contract is load-bearing.
  *
- * SHARED TAIL WITH entry_33ad (a §5 finding). entry_33ad has no ret of its own:
+ * SHARED TAIL WITH entry_33ad. entry_33ad has no ret of its own:
  * after its own field adjustments + call 0x3409 it FALLS THROUGH into this body
  * at 0x33C3, and this routine's ret ends both. The `0x6227 != 1` early-out means
  * entry_33ad's field work still happens, but the entry_2333 call stays gated on
- * 0x6227 == 1. 0x6227 / the object fields not interpreted (§20).
+ * 0x6227 == 1. 0x6227 / the object fields not interpreted.
  */
 export function entry_33c3(m) {
   const { regs, mem } = m;
@@ -5037,7 +4762,7 @@ export function entry_33c3(m) {
 
   m.push16(0x33d5);
   m.step(0x2333, 17); // call 0x2333
-  entry_2333(m); // entry_2333 (< 0x3000, code-b's) -- returns a modified L
+  entry_2333(m); // entry_2333 (< 0x3000) -- returns a modified L
 
   mem.write8(R(0x0f), regs.l); // store the returned L
   m.step(0x33d8, 19); // ld (ix+0x0f),l
@@ -5062,24 +4787,23 @@ export function entry_33c3(m) {
  *   33e1  dd 34 0e     inc  (ix+0x0e)
  *   33e4  c3 c0 33     jp   0x33c0
  *
- * Integrated from code3's draft (33ad.draft.md), bytes CLEAN vs rom/maincpu.bin
- * (13/13). Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY EXECUTION ->
- * NET-ZERO IMAGE by construction: called from 0x323B (entry_3202, untranslated);
+ * Translated for completeness; not yet wired into the live dispatcher.
+ * Not yet wired into the live dispatcher: called from 0x323B (entry_3202, untranslated);
  * nothing in translated src invokes entry_33ad. IX live-in. One callee edge:
  * sub_3409 (integrated), shared by both arms before the fall-through.
  *
- * NO RET OF ITS OWN -- it FALLS THROUGH into entry_33c3 (a §5 finding). Modelled
+ * NO RET OF ITS OWN -- it FALLS THROUGH into entry_33c3. Modelled
  * as `return entry_33c3(m)` with NO push16: entry_33ad has no frame of its own at
  * that point, so entry_33c3's ret ends both. The two routines are physically
  * INTERLEAVED -- the ==1 arm (0x33D9-0x33E5) sits after entry_33c3's body and
  * jumps back to the shared 0x33C0.
  *
- * TWO NEAR-MIRROR ARMS (§4a): on (ix+0x0d)==1, set bit 7 of (ix+0x07) (or 0x80)
+ * TWO NEAR-MIRROR ARMS: on (ix+0x0d)==1, set bit 7 of (ix+0x07) (or 0x80)
  * and inc (ix+0x0e); else clear bit 7 (and 0x7f) and dec (ix+0x0e). Same shape,
  * INVERSE ops -- each arm derived from its own bytes, not copied (or<->and, mask
  * 0x80<->0x7f, inc<->dec all flip). The inc/dec (ix+0x0e) are memory RMW through
  * regs.incMem8/decMem8 (flag-correct), though those flags die before entry_33c3
- * re-tests via cp. Object fields not interpreted (§20).
+ * re-tests via cp. Object fields not interpreted.
  */
 export function entry_33ad(m) {
   const { regs, mem } = m;
@@ -5118,7 +4842,7 @@ export function entry_33ad(m) {
   m.push16(0x33c3);
   m.step(0x3409, 17); // call 0x3409
   sub_3409(m);
-  return entry_33c3(m); // FALL THROUGH -- entry_33c3's ret ends both (§5)
+  return entry_33c3(m); // FALL THROUGH -- entry_33c3's ret ends both
 }
 
 /**
@@ -5141,9 +4865,8 @@ export function entry_33ad(m) {
  *   3336  dd 36 0d 02  ld   (ix+0x0d),0x02 ; loc_3336 -- UNREACHABLE
  *   333a  c3 32 33     jp   0x3332
  *
- * Integrated from code3's draft (330f.draft.md), bytes CLEAN vs rom/maincpu.bin
- * (46/46). Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY EXECUTION ->
- * NET-ZERO IMAGE by construction: called from 0x330B (sub_32d6) and the
+ * Translated for completeness; not yet wired into the live dispatcher.
+ * Not yet wired into the live dispatcher: called from 0x330B (sub_32d6) and the
  * entry_31b1->entry_3202 chain, all untranslated; nothing in translated src
  * invokes entry_330f. Self-contained: calls NOTHING, normal ret, no splice (the
  * draft corrected the assignment, which claimed ~59 insns and two callees --
@@ -5153,9 +4876,9 @@ export function entry_33ad(m) {
  * it to 0x2B, reset state (ix+0x0d) to 0, and if 0x6018 bit 0 is set advance the
  * state to 1. Every path falls through loc_3332's `dec (ix+0x16)`, so the reload
  * path yields 0x2A. IX is LIVE-IN (the object pointer). Timer/state/0x6018 bit 0
- * not interpreted (§20).
+ * not interpreted.
  *
- * FINDING, flagged not resolved (draft §3): `loc_3336` (state := 2) is
+ * FINDING, flagged not resolved: `loc_3336` (state := 2) is
  * UNREACHABLE via this routine's own flow. The only path to 0x3326 passes
  * 0x331B, which sets (ix+0x0d) = 0, so the `cp 0x01` at 0x3329 never matches and
  * the `jp z,0x3336` never fires. Whether that is intentional dead code, a ROM bug
@@ -5269,18 +4992,16 @@ export function entry_330f(m) {
  *   339c  dd 36 0d 08  ld   (ix+0x0d),0x08
  *   33a0  c9           ret
  *
- * Integrated from code3's draft (333d.draft.md), bytes CLEAN vs rom/maincpu.bin
- * (35/35). Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY EXECUTION ->
- * NET-ZERO IMAGE by construction: called from 0x3230 (entry_3202, untranslated);
+ * Translated for completeness; not yet wired into the live dispatcher.
+ * Not yet wired into the live dispatcher: called from 0x3230 (entry_3202, untranslated);
  * nothing in translated src invokes entry_333d. IX live-in. A 3-way state machine
  * on (ix+0x0d): 8 -> entry_3371, 4 -> loc_338a, else -> the movement path.
  *
- * TWO SKIP-CAPABLE MOVEMENT-PATH CALLEES, both boolean-guarded (resolves draft
- * OQ-1 and the 236e correction against the INTEGRATED callees):
+ * TWO SKIP-CAPABLE MOVEMENT-PATH CALLEES, both boolean-guarded:
  *   0x334A call sub_33a1 (mine) -- a rst-0x30 dispatcher that, on (ix+0x0f) < 0x59,
  *     does `inc sp / inc sp / ret` and unwinds to entry_333d's CALLER, returning
  *     false. Guard: `if (!sub_33a1(m)) return;`.
- *   0x3359 call sub_236e (< 0x3000, code-b's) -- on its cpir-miss path does
+ *  0x3359 call sub_236e (< 0x3000) -- on its cpir-miss path does
  *     `pop hl / ret` at 0x239A and unwinds to entry_333d's CALLER, returning
  *     false. Guard: `if (!sub_236e(m)) return;`. On the FOUND path it returns
  *     A (0/1, steering the `and a / jp z`) and B (stored to (ix+0x1f)).
@@ -5290,7 +5011,7 @@ export function entry_330f(m) {
  * entry_3371 and loc_338a are NEAR-IDENTICAL (both: (ix+0x0f)+8 cp (ix+0x1f) /
  * ret nz / (ix+0x0d)=0); entry_3371 alone adds the (ix+0x19)==2 -> (ix+0x1d)=1
  * tail -- written from their own bytes, not copied. Interior labels reached only
- * by internal jp z. Object fields / 0x6205 / movement semantics not interpreted (§20).
+ * by internal jp z. Object fields / 0x6205 / movement semantics not interpreted.
  */
 export function entry_333d(m) {
   const { regs, mem } = m;
@@ -5418,17 +5139,16 @@ export function entry_333d(m) {
  * Loads the object at (0x63C8), branches on its (ix+d) state fields, dispatches
  * to EIGHT callees, does a 0x3A7A table lookup, and writes back several fields.
  * Two rets: 0x3279 (after the table lookup) and 0x327D (after call 0x32bd).
- * Full byte listing in the draft (3202.draft.md §1). IX is RELOADED from (0x63C8)
+ * IX is RELOADED from (0x63C8)
  * at 0x3202/0x3246/0x3297 because the callees clobber it -- (0x63C8) is the
  * object pointer entry_31b1 maintains (its store-back). NOT a splice.
  *
- * Integrated from code3's draft (3202.draft.md), bytes CLEAN vs rom/maincpu.bin
- * (72/72). Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY EXECUTION ->
- * NET-ZERO IMAGE by construction: called from 0x31CD (entry_31b1, untranslated);
+ * Translated for completeness; not yet wired into the live dispatcher.
+ * Not yet wired into the live dispatcher: called from 0x31CD (entry_31b1, untranslated);
  * nothing in translated src invokes entry_3202.
  *
  * TWO INTEGRATION DECISIONS:
- *  (1) entry_333d TOLERATES-EARLY-RETURN (the lead/code3 INTEGRATOR NOTE). The
+ *  (1) entry_333d TOLERATES-EARLY-RETURN (integrator note). The
  *      call at 0x3230 is a PLAIN call. entry_333d has two hidden exits (its
  *      sub_33a1 splice and sub_236e miss), but BOTH unwind to *this* routine at
  *      0x3233 -- the exact address this call pushes -- and so does 333d's normal
@@ -5446,7 +5166,7 @@ export function entry_333d(m) {
  * RMW via regs.decMem8/incMem8. Irreducible CFG (backward cross-jumps) -> a
  * label-dispatch loop, ROM labels as cases, jumps as `label=X; continue`, ROM
  * fall-through as switch fall-through. Object fields / 0x3A7A table / 0x6018 not
- * interpreted (§20).
+ * interpreted.
  */
 export function entry_3202(m) {
   const { regs, mem } = m;
@@ -5512,7 +5232,7 @@ export function entry_3202(m) {
         m.step(0x33ad, 17); // call 0x33ad (falls through into entry_33c3, rets to 0x323e)
         entry_33ad(m);
         m.push16(0x3241);
-        m.step(0x298c, 17); // call 0x298c (code-b's tile-in-range predicate)
+        m.step(0x298c, 17); // call 0x298c (tile-in-range predicate)
         sub_298c(m);
         regs.cp(0x01);
         m.step(0x3243, 7); // cp 0x01 -- test 298c's return A
@@ -5667,16 +5387,15 @@ export function entry_3202(m) {
  *   31d9  c2 be 31     jp   nz,0x31be     ; loop while counter != 5
  *   31dc  c9           ret
  *
- * Integrated from code3's draft (31b1.draft.md), bytes CLEAN vs rom/maincpu.bin
- * (19/19). Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY EXECUTION ->
- * NET-ZERO IMAGE by construction: called from 0x30F3 (entry_30ed, untranslated);
+ * Translated for completeness; not yet wired into the live dispatcher.
+ * Not yet wired into the live dispatcher: called from 0x30F3 (entry_30ed, untranslated);
  * nothing in translated src invokes entry_31b1.
  *
  * Walks 5 objects at stride 0x20 (processed addresses 0x6400/20/40/60/80 -- the
  * add hl,0x20 PRECEDES the read, so the 0x63E0 base is never read), calling
  * entry_3202 for each whose first byte is non-zero. NOT a stack splice.
  *
- * THE POINTER STORE-BACK IS LOAD-BEARING (S8/§3): the iteration pointer lives at
+ * THE POINTER STORE-BACK IS LOAD-BEARING: the iteration pointer lives at
  * 0x63C8, not a register. The `ld (0x63c8),hl` at 0x31C5 hands the current object
  * pointer to entry_3202 THROUGH MEMORY -- entry_3202's first act is
  * `ld ix,(0x63c8)`. Keeping the pointer only in HL would leave 0x63C8 stale and
@@ -5686,7 +5405,7 @@ export function entry_3202(m) {
  * skip-capable nor boolean-returning), so both are plain calls. The `jp nz`
  * loop-back at 0x31D9 charges its own 10T to 0x31BE (a faithful loop, not a
  * bare do-while). 0x63A2 counter / 0x63C8 pointer / object meaning not
- * interpreted (§20).
+ * interpreted.
  */
 export function entry_31b1(m) {
   const { regs, mem } = m;
@@ -5756,15 +5475,14 @@ export function entry_31b1(m) {
  *   30f6  cd f3 34     call 0x34f3
  *   30f9  c9           ret
  *
- * Integrated from code3's draft (30ed.draft.md), bytes CLEAN vs rom/maincpu.bin
- * (5/5). The HEAD of the >=0x3000 closure chain (30ed -> 31b1 -> 3202 -> 333d ...)
- * and the LAST of it to integrate. Part of the 0x1977 closure drain (>= 0x3000),
- * UNGATED BY EXECUTION -> NET-ZERO IMAGE by construction: called from 0x198C
+ * The HEAD of the >=0x3000 closure chain (30ed -> 31b1 -> 3202 -> 333d ...)
+ * and the LAST of it to integrate.
+ * Not yet wired into the live dispatcher: called from 0x198C
  * (< 0x3000, in the untranslated handler_1977 region -- the run stops at 0x1977),
  * and nothing in translated src invokes entry_30ed. The whole chain becomes
- * reachable only when handler_1977 (code-b's finale) lands.
+ * reachable only when handler_1977 (finale) lands.
  *
- * TWO of the four callees are SKIP-CAPABLE and are boolean-guarded (draft OQ-1,
+ * TWO of the four callees are SKIP-CAPABLE and are boolean-guarded (
  * resolved against the INTEGRATED callees -- the drafter did not open them):
  *   0x30FA call sub_30fa -- a rst-0x28 TAIL dispatcher to the 0x3110 guard family;
  *     a guard that splices (inc sp/inc sp/ret) unwinds PAST entry_30ed to its
@@ -5775,7 +5493,7 @@ export function entry_31b1(m) {
  *     Guard: `if (!entry_313c(m)) return;`.
  * The other two (entry_31b1, entry_34f3) return NORMALLY (verified: no boolean,
  * no inc sp) -> plain calls. entry_30f0 (the 0x313c call site) has NO static
- * caller -- ruled an interior/tracer-artifact label, not a second entry (§2).
+ * caller -- ruled an interior/tracer-artifact label, not a second entry.
  */
 export function entry_30ed(m) {
   m.push16(0x30f0);
@@ -5814,9 +5532,8 @@ export function entry_30ed(m) {
  *   351d  c9           ret                ; NORMAL ret (no splice)
  *   351e  3e 05/85/6f/3e 04/83/5f/c3 17 35  loc_351e: L += 5, E += 4, jp 0x3517
  *
- * Integrated from code3's draft (34f3.draft.md), bytes CLEAN vs rom/maincpu.bin
- * (54/54). Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY EXECUTION ->
- * NET-ZERO IMAGE by construction: only caller is 0x30F6 (entry_30ed,
+ * Translated for completeness; not yet wired into the live dispatcher.
+ * Not yet wired into the live dispatcher: only caller is 0x30F6 (entry_30ed,
  * untranslated), nothing in translated src invokes entry_34f3. Calls NOTHING; a
  * normal ret, NOT a stack splice (the draft corrected the assignment on both).
  *
@@ -5824,14 +5541,14 @@ export function entry_30ed(m) {
  * occupancy flag (offset 0) is non-zero, gather 4 bytes in the order
  * [+3, +7, +8, +5] into a 4-byte record at 0x69D0+. Offset 0 (the flag) is NOT
  * copied. An EMPTY object still advances both pointers (L by 0x20, DE by 4) so
- * records stay aligned. Object fields not interpreted (§20).
+ * records stay aligned. Object fields not interpreted.
  *
- * POINTER ARITHMETIC (the marquee, draft §3): source HL advances by `inc l`/
+ * POINTER ARITHMETIC (the marquee): source HL advances by `inc l`/
  * `dec l` (8-bit -- L wraps within the page, no carry to H); dest DE advances by
  * three `inc e` (8-bit) then one `inc de` (16-bit, CAN carry). The 8/16-bit mix
  * is load-bearing; using inc de for all four (or inc e for all four) diverges at
  * a page boundary. Latent here (E from 0xD0, no wrap). The empty path advances
- * DE by 8-bit `add a,0x04 / ld e,a` -- same +4, different carry behaviour (OQ1).
+ * DE by 8-bit `add a,0x04 / ld e,a` -- same +4, different carry behaviour.
  *
  * Flag-correct ALU primitives (regs.add / inc8 / dec8) used throughout, matching
  * convention (boot.js) -- the inc/dec/add flags are overwritten by `add a,l`
@@ -5947,14 +5664,13 @@ export function entry_34f3(m) {
  *   3fc6  2c           inc  l             ; HL -> 0x694F (no write)
  *   3fc7  c9           ret
  *
- * Integrated from code3's draft (3fc0.draft.md), bytes CLEAN vs rom/maincpu.bin
- * (8/8). Part of the 0x1977 closure drain (>= 0x3000), UNGATED BY EXECUTION ->
- * NET-ZERO IMAGE by construction: only caller is 0x2285 (untranslated), and
+ * Translated for completeness; not yet wired into the live dispatcher.
+ * Not yet wired into the live dispatcher: only caller is 0x2285 (untranslated), and
  * nothing in translated src invokes sub_3fc0. Leaf, calls nothing.
  *
  * Writes mem[0x694D] = 3, then advances HL to 0x694F (skipping 0x694E, unwritten)
  * via two `inc l`. HL is LIVE-OUT at 0x694F -- the two write-free `inc l` are the
- * routine's only product besides the store, so the caller consumes HL (draft §2).
+ * routine's only product besides the store, so the caller consumes HL.
  *
  * `inc l` is a REGISTER inc (L only, not `inc hl`): regs.inc8(regs.l), which sets
  * S/Z/H/PV (carry preserved) -- flags the ret leaves live. inc8, NOT incMem8:
@@ -6294,25 +6010,6 @@ export function sub_2ff0(m) {
   m.ret();
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code2). Byte block diffed against out/dk.asm
- * lines 2445-2531: IDENTICAL, 87 lines. All 70 instructions in the range
- * independently re-diffed against rom/maincpu.bin: 0 mismatches. Every
- * m.step target checked mechanically against the listing's instruction
- * boundaries: 0 defects. Every T-state in their table verified.
- *
- * INTEGRATOR CHANGES, so the diff from the draft is visible:
- *   - placed in state0.js rather than nmi.js, because `djnz` and `ldirAt`
- *     are module-local here and nmi.js has neither. Adding a third `djnz`
- *     copy to nmi.js would deepen a wart the ret() helper already has.
- *   - `m.ldirAt(0x0f78, 0x0f7a)` kept as drafted: the address-hardcoded
- *     `ldir()` would attribute 21 T-states per byte to 0x01CF across 64
- *     bytes -- correct memory, wrong write trace. Their catch, and right.
- *   - the `and`/`rla` run's `for` loop is kept but the computed `next + 1`
- *     is replaced by explicit pairs. Correct as drafted; changed because a
- *     loop over an instruction run with derived addresses is exactly what
- *     hid the four-rrca bug in sub_2ff0, and that comment is 200 lines up.
- */
 /**
  * sub_0f56 -- ROM 0x0F56-0x0FCA, tail at 0x0FCB flagged and NOT translated
  *
@@ -6397,9 +6094,8 @@ export function sub_2ff0(m) {
  *   0fcc  ef           rst  0x28       <-- NOT TRANSLATED (dispatcher)
  *
  * Called once, from `call 0x0f56` at 0x0D5F. CONTAINS NO `ret`: the only exit
- * from this routine is the `rst 0x28` at 0x0FCC. See the draft's OQ1 -- what
- * that does to the return address pushed at 0x0D5F is deliberately NOT
- * modelled here.
+ * from this routine is the `rst 0x28` at 0x0FCC. What that does to the return
+ * address pushed at 0x0D5F is deliberately NOT modelled here.
  *
  * BOTH exits from the translated body land on 0x0FCB: the `jr nz` at 0x0FB3
  * and the fallthrough off the `djnz` at 0x0FC9.
@@ -6412,18 +6108,18 @@ export function sub_0f56(m) {
   m.step(0x0f58, 7);
   regs.hl = 0x6200;
   m.step(0x0f5b, 10);
-  regs.xor(regs.a); // A = 0 -- the fill value for BOTH clear loops (OQ12)
+  regs.xor(regs.a); // A = 0 -- the fill value for BOTH clear loops
   m.step(0x0f5c, 4);
   do {
     mem.write8(regs.hl, regs.a);
     m.step(0x0f5d, 7);
-    regs.l = regs.inc8(regs.l); // OQ7: `inc l`, NOT `inc hl` -- no carry into H
+    regs.l = regs.inc8(regs.l); // `inc l`, NOT `inc hl` -- no carry into H
     m.step(0x0f5e, 4);
     regs.djnz();
     m.step(regs.b !== 0 ? 0x0f5c : 0x0f60, regs.b !== 0 ? 13 : 8);
   } while (regs.b !== 0);
 
-  // ---- clear 17 blocks of 0x80 from 0x6280 -> 0x6280-0x6AFF (OQ8) ----
+  // ---- clear 17 blocks of 0x80 from 0x6280 -> 0x6280-0x6AFF ----
   regs.c = 0x11;
   m.step(0x0f62, 7);
   regs.d = 0x80;
@@ -6436,7 +6132,7 @@ export function sub_0f56(m) {
     do {
       mem.write8(regs.hl, regs.a);
       m.step(0x0f69, 7);
-      regs.hl = (regs.hl + 1) & 0xffff; // OQ7: `inc hl` here, full 16-bit
+      regs.hl = (regs.hl + 1) & 0xffff; // `inc hl` here, full 16-bit
       m.step(0x0f6a, 6);
       regs.djnz();
       m.step(regs.b !== 0 ? 0x0f68 : 0x0f6c, regs.b !== 0 ? 13 : 8);
@@ -6446,16 +6142,16 @@ export function sub_0f56(m) {
     m.step(regs.fNZ ? 0x0f67 : 0x0f6f, regs.fNZ ? 12 : 7);
   } while (regs.fNZ);
 
-  // ---- copy 0x40 bytes of ROM DATA 0x3D9C-0x3DDB to 0x6280-0x62BF (OQ9) ----
+  // ---- copy 0x40 bytes of ROM DATA 0x3D9C-0x3DDB to 0x6280-0x62BF ----
   regs.hl = 0x3d9c;
   m.step(0x0f72, 10);
   regs.de = 0x6280;
   m.step(0x0f75, 10);
   regs.bc = 0x0040;
   m.step(0x0f78, 10);
-  m.ldirAt(0x0f78, 0x0f7a); // OQ10: NOT the 0x01CF-hardcoded ldir()
+  m.ldirAt(0x0f78, 0x0f7a); // NOT the 0x01CF-hardcoded ldir()
 
-  // ---- A = min( (0x6229)*10 + 0x28 , 0x50 ) -- ALL MOD 256 (OQ5) ----
+  // ---- A = min( (0x6229)*10 + 0x28 , 0x50 ) -- ALL MOD 256 ----
   regs.a = mem.read8(0x6229);
   m.step(0x0f7d, 13);
   regs.b = regs.a;
@@ -6481,7 +6177,7 @@ export function sub_0f56(m) {
     m.step(0x0f8e, 12);
   } else {
     m.step(0x0f8c, 7);
-    regs.a = 0x50; // clamp -- bounds the RESULT, does NOT detect wrap (OQ5)
+    regs.a = 0x50; // clamp -- bounds the RESULT, does NOT detect wrap
     m.step(0x0f8e, 7);
   }
 
@@ -6493,12 +6189,12 @@ export function sub_0f56(m) {
   do {
     mem.write8(regs.hl, regs.a);
     m.step(0x0f94, 7);
-    regs.l = regs.inc8(regs.l); // OQ7
+    regs.l = regs.inc8(regs.l);
     m.step(0x0f95, 4);
     regs.djnz();
     m.step(regs.b !== 0 ? 0x0f93 : 0x0f97, regs.b !== 0 ? 13 : 8);
   } while (regs.b !== 0);
-  // HL is NOT reloaded below -- it carries out of this loop as 0x62B3 (OQ11)
+  // HL is NOT reloaded below -- it carries out of this loop as 0x62B3
 
   // ---- A = max( 0xDC - 2*A , 0x28 ) ----
   regs.add(regs.a); // add a,a -- A = 2A
@@ -6515,14 +6211,14 @@ export function sub_0f56(m) {
     m.step(0x0fa2, 12);
   } else {
     m.step(0x0fa0, 7);
-    regs.a = 0x28; // OQ6: is this reachable at all?
+    regs.a = 0x28; // Is this reachable at all?
     m.step(0x0fa2, 7);
   }
 
-  // ---- store at 0x62B3, 0x62B4 (HL carried from the 0x0F93 loop, OQ11) ----
+  // ---- store at 0x62B3, 0x62B4 (HL carried from the 0x0F93 loop) ----
   mem.write8(regs.hl, regs.a);
   m.step(0x0fa3, 7);
-  regs.l = regs.inc8(regs.l); // OQ7
+  regs.l = regs.inc8(regs.l);
   m.step(0x0fa4, 4);
   mem.write8(regs.hl, regs.a);
   m.step(0x0fa5, 7);
@@ -6532,12 +6228,12 @@ export function sub_0f56(m) {
   m.step(0x0fa8, 10);
   mem.write8(regs.hl, 0x04);
   m.step(0x0faa, 10);
-  regs.l = regs.inc8(regs.l); // OQ7
+  regs.l = regs.inc8(regs.l);
   m.step(0x0fab, 4);
   mem.write8(regs.hl, 0x08);
   m.step(0x0fad, 10);
 
-  // ---- C = (0x6227). C IS THE DISPATCHER INDEX -- live to 0x0FCB (OQ3) ----
+  // ---- C = (0x6227). C IS THE DISPATCHER INDEX -- live to 0x0FCB ----
   regs.a = mem.read8(0x6227);
   m.step(0x0fb0, 13);
   regs.c = regs.a;
@@ -6545,7 +6241,7 @@ export function sub_0f56(m) {
   const bit2 = regs.bit(2, regs.a); // does not modify A; preserves carry
   m.step(0x0fb3, 8);
   if (bit2) {
-    m.step(0x0fcb, 12); // OQ4: branches straight INTO the withheld unit
+    m.step(0x0fcb, 12); // Branches straight INTO the withheld unit
   } else {
     m.step(0x0fb5, 7);
 
@@ -6586,7 +6282,7 @@ export function sub_0f56(m) {
   m.push16(0x0fcd); // rst 0x28 pushes the address AFTER it -- the TABLE BASE
   m.step(0x0028, 11);
 
-  // OQ1/OQ4 RESOLVED, and the answer is the opposite of what was feared.
+
   //
   // The draft flagged that sub_0f56 contains no `ret` and asked what becomes
   // of the 0x0D62 pushed by `call 0x0f56` at 0x0D5F. The 2441 draft went
@@ -6635,7 +6331,7 @@ export function sub_0f56(m) {
   //
   // The comment above this one states the mechanism CORRECTLY and the code
   // implemented half of it: the push was modelled because it was written as a
-  // push, the pop was dissolved into a 74-cycle summary. §71 -- the assertion
+  // push, the pop was dissolved into a 74-cycle summary. The assertion
   // was true of the ROM and false of the model, and the prose being right is
   // what stopped anyone checking. Registers were dropped the same way; they
   // happen to be dead into loc_0fd7, which overwrites HL, DE and BC before
@@ -6665,7 +6361,7 @@ export function sub_0f56(m) {
   m.step(target, 4); // jp (hl)
 
   if (target === 0x0fd7) return loc_0fd7(m);
-  if (target === 0x101f) return loc_101f(m); // GO-LIVE: board 2 (0x6227==2, 0x0FCD table idx 2)
+  if (target === 0x101f) return loc_101f(m); // board 2 (0x6227==2, 0x0FCD table idx 2)
   if (target === 0x1087) return loc_1087(m); // board 3 (0x0FCD table idx 3)
   if (target === 0x1131) return loc_1131(m); // board 4 (0x0FCD table idx 4)
   throw new NotImplemented(
@@ -6674,18 +6370,6 @@ export function sub_0f56(m) {
   );
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 0x0F35-0x0F4B, CLEAN.
- * WARN (no test-spec) -- tests are mine. Callee sub_0da7 (tail jump). Exported
- * dead code -> NET-ZERO.
- *
- * A fill loop: write the byte at 0x63B5 to (HL), advance HL by 0x20, subtract 8
- * from 0x63B1 and write it back, LOOPING while no borrow (so 0x63B1 is drained
- * 8 at a time). The `ld bc,0x0020` reload is INSIDE the loop (10 T/iteration --
- * a deliberate cycle detail, not hoistable). On borrow: inc de, then TAIL-JUMP
- * to sub_0da7 (no return address pushed -- its ret returns to loc_0f35's caller).
- * HL is a runtime-computed, unbounded live-in destination (draft OQ5).
- */
 export function loc_0f35(m) {
   const { regs, mem } = m;
 
@@ -6843,7 +6527,6 @@ function loc_0fd7(m) {
  *   1226  dd 77 0a     ld   (ix+0x0a),a
  *   1229  c9           ret
  *
- * Integrated from code3's draft (11fa.draft.md), bytes CLEAN via draftdiff.py.
  * Two call sites: 0x0FF2 (here) and 0x104C.
  *
  * NOT A LOOP AND NOT sub_122a'S TWIN. It shares the `ld a,(hl)` / `ld (de),a` /
@@ -6866,8 +6549,8 @@ function loc_0fd7(m) {
  * THE IX WRITE ORDER IS LOAD-BEARING: +0x00, +0x03, +0x07, +0x08, +0x05,
  * +0x09, +0x0A -- note +0x05 lands AFTER +0x08. All seven addresses are
  * distinct, so sorting them into ascending order leaves final memory
- * IDENTICAL and no state diff would notice. writediff gates the write TRACE
- * (§28), so the tidy version goes red. Left in ROM order deliberately.
+ * IDENTICAL and no state diff would notice. The write TRACE, however, is
+ * gated, so the tidy version goes red. Left in ROM order deliberately.
  *
  * Offsets +0x01, +0x02, +0x04 and +0x06 are not written here. Whether they are
  * padding, written elsewhere, or unused is not established.
@@ -6875,7 +6558,7 @@ function loc_0fd7(m) {
  * `inc e`, NOT `inc de`: 8-bit, no carry into D, and it SETS FLAGS where
  * `inc de` sets none. E runs 0x28..0x2B here so the wrap is unexercised, and
  * the flags die at the `ret` -- a wrong version is byte-identical on any real
- * tape (§34). Latent, not absent.
+ * tape. Latent, not absent.
  *
  * The FOURTH (de) write at 0x121E is NOT followed by an `inc e`, so DE exits
  * at 0x6A2B pointing AT the byte just written rather than one past it. The
@@ -6968,7 +6651,6 @@ export function sub_11fa(m) {
  *   11f7  10 f3        djnz 0x11ec
  *   11f9  c9           ret
  *
- * Integrated from code2's draft (11ec.draft.md), bytes CLEAN via draftdiff.py.
  * Three call sites: 0x10C0, 0x1157, 0x11AC.
  *
  * THIS IS sub_122a'S TWIN WITH THE SOURCE BEHAVIOUR INVERTED, and it is the
@@ -7061,7 +6743,6 @@ export function sub_11ec(m) {
  *   11e9  10 e8        djnz 0x11d3
  *   11eb  c9           ret
  *
- * Integrated from code2's draft (11d3.draft.md), bytes CLEAN via draftdiff.py.
  * FIVE call sites: 0x1046, 0x10DB, 0x117A, 0x119E, 0x11CF.
  *
  * Inputs, ALL caller-supplied and none initialised here: B = pass count,
@@ -7094,7 +6775,7 @@ export function sub_11ec(m) {
  * write no flags and `inc l` preserves C. Do not record it as dead -- from
  * sub_11a6 it survives that routine's `ret` too, and dies only at the
  * `add a,c` inside a later sub_122a call. "No reader in this routine" is not
- * "no reader" (§71c).
+ * "no reader".
  *
  * B0 = 0 would give 256 passes, writing 1024 bytes through HL. Not defended
  * against, because no known call site does it.
@@ -7120,7 +6801,7 @@ export function sub_11ec(m) {
  *
  * ALL SIX ESCAPE TO THE CALLER. No caller is currently known to read them;
  * that is a fact about today's call sites, not about this routine, and it is
- * exactly the "no reader in this routine is not no reader" trap (§71c). The
+ * exactly the "no reader in this routine is not no reader" trap. The
  * implementation uses regs.inc8 and regs.addIx, so every one of these is
  * produced correctly whether or not anyone reads it.
  */
@@ -7173,7 +6854,6 @@ export function sub_11d3(m) {
  *   11cf  cd d3 11     call 0x11d3
  *   11d2  c9           ret
  *
- * Integrated from code3's draft (11a6.draft.md), bytes CLEAN via draftdiff.py.
  * Three call sites: 0x1003 (here), 0x1073, 0x1140.
  *
  * SUB_11A6 TAKES AN UNDOCUMENTED HL PARAMETER, and the dependency graph does
@@ -7285,16 +6965,14 @@ export function sub_11a6(m) {
  *   1239  10 ef        djnz 0x122a
  *   123b  c9           ret
  *
- * Integrated from code2's draft (122a.draft.md), bytes CLEAN via draftdiff.py.
  * Eleven call sites: 0fec 100f 1017 1028 1037 1090 10cc 113a 1163 118f 11b8.
  *
  * WHAT IT IS: a struct-field initialiser, NOT a blitter. It replicates ONE
  * 4-byte source group down B0 destinations spaced C+4 apart.
  *
- * code2 established the mechanism (the `push hl`/`pop hl` bracket discards the
- * inner loop's four `inc hl`, so every outer pass re-reads the SAME four
- * bytes) and correctly declined to say what it meant. The CALLER settles it,
- * at 0x100F-0x1017:
+ * The `push hl`/`pop hl` bracket discards the inner loop's four `inc hl`, so
+ * every outer pass re-reads the SAME four bytes. What that means is settled by
+ * the CALLER, at 0x100F-0x1017:
  *
  *     1006  ld hl,0x101b     source
  *     100c  ld bc,0x081c     B=8, C=0x1c
@@ -7319,8 +6997,7 @@ export function sub_11a6(m) {
  * C+4, because its `inc e` count differs; and it stores at E and E+2, never
  * writing E+1. The two differ in exactly one structural respect and it
  * reverses what the source pointer does. They must NOT share a parameterised
- * helper -- one keyed on C alone is wrong for one of the two. (Flagged by the
- * lead from code2's 11ec draft while this routine was being integrated.)
+ * helper -- one keyed on C alone is wrong for one of the two.
  *
  * E arithmetic is 8-bit throughout: `inc e` (not `inc de`) and `add a,c` via
  * A. D is never modified, so the destination is confined to the page D selects
@@ -7342,7 +7019,7 @@ export function sub_11a6(m) {
  *
  *   HL   PRESERVED, actively -- `push hl` / `pop hl` bracket the inner loop,
  *        discarding its four `inc hl`. Proven from the CALLER at 0x1012, which
- *        reloads DE and B and neither HL nor C (§71b).
+ *  reloads DE and B and neither HL nor C.
  *   C    PRESERVED, actively -- restored by `pop bc` at 0x1234.
  *   B    CLOBBERED -- 0 at the ret; both djnz run to zero.
  *   DE   D untouched; E advanced by B0*(C+4), 8-bit, wrapping in D's page.
@@ -7369,7 +7046,7 @@ export function sub_11a6(m) {
  *     101f   C set 0x1034 -> call here 0x1037 -> 0x1044 loads B ONLY -> 0x1046
  *
  * The dependency is load-bearing in all three and invisible from any one of
- * them. It is satisfied only by the `pop bc` above. (Pattern found by code3.)
+ * them. It is satisfied only by the `pop bc` above.
  */
 export function sub_122a(m) {
   const { regs, mem } = m;
@@ -7415,17 +7092,6 @@ export function sub_122a(m) {
   m.ret(); // 123b
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3), UN-STALED. tools/draftdiff.py: 0x127C-0x128A,
- * 15 bytes, CLEAN. 0x0748-table entry 4. The draft THREW at `call 0x1dbd`
- * because 0x1DBD was untranslated when drafted; it is now integrated as sub_1dbd
- * (state0.js), so this calls it. Exported dead code -> NET-ZERO.
- *
- * loc_127c calls sub_1dbd, then FALLS THROUGH into entry_127f, which reads the
- * dispatch index at 0x639D and rst-0x28-dispatches through the inline table at
- * 0x1283 (targets 0x128B / 0x12AC / 0x12DE / 0x0000-null). The three real targets
- * are separate units (unwired -> dispatchGameState throws).
- */
 /**
  * loc_127c -- ROM 0x127C-0x127E  (0x0748 table entry 4: sub_1dbd then dispatch)
  *
@@ -7456,13 +7122,6 @@ export function entry_127f(m) {
   sub_0028(m, "0x1283 (0x639D dispatch)"); // reads the table from ROM; ends in jp (hl)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code2). tools/draftdiff.py: 0x128B-0x12AB, CLEAN.
- * Arm 0 of entry_127f's 0x1283 table. rst 0x18 gate; on expiry: rl-then-rra the
- * 0x694D blinker (-> 0x78/0xF8), advance the 0x639D state, set 0x639E=0x0D, re-arm
- * 0x6009=8, call sub_30bd, set 0x6088=3. Callees sub_0018/sub_30bd integrated.
- * Void return on the gate skip. Exported dead code -> NET-ZERO.
- */
 export function entry_128b(m) {
   const { regs, mem } = m;
 
@@ -7502,16 +7161,6 @@ export function entry_128b(m) {
   m.ret(10); // ret (0x12AB)
 }
 
-/*
- * INTEGRATED FROM DRAFTS (code3) -- loc_12ac + loc_12de, the two "0x639D SCC"
- * arms flagged as a circular pair. tools/draftdiff.py: 0x12AC-0x12DD (50 bytes)
- * and 0x12DE-0x12F1, both CLEAN. THEY DO NOT REFERENCE EACH OTHER IN CODE
- * (verified: no `de 12` in 12AC, no `ac 12` in 12DE) -- the "cycle" is the 0x639D
- * dispatch STATE MACHINE (each advances the index, re-dispatched via entry_127f's
- * 0x1283 table), not mutual calls. Integrated together per the pair framing; both
- * are actually self-contained. Callees sub_0018 / entry_30db integrated; loc_12cb
- * is 12AC's interior tail. Exported dead code -> NET-ZERO.
- */
 /**
  * loc_12ac -- ROM 0x12AC-0x12DD  (0x639D arm 1: animate 0x694D/0x694E, or advance state)
  *
@@ -7660,8 +7309,8 @@ export function loc_12de(m) {
  *                   0x6009=0xC0 ; 0x600A=0x10 ; ret
  *
  * TWIN of loc_1344 (differs in constants). The call 0x13ca needs NO caller-skip guard --
- * sub_13ca's own rst-0x08 abort returns here (to 0x1312) either way. Unwired dead code
- * (its dispatcher not integrated) -> net-zero.
+ * sub_13ca's own rst-0x08 abort returns here (to 0x1312) either way.
+ * Translated for completeness; not yet wired into the live dispatcher.
  */
 export function loc_12f2(m) {
   const { regs, mem } = m;
@@ -7757,15 +7406,6 @@ export function loc_12f2(m) {
   m.ret();
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 0x138F-0x13A0, 18 bytes,
- * CLEAN. Callee sub_0018 (rst 0x18); loc_1395 is 138f's interior tail; loc_13a1
- * is a near-identical SIBLING (differs only in the source byte -- 0x6048 here vs
- * elsewhere) and is NOT called. Exported dead code -> NET-ZERO.
- *
- * rst 0x18 gate; loads C=0x17 and the byte at 0x6048, re-arms 0x6009, then sets
- * the 0x600A selector to 0x17 if 0x6048 was non-zero, else 0x14.
- */
 /**
  * loc_138f -- ROM 0x138F-0x13A0  (rst 0x18 gate; 0x600A := 0x17 or 0x14 per 0x6048)
  *
@@ -7815,8 +7455,8 @@ export function loc_138f(m) {
 /**
  * loc_13a1 -- ROM 0x13A1-0x13A9  (0x0702 table idx17; TWIN of loc_138f, reads 0x6040)
  *   13a1 df rst 0x18   13a2 0e 17 ld c,0x17   13a4 3a 40 60 ld a,(0x6040)   13a7 c3 95 13 jp 0x1395
- * Converges on loc_1395 (inline in loc_138f). WIRED 2026-07-21 after the 0x0702
- * table-audit found idx17 -> 0x13A1 un-wired (Karl: all the ROM). loc_1395 tail
+ * Converges on loc_1395 (inline in loc_138f). Wired after the 0x0702
+ * table-audit found idx17 -> 0x13A1 un-wired. loc_1395 tail
  * duplicated here rather than refactoring the gated loc_138f.
  */
 export function loc_13a1(m) {
@@ -7856,7 +7496,7 @@ export function loc_13a1(m) {
  * !! FOUR rrca (0x13DC-0x13DF) -- emit EXPLICITLY, NOT a loop. !!
  * !! sub (hl)/sbc a,(hl)/sbc a,(hl) is a 3-byte multi-precision subtract; the carry chain is
  *    load-bearing. sbc a,(hl) is a FIRST-USE of the memory form. !!
- * Unwired dead code (callers loc_12f2/loc_1344 not integrated) -> net-zero.
+ * Translated for completeness; not yet wired into the live dispatcher.
  */
 export function sub_13ca(m) {
   const { regs, mem } = m;
@@ -7979,17 +7619,6 @@ export function sub_13ca(m) {
   }
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 0x141E-0x1485, CLEAN.
- * Callees sub_0616/sub_0018/sub_0874/sub_309f integrated; loc_144f/loc_1459/
- * loc_1475 are interior tails. Exported dead code -> NET-ZERO.
- *
- * Prologue sub_0616, rst 0x18 gate, sub_0874; clear 0x600D/0x600E; then two
- * searches of the 0x611C[5] table (stride 0x22): a record == 1 -> loc_1459
- * (screen setup + 12 sub_309f enqueues), == 3 -> loc_144f (player index=1, then
- * loc_1459), neither -> loc_1475 (flip 0x7D82, clear 0x600A). The draft omitted
- * the `ld a,key` m.step before each search loop -- added here (7T @0x1435/0x1443).
- */
 /**
  * loc_141e -- ROM 0x141E-0x1485  (search 0x611C[5] for record 1 or 3, dispatch)
  */
@@ -8125,32 +7754,6 @@ function loc_1475(m) {
   m.ret(10); // ret (0x1485)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3), superseding 2478.draft.md.
- *
- * Verified with tools/draftdiff.py -- which I built and validated in BOTH
- * directions first, because the byte-diff decides whether a draft is read at
- * all and was otherwise the least-tested object in the exchange:
- *   known-clean draft            -> CLEAN
- *   same draft, one byte flipped -> CAUGHT, exact address, both byte strings
- *   prose "2459  dec a" line     -> correctly ignored, not parsed as bytes
- * Then on this draft: 58 instructions, 0x2441-0x24B1, 115 bytes, CLEAN
- * against out/dk.asm AND independently against rom/maincpu.bin.
- *
- * MY FIRST RUN REJECTED THIS DRAFT UNREAD, and the draft was fine. The tool
- * knew only dk.asm's "mnemonic ; ADDR bb" layout and this draft uses
- * "ADDR bb  mnemonic". Exactly the failure the hazard warning predicted,
- * arriving by a different mechanism than the one predicted (layout, not
- * whitespace). The tool now anchors on the address and real hex pairs and
- * accepts both, and was re-validated from scratch afterwards -- a tool
- * changed after validation is unvalidated.
- *
- * Every m.step target checked mechanically against the listing's own
- * instruction boundaries: 0 defects.
- *
- * INTEGRATOR CHANGE: placed in state0.js rather than nmi.js, because `djnz`
- * is module-local here and nmi.js has none. Same reason as sub_0f56.
- */
 /**
  * sub_2407 -- FIXED-POINT SUBTRACT.  ROM 0x2407-0x241E (24 bytes)
  * Spreads packed byte (ix+0x14)=0xHL into HL=(H<<8)|(L<<4), then HL -= BC where
@@ -8173,7 +7776,7 @@ function loc_1475(m) {
  *   241e  c9        ret
  *
  * IX is live-in. sbcHl ASSIGNS this.hl and returns nothing (precedented in sub_236e) --
- * call it BARE. Unwired dead code (callers 0x1BDF/0x20C3/0x2146 not integrated) -> net-zero.
+ * call it BARE.
  */
 export function sub_2407(m) {
   const { regs, mem } = m;
@@ -8207,7 +7810,7 @@ export function sub_2407(m) {
 }
 /**
  * sub_241f -- POSITION GATE.  ROM 0x241F-0x2440 (34 bytes). Returns a (D,E) pair;
- * writes NO memory. Callers: 0x1AE6, 0x1BC5, 0x2B09 (not integrated -> unwired, net-zero).
+ * writes NO memory. Callers: 0x1AE6, 0x1BC5, 0x2B09.
  *
  * FIVE conditional rets, ALL fall through when not taken; the (D,E) pair is mutated
  * between them, so the exit reached IS the answer:
@@ -8312,7 +7915,7 @@ export function sub_241f(m) {
  *   2471  dd 21 00 63  ld   ix,0x6300       ; entry_2471
  *   2475  11 05 00     ld   de,0x0005
  *
- *   -- the walk: SCC 0x2478 / 0x2488 / 0x249E, mnemonics as in 2478.draft.md
+ *  -- the walk: SCC 0x2478 / 0x2488 / 0x249E
  *   2478  7e           ld   a,(hl)          ; loc_2478
  *   ...                                       (full listing in section 1)
  *   24b1  c3 78 24     jp   0x2478
@@ -8323,8 +7926,8 @@ export function sub_241f(m) {
  * JS frame per record.
  *
  * CALLED FROM 0x0D62 (`cd 41 24`), the only reference to 0x2441 in the ROM. That
- * is a real `call`, so it pushes 0x0D65. See OQ-4 for why "returns to 0x0D65" is
- * NOT established by that.
+ * is a real `call`, so it pushes 0x0D65. That alone, however, does NOT
+ * establish that it "returns to 0x0D65".
  */
 export function sub_2441(m) {
   const { regs, mem } = m;
@@ -8339,7 +7942,7 @@ export function sub_2441(m) {
 
   // loc_2448 -- regs.add() masks to 8 bits, which is the point: the carry out
   // of each step is DISCARDED and the sum is mod 256. An open-coded `+=` that
-  // forgets the mask diverges on the first sum over 0xFF. See OQ-5.
+  // forgets the mask diverges on the first sum over 0xFF.
   do {
     regs.add(mem.read8(regs.hl));
     m.step(0x2449, 7); // add a,(hl)
@@ -8350,8 +7953,8 @@ export function sub_2441(m) {
   } while (regs.b !== 0);
 
   // `ld rr,nn` affects no flags, and `and a` regenerates them from A anyway,
-  // so this sits harmlessly between the loop and its test. Contrast OQ-2,
-  // where an identically flag-neutral `ld hl,nn` is NOT harmless.
+  // so this sits harmlessly between the loop and its test. By contrast, an
+  // identically flag-neutral `ld hl,nn` elsewhere is NOT harmless.
   regs.iy = 0x6310;
   m.step(0x2450, 14); // ld iy,0x6310
   regs.and(regs.a);
@@ -8367,8 +7970,8 @@ export function sub_2441(m) {
 
   // -- head B ------------------------------------------------------------
   // Every `ld hl,nn` below is FLAG-NEUTRAL, so each `jp z` tests the `dec a`
-  // TWO instructions earlier, across an intervening load. See OQ-2 -- this is
-  // the same trap shape flagged on unit 3fa6.
+  // TWO instructions earlier, across an intervening load -- the same
+  // flag-neutral-load trap shape seen elsewhere in this file.
   regs.a = mem.read8(0x6227);
   m.step(0x2459, 13); // ld a,(0x6227) -- discards the head-A sum
 
@@ -8404,7 +8007,7 @@ export function sub_2441(m) {
     m.step(0x246e, 10); // falls through
 
     // Default: EVERYTHING else reaches here, including 0x6227 == 0, which
-    // wraps to 0xFF on the first `dec a` and never hits Z. See OQ-3.
+    // wraps to 0xFF on the first `dec a` and never hits Z.
     regs.hl = 0x3c8b;
     m.step(0x2471, 10); // ld hl,0x3c8b
   }
@@ -8417,7 +8020,7 @@ export function sub_2441(m) {
   // -- the walk: falls through into loc_2478 ------------------------------
   // A still holds (0x6227 - 1..3) here and HL past the checksum block is long
   // gone; both are dead -- `ld a,(hl)` below overwrites A immediately and HL
-  // was reloaded in head B. Checked, not assumed. See OQ-6.
+  // was reloaded in head B. Checked, not assumed.
   for (;;) {
     // -- loc_2478 --
     regs.a = mem.read8(regs.hl);
@@ -8506,7 +8109,7 @@ export function sub_2441(m) {
     m.step(0x2481, 10); // jp z,0x249e NOT taken -- falls through
 
     regs.cp(0xa9);
-    m.step(0x2483, 7); // cp 0xa9 -- against the DECREMENTED A. See OQ-7.
+    m.step(0x2483, 7); // cp 0xa9 -- against the DECREMENTED A.
 
     if (regs.fZ) {
       m.ret(11); // ret z TAKEN -- 11 T-states, not 10. THE ONLY EXIT.
@@ -8520,22 +8123,6 @@ export function sub_2441(m) {
   }
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 0x2523-0x2590, CLEAN.
- * The spawn routine: gated by a timer (0x639B) and a request (0x639A). When both
- * allow, scan 0x65A0[6] (stride 0x10) for a free slot (bit0 clear); if found, roll
- * sub_0057 (pseudo-random) for the type (< 0x60 -> field5=0xCC branch, else a
- * 0x62A3-counter re-roll path), set the object fields, reload the timer 0x639B=0x7C,
- * clear the request, and dec (hl). Callee sub_0057 integrated. Exported dead
- * code -> NET-ZERO.
- *
- * ** DRAFT CORRECTION: HL is NOT live to 0x258F. ** The draft claimed "HL LIVE
- * (0x639B) to 0x258F", but sub_0057 clobbers HL (nmi.js sets it to 0x601A/0x6019).
- * So `dec (hl)` @0x258F hits 0x639B ONLY on the timer-running path (which never
- * calls sub_0057); on the SPAWN path HL is sub_0057's leftover, so 0x639B stays
- * 0x7C and some other cell is decremented. Modelled faithfully with `regs.hl`
- * (the actual `dec (hl)` target), not a hardcoded 0x639B.
- */
 export function sub_2523(m) {
   const { regs, mem } = m;
   const IX = (d) => (regs.ix + d) & 0xffff;
@@ -8687,8 +8274,8 @@ export function sub_2523(m) {
  *   1835  c2 2d 18     jp   nz,0x182d
  *   1838  c9           ret
  *
- * HL is the caller's start address (live-in). 5x14 = 70 bytes of 0x10. Unwired
- * dead code (only caller is the held spine entry_1ac3 region) -> net-zero.
+ * HL is the caller's start address (live-in). 5x14 = 70 bytes of 0x10.
+ * Translated for completeness; not yet wired into the live dispatcher.
  */
 export function sub_1826(m) {
   const { regs, mem } = m;
@@ -8726,7 +8313,7 @@ export function sub_1826(m) {
  * sub_1a1e -- NO-OP dispatch handler.  ROM 0x1A1E (1 byte)
  * A `dw 0x1a1e` slot in the 0x1A0A rst 0x28 table: this state does nothing.
  * rst 0x28 dispatches by jp, so this `ret` returns to the 0x1A0A routine's
- * CALLER (no frame of its own was pushed). Unwired dead code -> net-zero.
+ * CALLER (no frame of its own was pushed).
  *   1a1e  c9  ret
  */
 export function sub_1a1e(m) {
@@ -8734,7 +8321,7 @@ export function sub_1a1e(m) {
 }
 /**
  * sub_19da -- 3-entry table search (stride 4) over 0x6A0C.  ROM 0x19DA-0x19EC.
- * ONE caller: 0x19AD (loc_197a's cascade -- held spine, not integrated -> unwired, net-zero).
+ * ONE caller: 0x19AD.
  * Compares X (0x6203) against table[i]; a match jp-jumps to entry_19ed (0x19ED-0x1A06,
  * EXTERNAL undrafted routine -- NOT the spine finale at 0x1977) -> NotImplemented frontier.
  * No match -> ret.
@@ -8771,8 +8358,7 @@ export function sub_19da(m) {
 }
 /**
  * entry_19ed -- the confirm half of sub_19da's object-slot scan. ROM 0x19ED-0x1A06.
- * Integrated from code2's 19ed.draft.md; bytes verified vs rom/maincpu.bin (draftdiff
- * CLEAN). Reached ONLY via sub_19da's `jp z,0x19ed` @0x19E3 (X-match), with HL LIVE-IN =
+ * Reached ONLY via sub_19da's `jp z,0x19ed` @0x19E3 (X-match), with HL LIVE-IN =
  * the matched 0x6A0C-array slot ptr (do NOT default it). Confirms player-Y == (slot+3)
  * and bit 3 of (slot+1) CLEAR (eligible); if both pass, registers the hit -- (0x6343)=slot
  * ptr, (0x6342)=0, (0x6340)=1 -- the same shared "player hit an object" flags sub_1a33
@@ -8818,14 +8404,14 @@ export function entry_19ed(m) {
 }
 /**
  * entry_1a07 -- rst 0x28 STATE-MACHINE dispatcher.  ROM 0x1A07-0x1A32.
- * ONE caller: loc_197a @ 0x19BC (the HELD handler_1977 cascade -> unwired, net-zero).
+ * ONE caller: loc_197a @ 0x19BC.
  * Reads (0x6386) and dispatches to one of 4 states via the inline table @0x1A0B =
  * dw [0x1A1E, 0x1A15, 0x1A1F, 0x1A2A] (idx4+ = dw 0x0000, a wild jp). rst 0x28
  * dispatches by JUMP (the pushed table base is consumed by the body's pop hl), so
  * each handler's `ret` returns to loc_197a, NOT to this dispatcher.
  *
  * The rst 0x28 body (ROM 0x0028-0x0037) is modelled FAITHFULLY (push/pop balanced,
- * table read from ROM), per the sub_0f56 / §71 discipline.
+ * table read from ROM).
  */
 export function entry_1a07(m) {
   const { regs, mem } = m;
@@ -9071,15 +8657,14 @@ function arm_1a4b(m) {
 /**
  * entry_1ac3 -- PLAYER movement / climb / jump state machine.
  * ROM 0x1AC3-0x1D02 (576 bytes, ~130 insns). Called ONCE from loc_197a @ 0x1980
- * (handler_1977's cascade, HELD until the finale).
+ *  (handler_1977's cascade).
  *
- * Integrated from code2's draft (1ac3.draft.md), bytes CLEAN vs rom/maincpu.bin
- * (560/560). ONE UNIT: every interior label (loc_1ae6 .. loc_1cf2) is reached
+ * ONE UNIT: every interior label (loc_1ae6 .. loc_1cf2) is reached
  * only from within this span -- extent PROVEN by forward reachability trace, so
  * the interior labels are module-local helpers, not separate entries.
  *
- * NET-ZERO IMAGE by construction: its only caller loc_197a is untranslated (the
- * held handler_1977 spine); nothing in translated src invokes entry_1ac3. Goes
+ * Not yet wired into the live dispatcher: its only caller loc_197a is untranslated (the
+ * handler_1977 spine); nothing in translated src invokes entry_1ac3. Goes
  * live only at the finale (step 4).
  *
  * THREE LOAD-BEARING FACTS:
@@ -9096,7 +8681,7 @@ function arm_1a4b(m) {
  * Dispatches on 0x6216/0x621e/0x6217/0x6215 (state) + 0x6010 (input), then moves
  * the player or hands to the 0x1Dxx cluster (mostly jp 0x1da6). External tail
  * targets return <ext>(m). call z 0x1d95 (0x1C70) is a non-executing frontier
- * (0x1D95 not integrated). Object/state fields not interpreted (§20).
+ * (0x1D95 not integrated). Object/state fields not interpreted.
  */
 export function entry_1ac3(m) {
   const { regs, mem } = m;
@@ -9204,12 +8789,12 @@ function loc_1afe(m, R) {
   regs.bc = 0x0015;
   m.step(0x1b13, 10); // ld bc,0x0015
 
-  // ** THE HIDDEN EXIT (§3) ** -- 236e miss unwinds to 197a; body below is found-only
+  // ** THE HIDDEN EXIT ** -- 236e miss unwinds to 197a; body below is found-only
   m.push16(0x1b16);
   m.step(0x236e, 17); // call 0x236e
   if (!sub_236e(m)) return; // miss: already unwound to loc_197a
 
-  m.push16(regs.af); // push af -- carry 236e's A across the flag-clobbering region (§7)
+  m.push16(regs.af); // push af -- carry 236e's A across the flag-clobbering region
   m.step(0x1b17, 11);
   regs.hl = 0x6207;
   m.step(0x1b1a, 10); // ld hl,0x6207
@@ -9237,7 +8822,7 @@ function loc_1afe(m, R) {
     m.step(0x1b2c, 11); // dec (hl)
   }
 
-  // loc_1b2c: pop af, test the RESTORED A (§7)
+  // loc_1b2c: pop af, test the RESTORED A
   regs.af = m.pop16(); // pop af
   m.step(0x1b2d, 10);
   regs.and(regs.a);
@@ -9413,7 +8998,7 @@ function loc_1b8a(m) {
 /** loc_1bb2 (0x1BB2-0x1BF1): AIRBORNE (0x6216==1). Sets IX=0x6200 (its OWN regime). */
 function loc_1bb2(m) {
   const { regs, mem } = m;
-  regs.ix = 0x6200; // this path's IX (do NOT share R with the spine -- OQ-8)
+  regs.ix = 0x6200; // this path's IX (do NOT share R with the spine)
   m.step(0x1bb6, 14); // ld ix,0x6200
   const X = (d) => (regs.ix + d) & 0xffff;
   regs.a = mem.read8(0x6203);
@@ -9490,12 +9075,12 @@ function loc_1bec(m, X) {
   return entry_1c05(m, X);
 }
 
-/** entry_1c05 (0x1C05-0x1C32): 2b1c dispatch + the LIVE 0x1C23 block (§4). */
+/** entry_1c05 (0x1C05-0x1C32): 2b1c dispatch + the LIVE 0x1C23 block. */
 function entry_1c05(m, X) {
   const { regs, mem } = m;
   m.push16(0x1c08);
   m.step(0x2b1c, 17); // call 0x2b1c
-  entry_2b1c(m); // returns A (0x1C08 always resumes here -- OQ-7)
+  entry_2b1c(m); // returns A (0x1C08 always resumes here)
   regs.a = regs.dec8(regs.a);
   m.step(0x1c09, 4); // dec a
   if (regs.fZ) { m.step(0x1c3a, 10); return loc_1c3a(m); } // jp z
@@ -9517,9 +9102,9 @@ function entry_1c05(m, X) {
   mem.write8(0x621f, regs.a);
   m.step(0x1c20, 13); // ld (0x621f),a
   m.push16(0x1c23);
-  m.step(0x2853, 17); // call 0x2853 (returns normally -- 2853 §2)
+  m.step(0x2853, 17); // call 0x2853 (returns normally)
   entry_2853(m);
-  // ---- 0x1C23-0x1C32: LIVE CODE hidden as `defb UNREACHED` in the listing (§4) ----
+  // ---- 0x1C23-0x1C32: LIVE CODE hidden as `defb UNREACHED` in the listing ----
   regs.and(regs.a); // A = sub_2853's return (from the 3e88 dispatch target)
   m.step(0x1c24, 4); // and a
   if (regs.fZ) { m.step(0x1da6, 10); return entry_1da6(m); } // jp z,0x1da6
@@ -9675,7 +9260,7 @@ function entry_1c76(m) {
   return entry_1da6(m);
 }
 
-/** loc_1c8f (0x1C8F-0x1CAA): MOVE +dir. Twin of loc_1cab (§6): B=+1, 3009 arg=0x05,
+/** loc_1c8f (0x1C8F-0x1CAA): MOVE +dir. Twin of loc_1cab: B=+1, 3009 arg=0x05,
  *  extra `or 0x80`. Shares loc_1cc2. */
 function loc_1c8f(m) {
   const { regs, mem } = m;
@@ -9700,7 +9285,7 @@ function loc_1c8f(m) {
   m.step(0x1ca4, 13); // ld (0x6202),a
   regs.and(0x03);
   m.step(0x1ca6, 7); // and 0x03
-  regs.or(0x80); // <-- the extra step loc_1cab does NOT have (§6)
+  regs.or(0x80); // <-- the extra step loc_1cab does NOT have
   m.step(0x1ca8, 7); // or 0x80
   m.step(0x1cc2, 10); // jp 0x1cc2
   return loc_1cc2(m);
@@ -9825,10 +9410,9 @@ function loc_1cf2(m) {
  * sub_1f72 <-> loc_21ba SCC -- OBJECT DISPATCH + the shared object-sprite tail.
  * ROM 0x1F72-0x2117 (1f72) + 0x2118-0x216A + 0x21BA-0x21D0 (the 0x21xx cluster).
  * Integrated TOGETHER (mutual recursion: loc_21ba's `jp 0x1f8d` re-enters 1f72's
- * loop; 1f72's branches `jp 0x21ba` reach the shared tail). From code2's
- * 1f72.draft.md + 21ba.draft.md, bytes CLEAN vs rom/maincpu.bin.
+ * loop; 1f72's branches `jp 0x21ba` reach the shared tail).
  *
- * NET-ZERO IMAGE by construction: called from loc_197a @0x1983 (held handler_1977
+ * Not yet wired into the live dispatcher: called from loc_197a @0x1983 (handler_1977
  * cascade, untranslated); nothing in translated src invokes sub_1f72 / the 21xx
  * cluster. Goes live at the finale (step 4).
  *
@@ -9840,12 +9424,12 @@ function loc_1cf2(m) {
  * ** exx IS A PROJECT-FIRST ** (first executable use of the shadow register file).
  * regs.exx() swaps EXACTLY BC/DE/HL, leaves AF/IX/IY/SP untouched -- so after exx
  * `(ix+d)` still uses the MAIN ix. The five branches exx into the shadow to do
- * their work and `jp 0x21ba` WITHOUT unswapping (§EXX-OQ1); loc_21ba's LEADING exx
+ * their work and `jp 0x21ba` WITHOUT unswapping; loc_21ba's LEADING exx
  * is the downstream unswap that restores the loop's main set (HL/IX/DE/B) for
- * 0x1f8d -- a register-state contract on all 13 entries (§DOCTRINE), modelled
+ * 0x1f8d -- a register-state contract on all 13 entries, modelled
  * LITERALLY, never special-cased per caller. loc_1f8d / loc_1fce are shared entry
- * points tail-reached from 0x21CE / 0x210B -- their layout is load-bearing (§2).
- * Object fields not interpreted (§20).
+ * points tail-reached from 0x21CE / 0x210B -- their layout is load-bearing.
+ * Object fields not interpreted.
  */
 export function sub_1f72(m) {
   const { regs, mem } = m;
@@ -9887,7 +9471,7 @@ function loc_1f83(m) {
 }
 
 /** loc_1f8d (0x1F8D-0x1F92): 4th inc l + loop advance. SHARED ENTRY from loc_21ba
- *  (0x21CE jp 0x1f8d) -- the SCC continuation (§2). */
+ *  (0x21CE jp 0x1f8d) -- the SCC continuation. */
 function loc_1f8d(m) {
   const { regs } = m;
   regs.l = regs.inc8(regs.l);
@@ -9964,7 +9548,7 @@ function branch_1fac(m) {
 }
 
 /** loc_1fce (0x1FCE-0x1FE4): the (ix+17)!=(ix+5) tail. ALSO the SHARED ENTRY tail-
- *  reached from 0x210B (§2). Steps (ix+0f); on expiry toggles (ix+7), reloads =4. */
+ *  reached from 0x210B. Steps (ix+0f); on expiry toggles (ix+7), reloads =4. */
 function loc_1fce(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
@@ -10314,7 +9898,7 @@ function branch_20ec(m) {
   m.step(0x20f6, 19); // ld b,(ix+0x19)
   regs.cp(regs.b);
   m.step(0x20f7, 4); // cp b
-  if (regs.fC) { m.step(0x2104, 10); return loc_2104(m); } // jp c -- INTERNAL (§EXTENT)
+  if (regs.fC) { m.step(0x2104, 10); return loc_2104(m); } // jp c -- INTERNAL
   m.step(0x20fa, 10);
   m.push16(0x20fd);
   m.step(0x2a2f, 17); // call 0x2a2f
@@ -10322,7 +9906,7 @@ function branch_20ec(m) {
   regs.and(regs.a);
   m.step(0x20fe, 4); // and a
   if (regs.fNZ) { m.step(0x2118, 10); return entry_2118(m); } // jp nz -- 21xx cluster
-  m.step(0x2101, 5); // NOT taken -- falls into loc_2101 (was defb-hidden, §EXTENT)
+  m.step(0x2101, 5); // NOT taken -- falls into loc_2101 (was defb-hidden)
   return loc_2101(m);
 }
 
@@ -10346,7 +9930,7 @@ function loc_2104(m) {
   m.step(0x2109, 7); // add a,0x08
   regs.cp(0x10);
   m.step(0x210b, 7); // cp 0x10
-  if (regs.fNC) { m.step(0x1fce, 10); return loc_1fce(m); } // jp nc,0x1fce -- INTERNAL (§2)
+  if (regs.fNC) { m.step(0x1fce, 10); return loc_1fce(m); } // jp nc,0x1fce -- INTERNAL
   m.step(0x210e, 10);
   regs.xor(regs.a); // A = 0
   m.step(0x210f, 4); // xor a
@@ -10364,14 +9948,14 @@ function loc_2104(m) {
  * loc_215f/entry_2118/0x24xx). Copies the 4 sprite fields (ix+3,7,8,5) -- OUT OF
  * ORDER, do not sort -- to the buffer HL, then jp 0x1f8d (1f72's loop advance).
  *
- * ** THE LEADING exx IS A CONTRACT (§DOCTRINE): modelled LITERALLY. ** After
+ * ** THE LEADING exx IS A CONTRACT: modelled LITERALLY. ** After
  * regs.exx() the loop's main set (HL buffer / IX obj / DE stride / B count) is
  * active for 0x1f8d, whatever the caller's entry state. NOT special-cased.
  */
 export function loc_21ba(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
-  regs.exx(); // §DOCTRINE -- restores the loop main set for the 9 exx'd callers
+  regs.exx(); // Restores the loop main set for the 9 exx'd callers
   m.step(0x21bb, 4); // exx
   regs.a = mem.read8(R(0x03));
   m.step(0x21be, 19); // ld a,(ix+0x03)
@@ -10415,7 +9999,7 @@ export function loc_215f(m) {
   m.push16(0x216a);
   m.step(0x216d, 17); // call 0x216d
   sub_216d(m); // may abort (216d hidden-exit); jp below runs on normal return
-  m.step(0x21ba, 10); // jp 0x21ba -- NON-exx'd entry (§DOCTRINE)
+  m.step(0x21ba, 10); // jp 0x21ba -- NON-exx'd entry
   return loc_21ba(m);
 }
 
@@ -10504,19 +10088,18 @@ function loc_2153(m) {
  *   2865  ca 6b 28     jp   z,0x286b       ; (input&3)==0 -> keep 0x0508
  *   2868  21 08 13     ld   hl,0x1308      ; else pair 0x1308
  *   286b  cd 88 3e     call 0x3e88         ; the rst-28 dispatcher
- *   286e  c9           ret                 ; the `defb`-hidden ret (§3)
+ *  286e c9 ret ; the `defb`-hidden ret
  *
- * Integrated from code2's draft (2853.draft.md), bytes CLEAN vs rom/maincpu.bin
  * (named entry_2853 to match entry_1ac3's forward-ref; the draft used sub_2853).
- * NET-ZERO IMAGE by construction: called only from entry_1ac3 @0x1C20 (held spine).
+ * Not yet wired into the live dispatcher: called only from entry_1ac3 @0x1C20.
  *
- * ** RETURNS NORMALLY ** via entry_3e88's BALANCED dispatch (draft §2, and my
- * wave-1 entry_3e88 + code-b's 0x28xx targets all pop the pushed HL): the target's
+ * ** RETURNS NORMALLY ** via entry_3e88's BALANCED dispatch (and my
+ * wave-1 entry_3e88 + 0x28xx targets all pop the pushed HL): the target's
  * `pop hl` matches 3e88's `push hl`, the rst consumes its own table pointer, and
  * the target's `ret` lands on 0x286E. NOT a caller-skip -- which is exactly why
  * entry_1ac3's 0x1C23 "UNREACHED" block is reached. IY/C/HL are dispatch
  * parameters for entry_3e88 (HL = 0x0508 for input dir 0, else 0x1308 -- the
- * collision-bound pair). Params/targets not interpreted (§20).
+ * collision-bound pair). Params/targets not interpreted.
  */
 export function entry_2853(m) {
   const { regs, mem } = m;
@@ -10542,7 +10125,7 @@ export function entry_2853(m) {
     m.step(0x286b, 10); // ld hl,0x1308
   }
 
-  m.push16(0x286e); // `call` pushes; 3e88's dispatch returns here (§2)
+  m.push16(0x286e); // `call` pushes; 3e88's dispatch returns here
   m.step(0x3e88, 17); // call 0x3e88
   entry_3e88(m); // BALANCED dispatch -- returns normally (NOT a caller-skip)
   m.ret(10); // 0x286E -- the ret the listing hid as `defb 0xc9`
@@ -10550,10 +10133,9 @@ export function entry_2853(m) {
 
 /**
  * handler_1977 -- THE FINALE.  ROM 0x1977-0x19D9.  Task-table entry dw 0x1977 @0x074E
- * (game state 1 sub-state, reached via the 0x0748 rst-28 dispatch). Integrated from
- * code3's 1977.draft.md (cascade folded from 197a.draft.md).
+ * (game state 1 sub-state, reached via the 0x0748 rst-28 dispatch).
  *
- *   1977  cd ee 21   call 0x21ee   ; sub_21ee -- PLAIN call (NOT skip-capable, §1)
+ *  1977 cd ee 21 call 0x21ee ; sub_21ee -- PLAIN call (NOT skip-capable)
  *                                  ; then FALLS THROUGH into loc_197a
  *
  * = `call sub_21ee` (the animation-counter tick) then the shared loc_197a per-frame
@@ -10565,7 +10147,7 @@ export function entry_2853(m) {
 export function handler_1977(m) {
   m.push16(0x197a);
   m.step(0x21ee, 17); // call 0x21ee
-  sub_21ee(m); // PLAIN call (§1) -- returns to 0x197A, NO guard
+  sub_21ee(m); // PLAIN call -- returns to 0x197A, NO guard
   return loc_197a(m); // fall through into the shared cascade
 }
 
@@ -10575,7 +10157,7 @@ export function handler_1977(m) {
  * unwind -> aborts to our caller), boolean-guarded. All other calls return normally
  * (an rst caller-skip inside a callee aborts THAT callee's caller = us, so from our
  * frame it returned). The 0x198F-0x19D1 run is `defb`-hidden in dk.asm but is LIVE
- * code (197a.draft §1). Callee names mapped to their integrated forms.
+ * code. Callee names mapped to their integrated forms.
  */
 export function loc_197a(m) {
   const { regs, mem } = m;
@@ -10590,7 +10172,7 @@ export function loc_197a(m) {
   m.push16(0x198c); m.step(0x2c03, 17); entry_2c03(m);
   m.push16(0x198f); m.step(0x30ed, 17); entry_30ed(m);
 
-  // ---- the cascade the listing hides as `defb` (197a.draft §1) -- LIVE code ----
+  // ---- the cascade the listing hides as `defb` -- LIVE code ----
   m.push16(0x1992); m.step(0x2e04, 17); entry_2e04(m);
   m.push16(0x1995); m.step(0x24ea, 17); sub_24ea(m);
   m.push16(0x1998); m.step(0x2ddb, 17); entry_2ddb(m);
@@ -10606,7 +10188,7 @@ export function loc_197a(m) {
   m.push16(0x19b6); m.step(0x2808, 17); sub_2808(m);
   m.push16(0x19b9); m.step(0x281d, 17); loc_281d(m);
 
-  // @0x19B9 HIDDEN EXIT -- sub_1e57's pop-hl unwind aborts us (197a.draft §3)
+  // @0x19B9 HIDDEN EXIT -- sub_1e57's pop-hl unwind aborts us
   m.push16(0x19bc);
   m.step(0x1e57, 17); // call 0x1e57
   if (!sub_1e57(m)) return; // NOT a plain call -- returned to OUR caller
@@ -10615,7 +10197,7 @@ export function loc_197a(m) {
   if (!entry_1a07(m)) return; // idx3 caller-skip jumped to the tail & RETed
   m.push16(0x19c2); m.step(0x2fcb, 17); sub_2fcb(m);
 
-  // ---- 0x19C2: three nops -- a REMOVED call (197a.draft §4), keep the 12 T ----
+  // ---- 0x19C2: three nops -- a REMOVED call, keep the 12 T ----
   m.step(0x19c3, 4); // nop
   m.step(0x19c4, 4); // nop
   m.step(0x19c5, 4); // nop
@@ -10655,12 +10237,12 @@ function tail_19d2(m) {
 /**
  * loc_07cb -- ROUND-2 BATCH: per-frame countdown animation task.  ROM 0x07CB-0x084A
  * (128 bytes). Dispatch-table handler (dw 0x07cb @0x0754, the 0x0748 task table --
- * same dispatch as handler_1977). Integrated from code3's 07cb.draft.md.
- * NET-ZERO until wired: reached only via the 0x0754 task-table dispatch.
+ * same dispatch as handler_1977).
+ * Reached only via the 0x0754 task-table dispatch.
  * Frame timer 0x638A / pattern 0x638B; on expiry finishes (0x6009=2, 0x600A++,
  * clears 0x638A/B); else decodes 2 pattern bits (rlc, CB-form) and table-driven
  * fills from 0x3D08, then queues tasks (sub_309f x2), repaints (sub_004e/sub_3f24),
- * and two rst-0x38 sound triggers. Fields not interpreted (§20).
+ * and two rst-0x38 sound triggers. Fields not interpreted.
  */
 export function loc_07cb(m) {
   const { regs, mem } = m;
@@ -10826,7 +10408,7 @@ export function loc_07cb(m) {
 
 /**
  * loc_0ee8 -- ROUND-2 BATCH: kind-3 record strip (girder-cap column draw). ROM
- * 0x0EE8-0x0F1A. Integrated from code2's 0ee8.draft.md. Reached from loc_0e4f's
+ * 0x0EE8-0x0F1A. Reached from loc_0e4f's
  * kind!=2 branch (wired below); kind>=4 dispatches to entry_0f1b. The `jp 0x0da7`
  * exits are the walk-loop back-edge -> `return` (unwinds to sub_0da7's for(;;)).
  */
@@ -10891,7 +10473,7 @@ export function loc_0ee8(m) {
 
 /**
  * entry_0f1b -- ROUND-2 BATCH: kind-4/5/6 record strip filler.  ROM 0x0F1B-0x0F55.
- * Integrated from code2's 0f1b.draft.md. Reached from loc_0ee8 (kind>=4). kind>=7
+ * Reached from loc_0ee8 (kind>=4). kind>=7
  * -> 0x0ECF (inc de / jp 0x0da7). Kind picks the fill tile-code (4->0xE0, 5->0xB0,
  * 6->0xFE), then a do-while column fill. `jp p` @0x0F20 is a SIGN test (not jp nc);
  * `jp 0x0da7` exits are the walk back-edge -> `return`.
@@ -10986,7 +10568,7 @@ export function entry_1d8a(m) {
  * sub_1d8f -- SOUND TRIGGER: 0x6080 = 3.  ROM 0x1D8F-0x1D94 (6 bytes)
  * Callers: 0x1CC7 (`call c`, entry_1ac3 loc_1cc2 -- footstep/turn sound),
  *          0x1D61 (`call z`). Both conditional; this routine is unconditional.
- * Unwired dead code (callers in the held spine) -> net-zero.
+ * Translated for completeness; not yet wired into the live dispatcher.
  *   1d8f  3e 03     ld   a,0x03
  *   1d91  32 80 60  ld   (0x6080),a
  *   1d94  c9        ret
@@ -11004,7 +10586,7 @@ export function sub_1d8f(m) {
  * The convergence tail of entry_1ac3 (11 jp/call sites). Copies player fields
  * (0x6203,0x6207,0x6208,0x6205) = player(+3,+7,+8,+5) -- OUT OF ORDER, do not
  * sort -- to the buffer 0x694C..0x694F. The player-hardcoded twin of loc_21ba.
- * Unwired dead code (entry_1ac3 is held spine) -> net-zero.
+ * Translated for completeness; not yet wired into the live dispatcher.
  *   1da6  ld hl,0x694c
  *   1da9  ld a,(0x6203) / ld (hl),a
  *   1dad  ld a,(0x6207) / inc l / ld (hl),a
@@ -11032,7 +10614,7 @@ export function entry_1da6(m) {
  * -2, cycles walk frames into the sprite-control byte (0x6207), hands off to
  * entry_1da6. TWIN loc_1cf2 shares the body loc_1d11 with delta +2 / timer 3
  * (A is LIVE-IN to loc_1d11 -- the delta). Shares the tail entry_1d8a via loc_1d76.
- * Unwired dead code (sole caller 0x1B4A not integrated) -> net-zero.
+ * Translated for completeness; not yet wired into the live dispatcher.
  */
 export function entry_1d03(m) {
   const { regs, mem } = m;
@@ -11208,39 +10790,6 @@ function loc_1d76(m) {
   return entry_1d8a(m);
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 19 instructions,
- * 0x1DC9-0x1DF2, 44 bytes, CLEAN against out/dk.asm and rom/maincpu.bin.
- *
- * UNGATED, AND NET-ZERO-IMAGE BY CONSTRUCTION. This is <0x3000 game-engine
- * backlog ahead of the frontier. Its only caller is sub_1dbd's `rst 0x28`
- * dispatch (entry 1), which is not translated, so nothing reaches loc_1dc9 yet
- * and no gate executes it -- STATE/WRITE/PIXEL are all unchanged by adding it.
- * Image reach is gated behind handler_1977's whole closure and does not move
- * here; landed so the code is ready when sub_1dbd is wired.
- *
- * FIVE EXITS, ALL TAIL JUMPS TO UNTRANSLATED UNITS, rendered as NotImplemented
- * throws (the loc_0e4f convention) rather than as calls to functions that do
- * not exist. None pushes a return address -- the routine hands off, it does
- * not call, so whether sub_1dbd's dispatch returns to ITS caller is decided in
- * those five targets, not here (draft OQ-1, left unresolved). 0x3E70 is in
- * integrator #1's region (>=0x3000) and is only NAMED, never translated here;
- * the other four (0x1E00, 0x1E08, 0x1E10, 0x1DF5) are <0x3000 backlog.
- *
- * INTEGRATOR VERIFICATIONS beyond the byte diff:
- *  - rra is the FIRST translated use of the form (draft S6: precedent of ZERO).
- *    cpu.js:416 matches the draft: C = old bit 0; A = (A>>1)|(oldC<<7); S/Z/PV
- *    preserved; H,N cleared. Only the carry-OUT is consumed here (bits 0,1,2 of
- *    0x6342, in that order); the carry-IN lands only in A's bit 7, which is
- *    overwritten by `ld a,(0x6229)` before any read -- so rra and rrca give the
- *    same three carry-outs HERE. rra chosen to stay faithful to the 0x1F byte.
- *  - The 0x6229 dispatch is `dec a / jp z / dec a / jp z / jp` with NO reload
- *    between the decs -- same idiom as sub_2441's 0x6227 dispatch above.
- *    Reloading A or reordering sends 0x6229==2 to the wrong exit (draft S8).
- *  - The state advance 0x6340:=2 (and 0x6341:=0x40) is UNCONDITIONAL and
- *    precedes every branch (0x1DD0), so it runs on all five exits including the
- *    earliest (0x3E70). Not gated by the dispatch (draft OQ-3).
- */
 /**
  * loc_1dc9 -- ROM 0x1DC9-0x1DF4  (rst 0x28 dispatch target, sub_1dbd entry 1)
  *
@@ -11284,7 +10833,7 @@ export function loc_1dc9(m) {
   regs.rra(); // carry = bit 0; A's rotated-in bit is dead. FIRST use of rra.
   m.step(0x1dd7, 4); // rra
   if (regs.fC) {
-    m.step(0x3e70, 10); // jp c,0x3e70 taken (tail) -- go-live wired (round-3)
+    m.step(0x3e70, 10); // jp c,0x3e70 taken (tail)
     return loc_3e70(m);
   }
   m.step(0x1dda, 10); // jp c,0x3e70 not taken
@@ -11292,7 +10841,7 @@ export function loc_1dc9(m) {
   regs.rra(); // carry = bit 1
   m.step(0x1ddb, 4); // rra
   if (regs.fC) {
-    m.step(0x1e00, 10); // jp c,0x1e00 taken (tail) -- go-live wired
+    m.step(0x1e00, 10); // jp c,0x1e00 taken (tail)
     return loc_1e00(m);
   }
   m.step(0x1dde, 10); // jp c,0x1e00 not taken
@@ -11300,7 +10849,7 @@ export function loc_1dc9(m) {
   regs.rra(); // carry = bit 2
   m.step(0x1ddf, 4); // rra
   if (regs.fC) {
-    m.step(0x1df5, 10); // jp c,0x1df5 taken (tail) -- go-live wired
+    m.step(0x1df5, 10); // jp c,0x1df5 taken (tail)
     return loc_1df5(m);
   }
   m.step(0x1de2, 10); // jp c,0x1df5 not taken
@@ -11315,7 +10864,7 @@ export function loc_1dc9(m) {
   regs.a = regs.dec8(regs.a);
   m.step(0x1deb, 4); // dec a
   if (regs.fZ) {
-    m.step(0x1e00, 10); // jp z,0x1e00 taken (tail) -- 0x6229 == 1 -- go-live wired
+    m.step(0x1e00, 10); // jp z,0x1e00 taken (tail) -- 0x6229 == 1
     return loc_1e00(m);
   }
   m.step(0x1dee, 10); // jp z,0x1e00 not taken
@@ -11332,29 +10881,6 @@ export function loc_1dc9(m) {
   return loc_1e10(m); // loc_1e10 already translated (0x1E10-0x1E14 -> loc_1e15); wire the level>=3 tail
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 2 instructions,
- * 0x1DBD-0x1DC0, 4 bytes (code), CLEAN against out/dk.asm and rom/maincpu.bin.
- * The 8-byte inline jump table at 0x1DC1-0x1DC8 is DATA, read from ROM below.
- *
- * NET-ZERO-IMAGE, UNGATED. sub_1dbd is unreferenced (its caller, handler_123c's
- * `call 0x1dbd`, is not wired to it), so nothing runs it -- same standing as
- * loc_1dc9. It WIRES loc_1dc9 as table entry 1, so when the caller lands the
- * whole chain is ready. STATE/WRITE/PIXEL unchanged; validated by unit tests.
- *
- * WITHHELD CLASS (the rst 0x28 inline-jump-table dispatcher). NOT re-derived:
- * the rst 0x28 body (ROM 0x0028-0x0037) is modelled IDENTICALLY to sub_0f56
- * above -- push the address after the rst (the table base 0x1DC1), pop it back
- * in the handler, index by 2*A, read the target FROM ROM MEMORY (so the table
- * stays the ROM's data, not a JS transcription), jump to it. The rst pushes ITS
- * OWN continuation; the caller's return address sits one slot deeper, untouched,
- * and is popped by the dispatched target's own `ret` (unless a target splices
- * the stack -- draft OQ-2, contingent on the three targets, none mine).
- *
- * Entry 3 is `dw 0x0000` (the RESET VECTOR); modelled as a raw table lookup ->
- * NotImplemented for 0x0000. Whether 0x6340 can hold 3 (or >=4, out of range)
- * is decided by its five writers, not here (draft OQ-1).
- */
 /**
  * sub_1dbd -- ROM 0x1DBD-0x1DC8  (rst 0x28 inline-jump-table dispatcher on 0x6340)
  *
@@ -11405,8 +10931,8 @@ export function sub_1dbd(m) {
   m.step(target, 4); // jp (hl)
 
   if (target === 0x1dc9) return loc_1dc9(m); // entry 1: 0x6340 == 1
-  if (target === 0x1e49) return loc_1e49(m); // entry 0: 0x6340 == 0 (idle ret; tape-hot) -- go-live wired
-  if (target === 0x1e4a) return loc_1e4a(m); // entry 2: 0x6340 == 2 (state-2 countdown; finale-latent) -- go-live wired
+  if (target === 0x1e49) return loc_1e49(m); // entry 0: 0x6340 == 0 (idle ret; tape-hot)
+  if (target === 0x1e4a) return loc_1e4a(m); // entry 2: 0x6340 == 2 (state-2 countdown; finale-latent)
   throw new NotImplemented(
     `sub_1dbd dispatches via rst 0x28 to ROM 0x${target.toString(16).padStart(4, "0")} ` +
       `(table at 0x1DC1, index A=mem[0x6340]=${idx}), which is not translated.`,
@@ -11416,7 +10942,7 @@ export function sub_1dbd(m) {
 /**
  * loc_1e49 -- sub_1dbd rst-28 table[0] (0x6340==0): the state-0 IDLE arm.  ROM 0x1E49.
  * A 1-byte `ret` no-op. Reached by rst-28 jump-dispatch, so this ret returns to
- * sub_1dbd's caller (loc_197a @0x197D). Integrated from code3's 1e49.draft.md.
+ * sub_1dbd's caller (loc_197a @0x197D).
  * TAPE-HOT -- the FIRE-1 blocker (A=mem[0x6340]=0 on the coin/start tape).
  */
 export function loc_1e49(m) {
@@ -11425,7 +10951,7 @@ export function loc_1e49(m) {
 
 /**
  * loc_1e4a -- sub_1dbd rst-28 table[2] (0x6340==2): the state-2 countdown.  ROM 0x1E4A-0x1E56.
- * Integrated from code2's 1e4a.draft.md, draftdiff-clean. Reached by rst-28 jump-
+ *  Reached by rst-28 jump-
  * dispatch (A==2), so `ret` returns to sub_1dbd's caller (loc_197a). Decrements
  * (0x6341) each frame; on expiry clears (0x6a30) and resets the dispatcher
  * (0x6340):=0 (a 0x40-frame timed hold, armed by state 1 loc_1dc9). FINALE-LATENT
@@ -11454,7 +10980,7 @@ export function loc_1e4a(m) {
  * loc_3e70 -- ROM 0x3E70-0x3E87 (>=0x3000, my region). ROUND-3: loc_1dc9 tail-jumps
  * here (0x6342 bit 0 set). A live-in. rra-driven 3-way param encoder: on the first
  * clear low bit picks (DE,B) = bit0=0->(1,0x7B), bit1=0->(3,0x7D), else (5,0x7F);
- * tail-jumps to loc_1e28. Integrated from code3's 3e70.draft.md.
+ * tail-jumps to loc_1e28.
  */
 function loc_3e70(m) {
   const { regs } = m;
@@ -11486,7 +11012,7 @@ function loc_3e70(m) {
  * loc_1e28 -- ROM 0x1E28-0x1E49. ROUND-3: writes the 0x6A30 param block, rst-0x30
  * caller-skip gate, then 0x6085=3, ret. Its ret @0x1E49 IS the loc_1e49 byte
  * (shared; modelled as a plain ret here, NOT a call to loc_1e49). DE,B live-in from
- * loc_3e70. Integrated from code3's 3e70.draft.md.
+ * loc_3e70.
  */
 function loc_1e28(m) {
   const { regs, mem } = m;
@@ -11531,29 +11057,6 @@ function loc_1e28(m) {
   m.ret(10); // 0x1E49 (== loc_1e49; one ret, not double-integrated)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 9 instructions,
- * 0x1E15-0x1E24, 16 bytes, CLEAN against out/dk.asm and rom/maincpu.bin.
- *
- * NET-ZERO-IMAGE, UNGATED. The shared convergence of the three setters
- * loc_1e00 / loc_1e08 / loc_1e10 (two reach it by jp, one by fall-through), none
- * of which is translated yet -- so loc_1e15 is unreferenced and nothing runs it.
- * It CALLS the already-translated sub_309f (ROM 0x309F is integrator #1's region,
- * but it is only CALLED here, never translated -- an existing dependency) and
- * tail-jumps to 0x1E36 (untranslated -> NotImplemented). Landed bottom-up so the
- * setters can wire to it as a real call. STATE/WRITE/PIXEL unchanged; validated
- * by the drafted unit tests below.
- *
- * INTEGRATOR FIX to the draft skeleton (the drafter flagged this as a bug in
- * their own skeleton and left the fix to me): the three `inc l` use
- * regs.inc8(regs.l), NOT a flag-dropping (regs.l+1)&0xff. `inc l` sets S/Z/H/PV
- * (C preserved), and the LAST one's flags escape to loc_1e36 (draft S5=NO). inc8
- * is the established form for `inc l` (sub_0f56).
- *
- * TWO SHARP HAZARDS (draft §4): ld hl,(0x6343) is INDIRECT (2A) -- HL = the word
- * AT 0x6343, not the literal 0x6343 (21). And ld a,(hl) then ld (hl),0x00 is
- * READ-THEN-CLEAR: A carries the PRE-clear byte, order-critical (draft S8).
- */
 /**
  * loc_1e15 -- ROM 0x1E15-0x1E24  (convergence of loc_1e00 / loc_1e08 / loc_1e10)
  *
@@ -11602,25 +11105,6 @@ export function loc_1e15(m) {
   return loc_1e36(m);
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 3 instructions,
- * 0x1E00-0x1E07, 8 bytes, CLEAN against out/dk.asm and rom/maincpu.bin.
- *
- * NET-ZERO-IMAGE, UNGATED. Head of the three-entry setter family (loc_1e00 /
- * loc_1e08 / loc_1e10) that converge on loc_1e15. Reached only from loc_1dc9's
- * two 0x1E00 exits (jp c at 0x1DDB, jp z at 0x1DEB) -- which are LEFT AS
- * NotImplemented STUBS on purpose: loc_1dc9 is NOT re-wired to loc_1e00 here, so
- * loc_1dc9's committed dispatch tests stay isolated (they assert the immediate
- * exit m.pc==0x1E00; routing them through this chain would make them transitively
- * depend on loc_1e15/sub_309f and dereference 0x6343). Wiring loc_1dc9 -> loc_1e00
- * is deferred to a coordinated chain go-live. So loc_1e00 is unreferenced and
- * never runs; STATE/WRITE/PIXEL unchanged.
- *
- * It DOES wire its own tail jump to the real loc_1e15 (translated), handing it
- * the (B, DE) parameters. Siblings loc_1e08 (B=0x7E, DE=0x0005) and loc_1e10
- * (B=0x7F, DE=0x0008) differ ONLY in these two constants (draft S7) -- do not
- * copy one to another without changing both.
- */
 /**
  * loc_1e00 -- ROM 0x1E00-0x1E07  (setter; loc_1dc9 tail-jumps here)
  *
@@ -11642,16 +11126,6 @@ export function loc_1e00(m) {
   return loc_1e15(m);
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 0x1E57-0x1E8B, CLEAN.
- * A skip-capable predicate on 0x6227/position. No external callees; loc_1e6d/
- * loc_1e7a/loc_1e80/loc_1e85 are interior tails. Exported dead code -> NET-ZERO.
- *
- * Returns a BOOLEAN: true on the plain `ret`/`ret nc`/`ret nz` exits (NORMAL), and
- * FALSE from loc_1e85 -- which sets 0x600A=0x16, then `pop hl` DISCARDS sub_1e57's
- * own return and `ret` unwinds to the caller's caller (the 236e/sub_0030 caller-
- * skip idiom). A caller must check the result and stop on false.
- */
 export function sub_1e57(m) {
   const { regs, mem } = m;
 
@@ -11747,27 +11221,6 @@ function loc_1e85(m) {
   return false; // BOOLEAN: unwound (the caller must not continue)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code2). tools/draftdiff.py: 6 instructions,
- * 0x1E8C-0x1E95, 10 bytes, CLEAN against out/dk.asm and rom/maincpu.bin.
- *
- * NET-ZERO-IMAGE, UNGATED. entry_1e8c is in the handler_1977 closure (its one
- * caller is `call 0x1e8c` at 0x197D, untranslated), so nothing runs it.
- * STATE/WRITE/PIXEL unchanged.
- *
- * TWO LABELS, ONE 10-BYTE UNIT. entry_1e8c reads (0x6350): zero -> normal return
- * (ret z); non-zero -> `call 0x1e96` then the private tail entry_1e94. sub_1e96
- * is UNTRANSLATED (also 1977-closure backlog), so entry_1e8c throws
- * NotImplemented at the call -- the skip tail is unreachable through entry_1e8c
- * until 0x1E96 lands (then the throw becomes `sub_1e96(m); return entry_1e94(m)`).
- *
- * entry_1e94 (`pop hl / ret`) is a SINGLE CALLER-SKIP: the `pop hl` discards the
- * 0x197D caller's return address (0x1980) and the `ret` returns to the caller's
- * CALLER -- the sub_0020-tail / sub_0044 idiom (precedented, mainloop.js), NOT a
- * plain return. It has no external ROM reference (private fall-through tail); it
- * is a separate function here ONLY so its skip semantics can be tested directly
- * (draft TEST 1) while the call path above is blocked. Unreferenced until wired.
- */
 /**
  * entry_1e8c -- ROM 0x1E8C-0x1E93  (caller-skip head; 0x197D calls it)
  *
@@ -11817,25 +11270,6 @@ export function entry_1e94(m) {
   m.ret(); // ret -- returns to the caller's CALLER (single-frame skip)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code2). tools/draftdiff.py: 2 instructions,
- * 0x1E96-0x1E99, 4 bytes (code), CLEAN against out/dk.asm and rom/maincpu.bin.
- * The 6-byte inline table 0x1E9A-0x1E9F is DATA, read from ROM below.
- *
- * NET-ZERO-IMAGE, UNGATED. sub_1e96 is in the handler_1977 closure (its one
- * caller is entry_1e8c's `call 0x1e96`, which throws NotImplemented before
- * reaching it), so nothing runs it. STATE/WRITE/PIXEL unchanged.
- *
- * rst 0x28 inline-jump-table dispatcher on (0x6345), modelled IDENTICALLY to
- * sub_1dbd / sub_0f56 above (the ROM 0x0028-0x0037 body is not re-derived): push
- * the table base 0x1E9A, pop it back in the handler, index by 2*A, read the
- * target FROM ROM MEMORY, jump to it. THREE entries, NO null 4th guard:
- *   0 -> 0x1EA0   1 -> 0x1F09   2 -> 0x1F23
- * All three targets are untranslated -> NotImplemented. The lookup is RAW (no
- * bounds check), faithful to the ROM: A >= 3 reads past the 3-entry table into
- * 0x1EA0's code bytes (draft OQ2); whether (0x6345) can exceed 2 is its writer's
- * business, not decided here.
- */
 /**
  * sub_1e96 -- ROM 0x1E96-0x1E99 (+ inline table 0x1E9A-0x1E9F)
  *
@@ -11890,37 +11324,6 @@ export function sub_1e96(m) {
   );
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code2). tools/draftdiff.py: 41 instructions,
- * 0x1EA0-0x1F08, 105 bytes, CLEAN against out/dk.asm and rom/maincpu.bin.
- *
- * NET-ZERO-IMAGE, UNGATED. sub_1e96 dispatch target, index 0 (0x6345==0). In the
- * handler_1977 closure; sub_1e96's caller entry_1e8c throws before reaching it, so
- * nothing runs entry_1ea0. STATE/WRITE/PIXEL unchanged. Unlike the other units in
- * this file, this one RETURNS (ret at 0x1F08) -- a complete routine.
- *
- * TWO FIRST-USE instruction forms, cycle VALUES confirmed against MAME 0.288
- * z80.lst (draft S6 / OQ4):
- *   ld ix,(nn) (dd 2a) = 20 T  -- DD prefix (4) + LD HL,(nn) body (fetch 4 + arg16
- *                                 6 + rm16 6 = 16). First indirect IX load.
- *   ld (bc),a  (02)    = 7 T   -- M1 fetch (4) + @wm memory write (3). Used x4.
- *
- * SHARED PRIMITIVE: the `inc (hl)` at 0x1EF9 (the 0x6345 state advance) uses
- * regs.incMem8 (integrator #1's flag-correct RMW, cpu.js), NOT open-coded. Its
- * flags are dead here (the next inc l overwrites them), but the shared helper is
- * the single source of the RMW semantics.
- *
- * WHAT IT DOES: HL = 0x69B8 / 0x69D0 / 0x6980 by (0x6352) vs 0x65 (cp then a
- * flag-neutral ld hl chain -- the flags survive the loads, the sub_2441 hazard).
- * IX = word at 0x6351; loop (0x6354) times advancing HL += 4 (BC) and IX += DE
- * (both adds INSIDE the loop -- draft TEST 3), skipped when (0x6354)==0. Then
- * (ix+0)=0; (0x6342) = 2 if (ix+0x15)==0 else 4 (draft TEST 2). A 4-byte copy to
- * 0x6A2C via (bc),a with BC and HL advancing in lockstep (ordered stores, S8).
- * Finally the STATE ADVANCE: inc (0x6345) [0->1], (0x6346)=6, (0x6347)=5,
- * (0x608a)=6, (0x608b)=3 (draft TEST 1 / OQ1); the 1e96 dispatch index steps to
- * the next stage. Whether it stays <= 2 (below the no-guard 4th slot) is resolved
- * across 0x1F09/0x1F23, not here.
- */
 /**
  * entry_1ea0 -- ROM 0x1EA0-0x1F08  (sub_1e96 dispatch target, index 0)
  *
@@ -12115,36 +11518,6 @@ export function entry_1ea0(m) {
   m.ret(); // ret (0x1F08)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code2). tools/draftdiff.py: 15 instructions,
- * 0x1F09-0x1F22, 26 bytes, CLEAN against out/dk.asm and rom/maincpu.bin.
- *
- * NET-ZERO-IMAGE, UNGATED. sub_1e96 dispatch target index 1 (0x6345==1), in the
- * handler_1977 closure; nothing runs it. STATE/WRITE/PIXEL unchanged.
- *
- * A TWO-LEVEL DELAY COUNTER that steps the 1e96 dispatch index 1->2. It uses
- * decMem8/incMem8 (integrator #1's flag-correct RMW) -- and here the FLAGS ARE
- * LIVE (S5=NO): `ret nz` at 0x1F0D tests dec (0x6346)'s Z, and `jp z` at 0x1F12
- * tests dec (0x6347)'s Z. Open-coding the RMW with a flag-dropping increment
- * would break both branches, so the shared primitive's flag-correctness is
- * load-bearing, not cosmetic. The inc (0x6345) at 0x1F21 (via decMem8/incMem8)
- * likewise sets flags that reach the ret (dead to the caller, but faithful).
- *
- * WHAT IT DOES: dec (0x6346); ret nz -- the body runs only every 6th call (0x6346
- * reloaded to 6 by entry_1ea0). Then reload 0x6346=6, inc l -> HL=0x6347, dec
- * (0x6347); jp z -> loc_1f1d. loc_1f1d reloads 0x6347=4, dec l/dec l walks HL
- * 0x6347 -> 0x6345, inc (0x6345) [1->2], ret. Otherwise (0x6347 != 0) it toggles
- * bit 0 of (0x6a2d) via xor 0x01 and rets.
- *
- * BOUNDS RESOLVED (draft closes sub_1e96 OQ2): the 1e96 index cycles 0->1->2->0
- * -- entry_1ea0 does 0->1, this does 1->2, and loc_1f34 (in the 0x1f23 target)
- * resets 0x6345=0. So (0x6345) stays in {0,1,2} and sub_1e96's missing 4th-slot
- * guard is safe BY CONSTRUCTION, not by luck.
- *
- * S7: loc_1f23 (index 2) is a near-identical TWIN with inverted constants/ops
- * (reload 0x0C vs 0x06, inc vs xor on 0x6a2d, reset-to-0 vs advance-to-2) --
- * draft TEST 3 pins this unit's constants against the twin's.
- */
 /**
  * loc_1f09 / loc_1f1d -- ROM 0x1F09-0x1F22  (sub_1e96 dispatch target, index 1)
  *
@@ -12212,26 +11585,6 @@ export function loc_1f09(m) {
   m.ret(); // ret (0x1F1C)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code2). tools/draftdiff.py: 20 instructions,
- * 0x1F23-0x1F45, 35 bytes, CLEAN against out/dk.asm and rom/maincpu.bin.
- *
- * NET-ZERO-IMAGE, UNGATED. sub_1e96 dispatch target index 2 (0x6345==2), in the
- * handler_1977 closure; nothing runs it. STATE/WRITE/PIXEL unchanged.
- *
- * The TWIN of loc_1f09 (index 1), inverted: reload 0x0C (vs 0x06), inc (0x6a2d)
- * (vs xor 0x01), and the terminal loc_1f34 RESETS the dispatch index (vs loc_1f1d
- * advancing it). Uses decMem8/incMem8 (integrator #1's flag-correct RMW, from the
- * merge -- NOT modified). FLAGS ARE LIVE: ret nz @ 0x1F27 reads dec (0x6346)'s Z,
- * jp z @ 0x1F2C reads dec (0x6347)'s Z. All forms precedented (ld (nn),hl =
- * mem.write16, 3 uses in nmi.js) -- no first-use here, unlike entry_1ea0.
- *
- * loc_1f34 CLOSES the 0->1->2->0 cycle: xor a / ld (0x6345),a RESETS the 1e96
- * index to 0 (so it never reaches sub_1e96's no-guard 4th slot -- the bounds
- * guarantee, draft TEST 1). It also seeds (0x6350)=0, the game state (0x6340)=1,
- * and the pointer (0x6343)=0x6a2c (ld (nn),hl -- the very cell loc_1e15 later
- * dereferences). Meanings not interpreted; transcribed.
- */
 /**
  * loc_1f23 / loc_1f34 -- ROM 0x1F23-0x1F45  (sub_1e96 dispatch target, index 2)
  *
@@ -12312,7 +11665,7 @@ export function loc_1f23(m) {
  * (0x6221)==0 -> ret. Else clear 0x6204/06/21/10-14 (=0), set 0x6216/1f (=1),
  * snapshot Y (0x6205) -> 0x620e. Hands entry_1ac3 a state-1 player next frame.
  * The inc a @ 0x1F64 is the store-value boundary: 8 zeros before, 2 ones after --
- * do not reorder across it. Unwired dead code (caller is held spine) -> net-zero.
+ * do not reorder across it.
  */
 export function sub_1f46(m) {
   const { regs, mem } = m;
@@ -12344,50 +11697,6 @@ export function sub_1f46(m) {
   m.ret(10);
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code2). tools/draftdiff.py: 30 instructions,
- * 0x2913-0x2953, 65 bytes, CLEAN against out/dk.asm and rom/maincpu.bin.
- *
- * NET-ZERO-IMAGE, UNGATED (its callers are untranslated <0x3000 backlog).
- * Deepest unit of the lead's 2913 -> 2a22 -> 29af chain, integrated first so the
- * wrappers have a real callee.
- *
- * TWO EXITS WITH DIFFERENT STACK SEMANTICS -- the whole point of this routine
- * (draft OQ1), and the sub_0008 / sub_0044 caller-skip class:
- *   0x2945  ld a,0x01 / pop ix / INC SP / INC SP / ret   A=1, SKIPS one frame:
- *           the two `inc sp` discard THIS routine's own return address, so the
- *           ret lands in the CALLER'S CALLER.
- *   0x2950  xor a     / pop ix /                 ret     A=0, returns NORMALLY.
- * Per the sub_0008 convention (mainloop.js:150-165) this returns a BOOLEAN --
- * true when control returned normally, false when it skipped -- so the caller
- * (2a22, next in the chain) can model the skip as an early return. An SP-only
- * test cannot tell the two exits apart from register state; the drafted test
- * asserts BOTH the SP delta AND the return PC AND A (the lead's SP-BLIND flag).
- *
- * `push ix` @ 0x2913 is OUTSIDE the loop -- djnz targets 0x2915, one instruction
- * later. Stated explicitly because sub_122a's equivalent push WAS inside, and the
- * two look identical at a glance (draft S1).
- *
- * THREE ZERO-PRECEDENT FORMS, cycle values confirmed against MAME 0.288 z80.lst:
- *   bit n,(ix+d) (dd cb d 46) = 20 T  -- ddcb prefix: 4+4 + @eax 3 + @arg 3 +
- *                                        2 nomreq, + the xycb read 4
- *   sub (ix+d)   (dd 96 d)    = 19 T  -- 4+4 + @eax 3 + 5 nomreq + @rm 3 (x4 here)
- *   ld a,(iy+d)  (fd 7e d)    = 19 T  -- same microcode shape as dd96
- *
- * F3/F5 ON THE INDEXED BIT TEST -- RESOLVED, using the parameter built for it.
- * The Z80 takes the undocumented F3/F5 from the OPERAND VALUE for `bit n,r` but
- * from the HIGH BYTE OF THE COMPUTED ADDRESS for `bit n,(ix+d)` (MAME 0.288
- * z80.cpp:531/543/555 are three separate functions). cpu.js `bit(n, value,
- * yxFrom = value)` already carries that third parameter and its doc names THIS
- * call site as the reason it exists; the call below passes the EA high byte.
- * No shared-helper change, zero blast radius -- every other caller keeps the
- * default. (I first deferred this as "unobservable here, no push af"; qa-b
- * caught that the fix was already provided and that latent-is-not-fixed applies,
- * since this site goes live at the 1977 go-live. They were right.)
- *
- * STILL DEFERRED, and correctly: `bit n,(hl)` (state0.js:624) needs F3/F5 from
- * WZ_H, which this core does not model. That one is blocked; this one was not.
- */
 /**
  * entry_2913 -- ROM 0x2913-0x2953  (object-list search; A=1+skip on hit, A=0 normal)
  *
@@ -12533,29 +11842,6 @@ export function entry_2913(m) {
   return true; // returned NORMALLY (sub_0008 convention)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code2). tools/draftdiff.py: 5 instructions,
- * 0x2A22-0x2A2E, 13 bytes, CLEAN against out/dk.asm and rom/maincpu.bin.
- *
- * NET-ZERO-IMAGE, UNGATED (its caller 0x29BD/29af is untranslated). Second unit
- * of the lead's 2913 -> 2a22 -> 29af chain; entry_2913 is already integrated, so
- * this WIRES to the real callee rather than stubbing it.
- *
- * A parameter-setting wrapper around entry_2913 -- and the headline is what its
- * `ret` does NOT do (draft S2/OQ1). entry_2913's A=1 exit executes `inc sp` twice,
- * discarding the 0x2A2E this routine's `call` pushed, and rets to 0x29C0 --
- * sub_2a22's OWN caller's continuation. So the `ret` at 0x2A2E runs ONLY on
- * entry_2913's A=0 (normal) exit. Honouring entry_2913's boolean is therefore
- * load-bearing: executing the ret anyway DOUBLE-RETURNS, popping a frame that
- * belongs to the caller's caller.
- *
- * NOTE both exits land the caller at 0x29C0 either way -- the skip changes the
- * PATH (and A, and the cycles), not the destination -- so sub_2a22 needs no
- * boolean of its own; A carries the hit/miss result to 0x29C0.
- *
- * C, L, H and IY are LIVE-INS of sub_2a22 itself, passed straight through to
- * entry_2913 (which needs seven); this routine sets only B, DE and IX (draft S3).
- */
 /**
  * sub_2a22 -- ROM 0x2A22-0x2A2E  (entry_2913 wrapper: B=6, DE=0x0010, IX=0x6600)
  *
@@ -12579,22 +11865,12 @@ export function sub_2a22(m) {
   m.step(0x2913, 17);
   if (!entry_2913(m)) {
     // A=1: entry_2913 discarded 0x2A2E and already returned to OUR caller
-    // (0x29C0). Executing the ret below would double-return. See draft OQ1.
+    // (0x29C0). Executing the ret below would double-return.
     return;
   }
   m.ret(); // ret (0x2A2E) -- only on entry_2913's A=0 (normal) exit
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 0x2A2F-0x2A84, CLEAN.
- * Sprite-vs-tilemap collision: read the object (Y,X) from (ix+3)/(ix+5)+4, convert
- * to a tilemap cell via sub_2ff0, read the tile, and classify it. Passable
- * (< 0xB0, or low-nibble >= 8, or exactly 0xC0) -> A=0 no-collision. Otherwise a
- * slope offset per tile class (0xB0-0xBF -> 0xFF; 0xC1-0xCF/0xE0-0xEF -> (t&0xF)-9;
- * 0xD0-0xDF/>=0xF0 -> (t&0xF)-1) X-adjusts the object: if the snapped X+offset < X,
- * write (ix+5)=adjusted-X and A=1 (collision). Callee sub_2ff0 integrated.
- * Exported dead code -> NET-ZERO. Inner closures mirror the ROM's shared tails.
- */
 export function sub_2a2f(m) {
   const { regs, mem } = m;
   const IX = (d) => (regs.ix + d) & 0xffff;
@@ -12724,7 +12000,7 @@ export function sub_2a2f(m) {
  * Three gates (0x6215, 0x6216, 0x6398), then probes the tilemap at position
  * (H=0x6203-3, L=0x6205+0x0C) via sub_2ff0. On the tape the executing exit is the
  * ret at 0x2AB3 (tile >= 0xB0 AND low-nibble < 8). The jp c / jp nc -> 0x2AB4 slope
- * cascade is NON-EXECUTING (frontier; see sub_2a2f). Unwired dead code -> net-zero.
+ * cascade is NON-EXECUTING (frontier; see sub_2a2f).
  */
 export function sub_2a85(m) {
   const { regs, mem } = m;
@@ -12799,7 +12075,7 @@ export function sub_2a85(m) {
  * low-nibble < 8) fall through to a bare ret; otherwise (X&7==0, or upper tile is
  * also slope/empty) set the slope-contact flag 0x6221 via entry_2acd. Transcribed
  * from out/dk.asm so Mario can stand on the angled girders (was a NotImplemented
- * frontier -- found by poke-sweeping Mario's Y up the board, 2026-07-21).
+ * frontier -- found by poke-sweeping Mario's Y up the board).
  *   2ab4 7a ld a,d   2ab5 e6 07 and 0x07   2ab7 ca cd 2a jp z,0x2acd
  *   2aba 01 20 00 ld bc,0x0020   2abd ed 42 sbc hl,bc   2abf 7e ld a,(hl)
  *   2ac0 fe b0 cp 0xb0   2ac2 da cd 2a jp c,0x2acd   2ac5 e6 0f and 0x0f
@@ -12842,37 +12118,6 @@ function entry_2acd(m) {
   m.ret(); // 0x2AD2 c9 ret
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code2). tools/draftdiff.py: 57 instructions,
- * 0x29AF-0x2A21, 115 bytes, CLEAN against out/dk.asm and rom/maincpu.bin.
- *
- * NET-ZERO-IMAGE, UNGATED. Third and last unit of the lead's 2913 -> 2a22 -> 29af
- * chain; both callees are now integrated, so this wires to the REAL sub_2a22 and
- * the REAL sub_0030. Its own caller is untranslated -> nothing runs it.
- *
- * FIVE EXITS IN THREE CLASSES (draft S2) -- the reason this unit is full-path:
- *   rst 0x30 skip @ 0x29B1  sub_0030 discards ITS return (0x29B2) and rets to OUR
- *                           caller: our remainder is skipped, the caller resumes.
- *   0x29ED, 0x2A1A          inc sp x2 + ret -- discard OUR OWN return address and
- *                           land in the CALLER'S CALLER. These skip a level.
- *   0x2A1F, 0x2A21          plain ret to our caller.
- * So this returns a BOOLEAN on the sub_0008 convention: TRUE when control reached
- * our caller (the rst-0x30 skip and both plain rets all do), FALSE only for the
- * two inc-sp exits, which skip the caller entirely. The rst-0x30 skip returning
- * TRUE is the subtle one: it skips OUR body but not our CALLER's continuation.
- *
- * The countdown at 0x29C7 is HAND-ROLLED (`dec a` + `jp`, not djnz): it advances
- * IX by DE exactly (6 - B) times, with `add ix,de` INSIDE (draft S1/TEST 2).
- *
- * FLAG-NEUTRAL LOAD HAZARD at 0x29FB: `and a` tests (0x6210), then `ld a,(0x6203)`
- * -- which sets NO flags -- and the `jp z` at 0x29FE reads the `and a` Z from two
- * instructions back. Same shape as sub_2441's; reordering or using a flag-setting
- * load silently picks the wrong branch.
- *
- * `call 0x2a22` at 0x29BD lands back at 0x29C0 on BOTH of sub_2a22's arms (its
- * entry_2913 skip targets 0x29C0, which is exactly this continuation), so no
- * boolean is consumed there -- A carries the hit/miss into the `and a` below.
- */
 /**
  * sub_29af -- ROM 0x29AF-0x2A21  (object-collision resolver over the 2913 search)
  *
@@ -13089,62 +12334,12 @@ export function sub_29af(m) {
   return false; // SKIPPED the caller
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code2). tools/draftdiff.py: 38 instructions,
- * 0x2B9B-0x2BE0, 70 bytes, CLEAN against out/dk.asm and rom/maincpu.bin.
- * RST BYTE-SCAN: no rst of any vector in this range -- no caller-skip primitive
- * here (the doctrine's check run before reading the draft's prose).
- *
- * NET-ZERO-IMAGE, UNGATED. Deepest unit of the lead's 2b9b -> 2be1 -> 2b29 chain.
- * Calls the already-translated sub_2ff0; its own caller is untranslated.
- *
- * A TILE-CLASSIFICATION GATE. It reads the tile under a computed address and
- * either REJECTS (A=0, B=0, plain ret) or falls through to entry_2be1 with C set
- * to a derived column. NINE forward conditional jumps, NO loop, and -- unusually
- * -- NO STORES AT ALL (draft S8 = YES): the whole routine is a decision.
- *
- * TWO SUCCESS EXITS, BOTH INTO entry_2be1 (draft OQ1, its highest flag), and ONE
- * OF THEM IS A SILENT FALL-THROUGH:
- *   0x2BD6  jp c,0x2be1                     -- explicit
- *   0x2BE0  loc_2bdc runs off its end into 0x2BE1 -- NOTHING in the bytes marks
- *           this as an exit; it is an exit only because 0x2BE1 begins another
- *           routine. The same class as entry_2913's inc-sp exit: an exit the
- *           routine's own bytes never show.
- * entry_2be1 is UNTRANSLATED, so both become NotImplemented. When it lands, both
- * become `return entry_2be1(m)` -- and note entry_2be1 carries the UNRESOLVED
- * DOUBLE caller-skip (pop hl / pop hl / ret, two frames up), which the boolean
- * convention does not obviously cover. Flagged, not pre-judged here.
- *
- * THE pop de TRICK (draft OQ2): `push hl / call 0x2ff0 / pop de` does NOT read a
- * value sub_2ff0 returns -- it recovers the ORIGINAL HL into DE across the call.
- * sub_2ff0 is stack-balanced (single ret, no skip), which is what makes it work;
- * a callee that spliced the stack would silently corrupt DE here.
- *
- * THE REJECTS ARE UNSIGNED COMPARES and the jp c / jp nc polarity IS the gate
- * (draft OQ3) -- reject when tile < 0xB0, when (tile & 0x0F) >= 0x08, or when
- * tile == 0xC0. Getting one sense backwards inverts the whole classification
- * while still "working".
- *
- * S6 -- CORRECTED, and the original claim was FALSE. The draft said "cp e (cp r):
- * 0 precedent" and I repeated it as "first cp r form in src/rom" without
- * re-deriving it (a trusted source is still a source). The `cp r` REGISTER form
- * was ALREADY precedented by `cp b` at state0.js:1016, which predates this work
- * and sits in BOTH trees -- so a correct grep of my own tree alone would have
- * caught it; I did not need the union rule for this one.
- * TRUE STATEMENT, with scope named per the S6 ruling:
- *   searched code-b@92b206c src/rom UNION code@a8eff6a src/rom
- *   cp r (register form): PRECEDENTED -- cp b @ state0.js:1016 (both trees)
- *   cp e (this operand):  first use
- * Same helper either way (regs.cp takes a value), 4 T, no new primitive. The
- * error direction was safe: treating a precedented form as novel bought extra
- * caution, not a missed hazard.
- */
 /**
  * entry_2b1c -- ROM 0x2B1C-0x2B28  (calls entry_2b29 then sub_29af; IX = 0x6200).
  * entry_2b29 is a CALLER-SKIP: on every exit but 0x2B70 (ret z) it does pop hl / ret,
  * unwinding PAST entry_2b1c. So `if (!entry_2b29(m)) return;` -- the skip already
  * unwound to entry_2b1c's caller. Only the normal (true) return reaches sub_29af.
- * Unwired dead code -> net-zero.
+ * Translated for completeness; not yet wired into the live dispatcher.
  */
 export function entry_2b1c(m) {
   const { regs } = m;
@@ -13168,10 +12363,10 @@ export function entry_2b1c(m) {
  * a pop-hl/ret skip (0x2B51/0x2B74/0x2B99) OR an entry_2b9b DOUBLE-skip (entry_2be1
  * A<=C: pop x2 + ret two frames up), both of which unwind past entry_2b1c.
  *
- * ** GO-LIVE note: entry_2b9b's double-skip (=== false) does its own pop x2 + ret; we
+ * ** entry_2b9b's double-skip (=== false) does its own pop x2 + ret; we
  *    just propagate `return false` here (no extra stack op) so the JS control flow
  *    mirrors the ROM's 2-frame unwind. entry_2b1c's `if (!x) return` completes it. **
- * Unwired dead code -> net-zero.
+ * Translated for completeness; not yet wired into the live dispatcher.
  */
 export function entry_2b29(m) {
   const { regs, mem } = m;
@@ -13331,7 +12526,7 @@ function loc_2b91(m) {
  *
  *   2b9b  e5           push hl              ; save the ORIGINAL (y,x)
  *   2b9c  cd f0 2f     call 0x2ff0
- *   2b9f  d1           pop  de              ; DE = the ORIGINAL HL (OQ2)
+ *  2b9f d1 pop de ; DE = the ORIGINAL HL
  *   2ba0  7e           ld   a,(hl)
  *   2ba1  fe b0        cp   0xb0
  *   2ba3  da d9 2b     jp   c,0x2bd9        ; REJECT: tile < 0xB0
@@ -13488,23 +12683,6 @@ export function entry_2b9b(m) {
   return reject2b9b(m);
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 0x2BE1-0x2C02, CLEAN.
- * entry_2b9b's continuation (both of 2b9b's success exits fall through into it).
- * Live-in IX/C/E, all from entry_2b9b. Computes (0x620C) - (ix+5) + E, compares
- * to C. Two exits:
- *   loc_2bf8 (A > C): A=2, B=0, PLAIN ret -> return true (normal).
- *   loc_2bef (A <= C): store (0x6205)=C-7, then loc_2bfd: A=1, B=1, POP TWICE, ret
- *     -> a DOUBLED caller-skip (the sub_0044 caller's-caller-skip class doubled):
- *     discards R1 (2b9b's own return) AND R2 (2b9b's caller's return), rets to R3.
- *
- * ** DOUBLE-SKIP MODELLING (the draft left this to the integrator): ** modelled
- * FAITHFULLY -- pop16 twice then ret, so pc/sp land at R3 (2 frames consumed).
- * Returns FALSE for the double-unwind (best-effort skip signal: caller must not
- * continue), TRUE for the plain return. The two-frame consumption lives in the
- * stack ops, not the boolean; a live caller (when 2b9b's chain is wired) reads
- * false and finds pc already at R3. Exported dead code -> NET-ZERO.
- */
 export function entry_2be1(m) {
   const { regs, mem } = m;
 
@@ -13566,27 +12744,6 @@ function reject2b9b(m) {
   m.ret(); // ret (0x2BDB)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code2). tools/draftdiff.py: 33 instructions,
- * 0x2333-0x236D, 59 bytes, CLEAN against out/dk.asm and rom/maincpu.bin.
- * (Draft header annotation said "30 instructions"; draftdiff decodes 33 -- the
- * count is a stale annotation, the bytes/extent are correct. Nit, not a defect.)
- * RST BYTE-SCAN: no rst in range; extent verified against maincpu.bin -- 0x236D
- * is `jp 0x235c` (c3 5c 23), 0x236E begins 236e (ld hl,0x6300), no UNREACHED
- * block abuts (category-(d) check).
- *
- * NET-ZERO-IMAGE, UNGATED, WITHIN-PARTITION (no callees, needs no main-only
- * form) -- integrated while the main merge is held. A PRIORITY BLOCKER: landing
- * it lets code's 3202 chain consume it after the morning merge.
- *
- * A PURE REGISTER TRANSFORM (H, L, B live-in; result in L, and B): no loop, no
- * stores, no calls, all exits plain ret/ret cc -- NOT a caller-skip. Derives a
- * step B = +1 (0x01) or -1 (0xFF) from (H & 0x0F) with two early-exit clamps,
- * then steps L, special-casing L==0xF0 (step only if H bit7 set), L==0x4C (step,
- * add, only if H >= 0x98), else bit 5 of L picks sub (set) vs add (clear).
- * `bit 5,a` / `bit 7,h` are the REGISTER form -- F3/F5 from the operand is
- * correct, no yxFrom needed (contrast entry_2913's indexed form).
- */
 /**
  * entry_2333 -- ROM 0x2333-0x236D  (coordinate clamp/step; H,L,B -> L)
  *
@@ -13725,31 +12882,6 @@ export function entry_2333(m) {
   }
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code2). tools/draftdiff.py: 29 instructions,
- * 0x236E-0x239B, 46 bytes, CLEAN against out/dk.asm and rom/maincpu.bin.
- * (Draft §1 annotated "28 instructions"; draftdiff decodes 29 -- a stale count,
- * bytes/extent correct. Nit, not a defect -- same shape as entry_2333's "30".)
- * RST BYTE-SCAN: no rst in range; extent verified vs maincpu.bin -- 0x236D is
- * `jp 0x235c` (entry_2333's tail) and 0x239C begins the next unit, no UNREACHED
- * block abuts.
- *
- * NET-ZERO-IMAGE, WITHIN-PARTITION-EXPORT. A SHARED CROSS-PARTITION UTILITY:
- * callers 0x1B13, 0x216D (< 0x3000, mine) AND 0x3359 (code3, >= 0x3000). No
- * callees. Exported but not yet wired to any caller, so it is dead code this
- * commit -- reach cannot move (net-zero). Landing it unblocks code's 30ed chain.
- *
- * FIRST EXECUTABLE USE of cpir (cpu.js:561) and sbc hl,bc / sbcHl (cpu.js:488)
- * anywhere in the project -- union 0 across both trees (draft §S6). qa-b flagged
- * to extend its gate to the write/cycle trace for the first-use cost table.
- *
- * ** THE cpir-MISS PATH DOES NOT RETURN TO ITS CALLER -- IT UNWINDS A FRAME. **
- * `jp nz,0x239a` at 0x2373 jumps PAST the push at 0x2376, so `pop hl` at 0x239A
- * discards THIS routine's return address and the `ret` at 0x239B unwinds a
- * SECOND frame to the caller's caller. Modelled exactly as sub_0030
- * (mainloop.js:1846): returns a BOOLEAN, false = unwound, and every future
- * caller must check it and return at once. (draft §S4/OQ1, corrected in-draft.)
- */
 /**
  * sub_236e -- ROM 0x236E-0x239B  (cross-partition object-table search; -> A,B)
  *
@@ -13869,17 +13001,6 @@ function tail2398(m) {
   return true;
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 0x239C-0x23DD, CLEAN.
- * A pure IX-indexed record transform, no callees. Exported dead code -> NET-ZERO.
- *
- * ** FIRST EXECUTABLE USE of `sla` (cpu.js:531) anywhere in the project ** --
- * flagged to qa-b for the write/cycle trace (the sla a cost, like 236e's cpir).
- *
- * (ix+3:4) += (ix+0x10:0x11); (ix+5:6) -= (ix+0x12:0x13) into HL; then
- * B:A = (2*(ix+0x14) + 1) * 8 via rla + inc + four sla/rl shifts (BC only becomes
- * the operand at 0x23D3), add hl,bc, store HL back to (ix+5:6), and inc (ix+0x14).
- */
 export function sub_239c(m) {
   const { regs, mem } = m;
   const ixb = (d) => (regs.ix + d) & 0xffff;
@@ -13948,14 +13069,6 @@ export function sub_239c(m) {
   m.ret(); // ret (0x23DD) -- carry from add hl,bc and Z from the inc both escape
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 0x23DE-0x2406, CLEAN.
- * IX record transform. If (ix+0x0F) != 1 -> tail (write A to (ix+0x0F), ret).
- * Else: sla/rla-extract the two sign bits of (ix+7:8) into B, A = 0x03 | C, call
- * entry_3009 (returns A), then rr-shift (ix+8:7) back with A's low bit as carry-in,
- * A = 0x04. Callees entry_3009 (integrated) + the interior tail_23de. Exported
- * dead code -> NET-ZERO.
- */
 export function sub_23de(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
@@ -14010,26 +13123,6 @@ function tail_23de(m, R) {
   m.ret(10);
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code2). tools/draftdiff.py: 20 instructions,
- * 0x298C-0x29AE, 35 bytes, CLEAN against out/dk.asm and rom/maincpu.bin.
- * RST BYTE-SCAN: no rst in range. Extent verified vs maincpu.bin -- 0x29AE is the
- * `ret` of the "return 1" tail (3e 01 c9), 0x29AF begins sub_29af (3e 04, mine);
- * no UNREACHED block abuts (category-(d) check).
- *
- * NET-ZERO-IMAGE, UNGATED, WITHIN-PARTITION -- calls only sub_2ff0 (translated,
- * stack-balanced) and needs no main-only form, so it lands while the main merge
- * is held. A PRIORITY BLOCKER: its cross-partition caller 0x323E (code's 3202
- * chain) consumes it after the morning merge.
- *
- * A TILE-IN-RANGE PREDICATE returning the RESULT IN A (not a caller-skip; both
- * exits are plain ret): assembles a (y,x) pair from the table at (0x63c8)
- * (D = t+0x0E, E = (t+0x0F) + 0x0C), converts via sub_2ff0 to a VRAM address,
- * reads the tile, and returns A=0 iff tile in [0xB0,0xBF] with low nibble < 8,
- * else A=1. The A contract is load-bearing: 3202 does `cp 0x01` on the return to
- * steer its jp z (draft OQ1). The pop-de-free `call 0x2ff0` is a normal call --
- * sub_2ff0 preserves the stack.
- */
 /**
  * sub_298c / loc_29ac -- ROM 0x298C-0x29AE  (tile-in-range predicate; -> A)
  *
@@ -14114,13 +13207,6 @@ export function sub_298c(m) {
   m.ret(); // ret (0x29AB) -- A=0
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 0x2974-0x298B, CLEAN.
- * Sets IY=0x6200, IX=0x6680, HL=0x0408, B=2, DE=0x0010, C=(0x6205), then calls
- * entry_2913 (a skip-capable sweep). If it HIT (returns false = A=1), 2913 already
- * returned past us -- don't emit a second ret. Callee entry_2913 integrated.
- * Exported dead code -> NET-ZERO.
- */
 export function entry_2974(m) {
   const { regs, mem } = m;
 
@@ -14145,13 +13231,6 @@ export function entry_2974(m) {
   m.ret(10); // ret (0x298B)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 0x2954-0x2973, CLEAN.
- * rst 0x30 gate (A=0x0B bit-test), call entry_2974 (returns A/B = the 2913 sweep
- * result), store A->0x6218, (A rrca rrca)->0x6085; then on B: 0 -> ret z; 1 ->
- * (ix+0x11)=1; 2 -> (ix+0x01)=1. Callees sub_0030/entry_2974 integrated. Exported
- * dead code -> NET-ZERO.
- */
 export function entry_2954(m) {
   const { regs, mem } = m;
 
@@ -14200,41 +13279,6 @@ export function entry_2954(m) {
   m.ret(); // ret (0x2973)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code2). sub_28b0/sub_28e0/sub_2901, the S7 twin
- * family. Bytes verified against rom/maincpu.bin: 48/33/18 bytes, 0 mismatches
- * (all three ranges, not just draftdiff's first block). RST BYTE-SCAN: no rst;
- * six `call 0x2913` (entry_2913, skip-capable). Extents end at clean `ret`
- * terminals (0x28DF/0x2900/0x2912), next routine follows -- no UNREACHED abuts.
- *
- * NET-ZERO-IMAGE, UNGATED, WITHIN-PARTITION: they call only entry_2913 (landed,
- * mine) and need no main-only form. Reached ONLY via two `rst 0x28` dw tables --
- * sub_286f's @0x2874 and entry_3e88's @0x3E8D -- so both dispatchers push HL and
- * this family is the {2,3,4} target set of both (code's cross-region finding).
- *
- * THREE LOAD-BEARING FACTS, all gated before landing:
- *  A. EACH `call 0x2913` CARRIES THE SKIP GUARD `if (!entry_2913(m)) return true`.
- *     entry_2913 is skip-capable (HIT -> pop ix / inc sp x2 / ret to the caller's
- *     caller, returns false); a plain call is the 216d defect, invisible to every
- *     gate. Precedent: sub_2a22 above (which returns void -- see B for why these
- *     differ).
- *  B. THE GUARD RETURNS `true`, NOT void (draft Finding C, the entry_06b8 scope-
- *     error lesson). These are TAIL dispatch targets: a 2913 skip and a normal
- *     completion BOTH land at the dispatch's caller, so "should my caller
- *     continue?" is always YES. A `false` from 2913 is true about 2913's frame,
- *     not this routine's caller. (sub_2a22 returns void because it is a normal
- *     `call`ed routine, not an rst-0x28 tail target -- same code, different frame.)
- *  C. THE LEADING `pop hl` recovers the dispatcher's pushed HL, and HL is NOT
- *     dead: nothing writes H/L between the pop and the calls, and entry_2913 reads
- *     regs.h/regs.l as its axis-2 collision bounds. Two dispatchers push DIFFERENT
- *     HL; `regs.hl = m.pop16()` is correct for both (stack live-in, not hard-coded).
- *  Plus OQ-2: the `ld e,N`-only groups rely on D surviving `call 0x2913` -- and
- *  entry_2913 writes neither regs.d nor regs.de, so D is preserved.
- *
- * C, IY, H, L are live-in (from the dispatch caller); B, DE, IX set per group.
- * `ld (0x63b9),a` stores B for a reader that is NOT 2913 (its body never reads
- * 0x63b9) -- a side effect, not a 2913 parameter (draft OQ-3).
- */
 /**
  * sub_28b0 -- ROM 0x28B0-0x28DF  (three entry_2913 sweeps; rst 0x28 tail target)
  *
@@ -14280,7 +13324,7 @@ export function sub_28b0(m) {
   mem.write8(0x63b9, regs.a);
   m.step(0x28c7, 13); // ld (0x63b9),a
   regs.e = 0x10;
-  m.step(0x28c9, 7); // ld e,0x10 -- E only; D stays 0x00 across the calls (OQ-2)
+  m.step(0x28c9, 7); // ld e,0x10 -- E only; D stays 0x00 across the calls
   regs.ix = 0x65a0;
   m.step(0x28cd, 14); // ld ix,0x65a0
   m.push16(0x28d0); // call 0x2913
@@ -14295,7 +13339,7 @@ export function sub_28b0(m) {
   mem.write8(0x63b9, regs.a);
   m.step(0x28d6, 13); // ld (0x63b9),a
   regs.e = 0x00;
-  m.step(0x28d8, 7); // ld e,0x00 -- stride 0 (OQ-4: all B objects the same address)
+  m.step(0x28d8, 7); // ld e,0x00 -- stride 0
   regs.ix = 0x66a0;
   m.step(0x28dc, 14); // ld ix,0x66a0
   m.push16(0x28df); // call 0x2913
@@ -14306,14 +13350,6 @@ export function sub_28b0(m) {
   return true; // all sweeps completed normally -> caller continues
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 0x286F-0x287F, CLEAN.
- * A rst 0x28 dispatcher on 0x6227 (the collision-state selector), table @0x2874.
- * `push hl` before the rst survives to the dispatched target's `pop hl` (this
- * dispatch passes HL through). Same trampoline family as loc_06fe, different
- * selector+base. No ret -- the target's ret returns to sub_286f's caller.
- * Exported dead code -> NET-ZERO.
- */
 export function sub_286f(m) {
   const { regs, mem } = m;
 
@@ -14327,13 +13363,6 @@ export function sub_286f(m) {
   sub_0028(m, "0x2874 (0x6227 collision dispatch)"); // reads the table from ROM; ends in jp (hl)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 0x2880-0x28AF, CLEAN.
- * Arm 1 of sub_286f's 0x2874 table. Recovers sub_286f's pushed HL, then runs three
- * entry_2913 object sweeps (0x6700 x0x0A, 0x6400 x0x05, 0x66A0 x0x01) with the
- * count in 0x63B9. D stays 0x00 across sweeps (only E reloaded). Callee entry_2913
- * integrated. Exported dead code -> NET-ZERO.
- */
 export function sub_2880(m) {
   const { regs, mem } = m;
 
@@ -14388,12 +13417,6 @@ export function sub_2880(m) {
   m.ret(); // ret (0x28AF) -- all sweeps missed
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 0x2808-0x281C, CLEAN.
- * Set IY=0x6200, C=(0x6205), HL=0x0407, dispatch via sub_286f (returns A); if
- * A != 0, store A-1 to 0x6200. Callee sub_286f integrated (a rst 0x28 dispatcher
- * -> its targets throw until wired). Exported dead code -> NET-ZERO.
- */
 export function sub_2808(m) {
   const { regs, mem } = m;
 
@@ -14423,16 +13446,6 @@ export function sub_2808(m) {
   m.ret(); // ret (0x281C)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 0x281D-0x2852, CLEAN.
- * Scan 0x6680[2] (stride 0x10) for an object with bit0 of (iy+0x01) SET; if found,
- * read C/H/L from it and dispatch via sub_286f (in HL/C -> out A, IX), then if
- * A != 0 store A/0x63B9-B/E/IX into 0x6350/0x6354/0x6353/0x6351. Callee sub_286f
- * integrated. Exported dead code -> NET-ZERO.
- *
- * ** FIRST EXECUTABLE USE of `addIy` (cpu.js) ** -- flagged to qa-b for the cycle
- * trace (add iy,rr = 15 T), same class as sla/cpir.
- */
 export function loc_281d(m) {
   const { regs, mem } = m;
 
@@ -14570,16 +13583,6 @@ export function sub_2901(m) {
   return true;
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code2). tools/draftdiff.py: 8 instructions,
- * 0x22BD-0x22CA, 14 bytes, CLEAN against out/dk.asm and rom/maincpu.bin.
- * RST BYTE-SCAN: no rst/call in range. NET-ZERO-IMAGE, UNGATED, WITHIN-PARTITION
- * (no callees; callers 0x2265/0x22AD untranslated). Normal ret -- not a caller-skip.
- *
- * A BIT-SELECTED-DESTINATION COPY: A = mem[HL]; bit 3 of L picks the destination
- * (0x694B if set, else 0x6947); store A there; ret. HL is live-in. `bit 3,l` is
- * the REGISTER form -- F3/F5 from the operand value is correct, no yxFrom needed.
- */
 /**
  * sub_2207 -- ROM 0x2207-0x2239  (0x197a cascade: rst 0x30 gate-head)
  *
@@ -14591,7 +13594,7 @@ export function sub_2901(m) {
  * A rst-0x30-gated head reached via `call 0x2207` @0x199B (197a cascade). On the
  * measured coin_start tape the gate SKIPS -- only the 3-byte head executes; the body
  * 0x220A-0x2239 is a non-executing frontier (NotImplemented marks it, like the loc_0c92
- * untranslated arms). Unwired dead code (0 integrated callers) -> net-zero.
+ * untranslated arms).
  */
 export function sub_2207(m) {
   const { regs } = m;
@@ -14637,7 +13640,7 @@ export function sub_22bd(m) {
 }
 /**
  * sub_22cb -- OBJECT VELOCITY INIT (difficulty/mode/RNG scaled).  ROM 0x22CB-0x2302
- * Called from 0x2149 (not integrated -> unwired dead code, net-zero). IX live-in
+ * Called from 0x2149. IX live-in
  * (object record). Sets (ix+0x11)=magnitude, (ix+0x10)=(A&1)-1 (0x00 odd / 0xFF even).
  *
  *   22cb  ld a,(0x6348) / and a / jp z,0x22e1   ; mode 0 -> loc_22e1 (0x6229 pick)
@@ -14750,15 +13753,6 @@ function loc_22f9(m) {
   m.ret(10); // ret (0x2302)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 0x21EE-0x2206, CLEAN.
- * A demo/attract SCRIPT-step decoder. Indexes the 0x21D1 script table by
- * (0x63CC rlca) + E, writes that input byte to 0x6010 (overwriting the decoded
- * player input), then decrements the 0x63CD step counter; while it is still
- * counting (pre-dec value != 0) returns, else advances to the next script pair
- * (reload the duration, bump the 0x63CC index). No external callees. Exported
- * dead code -> NET-ZERO.
- */
 export function sub_21ee(m) {
   const { regs, mem } = m;
 
@@ -14808,18 +13802,6 @@ export function sub_21ee(m) {
   m.ret(10); // ret (0x2206)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code2). tools/draftdiff.py: 0x216D-0x21B9, CLEAN.
- * A caller of sub_236e (0x236E). It CALLS 236e and honors the miss-unwind
- * contract: `if (!sub_236e(m)) return;` -- on a cpir miss, 236e already ret'd to
- * this routine's caller (the boolean = false path). On a hit, dec a: A=0 (2nd
- * variant) -> ret nz not taken -> continue; A=1 -> ret nz. Then a difficulty/RNG
- * gate selects whether to arm the object, dispatching to two interior tails
- * (tail21ae/tail21b2). Callee sub_236e integrated. Exported dead code -> NET-ZERO.
- *
- * ** FIRST EXECUTABLE USE of `set` (SET n,(ix+d)) in tail21b2 ** -- flagged to
- * qa-b for the cycle trace (set n,(ix+d) = 23 T).
- */
 export function sub_216d(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
@@ -14950,37 +13932,6 @@ function tail21b2(m, R) {
   m.ret(10); // ret (0x21B9)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 25 instructions,
- * 0x24B4-0x24E9, 54 bytes, CLEAN against out/dk.asm and rom/maincpu.bin.
- * RST BYTE-SCAN: no rst; a mid-routine `pop hl` (0x24DB) that is NOT a caller-skip
- * primitive but a return-address FORWARD (see below). Extent verified vs
- * maincpu.bin: 0x24E7-9 = c3 ba 21 (jp 0x21ba), 0x24EA begins 0x24ea's routine
- * (3e 02) -- no fall-through into the UNREACHED block that starts there.
- *
- * NET-ZERO-IMAGE, UNGATED, WITHIN-PARTITION. Callers 0x2014/0x2068/0x2101 are
- * untranslated; its own only handoff (0x21ba) is untranslated -> NotImplemented.
- *
- * THE CENTRAL "does control return to the caller?" CASE (draft OQ-1), and the
- * answer is PATH-DEPENDENT:
- *   - THREE early `ret cc` (0x24B9/0x24BF/0x24C2) RETURN NORMALLY -> return true.
- *   - the MAIN path `pop hl` (0x24DB) pops the CALLER'S pushed return address and
- *     `jp 0x21ba` -- so control does NOT come back to the caller; 0x21ba's ret
- *     lands at the caller's CALLER. The pop is NOT a discard: 0x21ba's first
- *     instruction is `exx`, so the popped return address is FORWARDED live in HL
- *     to 0x21ba (draft OQ-2). Modelled as the boolean convention -- true on the
- *     early rets; the main path throws NotImplemented at the jp until 0x21ba
- *     lands (then it becomes `return entry_21ba(m)` and returns false, the skip).
- *
- * BOUNDS BAND (draft §3): (ix+3) is loaded ONCE (0x24BA) and tested TWICE
- * (cp 0x2a, cp 0x20) with NO reload -- the range test 0x20 <= (ix+3) < 0x2A.
- * Reloading A or reordering the two cp breaks it (the loc_1131 / entry_3009
- * shared-load hazard). Combined with (ix+5) >= 0xE8, the main path runs only in
- * that band.
- *
- * 0x6348 is a one-shot latch RMW (read; if 0 inc to 1 and store); 0x62B9 is the
- * shared cell (=3 here) from loc_101f. Meanings not interpreted.
- */
 /**
  * entry_24b4 -- ROM 0x24B4-0x24E9  (bounds gate; early ret or return-splice to 0x21ba)
  *
@@ -15035,7 +13986,7 @@ export function entry_24b4(m) {
     return true;
   }
   m.step(0x24c0, 5); // ret nc not taken
-  regs.cp(0x20); // cp 0x20 -- SAME A (ix+3), no reload; completes 0x20..0x29 (§3)
+  regs.cp(0x20); // cp 0x20 -- SAME A (ix+3), no reload; completes 0x20..0x29
   m.step(0x24c2, 7);
   if (regs.fC) {
     m.ret(11); // ret c -- (ix+3) < 0x20
@@ -15071,7 +14022,7 @@ export function entry_24b4(m) {
 
   // *** RETURN SPLICE: pop the caller's return address into HL. NOT a discard --
   // it is forwarded live to 0x21ba (whose first op is exx). Control does NOT
-  // return to this routine's caller from here (draft OQ-1/OQ-2).
+  // return to this routine's caller from here.
   regs.hl = m.pop16();
   m.step(0x24dc, 10); // pop hl
   regs.a = mem.read8(0x6348);
@@ -15081,7 +14032,7 @@ export function entry_24b4(m) {
   if (regs.fNZ) {
     m.step(0x21ba, 10); // jp nz,0x21ba taken -- 0x6348 already non-zero
     loc_21ba(m); // SPLICE -> 21ba's exx + the loop (forwards the popped caller-return in HL)
-    return false; // skip-capable: signal caller NOT to continue inline (exx-parity fix, code3)
+    return false; // skip-capable: signal caller NOT to continue inline (exx-parity fix)
   }
   m.step(0x24e3, 10); // jp nz not taken
   regs.a = regs.inc8(regs.a);
@@ -15090,18 +14041,9 @@ export function entry_24b4(m) {
   m.step(0x24e7, 13); // ld (0x6348),a -- one-shot latch := 1
   m.step(0x21ba, 10); // jp 0x21ba
   loc_21ba(m); // SPLICE -> 21ba's exx + the loop (forwards the popped caller-return in HL)
-  return false; // skip-capable: signal caller NOT to continue inline (exx-parity fix, code3)
+  return false; // skip-capable: signal caller NOT to continue inline (exx-parity fix)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 0x2591-0x25F1, CLEAN.
- * A per-slot UPDATE+CULL pass over the 6 objects at 0x65A0 (stride 0x10), leaving
- * DE=0x10 (live-out for its caller sub_24ea). For each ACTIVE slot (bit0 of
- * (ix+0)): if field3+7 < 0x0E, or (field5==0x7C and field3==0x80) -> CULL (clear
- * field0/field3 and the matching 0x69B8[slot*4] byte). Otherwise advance field3
- * by 0x63A4/0x63A5/0x63A6 (chosen by field5==0x7C and field3 vs 0x80). Exported
- * dead code -> NET-ZERO.
- */
 export function sub_2591(m) {
   const { regs, mem } = m;
   const IX = (d) => (regs.ix + d) & 0xffff;
@@ -15230,18 +14172,6 @@ export function sub_2591(m) {
   }
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 0x24EA-0x2522, CLEAN.
- * rst 0x30 gate (A=0x02), then sub_2523 (spawn) + sub_2591 (update/cull, leaves
- * DE=0x10), then COMPACT the 6 slots at 0x65A0 into the 0x69B8 buffer: for each
- * ACTIVE slot copy (ix+3,7,8,5) as 4 consecutive bytes; for an inactive slot,
- * skip its 4 buffer bytes. Callees sub_0030/sub_2523/sub_2591 integrated. Exported
- * dead code -> NET-ZERO.
- *
- * (Draft skeleton bug fixed: the inactive path has `jp 0x2517` @0x2520 that the
- * draft omitted -- it mis-set `ld l,a`'s step target to 0x2517. Corrected against
- * the ROM bytes. The 4-byte copy blocks are given per-instruction m.steps.)
- */
 export function sub_24ea(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
@@ -15317,15 +14247,6 @@ export function sub_24ea(m) {
   m.ret(10); // ret (0x251B)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code2). tools/draftdiff.py: 4 instructions,
- * 0x2C72-0x2C7A, 9 bytes, CLEAN (ROM-authoritative). No rst/call; extent verified
- * vs maincpu.bin (ends ret at 0x2C7A; 0x2C7B = separate routine). NET-ZERO,
- * WITHIN-PARTITION -- reached by jp z from entry_2c41 (untranslated), no callees.
- *
- * Sets bit 7 of the shared 2c/2d cluster-state byte 0x6382 (RMW: |= 0x80).
- * loc_2c86 does the OPPOSITE (clears 0x6382) -- the inversion twin, not the same op.
- */
 /**
  * entry_2c72 -- ROM 0x2C72-0x2C7A  (set bit 7 of 0x6382)
  *
@@ -15347,8 +14268,8 @@ export function entry_2c72(m) {
 }
 /**
  * entry_2cb8 -- free-slot claim; flows into entry_2ce6.  ROM 0x2CB8-0x2CE5.
- * IX/B live-in (from entry_2c8f's jp nc,0x2CB8 -- still a NotImplemented stub there;
- * wiring it is a separate GO-LIVE step). So entry_2cb8 is UNWIRED here -> net-zero.
+ * IX/B live-in (from entry_2c8f's jp nc,0x2CB8 -- still a NotImplemented stub
+ * there). Not yet wired into the live dispatcher.
  * (0x62AC) = 0x6980 + (10-B)*4; (0x6386)=1 only if (0x62B1) dec -> 0. `ld (nn),ix`
  * @0x2CB8 is 20T (precedented at state0.js:11248, not a first-use).
  */
@@ -15400,7 +14321,7 @@ export function entry_2cb8(m) {
  * entry_2ce6 / entry_2cf6 -- slot-field init.  ROM 0x2CE6-0x2D14; flows into loc_2d15.
  * HL/IX live-in. entry_2ce6: (hl) >= 4 -> entry_2cf6; else clear 0x69A8 + (hl)*4.
  * entry_2cf6: (ix+7/8/15) default (0x15,0x0B,0x00), then (0x19,0x0C,0x01) if (0x6382)
- * bit7 set (rlca -> carry); flows into loc_2d15. Unwired dead code -> net-zero.
+ * bit7 set (rlca -> carry); flows into loc_2d15.
  */
 export function entry_2ce6(m) {
   const { regs, mem } = m;
@@ -15452,7 +14373,7 @@ export function entry_2cf6(m) {
 }
 /**
  * loc_2d15 -- frame-gated string/sprite renderer (the 2c-cluster convergence).
- * ROM 0x2D15-0x2DDA (198 bytes). Reached by fall-through from entry_2cf6 -> unwired, net-zero.
+ * ROM 0x2D15-0x2DDA (198 bytes). Reached by fall-through from entry_2cf6.
  *
  * Frame gate on (0x62AF); a (0x638F) sub-counter selects an animation table (c*40 + 0x3932)
  * via call 0x004E; then a per-frame CHAR loop (loc_2d54) walks a 0x39xx string through
@@ -15681,13 +14602,6 @@ function loc_2d8c(m) {
   m.ret(); // ret (EXIT: reinit, 0x2DDA)
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 0x2DDB-0x2E03, CLEAN.
- * Two skip gates (rst 0x30 sub_0030, rst 0x10 sub_0010); build a right-shift mask
- * of ((0x6380)+1)>>1 (+1 if 0x6227==2) bits via a scf/rra/and-a loop, AND it with
- * 0x601A; if any masked bit is set -> ret (no trigger), else set 0x63A0=1 and
- * 0x639A=1. Callees sub_0030/sub_0010 integrated. Exported dead code -> NET-ZERO.
- */
 export function entry_2ddb(m) {
   const { regs, mem } = m;
 
@@ -15762,7 +14676,7 @@ export function entry_2ddb(m) {
  * state 4 -> loc_2e84 (rise/deactivate); else advance (ix+3)+=2, walk the 0x39xx string via
  * (ix+0e/0f) (0x7F -> loc_2e9c reset), accumulate into (ix+5); at the 0xB7 boundary + a
  * terminator, set state 4 + sound; mirror (ix+3)/(ix+5) to IY. Inactive -> loc_2ea7 spawns
- * on (0x6396) bit0. Uses add iy,de (addIy). Unwired dead code -> net-zero.
+ * on (0x6396) bit0. Uses add iy,de (addIy).
  */
 export function entry_2e04(m) {
   const { regs } = m;
@@ -15983,7 +14897,7 @@ function loc_2ea7(m) {
  * or IX=0x6690/DE=0x6A1C. (0x6217) bit0 chooses the build path (loc_2f43 chain) vs loc_2f97.
  * All paths converge on loc_2f7c, which writes the 4-byte record x/B/C/y through DE->HL and
  * mirrors x/y to (ix+3)/(ix+5). NO LOOP (the four jp 0x2f7c are backward but loc_2f7c rets).
- * Uses sla / set n,r / neg. Unwired dead code -> net-zero.
+ * Uses sla / set n,r / neg.
  */
 export function entry_2ed4(m) {
   const { regs, mem } = m;
@@ -16232,17 +15146,6 @@ function loc_2fbe(m) {
   return loc_2f7c(m);
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code3). tools/draftdiff.py: 6 instructions,
- * 0x3F24-0x3F2F, 12 bytes, CLEAN against out/dk.asm and rom/maincpu.bin.
- *
- * THEIR FLAG FINDING VERIFIED DIRECTLY against this codebase's add16:
- *   regs.addHl(0xffe0) from 0x74AF  -> HL 0x748F, C SET, H set, N clear
- *   (hl - 0x20) & 0xffff            -> HL 0x748F, no flags at all
- * Same address, opposite flag state, and a memory diff cannot tell them
- * apart. Both operands are literals so the wrap is unconditional -- this
- * routine hands its caller a set carry on EVERY call.
- */
 /**
  * sub_3f24 -- ROM 0x3F24-0x3F2F
  *
@@ -16262,10 +15165,10 @@ function loc_2fbe(m) {
  *
  * `ld de,0xffe0` + `add hl,de` is a SUBTRACTION BY 0x20 done as an unsigned
  * 16-bit add that wraps: 0x74AF + 0xFFE0 = 0x1748F -> 0x748F. Writing it as
- * `hl -= 0x20` gets the same address and LOSES THE FLAGS -- see draft OQ2.
+ * `hl -= 0x20` gets the same address and LOSES THE FLAGS.
  *
  * ON EXIT: HL=0x748F, DE=0xFFE0, and CARRY IS SET (always -- both operands
- * are literals, so the wrap is unconditional). See OQ3.
+ * are literals, so the wrap is unconditional).
  */
 export function sub_3f24(m) {
   const { regs, mem } = m;
@@ -16278,8 +15181,8 @@ export function sub_3f24(m) {
   mem.write8(regs.hl, 0x9f);
   m.step(0x3f2c, 10);
 
-  // OQ2: MUST be addHl(0xffe0), not `hl -= 0x20`. Same address, different
-  // flags -- this add always carries, and the carry escapes via `ret` (OQ3).
+  // MUST be addHl(0xffe0), not `hl -= 0x20`. Same address, different
+  // flags -- this add always carries, and the carry escapes via `ret`.
   regs.addHl(regs.de);
   m.step(0x3f2d, 11);
 
@@ -16289,27 +15192,6 @@ export function sub_3f24(m) {
   m.ret(); // 3f2f -- unconditional, 10 T
 }
 
-/*
- * INTEGRATED FROM A DRAFT (code2). tools/draftdiff.py: 4 instructions,
- * 0x004E-0x0056, 9 bytes, CLEAN against out/dk.asm and rom/maincpu.bin.
- *
- * THEIR IMPLICIT-INPUT FLAG, CHECKED AT EVERY CALL SITE. HL is the ldir
- * SOURCE and this routine never sets it, so behaviour depends on the caller.
- * All THIRTEEN callers set HL immediately before the call:
- *
- *   0x0448 0x0472 0x0819 0x0AC3 0x0B21 0x0D6F 0x165A 0x1674 0x168E
- *   0x16AE 0x16F1 0x2DD1   -- `ld hl,nn`, a literal ROM address
- *   0x2D3B                 -- `add hl,de`, COMPUTED
- *
- * So the dependency is satisfied everywhere, and the cross-routine
- * HL-survives-from-further-up case does not arise.
- *
- * AND THAT NARROWS THEIR OVERLAP QUESTION. Twelve sources are ROM literals
- * in 0x385C-0x39F7, which cannot overlap the 0x6908 destination, so the
- * LDIR-propagates-rather-than-copies idiom is impossible at those sites.
- * Only 0x2D3B computes HL, so it is the ONLY site where overlap is even
- * expressible -- and it is the one to check if a fill ever appears.
- */
 /**
  * sub_004e -- ROM 0x004E-0x0056
  *
@@ -16322,14 +15204,14 @@ export function sub_3f24(m) {
  *
  * HL IS AN IMPLICIT INPUT. This routine sets DE and BC and does NOT set HL,
  * so the SOURCE of the copy is supplied entirely by the caller -- and there
- * are thirteen callers. See the draft's OQ1; the source address is not
- * determinable from these nine bytes.
+ * are thirteen callers. The source address is not determinable from these nine
+ * bytes.
  *
  * Returns normally: one unconditional `ret`, stack balanced, no conditional
  * return and no tail jump.
  *
  * On exit LDIR leaves BC=0, DE=0x6930, HL=HL_in+0x28, and PRESERVES CARRY --
- * all four are visible to the caller (OQ4, OQ5).
+ * all four are visible to the caller.
  */
 export function sub_004e(m) {
   const { regs } = m;
@@ -16339,8 +15221,8 @@ export function sub_004e(m) {
   regs.bc = 0x0028;
   m.step(0x0054, 10);
 
-  // OQ1: reads through HL, which this routine never sets.
-  // OQ9: ldirAt, NOT the 0x01CF-hardcoded ldir().
+  // Reads through HL, which this routine never sets.
+  // LdirAt, NOT the 0x01CF-hardcoded ldir().
   m.ldirAt(0x0054, 0x0056);
 
   m.ret(); // 0056 -- unconditional, 10 T
@@ -16376,19 +15258,18 @@ export function sub_004e(m) {
  * first five instructions -- ld a,n / rst 0x30 / rst 0x10 / ld a,(nn) / rrca --
  * then DIVERGES: sub_03a2 (and the sibling draft entry_2c03) do `ret c` (d8);
  * this does `jp c,0x2d15` (da 15 2d). A translator copying the twin here would
- * return instead of jumping (draft S7 / TEST 1). The rst 0x30/0x10 gates are
+ * return instead of jumping. The rst 0x30/0x10 gates are
  * the standard caller-skip pair (sub_0030/sub_0010); when either skips, control
  * returns to OUR caller -- mirrors sub_03a2 exactly.
  *
  * Scans 10 records at 0x6700 (stride 0x20) testing bits 0/1 of (ix+0): bit 0
  * set -> advance; bit 1 clear -> the free-slot path at entry_2cb8. add ix,de is
- * INSIDE the loop (djnz target 0x2CA8 is above it) -- hoisting breaks the walk
- * (draft OQ2 / TEST 2).
+ * INSIDE the loop (djnz target 0x2CA8 is above it) -- hoisting breaks the walk.
  *
  * FLOW-OUTS, both <0x3000 but UNTRANSLATED, rendered as NotImplemented throws
  * (the loc_1dc9 convention): 0x2d15 (jp c, the (0x6393)-bit-0 path) and
  * entry_2cb8 (jp nc, the free-slot-found path). Both are tail jumps -- this
- * routine hands off, it does not call. Net-zero drain: unreferenced backlog.
+ * routine hands off, it does not call. Not yet wired into the live dispatcher.
  */
 export function entry_2c8f(m) {
   const { regs, mem } = m;
@@ -16409,7 +15290,7 @@ export function entry_2c8f(m) {
   regs.rrca();
   m.step(0x2c97, 4); // rrca -- carry = bit 0 of (0x6393)
   if (regs.fC) {
-    m.step(0x2d15, 10); // jp c,0x2d15 taken (tail) -- go-live wired (finale)
+    m.step(0x2d15, 10); // jp c,0x2d15 taken (tail)
     return loc_2d15(m);
   }
   m.step(0x2c9a, 10); // jp c,0x2d15 not taken
@@ -16444,7 +15325,7 @@ export function entry_2c8f(m) {
       regs.rrca();
       m.step(0x2cb0, 4); // rrca -- carry = bit 1 of (ix+0)
       if (regs.fNC) {
-        m.step(0x2cb8, 10); // jp nc,0x2cb8 taken (tail) -- bit 1 clear, free slot; go-live wired
+        m.step(0x2cb8, 10); // jp nc,0x2cb8 taken (tail) -- bit 1 clear, free slot
         return entry_2cb8(m);
       }
       m.step(0x2cb3, 10); // jp nc,0x2cb8 not taken -> fall to loc_2cb3
@@ -16467,7 +15348,7 @@ export function entry_2c8f(m) {
  *
  * Reached via `call 0x25F2` @0x199A (197a cascade). Same gate mechanism as sub_2207;
  * differs only in the body it gates (0x25F5: call 0x2602 / 0x262f / 0x2679 sub-cascade),
- * which is a non-executing frontier. Unwired dead code -> net-zero.
+ * which is a non-executing frontier.
  */
 export function sub_25f2(m) {
   const { regs } = m;
@@ -16496,7 +15377,7 @@ export function sub_25f2_body(m) {
  * differs in the A value (0x04) and the body it gates (0x26FD): a tile/position
  * dispatch on (0x6205)/(0x6229)/(0x601a) that TAIL-JUMPS to loc_277f (edge reset),
  * sub_271e (call 0x2745 wrapper) or sub_2722 (animate+spawn), else `ret`. The gate
- * skips on coin_start/attract -> the body is unreached there (net-zero); it runs on
+ * skips on coin_start/attract -> the body is unreached there; it runs on
  * the 0x197A gameplay cascade. WIRES sub_271e + sub_2722 (WIRING-SITES sites 8/9):
  * the ROM's 0x2713/0x2716/0x271B are jp z/jp c (tail jumps), not calls as the note
  * read -- reaching those routines by falling through / conditional jump.
@@ -16548,7 +15429,7 @@ export function sub_26fa(m) {
  *   2fcd  f7           rst  0x30        ; SKIPS on coin_start -> return to caller
  *
  * Same gate mechanism as sub_2207; the body (0x2FCE: ld hl,0x62b4 / dec (hl) --
- * a down-counter update) is a non-executing frontier. Unwired dead code -> net-zero.
+ * a down-counter update) is a non-executing frontier.
  */
 export function sub_2fcb(m) {
   const { regs, mem } = m;
@@ -16636,12 +15517,12 @@ export function sub_2fcb(m) {
  *
  * HL and DE are BOTH live-in (three callers do `ld de,0x69Ex / ex de,hl`): HL is
  * the write target 0x69E4/0x69EC/0x69F4, DE points at the arm-select byte (its
- * value is the caller's pre-ex HL, untraced -- draft OQ-2). `rla` puts bit 7 of
+ * value is the caller's pre-ex HL, untraced). `rla` puts bit 7 of
  * mem[DE] into carry; the rotated A is dead (overwritten below), so only the
- * carry-out matters (draft OQ-5 -- rla kept faithful to the 0x17 byte, not rlca).
+ * carry-out matters.
  *
  * The two arms are MIRRORS with inc<->dec swapped and the four constants
- * inverted (draft §4). They are transcribed from the bytes INDEPENDENTLY, not
+ * inverted. They are transcribed from the bytes INDEPENDENTLY, not
  * one copied from the other -- a missed inc/dec flip is byte-plausible (3C vs 3D,
  * same flags) and would invert one counter's direction.
  *
@@ -16650,10 +15531,10 @@ export function sub_2fcb(m) {
  * S/Z/PV then the arm's inc a/dec a overwrites them before any conditional reads
  * -- but the faithful form removes any latent-flag doubt (C is preserved either
  * way; inc does not touch carry). Each arm does two single-VALUE-wrap RMW stores
- * at P=HL+1 and P+4, the second address computed by threading L (draft §5/§8) --
+ * at P=HL+1 and P+4, the second address computed by threading L --
  * the wrap is an exact-value guard, not a range clamp, so an off-band cell walks
- * freely (draft OQ-1). A is live-out (the P+4 result); flags at the ret are from
- * the final `cp` (draft OQ-3/OQ-4).
+ * freely. A is live-out (the P+4 result); flags at the ret are from
+ * the final `cp`.
  */
 export function sub_26a6(m) {
   const { regs, mem } = m;
@@ -17397,7 +16278,7 @@ function loc_18c6_wrap(m) {
  * entry_0400 -- scheduled task 0x0400 handler.  ROM 0x0400-0x04BD.
  * The SAME body as entry_03fb entered at 0x0400 (the jp nz,0x0413), with the task-runner's
  * Z flag as a LIVE-IN (instead of entry_03fb's ld a,(0x6227)/cp 0x02). Reuses entry_03fb's
- * loc_0413 chain (which already covers the full 0x0486 tail incl. the 0x6227==4 arm). Unwired.
+ * loc_0413 chain (which already covers the full 0x0486 tail incl. the 0x6227==4 arm).
  */
 export function entry_0400(m) {
   const { regs, mem } = m;
@@ -17745,13 +16626,12 @@ export function sub_15fa(m) {
 /**
  * sub_057c -- unpack 3 source bytes into 6 nibbles up a video column (digit
  * renderer). ROM 0x057C-0x059A (body 0x057C-0x0592 + interior helper sub_0593
- * @0x0593-0x059A). Integrated from code2's 057c.draft.md; bytes verified vs
- * rom/maincpu.bin.
+ * @0x0593-0x059A).
  *
  * DE (source ptr, e.g. 0x01BF) and IX (destination video cell) are LIVE-IN from
  * the caller sub_1486 (DE set @0x159D, IX from push hl/pop ix @0x15AB). `ex de,hl`
  * moves the source into HL, THEN DE is overwritten with the -0x20 up-a-row step,
- * so DE's live-in value survives only in HL (draft OQ-1). For each of B=3 bytes:
+ * so DE's live-in value survives only in HL. For each of B=3 bytes:
  * write the HIGH nibble (four rrca), then the LOW nibble; source walked DOWN by
  * `dec hl`. sub_0593 masks to a nibble, stores to (ix+0), and steps IX up a row.
  * Transitive gap the reachcrawler missed -- reachable only through sub_1486.
@@ -17804,8 +16684,8 @@ export function sub_057c(m) {
 
 /**
  * sub_1486 -- the (0x600A) phase-21 handler: on-board bonus item mover + its
- * value-digit display. ROM 0x1486-0x15F9 (372 bytes). Integrated from code2's
- * 1486.draft.md; bytes verified vs rom/maincpu.bin. Dispatched by loc_06fe's
+ * value-digit display. ROM 0x1486-0x15F9 (372 bytes).
+ * Dispatched by loc_06fe's
  * 0x0702 table at index 21 (word 0x1486 @0x072C).
  *
  * Init (0x6009==0): clear latches, mark running (0x6009)=1, seed the state block
@@ -17819,7 +16699,7 @@ export function sub_057c(m) {
  * low bits -> 0x1514 inc/dec with wrap 0..0x1D). Animate the sprite (0x158a: countdown
  * (0x6032), toggle (0x6031), IX from (iy+4/5) with iy=(0x6038), sub_057c renders the
  * 6 digits). EXIT (0x15c6): clear slot, (0x6009)=0x80, DEC (0x600A) [the phase step-
- * back -- draft OQ-1, do not drop], copy the 0x0C-cell column to iy=(0x603A), and
+ * back -- do not drop], copy the 0x0C-cell column to iy=(0x603A), and
  * enqueue the follow-up tasks 0x0314..0x0318 (5x) + 0x031A via sub_309f.
  *
  * S2 PROVEN: dense branch tree with a SINGLE ret @0x15F9 (all paths converge via
@@ -17910,7 +16790,7 @@ export function sub_1486(m) {
         regs.djnz();
         m.step(regs.b ? 0x14c1 : 0x14c9, regs.b ? 13 : 8); // djnz 0x14c1
         if (regs.b) { label = 0x14c1; continue; }
-      // fall into 0x14c9 (no match -> hl at 4th row, B=0; ROM does not guard -- OQ-2)
+      // fall into 0x14c9 (no match -> hl at 4th row, B=0; ROM does not guard)
       case 0x14c9:
         mem.write16(0x6038, regs.hl);
         m.step(0x14cc, 16); // ld (0x6038),hl -- slot ptr
@@ -18175,7 +17055,7 @@ export function sub_1486(m) {
         regs.hl = (regs.hl + 1) & 0xffff;
         m.step(0x15d2, 6); // inc hl
         regs.decMem8(mem, regs.hl);
-        m.step(0x15d3, 11); // dec (hl) -- (0x600A)-- PHASE DECREMENT (OQ-1)
+        m.step(0x15d3, 11); // dec (hl) -- (0x600A)-- PHASE DECREMENT
         regs.b = 0x0c;
         m.step(0x15d5, 7); // ld b,0x0c
         regs.hl = 0x75e8;
@@ -18228,10 +17108,10 @@ export function sub_1486(m) {
 
 /**
  * loc_196b -- (0x600A) phase arm at index 23 (word 0x196B @0x0730 of the 0x0702
- * table). ROM 0x196B-0x1977. Integrated from code2's 196b.draft.md; bytes verified
- * vs rom/maincpu.bin. Runs sub_0852 (INTEGRATED), then jumps the master phase byte
+ * table). ROM 0x196B-0x1977.
+ * Runs sub_0852 (INTEGRATED), then jumps the master phase byte
  * (0x600A) to (0x600E)+0x12 -- a computed transition into the next phase group. Do
- * not fold the 0x12 base offset (draft OQ-1).
+ * not fold the 0x12 base offset.
  */
 export function loc_196b(m) {
   const { regs, mem } = m;
@@ -19420,7 +18300,7 @@ export function loc_231a(m) {
 /**
  * sub_2207_body -- sub_2207's object-update body (0x220A onward).  Reads (0x601A) frame parity to
  * pick record 0x6280 (odd) / 0x6288 (even); push the record base; rst 0x28 dispatches on the state
- * byte to loc_2227/2259/2299/22a2 (table @0x221B). rst-0x28 body modelled faithfully (§71).
+ * byte to loc_2227/2259/2299/22a2 (table @0x221B). rst-0x28 body modelled faithfully.
  */
 export function sub_2207_body(m) {
   const { regs, mem } = m;
@@ -19514,33 +18394,33 @@ export function sub_2207_body(m) {
  *   2c40  d0           ret  nc
  *
  * TWIN of sub_03a2 (mainloop.js) -- SAME rst 0x30/0x10 prologue, constants
- * 0x01/0x6393 not 0x03/0x6350. A copy of the twin reads the wrong cell (draft
- * S7/TEST 2). The two rst are the conditional caller-skip pair (sub_0030/
+ * 0x01/0x6393 not 0x03/0x6350. A copy of the twin reads the wrong cell.
+ * The two rst are the conditional caller-skip pair (sub_0030/
  * sub_0010); each `if (!..) return;` -- modelling either as a plain call loses
- * the skip (draft OQ1/TEST 4). srl a @ 0x2C36 is the first use of the primitive:
- * LOGICAL (0 into bit 7), not sra (draft OQ5/TEST 1). The djnz loop's `cp b` is
+ * the skip. srl a @ 0x2C36 is the first use of the primitive:
+ * LOGICAL (0 into bit 7), not sra. The djnz loop's `cp b` is
  * INSIDE the loop and B decrements, so it matches A against B, B-1, .., 1 -- the
- * compare is not loop-invariant (draft OQ3/TEST 3).
+ * compare is not loop-invariant.
  *
  * FLOW-OUTS to the untranslated 0x2C.. cluster, rendered as NotImplemented throws
  * (the loc_1dc9 convention): 0x2c7b (jp c), 0x2c86 (jp nz), and 0x2c41 -- reached
  * BOTH by jp c @ 0x2C39 AND by fall-through when `ret nc` @ 0x2C40 is not taken
- * (the invisible-boundary continuation, draft §5/OQ2). Net-zero drain: unreached
- * backlog (only caller 0x1989 is itself untranslated).
+ * (the invisible-boundary continuation). Not yet wired into the live
+ * dispatcher; only caller 0x1989 is itself untranslated.
  */
 export function entry_2c03(m) {
   const { regs, mem } = m;
 
-  regs.a = 0x01; // ld a,0x01 -- NOT 0x03 (twin sub_03a2, draft S7/TEST 2)
+  regs.a = 0x01; // ld a,0x01 -- NOT 0x03 (twin sub_03a2)
   m.step(0x2c05, 7); // ld a,0x01
   m.push16(0x2c06);
   m.step(0x0030, 11); // rst 0x30
-  if (!sub_0030(m)) return; // rst 0x30 -- may SKIP (draft OQ1)
+  if (!sub_0030(m)) return; // rst 0x30 -- may SKIP
   m.push16(0x2c07);
   m.step(0x0010, 11); // rst 0x10
-  if (!sub_0010(m)) return; // rst 0x10 -- may SKIP (draft OQ1/TEST 4)
+  if (!sub_0010(m)) return; // rst 0x10 -- may SKIP
 
-  regs.a = mem.read8(0x6393); // NOT 0x6350 (twin sub_03a2) -- draft S7/TEST 2
+  regs.a = mem.read8(0x6393); // NOT 0x6350 (twin sub_03a2)
   m.step(0x2c0a, 13); // ld a,(0x6393)
   regs.rrca();
   m.step(0x2c0b, 4); // rrca -- carry = bit 0 of (0x6393)
@@ -19569,7 +18449,7 @@ export function entry_2c03(m) {
   regs.cp(regs.c);
   m.step(0x2c18, 4); // cp c
   if (regs.fC) {
-    m.step(0x2c7b, 10); // jp c,0x2c7b taken (tail) -- go-live wired (finale)
+    m.step(0x2c7b, 10); // jp c,0x2c7b taken (tail)
     return entry_2c7b(m);
   }
   m.step(0x2c1b, 10); // jp c,0x2c7b not taken
@@ -19579,7 +18459,7 @@ export function entry_2c03(m) {
   const bit1 = regs.bit(1, regs.a); // bit 1,a -- F3/F5-from-value correct for reg form
   m.step(0x2c20, 8); // bit 1,a
   if (bit1) {
-    m.step(0x2c86, 10); // jp nz,0x2c86 taken (tail) -- go-live wired (finale)
+    m.step(0x2c86, 10); // jp nz,0x2c86 taken (tail)
     return loc_2c86(m);
   }
   m.step(0x2c23, 10); // jp nz,0x2c86 not taken
@@ -19595,7 +18475,7 @@ export function entry_2c03(m) {
 
   for (;;) {
     // loc_2c2c: cp b is INSIDE the loop; djnz decrements B, so the compare tests
-    // A against B, B-1, .., 1 -- NOT loop-invariant (draft OQ3/TEST 3).
+    // A against B, B-1, .., 1 -- NOT loop-invariant.
     regs.cp(regs.b);
     m.step(0x2c2d, 4); // cp b
     if (regs.fZ) {
@@ -19615,12 +18495,12 @@ export function entry_2c03(m) {
   // ---- loc_2c33 ----
   regs.a = mem.read8(0x62b0);
   m.step(0x2c36, 13); // ld a,(0x62b0)
-  regs.a = regs.srl(regs.a); // srl a -- LOGICAL (0 into bit 7), NOT sra (draft OQ5/TEST 1)
+  regs.a = regs.srl(regs.a); // srl a -- LOGICAL (0 into bit 7), NOT sra
   m.step(0x2c38, 8); // srl a
   regs.cp(regs.c);
   m.step(0x2c39, 4); // cp c
   if (regs.fC) {
-    m.step(0x2c41, 10); // jp c,0x2c41 taken (tail) -- go-live wired (finale)
+    m.step(0x2c41, 10); // jp c,0x2c41 taken (tail)
     return entry_2c41(m);
   }
   m.step(0x2c3c, 10); // jp c,0x2c41 not taken
@@ -19633,7 +18513,7 @@ export function entry_2c03(m) {
     m.ret(11); // ret nc -- (0x6019) bit 0 clear
     return;
   }
-  m.step(0x2c41, 5); // ret nc not taken -- FALL-THROUGH into entry_2c41 -- go-live wired (finale)
+  m.step(0x2c41, 5); // ret nc not taken -- FALL-THROUGH into entry_2c41
   return entry_2c41(m);
 }
 
@@ -19664,20 +18544,20 @@ export function entry_2c03(m) {
  *   2c6f  10 f8        djnz 0x2c69
  *   2c71  c9           ret
  *
- * FOUR ENTRY POINTS (draft OQ1/§0): 0x2C41 (from entry_2c03, jp c + fall-through)
+ * FOUR ENTRY POINTS: 0x2C41 (from entry_2c03, jp c + fall-through)
  * and loc_2c49 / loc_2c4b / loc_2c4f (from the untranslated entry_2c7b, with the
  * caller's A). Modelled as four exported functions chained by tail-calls so the
  * cluster can enter at any label. The store values differ by entry: via
  * 0x2C41/loc_2c49 (0x6382=1, 0x638f=2); via loc_2c4b (0x6382=A, 0x638f=A+1); via
  * loc_2c4f (0x638f=A only). 0x638f = 0x6382 + 1 because `inc a` @ 0x2C4E sits
- * BETWEEN the two stores (draft S8/TEST 1). C is a live-in (entry_2c03's ld c,a).
+ * BETWEEN the two stores. C is a live-in (entry_2c03's ld c,a).
  *
  * (0x62b2) is a gated RMW: proceeds past `ret nz` ONLY when (0x62b2)==C, then
- * (0x62b2) -= 8 (draft OQ3/TEST 3). loc_2c69 finds the FIRST ZERO of 5 records at
- * 0x6400 stride 0x20 (jp z -- draft OQ4/TEST 2). Flow-outs: 0x2c86 (jp nz,
+ * (0x62b2) -= 8. loc_2c69 finds the FIRST ZERO of 5 records at
+ * 0x6400 stride 0x20 (jp z). Flow-outs: 0x2c86 (jp nz,
  * untranslated -> NotImplemented) and entry_2c72 (jp z -- TRANSLATED, wired).
- * Net-zero drain: unreferenced (its only in-partition caller entry_2c03 is itself
- * unreached backlog; the alt entries' source entry_2c7b is untranslated).
+ * Not yet wired into the live dispatcher (its only in-partition caller entry_2c03
+ * is itself unreached; the alt entries' source entry_2c7b is untranslated).
  */
 export function entry_2c41(m) {
   const { regs } = m;
@@ -19688,7 +18568,7 @@ export function entry_2c41(m) {
   regs.and(0x0f);
   m.step(0x2c46, 7); // and 0x0f
   if (regs.fNZ) {
-    m.step(0x2c86, 10); // jp nz,0x2c86 taken (tail) -- go-live wired (finale)
+    m.step(0x2c86, 10); // jp nz,0x2c86 taken (tail)
     return loc_2c86(m);
   }
   m.step(0x2c49, 10); // jp nz,0x2c86 not taken
@@ -19709,7 +18589,7 @@ export function loc_2c4b(m) {
   const { regs, mem } = m;
   mem.write8(0x6382, regs.a); // ld (0x6382),a
   m.step(0x2c4e, 13); // ld (0x6382),a
-  regs.a = regs.inc8(regs.a); // inc a -- BETWEEN the two stores (draft S8/TEST 1)
+  regs.a = regs.inc8(regs.a); // inc a -- BETWEEN the two stores
   m.step(0x2c4f, 4); // inc a
   return loc_2c4f(m);
 }
@@ -19730,14 +18610,14 @@ export function loc_2c4f(m) {
   regs.cp(regs.c); // cp c -- C is the entry_2c03 live-in
   m.step(0x2c5b, 4); // cp c
   if (regs.fNZ) {
-    m.ret(11); // ret nz -- returns unless (0x62b2) == C (draft OQ3/TEST 3)
+    m.ret(11); // ret nz -- returns unless (0x62b2) == C
     return;
   }
   m.step(0x2c5c, 5); // ret nz not taken
 
   regs.sub(0x08);
   m.step(0x2c5e, 7); // sub 0x08
-  mem.write8(0x62b2, regs.a); // (0x62b2) -= 8  (RMW, draft OQ3)
+  mem.write8(0x62b2, regs.a); // (0x62b2) -= 8 (RMW)
   m.step(0x2c61, 13); // ld (0x62b2),a
   regs.de = 0x0020;
   m.step(0x2c64, 10); // ld de,0x0020
@@ -19779,16 +18659,16 @@ export function loc_2c4f(m) {
  *   2c8a  3e 03        ld   a,0x03
  *   2c8c  c3 4f 2c     jp   0x2c4f
  *
- * These resolve entry_2c41's four-entry OQ1. entry_2c7b (from entry_2c03's
+ * These resolve entry_2c41's four entries. entry_2c7b (from entry_2c03's
  * jp c,0x2c7b): A += 2 (A is entry_2c03's `sub 0x02` result), then cp c -- if
  * A+2 == C it jumps to loc_2c49 (A kept -> the 0x6382=1/0x638f=2 path); else
  * A := 0x02 into loc_2c4b (-> 0x6382=2/0x638f=3). loc_2c86 (from entry_2c03's
  * AND entry_2c41's jp nz,0x2c86): CLEARS 0x6382 (xor a; ld (0x6382),a -- the
- * OPPOSITE of entry_2c72 which SETS bit 7, same byte inverse op, draft S7/TEST 2),
+ * OPPOSITE of entry_2c72 which SETS bit 7, same byte inverse op),
  * then A := 0x03 into loc_2c4f (-> 0x638f=3, 0x6382 stays 0). Both TAIL-JUMP into
- * entry_2c41's body -- wired to the translated loc_2c49/loc_2c4b/loc_2c4f (draft
- * OQ1); no ret here, entry_2c41's ret/skip handles the return. Net-zero drain:
- * unreached (reached only from the dead entry_2c03/entry_2c41).
+ * entry_2c41's body -- wired to the translated loc_2c49/loc_2c4b/loc_2c4f; no
+ * ret here, entry_2c41's ret/skip handles the return. Not yet wired into the
+ * live dispatcher (reached only from the dead entry_2c03/entry_2c41).
  *
  * NOTE the two `ld a,n`/`jp nn` pairs (0x2C81-83, 0x2C8A-8C) are TWO instructions
  * each -- both charged (the draft skeleton folded them into one m.step).

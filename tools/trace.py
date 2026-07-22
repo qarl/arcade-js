@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Recursive-descent tracer over the DK maincpu image.
 
-WHY THIS EXISTS (charter, methodology point 2): DK's ROM interleaves code and
+WHY THIS EXISTS: DK's ROM interleaves code and
 data. A linear sweep mis-decodes data as instructions and desyncs the stream
 for everything after it. So we only decode bytes we can *prove* are reachable,
 by following control flow from the real entry points.
 
 The output is the coverage map, and the coverage map is the project to-do
-list: UNREACHED bytes are code paths we have not exercised. QA drives inputs
+list: UNREACHED bytes are code paths we have not exercised. Inputs are driven
 into MAME to reach them; newly-discovered entry points (jump-table targets,
 etc.) get added to tools/entrypoints.json and this is re-run.
 
 Entry points:
   0x0000  Z80 reset
-  0x0066  NMI -- DK's vblank interrupt (NOT IM1; see docs/BOOT-RECON.md)
+  0x0066  NMI -- DK's vblank interrupt (NOT IM1)
 
 Indirect jumps (`JP (HL)`, jump tables) cannot be followed statically. We log
 them as UNRESOLVED rather than guessing -- those are precisely the places
@@ -271,8 +272,8 @@ class Tracer:
           2. Plausibility. Stop at the first entry that is not a populated-ROM
              address, or at the first byte already proven to be code.
 
-        Entries are recorded with provenance and flagged provisional so QA can
-        confirm each against MAME rather than trusting the parse."""
+        Entries are recorded with provenance and flagged provisional so a later
+        pass can confirm each against MAME rather than trusting the parse."""
         limit, bound = ROM_SIZE, "plausibility"
         if cont is not None and site_end < cont < ROM_SIZE:
             limit, bound = cont, "pushed_continuation"

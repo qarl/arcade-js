@@ -1,6 +1,7 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """Shared state-artifact I/O for the arcade-js state-diff harness.
 
-THE STATE CONTRACT (QA-chosen, mirrors the frame contract deliberately):
+THE STATE CONTRACT (mirrors the frame contract deliberately):
 
   state.bin   headerless concatenation of per-frame state, 5120 bytes each:
                 work   0x6000-0x6BFF  3072 bytes

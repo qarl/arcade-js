@@ -41,7 +41,10 @@
     This page needs cross-origin isolation (for SharedArrayBuffer). Serve it with
     <code>python3 web/server.py</code> — opening the file directly won't work.
   </div>
-  <canvas id="screen"></canvas>
+  <div id="romWarn" class="warn hide">
+    ROM not built — run: <code id="romWarnCmd">make -C games/&lt;id&gt; rom</code>
+  </div>
+  <canvas id="screen" aria-label="Game screen"></canvas>
   <div class="row">
     <button id="coin">Insert coin <span style="color:#8a8aa5">(5)</span></button>
     <button id="start">1-Player start <span style="color:#8a8aa5">(1)</span></button>
@@ -59,12 +62,29 @@
   const statusEl = document.getElementById("status");
   const gameId = new URLSearchParams(location.search).get("game") || "dkong";
 
+  // Build a DOM node with plain text (never innerHTML) so untrusted values —
+  // the "game" URL param, error text from the worker — can never inject HTML.
+  const el = (tag, text, color) => {
+    const n = document.createElement(tag);
+    if (color) n.style.color = color;
+    n.textContent = text;
+    return n;
+  };
+
   let manifest;
   try { manifest = (await import(`../games/${gameId}/manifest.js`)).default; }
-  catch (e) { statusEl.innerHTML = `<span style="color:#ffb0b0">unknown game "${gameId}"</span>`; return; }
+  catch (e) {
+    statusEl.textContent = "";
+    statusEl.append(el("span", `unknown game "${gameId}"`, "#ffb0b0"));
+    return;
+  }
 
-  document.getElementById("title").innerHTML =
-    `${manifest.title.toUpperCase()} <small>— ${manifest.cpu} · ${manifest.board} board</small>`;
+  const titleEl = document.getElementById("title");
+  titleEl.textContent = "";
+  titleEl.append(
+    manifest.title.toUpperCase() + " ",
+    el("small", `— ${manifest.cpu} · ${manifest.board} board`),
+  );
   document.title = `${manifest.title} — arcade-js`;
 
   const SRC_W = manifest.screen?.width ?? 256, SRC_H = manifest.screen?.height ?? 224;
@@ -87,6 +107,7 @@
   Atomics.store(ctrl, C_RUNNING, 1);
 
   const canvas = document.getElementById("screen");
+  canvas.setAttribute("aria-label", `${manifest.title} game screen`);
   canvas.width = DISP_W; canvas.height = DISP_H;
   canvas.style.height = "min(76vh, 720px)";
   canvas.style.width = "auto";
@@ -98,12 +119,30 @@
 
   const worker = new Worker("worker.js", { type: "module" });
   worker.postMessage({ type: "init", ctrl: ctrlSAB, fb: fbSAB, game: gameId });
+  const romWarn = document.getElementById("romWarn");
+  const ROM_404 = /\/rom\/\S+ -> 404/; // fetchBin()'s "fetch <url> -> <status>" in worker.js
   worker.onmessage = (e) => {
     const d = e.data;
-    if (d.type === "ready") statusEl.innerHTML = "<b>running</b> — press <b>5</b> for a coin, then <b>1</b> to start";
-    else if (d.type === "restart") statusEl.innerHTML = "rebooted to attract <span style='color:#5a5a72'>(" + (d.reason || "") + ")</span>";
-    else if (d.type === "reset") statusEl.innerHTML = "<b>reset</b> — back to attract";
-    else if (d.type === "error") statusEl.innerHTML = "<span style='color:#ffb0b0'>engine error: " + (d.reason || "") + "</span>";
+    if (d.type === "ready") {
+      statusEl.innerHTML = "<b>running</b> — press <b>5</b> for a coin, then <b>1</b> to start";
+    } else if (d.type === "restart") {
+      statusEl.textContent = "";
+      statusEl.append("rebooted to attract ", el("span", `(${d.reason || ""})`, "#5a5a72"));
+    } else if (d.type === "reset") {
+      statusEl.innerHTML = "<b>reset</b> — back to attract";
+    } else if (d.type === "error") {
+      const reason = d.reason || "";
+      statusEl.textContent = "";
+      if (ROM_404.test(reason)) {
+        // Fresh clone, unbuilt ROM: this is the first failure most contributors
+        // will hit. Name the fix instead of surfacing a raw fetch-404 stack.
+        document.getElementById("romWarnCmd").textContent = `make -C games/${gameId} rom`;
+        romWarn.classList.remove("hide");
+        statusEl.append(el("span", "ROM not built — see message above", "#ffb0b0"));
+      } else {
+        statusEl.append(el("span", `engine error: ${reason}`, "#ffb0b0"));
+      }
+    }
   };
 
   let lastCounter = 0;

@@ -31,6 +31,14 @@ stay diverged. The percent-of-frame threshold accepts the former and rejects the
 practice the bar is met with enormous margin — e.g. Donkey Kong's attract sequence runs
 byte-identical to MAME on 727 of 728 frames, with a single 3-pixel, 0.005% transient.)
 
+`tools/prize_suite.py` runs the same rough gate over the bonus-item pickups — Pauline's dropped
+parasol/hat/purse, worth level-scaled points — across the boards that carry them (50m/75m/100m).
+It applies the identical rule (max per-frame difference under 5%, no single frame over ~5%, from
+frame ~1600) plus a pickup assertion the movement gate doesn't need: the prize slot at RAM
+`0x6A0C` clears (its X byte drops to 0) and the BCD score at `0x60B2` grows by the level's point
+value. Nine scenarios — `{50m,75m,100m} × {hat,parasol,purse}` — each with its own committed tape
+in `games/dkong/tapes/`.
+
 ## The discipline around the gate
 
 Three rules keep the gate honest, each learned the hard way:
