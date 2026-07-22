@@ -15,6 +15,7 @@
 import { AddressSpace } from "../../boards/dkong/memory.js";
 import { IO, Inputs, NotImplemented } from "../../boards/dkong/io.js";
 import { Regs } from "../../core/cpu/z80.js";
+import manifest from "./manifest.js";
 import { bootOnly, reset as romReset } from "./translated/boot.js";
 import { entry_0066 } from "./translated/nmi.js";
 import {
@@ -77,6 +78,94 @@ export class FramesComplete extends Error {
   }
 }
 
+/**
+ * Build the per-routine OVERRIDE MAP: dispatch-target address (a number) ->
+ * optimized handler function. This is what lets an `optimized/` rewrite replace
+ * its `translated/` counterpart WITHOUT editing the call site — `dispatchGameState`
+ * consults it before the translated chain.
+ *
+ * INPUT SHAPE (the manifest schema). `spec` is either `manifest.optimized` or a
+ * caller-supplied object/Map with the same shape:
+ *
+ *   {
+ *     "0x01c3": { module: "./optimized/handlers.js", export: "handler_01c3" },
+ *   }
+ *
+ * The KEY is the rst-0x28 dispatch target — the exact address `dispatchGameState`
+ * switches on — as a hex string (a number is also accepted from a test). The
+ * VALUE is declarative: the module (relative to this game's directory) and the
+ * named export to route that address to.
+ *
+ * RESOLUTION IS ASYNC, so it is NOT done here. Turning `{ module, export }` into
+ * a function needs a dynamic `import()`, which a constructor cannot await, so the
+ * declarative form is resolved by `resolveOverrides()` (below) BEFORE construction
+ * and handed in via `opts.overrides` as already-resolved functions. This split is
+ * what keeps the resolution identical in Node and in the browser worker: both call
+ * `resolveOverrides()`, which uses the dynamic import available in both.
+ *
+ * THE SHIPPED PATH NEEDS NONE OF THAT. `manifest.optimized` is `{}`, so the
+ * default build below produces an empty Map with no imports and no async — every
+ * player gets the exact translated behaviour, and the override branch in
+ * `dispatchGameState` is inert.
+ *
+ * @param {object|Map} [spec]
+ * @returns {Map<number, function>}
+ */
+function buildOverrides(spec) {
+  const map = new Map();
+  if (!spec) return map;
+  const entries = spec instanceof Map ? [...spec.entries()] : Object.entries(spec);
+  for (const [key, val] of entries) {
+    const addr = typeof key === "number" ? key : parseInt(key, 16);
+    if (typeof val === "function") {
+      map.set(addr, val); // already resolved (a test, or resolveOverrides' output)
+    } else if (val && typeof val === "object" && "module" in val) {
+      throw new Error(
+        `override for 0x${addr.toString(16).padStart(4, "0")} is the declarative ` +
+          "{ module, export } form; resolve it with resolveOverrides() first and pass " +
+          "the result as opts.overrides. The Machine constructor cannot dynamic-import " +
+          "synchronously.",
+      );
+    } else {
+      throw new Error(
+        `override for key ${key} must be a function or { module, export }, got ${typeof val}`,
+      );
+    }
+  }
+  return map;
+}
+
+/**
+ * Resolve a declarative `manifest.optimized` block to a `Map<number, function>`
+ * ready to hand to `new Machine(rom, { overrides })`. Async because it
+ * dynamic-imports each optimized module; dynamic import exists in Node and in the
+ * browser worker alike, so one resolver serves both.
+ *
+ * Module paths are resolved relative to `baseUrl`, which defaults to this file
+ * (games/dkong/machine.js), so manifest entries like "./optimized/handlers.js"
+ * resolve against the game directory — the same base the audio paths use.
+ *
+ * @param {object} [spec]     manifest.optimized: { "0x01c3": { module, export } }
+ * @param {string|URL} [baseUrl]
+ * @returns {Promise<Map<number, function>>}
+ */
+export async function resolveOverrides(spec = {}, baseUrl = import.meta.url) {
+  const map = new Map();
+  for (const [key, ent] of Object.entries(spec)) {
+    const addr = parseInt(key, 16);
+    const url = new URL(ent.module, baseUrl).href;
+    const mod = await import(url);
+    const fn = mod[ent.export];
+    if (typeof fn !== "function") {
+      throw new Error(
+        `override ${key}: module ${ent.module} has no function export "${ent.export}"`,
+      );
+    }
+    map.set(addr, fn);
+  }
+  return map;
+}
+
 export class Machine {
   /**
    * @param {Uint8Array} rom 16KB maincpu image
@@ -89,13 +178,21 @@ export class Machine {
    * @param {Uint8Array} [opts.gfx1]  tile ROMs -- enables frame rendering
    * @param {Uint8Array} [opts.proms] colour PROMs -- enables frame rendering
    */
-  constructor(rom, { inputs, gfx1, proms, gfx2 } = {}) {
+  constructor(rom, { inputs, gfx1, proms, gfx2, overrides } = {}) {
     this.io = new IO({ inputs: inputs ?? new Inputs() });
     this.mem = new AddressSpace(rom, this.io);
     this.regs = new Regs();
     this.mem.clock = () => this.cycles;
     this.frame = 0;
     this.booted = false;
+
+    // Per-routine override map: dispatch target -> optimized handler. Built from
+    // the shipped manifest.optimized by default (which is {}, so an empty Map and
+    // therefore inert), or from a caller-supplied, already-resolved map/object
+    // via opts.overrides — the seam the equivalence harness drives. See
+    // buildOverrides / resolveOverrides above, and the prepend in
+    // dispatchGameState (nmi.js) that consults it.
+    this.overrides = buildOverrides(overrides ?? manifest.optimized);
 
     this.cycles = 0;
     this.frames = []; // captured state dumps, one per frame boundary

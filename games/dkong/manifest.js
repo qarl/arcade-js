@@ -114,6 +114,24 @@ export default {
   },
 
   // Per-routine overrides: swap a translated/ routine for an optimized/ rewrite,
-  // but only once it passes the equivalence gates. Empty now — room for later.
+  // but only once it passes the equivalence gates (games/dkong/optimized/harness.js).
+  //
+  // SCHEMA. Declarative, so it is resolvable from both Node and the browser
+  // worker (each resolves it with resolveOverrides() in machine.js, which uses
+  // the dynamic import both provide). Each entry is:
+  //
+  //   "<hex dispatch target>": { module: "<path from this dir>", export: "<name>" }
+  //
+  // e.g.  "0x01c3": { module: "./optimized/handlers.js", export: "handler_01c3" }
+  //
+  // The KEY is the exact rst-0x28 dispatch target dispatchGameState() switches on
+  // (games/dkong/translated/nmi.js); the VALUE names the optimized module + its
+  // named export to route that address to.
+  //
+  // SHIPPED VALUE IS EMPTY, DELIBERATELY. Nothing is overridden by default, so
+  // players get the exact translated behaviour and the override branch in
+  // dispatchGameState is inert. An entry is added here ONLY after its optimized
+  // routine is proven EQUAL by the harness. Until then, pilots are wired inside
+  // the harness/tests via opts.overrides on a test-constructed Machine, never here.
   optimized: {},
 };

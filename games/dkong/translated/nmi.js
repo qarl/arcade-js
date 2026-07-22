@@ -2130,6 +2130,7 @@ function loc_0e2a(m) {
  * the table.
  */
 function dispatchGameState(m, target, site = "0x00CA (NMI game state)") {
+  if (m.overrides && m.overrides.has(target)) return m.overrides.get(target)(m);
   if (target === 0x01c3) return handler_01c3(m);
   if (target === 0x073c) return handler_073c(m);
   if (target === 0x0779) return handler_0779(m);
