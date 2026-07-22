@@ -148,15 +148,88 @@ ROM sites for each are listed in `sounds.js`.
 (the death state `entry_128B`). Trace `coin_start` idle-90s: exactly 3 rises in 90 s — one per
 life — each ~64 frames after the `boom` that killed Mario.
 
-**Open measurement:** the stimulus sweep only established that *muting* this line leaves the
-tune sweep byte-identical. Nobody has yet driven `0x7D80` in isolation and recorded the result,
-so `measured.audible` is `null` for it, not `true`. The *name* is confirmed; the *waveform* is
-unrecorded.
+**The death tune is not a tune-latch value, and looking for one is a dead end.** Worth stating
+because the assumption is natural: every other tune comes out of `0x7C00`, so surely one of its
+16 values is "death". A `--writes` trace of an actual death (`coin_start`, idle, 45 s) says no:
+
+```
+frame 1661.3   7C00 <- 00     the hit: the board's background music is silenced
+frame 1726.1   7D80 <- 01     65 frames later: the sound CPU's interrupt is asserted
+frame 1729.1   7D80 <- 00     3 frames (~50 ms) later: released
+```
+
+No `0x7C00` value is written between the silence and the IRQ pulse. Death is the IRQ line.
+
+**Measured, no longer open.** The recorder now has an `irq` phase that drives `0x7D80` directly
+with the ROM muted off the sound hardware. Driving it alone produces a **3.245 s** tune, peak
+20618 — so `measured.audible` is `true` and the waveform is recorded (`irq.wav`). Held for 24 s
+it repeats (24.22 s), which is what every I8035 tune does under a sustained line and which the
+ROM never asks for; the ROM's hold is 3 frames.
+
+That 3-frame hold is a **handshake, not a duration**: the tune is ~65× longer than the hold, so
+a player that stops it when the line drops replaces the death tune with a ~50 ms click. This is
+the same shape of mistake as gating `jump` or `boom`, and the opposite of the *correct* rule for
+`walk` — see the `kind` vs `measured` table above, and the playback rules below.
 
 ## Tune codes (`0x7C00`) — 4 bits, all I8035
 
-Measured: `0x00` and `0x0A` are silent; the other 14 values each produce a **distinct** sound,
-0.221 s to 6.818 s long.
+Measured: `0x00` and `0x0A` are silent; the other 14 values each produce a **distinct** sound.
+
+### Two stimulus passes, because one cannot tell a background from a jingle
+
+Every tune value is driven twice: a **0.25 s pulse** and a **24 s hold**. That is not
+redundancy — it is the measurement that separates the two things `kind` claims:
+
+* Five values, and exactly five — `0x03`, `0x04`, `0x08`, `0x09`, `0x0B` — **stop when the
+  latch is released**. Their pulse clip is the length of the pulse (0.11–0.38 s) and their hold
+  clip runs the full 24 s. These are *sustained* tunes: the latch is what keeps them going.
+* The other nine **outlast the pulse by many times** and finish on their own (0.75 s–6.86 s
+  from a 0.25 s pulse). These are self-contained tunes; the pulse is a handshake.
+
+Those five are precisely the five this map calls `kind: "loop"`, derived independently from the
+ROM parking them in the background slot `0x6089`. **Two unrelated methods agreeing** is the
+strongest statement here about `kind`. It says nothing about any *name*, so no `confidence`
+moves because of it.
+
+One curiosity worth recording: holding a *self-contained* tune replays it, because the 8035
+re-reads the latch when a tune ends. `0x0D` is the single exception — 0.749 s from a pulse,
+0.786 s from a 24 s hold. It plays once and stays quiet.
+
+### The phrase length is measured, and it is what a looping clip must be
+
+For the five sustained tunes, the recorder finds the **repeating phrase** by normalised
+autocorrelation over the 24 s hold and cuts the clip to exactly one period:
+
+| value | name | phrase | corr | notes in the phrase | the old pulse clip |
+| --- | --- | ---: | ---: | ---: | --- |
+| `0x03` | `out_of_time` | **4.9192 s** | 0.94 | 42 | 0.394 s — 8 % of it |
+| `0x04` | `hammer` | **2.9515 s** | 0.96 | 18 | 0.365 s — 12 % |
+| `0x08` | `bgm_25m` | **2.2949 s** | 1.00 | 10 | 0.243 s — 11 %, **1 note** |
+| `0x09` | `bgm_50m` | **1.3523 s** | 1.00 | 9 | 0.305 s — 23 % |
+| `0x0B` | `bgm_100m` | **3.9338 s** | 1.00 | 24 | 0.221 s — 6 %, **1 note** |
+
+The right-hand column is a defect, not trivia: the clips shipped before this measurement were
+recorded at the 0.25 s pulse, so each was a **fragment** of its phrase, and the player looped
+the fragment. That is what "the background music is missing notes" was.
+
+Two things had to be got right, and both are measurements rather than guesses:
+
+* **The hold must be long enough.** At a 12 s hold, `0x0B`'s phrase estimate was unstable —
+  1.4757 s in one slot and 3.9338 s in another (1.4761 s is a strong *sub*-phrase peak at
+  corr 0.986, against 0.9999 for the real one). The search cap is a quarter of the hold, so the
+  answer is always something seen at least four times, and 24 s is the first hold at which
+  every tune on this board pinned. Cross-check: `0x10`–`0x1F` mirror `0x00`–`0x0F` on the
+  hardware, and the two independent recordings of each tune in one sweep now agree to the
+  sample (4.919/4.919, 2.951/2.952, 2.295/2.295, 1.352/1.352, 3.934/3.934).
+* **The fundamental, not a note.** A musical phrase autocorrelates strongly at note spacings
+  too. `0x0B`'s peaks are on a 0.4917 s grid; taking the smallest strong one would loop a
+  single note. The search takes the global maximum and then checks only whole sub-multiples
+  (L/2…L/5), which is how a *multiple* of the true period is rejected without falling for a
+  *fraction* of it.
+
+Seam check on the cut clips: the wrap discontinuity is 0.11 %–1.31 % of peak amplitude, and the
+50 ms after the loop point matches the 50 ms that would have followed in the continuous
+recording. They join.
 
 | value | name | kind | confidence | audible? | meaning |
 |---|---|---|---|---|---|
@@ -419,7 +492,7 @@ decisions, all from data in `sounds.js`:
 | --- | --- | --- |
 | play this at all? | `kind`, `measured.audible`, `conflict` | anything `none`, measured silent, or flagged conflicting is **skipped** |
 | trigger: gate or fire? | `measured.behaviour` | what the **hardware** does |
-| tune: loop or one-shot? | `kind` | how the **ROM** uses the command |
+| tune / IRQ: loop or one-shot? | `kind` | how the **ROM** uses the command |
 
 The middle two rows are the `kind`-vs-`measured` distinction this README argues for above, and
 they are used on purpose in opposite places. Concretely:
@@ -430,16 +503,48 @@ they are used on purpose in opposite places. Concretely:
   map measures its clip outlasting the hold by ~1.4 s, so that tail is part of the sound.
 * `behaviour: "oneshot"` (jump, boom) → fired on the rising edge and left to run.
 * `kind: "loop"` (the BGMs, hammer, out-of-time) → played looping, and stopped the moment the
-  tune latch changes to anything else — including `0x00`, which is "no tune".
-* `kind: "oneshot"` on the latch (intro, level start/end, roar, rivet jingles) → fired once.
+  tune latch changes to anything else — including `0x00`, which is "no tune". At most one of
+  these sounds at a time: it is *the background*, and a latch write replaces it.
+* `kind: "oneshot"` on the latch (intro, level start/end, roar, rivet jingles) **and on the IRQ
+  line** (death) → fired once and **never stopped by the line reverting**. The ROM's 3-frame
+  pulse out of `0x608A`/`0x6088` is a handshake; the sound CPU plays 0.7 s–6.9 s of tune by
+  itself, long after the ~50 ms hold is over. These voices are not tracked and are not stopped
+  by the *next* latch write either — only the background is.
+
+That last pair is one rule with two directions, and both directions are audible if reversed:
+stop one-shots on the revert and every tune becomes a 50 ms click; let backgrounds survive a
+latch change and 25 m music plays over 100 m music forever. Nothing here special-cases death —
+it is `kind: "oneshot"` on a third write surface, and that is all the player knows about it.
+
+Measured in headless Chrome, instrumenting `AudioBufferSourceNode.start/.stop/ended` on a real
+play-through to a real death:
+
+```
+31.664 s  worker: 7D80 <- 01      the ROM asserts the IRQ
+31.665 s  start   death   3.245 s buffer
+31.714 s  worker: 7D80 <- 00      released 50 ms later — the 3-frame handshake
+34.911 s  ended   death           ran 3.246 s: the whole tune, never stopped
+```
+
+and, on the same run, the background rule doing its job: `bgm_25m` started looping at 26.231 s,
+ran 4.354 s (its 2.295 s phrase, twice round) and was `stop()`ed at 30.585 s by the `7C00 <- 00`
+the ROM writes at the moment Mario is hit.
 
 **`0x7C00 = 0x0A` gets no sound.** It carries a `conflict`, so it is skipped by the same rule
 that skips the two dead ls259 bits. Nothing is invented for it, and
 `games/dkong/test/audio-wiring.test.js` fails if that ever silently reverses.
 
-Clip filenames come from `manifest.audio.clipIds` (`trig{n}`, `latch_{vv}`) — the recorder's
-output layout, deliberately *not* in `sounds.js`, which is the hardware map and stays free of
-file paths.
+Clip filenames come from `manifest.audio.clipIds` (`trig{n}`, `latch_{vv}`, `irq`) — the
+recorder's output layout, deliberately *not* in `sounds.js`, which is the hardware map and stays
+free of file paths.
+
+**The `0x7D80` edge is polled, not tapped.** The board exposes a write tap for `0x7C00` and
+`0x7D00`–`0x7D07` only; `0x7D80` shares its ls259 with flipscreen / NMI-mask / DRQ and the board
+stores it as `io.audioIrq` without a tap. `web/worker.js` therefore samples that field once per
+frame and runs it through the same edge rule as the tapped surfaces. Frame granularity is
+sufficient *by measurement*, not by hope: the ROM's sound service routine loads `0x6088` with 3
+and decrements it per frame, so the line is held for three frames and a per-frame poll sees both
+edges with two frames to spare.
 
 ## 4. The missing-samples path is the normal one
 
@@ -474,8 +579,9 @@ The output is Nintendo's copyrighted audio: it stays on your machine, and `.giti
 `games/*/audio/samples/` so it cannot be committed by accident.
 
 One honest caveat about what you get: a recorded clip is *one valid rendition* of a sound, not
-a canonical waveform (see README-samples.md), and the looping BGM clips are the trimmed
-sounding part of a single sweep slot — short, and looped by the player rather than being a full
-capture of the tune as the 8035 would play it in context. It sounds like Donkey Kong; it is not
-a claim of sample-exactness, and nothing about it has been diffed against MAME the way the
-video has.
+a canonical waveform (see README-samples.md). The looping clips are now a **whole measured
+phrase** rather than the fragment they used to be — one autocorrelation period of a 24 s
+sustained capture — so what loops is the tune's own repeat, not an arbitrary cut. What that is
+*not* is a capture of the tune as the 8035 would play it in game context, with the ROM's own
+timing around it. It sounds like Donkey Kong; it is not a claim of sample-exactness, and nothing
+about it has been diffed against MAME the way the video has.

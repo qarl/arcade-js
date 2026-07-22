@@ -37,6 +37,7 @@ hardware and records what each write actually produced:
     held, then cleared.
   * `latch` phase -- the ls175 sound latch at 0x7C00, which feeds the I8035.
     Each swept value is written, held, then cleared.
+  * `irq` phase -- 0x7D80, the I8035's interrupt line. Pulsed like a trigger.
   * `latchtrig` phase (optional) -- a latch value followed by a pulse on one
     chosen trigger bit, for the case where the sound CPU only consumes the latch
     when it is poked.
@@ -46,14 +47,48 @@ can be split back into per-slot clips by timing. Peak and RMS are reported for
 every clip so it is obvious which writes made sound and which were silent. The
 results are EVIDENCE for building a sound map; they are not the map.
 
+TWO PASSES PER TUNE -- WHY, AND WHAT IT FIXES
+---------------------------------------------
+The `latch` and `irq` phases each run every value TWICE: a short PULSE pass
+(`--hold`, the ROM's own 3-frame handshake rounded up) and a long SUSTAIN pass
+(`--sustain-hold`). That is not redundancy, it is the only way to record a
+looping tune correctly, and recording it wrong was a real, audible bug:
+
+  The I8035 keeps playing only while the latch holds a background tune, and it
+  RE-READS the latch when a tune ends. So a single short-hold pass gives you
+  ~0.24 s of `bgm_25m` -- one fragment of a 2.29 s phrase -- and looping that
+  fragment is what "the background music is missing notes" sounds like.
+
+Measured, not assumed. The two passes let the tool CLASSIFY each value instead
+of trusting a name:
+
+  * GATED (the sound stops when the latch is released: pulse duration ~= the
+    hold, and the sustain pass is many times longer) => the value selects a
+    SUSTAINED tune. The clip written is one measured LOOP PERIOD of the sustain
+    pass, found by normalised autocorrelation, so the file is a whole repeating
+    phrase whose end joins its start.
+  * NOT GATED (the sound outlasts the hold and finishes on its own) => the value
+    fires a self-contained tune. The clip written is the PULSE pass, which is
+    that tune played exactly once. Holding such a value simply replays it, so
+    the sustain pass would record N repeats and is used only as evidence.
+
+The classification is reported per clip in index.json (`gated`,
+`pulse_duration_s`, `sustain_duration_s`, `loop_period_s`, `loop_corr`), so it
+can be checked against -- and disagree with -- the hand-written sound map.
+
 HOW THE ROM IS KEPT OUT OF THE WAY
 ----------------------------------
 The machine must actually boot (the I8035 has to be alive), but a booted DK
 writes its own attract-mode sounds, which would contaminate every clip. So write
-taps on 0x7C00 and 0x7D00-0x7D07 replace every program-originated write with the
-value THIS tool is currently holding -- the ROM cannot touch the sound hardware
-while the sweep runs. The gaps between slots being silent is the proof that this
-works, and it is measured and reported (`--report-gaps`).
+taps on 0x7C00, 0x7D00-0x7D07 and 0x7D80 replace every program-originated write
+with the value THIS tool is currently holding -- the ROM cannot touch the sound
+hardware while the sweep runs. The gaps between slots being silent is the proof
+that this works, and it is measured and reported (`--report-gaps`).
+
+0x7D80 is in that default mute set because the ROM pulses it on every death,
+including in attract mode, which lands inside a sweep slot sooner or later. It
+is write-only from the Z80's side and a control run has shown that muting it
+leaves the tune sweep byte-identical, so muting it cannot change anything else.
 
 USAGE
 -----
@@ -95,13 +130,15 @@ TRIG_BASE = 0x7D00  # ls259.6h -- 0x7D00+n sets latch bit n from data bit 0
 TRIG_COUNT = 8
 AUDIO_IRQ = 0x7D80  # ls259.5h bit 0 -- the I8035's interrupt line (see io.js)
 
-# What the ROM is prevented from writing while a sweep runs. Default: the sound
-# latch and the eight sound triggers. 0x7D80 (the sound CPU's IRQ line) is NOT in
-# the default set, because it shares its ls259 with flipscreen/NMI-mask/DRQ and
-# because the ROM's own IRQ pulses turn out to matter -- add it explicitly with
-# --mute-ranges to test that. Everything muted here is write-only from the Z80's
-# side, so muting cannot change what the program computes.
-DEFAULT_MUTE = "0x7C00,0x7D00-0x7D07"
+# What the ROM is prevented from writing while a sweep runs: the sound latch,
+# the eight sound triggers, and the sound CPU's IRQ line. 0x7D80 shares its ls259
+# with flipscreen/NMI-mask/DRQ, but only the ONE address 0x7D80 is muted and that
+# address does nothing except assert the I8035's interrupt -- so the neighbours
+# are untouched. It is in the default set because the ROM pulses it on every
+# death (attract mode included), which would land inside a sweep slot.
+# Everything muted here is write-only from the Z80's side, so muting cannot
+# change what the program computes.
+DEFAULT_MUTE = "0x7C00,0x7D00-0x7D07,0x7D80"
 
 DEFAULT_OUT = os.path.join("games", "dkong", "audio", "samples")
 DEFAULT_HARDWARE = os.path.join("boards", "dkong", "hardware.json")
@@ -220,23 +257,66 @@ def parse_writes(spec):
     return out
 
 
-def build_schedule(args):
-    """The slot list. Each slot: id, kind, and (dt, addr, value) writes.
+# A slot id is a filename stem, so the sustain pass needs a suffix that cannot
+# collide with a real clip id. It never reaches disk: the sustain pass is merged
+# into its key's single output clip.
+SUSTAIN_SUFFIX = "~sustain"
 
-    `dt` is seconds from the slot's start. Slots start every `--gap` seconds, so
-    a clip is exactly the gap window that begins at its first write.
+# How much a pulse-pass clip may outlast its hold and still count as "the sound
+# stopped when the line was released". It is a release tail, not a tune: the
+# widest one measured on this board is trigger 4's ~1.4 s decay, and no LATCH
+# value has ever come within 0.15 s of this margin from either side, so the
+# classification is not living on a knife edge.
+GATED_MARGIN_S = 0.25
+# ...and how many times longer the sustain pass must be before we believe the
+# hold is what kept it sounding.
+SUSTAIN_RATIO = 3.0
+
+
+def build_schedule(args):
+    """The slot list. Each slot: id, key, pass, kind, hold, gap, and writes.
+
+    `key` is the thing being measured (`trig3`, `latch_08`, `irq`) and is the
+    name of the ONE clip file it produces. `pass` is "single", "pulse" or
+    "sustain"; a key with a pulse AND a sustain pass is resolved into one clip by
+    resolve_passes(). `dt` in `writes` is seconds from the slot's own start, and
+    each slot owns its `gap`, so a long sustain pass does not force every other
+    slot to be equally long.
     """
     slots = []
-    hold = args.hold
+    hold, gap = args.hold, args.gap
+    shold, sgap = args.sustain_hold, args.sustain_gap
+
+    def pair(key, kind, addr, value, on, off):
+        """A pulse slot and a sustain slot for the same write. See the module
+        docstring: one pass alone cannot tell a self-contained tune from a
+        sustained one, and guessing produced the looping-fragment bug."""
+        return [
+            {"id": key, "key": key, "pass": "pulse", "kind": kind, "addr": addr,
+             "value": value, "hold": hold, "gap": gap,
+             "writes": [(0.0, addr, on), (hold, addr, off)]},
+            {"id": key + SUSTAIN_SUFFIX, "key": key, "pass": "sustain", "kind": kind,
+             "addr": addr, "value": value, "hold": shold, "gap": sgap,
+             "writes": [(0.0, addr, on), (shold, addr, off)]},
+        ]
+
     for phase in args.phases:
         if phase == "triggers":
+            # SINGLE pass on purpose: these six lines are analogue circuits whose
+            # LEVEL behaviour is already characterised (see audio/README.md), and
+            # the ROM only ever holds them for 3 frames, so the short pass is the
+            # sound. A sustain pass here would record a 12 s drone nothing plays.
             for bit in range(TRIG_COUNT):
                 slots.append(
                     {
                         "id": f"trig{bit}",
+                        "key": f"trig{bit}",
+                        "pass": "single",
                         "kind": "trigger",
                         "addr": TRIG_BASE + bit,
                         "value": 1,
+                        "hold": hold,
+                        "gap": gap,
                         "writes": [
                             (0.0, TRIG_BASE + bit, 1),
                             (hold, TRIG_BASE + bit, 0),
@@ -245,27 +325,22 @@ def build_schedule(args):
                 )
         elif phase == "latch":
             for v in args.latch_values:
-                slots.append(
-                    {
-                        "id": f"latch_{v:02x}",
-                        "kind": "latch",
-                        "addr": SOUND_LATCH,
-                        "value": v,
-                        "writes": [
-                            (0.0, SOUND_LATCH, v),
-                            (hold, SOUND_LATCH, 0),
-                        ],
-                    }
-                )
+                slots += pair(f"latch_{v:02x}", "latch", SOUND_LATCH, v, v, 0)
+        elif phase == "irq":
+            slots += pair("irq", "irq", AUDIO_IRQ, 1, 1, 0)
         elif phase == "latchtrig":
             b = args.trigger_bit
             for v in args.latch_values:
                 slots.append(
                     {
                         "id": f"latch_{v:02x}_trig{b}",
+                        "key": f"latch_{v:02x}_trig{b}",
+                        "pass": "single",
                         "kind": "latchtrig",
                         "addr": SOUND_LATCH,
                         "value": v,
+                        "hold": hold,
+                        "gap": gap,
                         "writes": [
                             (0.0, SOUND_LATCH, v),
                             (min(0.02, hold / 2), TRIG_BASE + b, 1),
@@ -356,20 +431,20 @@ def generate_lua(args, hw, slots):
     """Render the autoboot script + return (lua_text, slot_frames, end_frame)."""
     fps = hw.refresh_hz
     boot_frames = max(1, int(round(args.boot * fps)))
-    gap_frames = max(1, int(round(args.gap * fps)))
 
     acts = {}
     marks = {}
     slot_frames = []
-    for i, slot in enumerate(slots):
-        start = boot_frames + i * gap_frames
+    start = boot_frames
+    for slot in slots:
         slot_frames.append(start)
         marks[start] = slot["id"]
         for dt, addr, val in slot["writes"]:
             f = start + int(round(dt * fps))
             acts.setdefault(f, []).append((addr, val))
+        start += max(1, int(round(slot["gap"] * fps)))
 
-    end_frame = boot_frames + len(slots) * gap_frames
+    end_frame = start
     # One frame before the first slot: the noise floor is measured over the
     # second leading up to it, which is why boot must be >= 1s.
     baseline_frame = max(1, boot_frames - int(round(1.0 * fps)))
@@ -422,10 +497,72 @@ def parse_schedule_log(path):
 
 
 # ---------------------------------------------------------------------------
+# Loop-period measurement
+# ---------------------------------------------------------------------------
+def loop_period(buf, rate, min_period_s, max_period_s, min_corr):
+    """Length, in samples, of the repeating phrase in a SUSTAINED recording.
+
+    Normalised autocorrelation: for each candidate lag L, correlate the signal
+    with itself shifted by L and divide by the energy of the two overlapping
+    halves, so a lag near the end of the buffer is not penalised for having less
+    overlap. The fundamental period is the lag that maximises it.
+
+    Two things this deliberately does NOT do:
+
+      * It does not take the smallest strong peak. A musical phrase has strong
+        peaks at note spacings too, and the smallest of those is one note, not
+        the phrase -- looping it is the very bug this measurement exists to fix.
+      * It does not accept the peak blindly. If a whole multiple of the answer
+        scores as well, the answer may be a multiple of the true period, so the
+        sub-multiples L/2..L/5 are checked and the smallest that correlates
+        essentially as well wins.
+
+    @returns (period_samples, correlation) or (None, None) if nothing repeats
+             convincingly, which is a result, not a failure -- the caller keeps
+             the whole recording and says so.
+    """
+    if _np is None or len(buf) < 4:
+        return None, None
+    a = _np.asarray(buf, dtype=_np.float64)
+    n = len(a)
+    lo = max(1, int(min_period_s * rate))
+    hi = min(n // 2, int(max_period_s * rate) if max_period_s else n // 2)
+    if hi <= lo:
+        return None, None
+
+    nfft = 1 << int(math.ceil(math.log2(2 * n)))
+    spec = _np.fft.rfft(a, nfft)
+    ac = _np.fft.irfft(spec * _np.conj(spec), nfft)[: hi + 1]
+    cum = _np.concatenate(([0.0], _np.cumsum(a * a)))
+    lags = _np.arange(lo, hi + 1)
+    # energy of a[0:n-L] times energy of a[L:n] -- the two windows being compared
+    norm = _np.sqrt(_np.maximum((cum[n - lags] - cum[0]) * (cum[n] - cum[lags]), 1e-9))
+    nac = ac[lo : hi + 1] / norm
+
+    best = int(_np.argmax(nac))
+    period, corr = int(lags[best]), float(nac[best])
+    for d in (2, 3, 4, 5):
+        sub = period // d
+        if sub < lo:
+            break
+        c = float(nac[sub - lo])
+        if c >= corr - 0.02:  # the shorter period explains the signal just as well
+            period, corr = sub, c
+            break
+    if corr < min_corr:
+        return None, None
+    return period, corr
+
+
+# ---------------------------------------------------------------------------
 # Splitting
 # ---------------------------------------------------------------------------
-def split_wav(wav_path, marks, baseline_t, end_t, args, out_dir):
-    """Slice the recording into per-slot clips; return (report rows, meta)."""
+def analyse_slots(wav_path, marks, baseline_t, end_t, args):
+    """Slice the recording per slot and measure each. Writes nothing.
+
+    Returns (rows, meta). A row carries the trimmed PCM bytes so resolve_passes()
+    can decide, per key, which pass becomes the clip on disk.
+    """
     with wave.open(wav_path, "rb") as w:
         channels, sampwidth, rate = w.getnchannels(), w.getsampwidth(), w.getframerate()
         nframes = w.getnframes()
@@ -446,7 +583,6 @@ def split_wav(wav_path, marks, baseline_t, end_t, args, out_dir):
     base_peak, base_rms = _peak_rms(_to_buf(base_raw))
     threshold = max(float(args.min_peak), base_peak * args.noise_margin)
 
-    os.makedirs(out_dir, exist_ok=True)
     rows = []
     for i, (sid, t0) in enumerate(marks):
         t1 = marks[i + 1][1] if i + 1 < len(marks) else end_t
@@ -461,22 +597,17 @@ def split_wav(wav_path, marks, baseline_t, end_t, args, out_dir):
             "peak": round(peak, 1),
             "rms": round(rms, 1),
             "silent": a is None,
-            "file": None,
             "duration_s": 0.0,
             "clipped_at_slot_end": False,
+            "_pcm": b"",
+            "_buf": None,
         }
         if a is not None:
             pad = int(round(args.pad * rate))
             a = max(0, a - pad)
             b = min(len(buf), b + pad)
-            clip = seg[a * bpf : b * bpf]
-            name = f"{sid}.wav"
-            with wave.open(os.path.join(out_dir, name), "wb") as ow:
-                ow.setnchannels(channels)
-                ow.setsampwidth(sampwidth)
-                ow.setframerate(rate)
-                ow.writeframes(clip)
-            row["file"] = name
+            row["_pcm"] = seg[a * bpf : b * bpf]
+            row["_buf"] = buf[a:b]
             row["duration_s"] = round((b - a) / rate, 4)
             # A clip that is still loud at the very end of its slot was cut off
             # by the next trigger -- honest flag, not a silent truncation.
@@ -495,10 +626,120 @@ def split_wav(wav_path, marks, baseline_t, end_t, args, out_dir):
     return rows, meta
 
 
+def resolve_passes(rows, slots, meta, args, out_dir):
+    """Turn per-slot measurements into one clip per key, and write the files.
+
+    This is where the pulse pass and the sustain pass are compared. The rule, and
+    the reason it is a MEASUREMENT rather than a lookup in the sound map:
+
+      gated  <=>  the pulse pass stopped when the latch was released
+                  (its duration is within GATED_MARGIN_S of the hold)
+             and  the sustain pass ran far longer than the pulse pass
+                  (SUSTAIN_RATIO x), i.e. holding really does keep it sounding.
+
+      gated      -> the clip is ONE LOOP PERIOD of the sustain pass: a whole
+                    repeating phrase, ending where it began.
+      not gated  -> the clip is the PULSE pass: the tune, played once, exactly as
+                    the ROM's 3-frame handshake fires it.
+
+    Returns the report rows, one per key, in schedule order.
+    """
+    rate = meta["sample_rate"]
+    bpf = meta["channels"] * meta["sample_width_bytes"]
+    by_id = {r["id"]: r for r in rows}
+    os.makedirs(out_dir, exist_ok=True)
+
+    out = []
+    seen = set()
+    for slot in slots:
+        key = slot["key"]
+        if key in seen:
+            continue
+        seen.add(key)
+        pulse = by_id.get(key)
+        sustain = by_id.get(key + SUSTAIN_SUFFIX)
+        if pulse is None:
+            continue  # capture cut short; the missing-slot problem is reported
+
+        row = {
+            "id": key,
+            "kind": slot["kind"],
+            "slot_start_s": pulse["slot_start_s"],
+            "slot_end_s": pulse["slot_end_s"],
+            "peak": pulse["peak"],
+            "rms": pulse["rms"],
+            "silent": pulse["silent"],
+            "file": None,
+            "duration_s": 0.0,
+            "clipped_at_slot_end": pulse["clipped_at_slot_end"],
+            "pulse_hold_s": slot["hold"],
+            "pulse_duration_s": pulse["duration_s"],
+            "sustain_hold_s": None,
+            "sustain_duration_s": None,
+            "gated": None,
+            "loop": False,
+            "loop_period_s": None,
+            "loop_corr": None,
+        }
+
+        src, buf = pulse["_pcm"], pulse["_buf"]
+        if sustain is not None:
+            row["sustain_hold_s"] = args.sustain_hold
+            row["sustain_duration_s"] = sustain["duration_s"]
+            # `peak` is the loudest sample this WRITE produced, over both passes;
+            # `rms` (set below) is measured on the clip that was actually
+            # written. For a sustained tune those describe the same waveform --
+            # a repeating phrase peaks the same in every repeat.
+            row["peak"] = max(row["peak"], sustain["peak"])
+            gated = (
+                not pulse["silent"]
+                and not sustain["silent"]
+                and pulse["duration_s"] <= slot["hold"] + GATED_MARGIN_S
+                and sustain["duration_s"] >= SUSTAIN_RATIO * max(pulse["duration_s"], 1e-6)
+            )
+            row["gated"] = gated
+            if gated:
+                # Only the HELD part of the sustain pass is a phrase; the release
+                # tail after it is not, and letting it into the search would bias
+                # the period. Search up to a QUARTER of it, so whatever comes back
+                # was seen at least four times -- a longer cap lets a one-off
+                # coincidence near the end of the buffer win, which is exactly how
+                # tune 0x0B's phrase was mis-measured at a 12s hold.
+                held = int(min(len(sustain["_buf"]), args.sustain_hold * rate))
+                region = sustain["_buf"][:held]
+                period, corr = loop_period(
+                    region, rate, args.min_period, args.sustain_hold / 4.0, args.loop_corr
+                )
+                row["loop"] = True
+                if period:
+                    row["loop_period_s"] = round(period / rate, 4)
+                    row["loop_corr"] = round(corr, 4)
+                    src = sustain["_pcm"][: period * bpf]
+                    buf = region[:period]
+                else:
+                    # No convincing period: keep the whole sustained recording
+                    # rather than inventing a loop point. Says so in index.json.
+                    src, buf = sustain["_pcm"][: held * bpf], region
+
+        if src:
+            name = f"{key}.wav"
+            with wave.open(os.path.join(out_dir, name), "wb") as ow:
+                ow.setnchannels(meta["channels"])
+                ow.setsampwidth(meta["sample_width_bytes"])
+                ow.setframerate(rate)
+                ow.writeframes(src)
+            row["file"] = name
+            row["duration_s"] = round(len(src) // bpf / rate, 4)
+            if buf is not None and len(buf):
+                row["rms"] = round(_peak_rms(buf)[1], 1)
+        out.append(row)
+    return out
+
+
 GAP_TAIL_S = 0.25
 
 
-def gap_report(wav_path, marks, args):
+def gap_report(wav_path, marks, end_t):
     """Peak in the last GAP_TAIL_S of each slot -- two proofs in one number.
 
     It must be at the noise floor. If it is not, either the ROM is still driving
@@ -512,7 +753,7 @@ def gap_report(wav_path, marks, args):
     bpf = channels * sampwidth
     out = []
     for i, (sid, t0) in enumerate(marks):
-        t1 = marks[i + 1][1] if i + 1 < len(marks) else t0 + args.gap
+        t1 = marks[i + 1][1] if i + 1 < len(marks) else end_t
         ts = max(t0, t1 - GAP_TAIL_S)
         i0 = max(0, min(nframes, int(round(ts * rate))))
         i1 = max(i0, min(nframes, int(round(t1 * rate))))
@@ -580,8 +821,8 @@ def main():
     )
     p.add_argument(
         "--phases",
-        default="triggers,latch",
-        help="comma list of triggers,latch,latchtrig (default: %(default)s)",
+        default="triggers,latch,irq",
+        help="comma list of triggers,latch,irq,latchtrig (default: %(default)s)",
     )
     p.add_argument(
         "--latch-values",
@@ -607,7 +848,40 @@ def main():
         "--hold",
         type=float,
         default=0.25,
-        help="seconds a trigger/latch value is held before clearing (default: %(default)s)",
+        help="seconds a value is held in the PULSE pass before clearing. Models the "
+        "ROM's own 3-frame (~0.05s) handshake, rounded up (default: %(default)s)",
+    )
+    p.add_argument(
+        "--sustain-hold",
+        type=float,
+        default=24.0,
+        help="seconds a latch/irq value is held in the SUSTAIN pass. The phrase search "
+        "will not return a period longer than a quarter of this, so the answer is "
+        "always something seen at least four times. MEASURED, not guessed: DK's "
+        "longest repeating phrase is 4.92s (tune 0x03) and at a 12s hold the estimate "
+        "for tune 0x0B was still unstable, so 24s is the first value that pinned every "
+        "tune on this board (default: %(default)s)",
+    )
+    p.add_argument(
+        "--sustain-gap",
+        type=float,
+        default=32.0,
+        help="seconds between sustain-pass slot starts; must exceed --sustain-hold "
+        "plus the longest release tail (default: %(default)s)",
+    )
+    p.add_argument(
+        "--min-period",
+        type=float,
+        default=0.2,
+        help="shortest loop period the phrase search will consider, seconds "
+        "(default: %(default)s)",
+    )
+    p.add_argument(
+        "--loop-corr",
+        type=float,
+        default=0.8,
+        help="minimum normalised autocorrelation before a loop period is believed; "
+        "below it the whole sustained recording is kept uncut (default: %(default)s)",
     )
     p.add_argument(
         "--boot",
@@ -660,8 +934,8 @@ def main():
 
     args.phases = [s.strip() for s in args.phases.split(",") if s.strip()]
     for ph in args.phases:
-        if ph not in ("triggers", "latch", "latchtrig"):
-            p.error(f"unknown phase {ph!r} (want triggers, latch or latchtrig)")
+        if ph not in ("triggers", "latch", "irq", "latchtrig"):
+            p.error(f"unknown phase {ph!r} (want triggers, latch, irq or latchtrig)")
     if not args.phases:
         p.error("--phases selected nothing")
     try:
@@ -680,6 +954,12 @@ def main():
         p.error(f"--trigger-bit must be 0..{TRIG_COUNT - 1}")
     if args.gap <= args.hold + 0.1:
         p.error("--gap must exceed --hold by at least 0.1s or slots would overlap")
+    if args.sustain_gap <= args.sustain_hold + 0.1:
+        p.error("--sustain-gap must exceed --sustain-hold by at least 0.1s or the "
+                "sustain slots would overlap")
+    if args.sustain_hold <= args.hold + GATED_MARGIN_S:
+        p.error(f"--sustain-hold must exceed --hold by more than {GATED_MARGIN_S}s: "
+                "the two passes have to be distinguishable to classify anything")
     if args.boot < 1.5:
         p.error("--boot must be >= 1.5s: the noise floor is measured in the second "
                 "before the first slot, and MAME's discrete netlist needs to settle")
@@ -724,8 +1004,10 @@ def main():
         argv = mame_golden.build_mame_argv(ns, hw, workdir)
         argv += ["-wavwrite", wav_path, "-samplerate", str(args.samplerate)]
 
-        print(f"[plan  ] {len(slots)} slots, gap {args.gap}s, boot {args.boot}s "
-              f"-> {total_s:.1f}s emulated ({seconds}s -seconds_to_run)")
+        n_sus = sum(1 for s in slots if s["pass"] == "sustain")
+        print(f"[plan  ] {len(slots)} slots ({n_sus} sustain), gap {args.gap}s / "
+              f"{args.sustain_gap}s, hold {args.hold}s / {args.sustain_hold}s, "
+              f"boot {args.boot}s -> {total_s:.1f}s emulated ({seconds}s -seconds_to_run)")
         print(f"[plan  ] phases: {','.join(args.phases)}")
         if args.dry_run:
             print("[dry   ] " + " ".join(argv))
@@ -777,7 +1059,15 @@ def main():
             raise RuntimeError("no slots were recorded; nothing to split")
 
         out_dir = args.out
-        rows, meta = split_wav(wav_path, marks, baseline_t, end_t, args, out_dir)
+        slot_rows, meta = analyse_slots(wav_path, marks, baseline_t, end_t, args)
+        rows = resolve_passes(slot_rows, slots, meta, args, out_dir)
+        for r in rows:
+            if r["gated"] and r["loop_period_s"] is None:
+                problems.append(
+                    f"{r['id']} sustains but no repeating phrase was found in it -- the "
+                    f"whole {r['duration_s']}s recording was kept uncut, so looping it "
+                    f"will seam. Try a longer --sustain-hold or a lower --loop-corr"
+                )
 
         meta.update(
             {
@@ -787,6 +1077,10 @@ def main():
                 "phases": args.phases,
                 "gap_s": args.gap,
                 "hold_s": args.hold,
+                "sustain_hold_s": args.sustain_hold,
+                "sustain_gap_s": args.sustain_gap,
+                "min_period_s": args.min_period,
+                "loop_corr_min": args.loop_corr,
                 "boot_s": args.boot,
                 "mute_ranges": [f"0x{lo:04X}-0x{hi:04X}" for lo, hi in args.mute_ranges],
                 "pre_writes": [f"0x{a:04X}=0x{v:02X}" for a, v in args.pre_writes],
@@ -806,8 +1100,9 @@ def main():
         if blocked is not None:
             print(f"[mute  ] {blocked} program writes to the sound hardware suppressed")
         print()
-        print(f"  {'slot':<24} {'peak':>8} {'rms':>9} {'dur':>8}  result")
-        print("  " + "-" * 62)
+        print(f"  {'slot':<12} {'peak':>7} {'pulse':>8} {'sustain':>8} {'kept':>8} "
+              f"{'period':>8} {'r':>6}  result")
+        print("  " + "-" * 78)
         sounded = 0
         for r in rows:
             if r["silent"]:
@@ -815,18 +1110,26 @@ def main():
             else:
                 sounded += 1
                 verdict = r["file"] + (" (CUT OFF at slot end)" if r["clipped_at_slot_end"] else "")
-            dur = f"{r['duration_s']:.3f}s" if not r["silent"] else "-"
-            print(f"  {r['id']:<24} {r['peak']:>8.0f} {r['rms']:>9.1f} {dur:>8}  {verdict}")
+                if r["gated"]:
+                    verdict = "LOOP  " + verdict
+            fmt = lambda v: "-" if v is None else f"{v:.3f}s"  # noqa: E731
+            print(f"  {r['id']:<12} {r['peak']:>7.0f} {fmt(r['pulse_duration_s']):>8} "
+                  f"{fmt(r['sustain_duration_s']):>8} {fmt(r['duration_s']):>8} "
+                  f"{fmt(r['loop_period_s']):>8} "
+                  f"{'-' if r['loop_corr'] is None else format(r['loop_corr'], '.3f'):>6}  "
+                  f"{verdict}")
         print()
-        print(f"[result] {sounded}/{len(rows)} slots produced sound; "
-              f"{len(rows) - sounded} silent -> {out_dir}")
+        looped = sum(1 for r in rows if r["loop"])
+        print(f"[result] {sounded}/{len(rows)} writes produced sound; "
+              f"{len(rows) - sounded} silent; {looped} classified SUSTAINED and cut to "
+              f"one phrase -> {out_dir}")
 
         if args.report_gaps:
             print()
             print(f"  residual in the last {GAP_TAIL_S}s of each slot "
                   f"(must be at the floor: proves muting worked AND --gap is long enough)")
             unsettled = 0
-            for sid, peak, rms in gap_report(wav_path, marks, args):
+            for sid, peak, rms in gap_report(wav_path, marks, end_t):
                 bad = peak > meta["silence_threshold"]
                 unsettled += bad
                 print(f"  {sid:<24} peak={peak:>8.0f} rms={rms:>8.1f}"

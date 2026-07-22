@@ -57,6 +57,16 @@
 //             basis"). `behaviour: "level"` means the clip length tracks how
 //             long the bit is held; `"oneshot"` means the hold length is
 //             irrelevant. `audible: null` means "not measured in isolation".
+//             The sweep drives every tune TWICE, so tune entries also carry:
+//               pulseSec   clip length from a 0.25s pulse
+//               sustainSec clip length from a 24s hold
+//               gated      true when the sound STOPS as the line is released
+//                          (pulseSec ~= the pulse) -- i.e. the line selects a
+//                          sustained tune rather than firing a whole one
+//               phraseSec  gated tunes only: the measured length of the
+//                          REPEATING PHRASE (normalised autocorrelation over the
+//                          24s hold), with phraseCorr as its correlation. This
+//                          is the length a looping clip must be.
 //
 // These two are NOT the same thing and conflating them is the mistake that
 // produces a wrong player. Example: trigger 0 (walk) is LEVEL-driven hardware,
@@ -108,8 +118,11 @@ export const SOUNDS = {
         "4049 inverter oscillator + 555 VCO + RC trigger; dkong_a.cpp:415-436 " +
         "('Walk' block, driven by DS_SOUND0_INV). No sample data exists. The " +
         "circuit is LEVEL-gated, so the ROM's 3-frame hold is what makes it a " +
-        "footstep rather than a drone -- gate a sample on the bit, do not fire a " +
-        "fixed-length one.",
+        "footstep rather than a drone -- gate a RECORDED clip on the bit, do not " +
+        "fire a fixed-length one. That instruction is about clips only. The " +
+        "SYNTHESISED walk (audio/synth.js) renders one whole footstep -- the " +
+        "rising-edge blip AND the falling-edge release blip -- so it is played " +
+        "ungated as a one-shot, and gating it would chop both.",
       rom: ["0x1D8F sets 0x6080=3", "callers 0x1CC7 (walk anim), 0x1D61"],
       measured: {
         audible: true,
@@ -160,8 +173,9 @@ export const SOUNDS = {
       note:
         "LFSR noise + LS161 divider + RC envelope, dkong_a.cpp:356-376 ('Stomp' " +
         "block, DS_SOUND2_INV). No sample data exists. Measured as a true one-shot " +
-        "at 1.825s -- much longer than the ROM's 3-frame hold, so it must be fired " +
-        "on the rising edge and allowed to run.",
+        "of fixed length -- much longer than the ROM's 3-frame hold, so it must be " +
+        "fired on the rising edge and allowed to run. The 1.825s the sweep reports " +
+        "is the CLIP, not the SOUND: see measured.audibleSec.",
       rom: [
         "0x044D Kong stomp animation (gated `and 0x1F` -> every 32 frames)",
         "0x0B45 / 0x0B8E intro stomps",
@@ -173,7 +187,17 @@ export const SOUNDS = {
         audible: true,
         behaviour: "oneshot",
         peak: 12093,
+        // clipSec is the RECORDER's first-to-last-non-silent span. audibleSec is
+        // how much of that span is sound, and for boom alone the two differ:
+        // past 0.7625s the clip holds a 2-3 LSB DC offset and then takes one
+        // smooth, one-sided 12ms DC step at 1.803s -- a netlist settling
+        // transient that record_samples.py's silence threshold counted as
+        // signal. Established while fitting audio/synth.js, whose
+        // EFFECTS.boom.measured carries both figures and renders the 0.78s.
+        // Neither number is behavioural: boom is a one-shot fired on the rising
+        // edge, so whatever is playing ends when it ends.
         clipSec: { hold0_25: 1.825, hold3_0: 1.825 },
+        audibleSec: 0.7625,
       },
       evidence: [
         "mame dkong_a.cpp:1325 bit2 -> DS_SOUND2_INP",
@@ -325,10 +349,15 @@ export const SOUNDS = {
   // 0x7D80 -- write side. READING 0x7D80 is DSW0; the two are different
   // devices at one address, exactly like 0x7C00 (IN0 read / sound latch write).
   //
-  // NOT YET MEASURED IN ISOLATION. The stimulus sweep only established that
-  // MUTING this line leaves the 0x7C00 tune sweep byte-identical -- i.e. tune
-  // playback does not depend on it. Whether driving it alone produces the death
-  // jingle is an open measurement.
+  // THE DEATH TUNE LIVES HERE, NOT ON THE TUNE LATCH. Worth stating flatly,
+  // because the natural assumption is that a tune comes out of the tune latch
+  // and one of its 16 values must be "death". A write trace of an actual death
+  // says otherwise: the ROM writes 0x7C00 <- 0x00 (silence the board music) at
+  // the frame Mario is hit, and 65 frames later pulses 0x7D80 for 3 frames. No
+  // latch value is written at any point in the death sequence. See `evidence`.
+  //
+  // MEASURED IN ISOLATION as of the `irq` recorder phase: driving this line
+  // alone, with the ROM muted off the sound hardware, produces a 3.245s tune.
   // ---------------------------------------------------------------------
   irq: {
     name: "death",
@@ -339,16 +368,33 @@ export const SOUNDS = {
     note:
       "Writing nonzero asserts the I8035's interrupt line and 0 clears it " +
       "(dkong_a.cpp:1257-1263); the tune is whatever the sound program's IRQ " +
-      "handler plays. It is the ONLY event on this line.",
+      "handler plays. It is the ONLY event on this line. " +
+      "A PLAYER MUST NOT GATE IT ON THE LINE. The ROM's 3-frame hold is a " +
+      "handshake, not a duration: the tune runs 3.245s, i.e. ~65x the hold, and " +
+      "stopping it when the line drops would cut it off after ~50ms. Held " +
+      "indefinitely it simply replays -- which is what every I8035 tune does, " +
+      "and which the ROM never asks for.",
     rom: ["0x12A8 sets 0x6088=3, in the death state (entry_128B, 0x6009=8)"],
-    measured: { audible: null, behaviour: null, peak: null, clipSec: null },
+    measured: {
+      audible: true,
+      behaviour: "oneshot",
+      peak: 20618,
+      clipSec: 3.245,
+      pulseSec: 3.245, // from a 0.25s pulse
+      sustainSec: 24.22, // from a 24s hold: it repeats, like every 8035 tune
+    },
     evidence: [
       "mame dkong.cpp:806 map(0x7d80) .w(dkong_audio_irq_w)",
       "mame dkong.cpp:202 '7d80 digital sound trigger - dead'",
       "trace coin_start idle: 7D80 rises 3 times in 90s -- once per life -- each ~64 frames " +
         "after the boom that killed Mario",
+      "trace coin_start idle 45s (--writes), first death: 7C00 <- 00 at frame 1661.3 (the hit), " +
+        "then 7D80 <- 01 at frame 1726.1 and <- 00 at 1729.1. NO 7C00 value is written between " +
+        "them, so the death tune is not a latch tune",
       "stimulus sweep control: muting this line left all 14 tune clips byte-identical, so " +
         "it is NOT what starts a tune -- it is its own event",
+      "stimulus sweep `irq` phase: driving 0x7D80 alone gives a 3.245s tune, peak 20618 " +
+        "(0.25s pulse); a 24s hold gives 24.22s, i.e. it repeats while held",
     ],
   },
 
@@ -360,7 +406,29 @@ export const SOUNDS = {
   // Measured, by direct stimulus of real MAME 0.288: the write itself drives the
   // sound CPU (muting the 0x7D80 IRQ line changes nothing), only the low nibble
   // is significant, and 0x00 and 0x0A are SILENT while the other 14 values each
-  // produce a distinct sound of 0.221s-6.818s.
+  // produce a distinct sound.
+  //
+  // GATED vs SELF-CONTAINED -- MEASURED, AND IT CONFIRMS `kind` FROM OUTSIDE.
+  // Each value is now stimulated TWICE: a 0.25s pulse and a 24s hold. Five
+  // values -- and exactly five -- stop when the latch is released (their pulse
+  // clip is the length of the pulse) and sound for the whole 24s when it is
+  // held: 0x03, 0x04, 0x08, 0x09, 0x0B. Those are precisely the five this map
+  // calls `kind: "loop"`, derived independently from the ROM's use of the
+  // background slot 0x6089. Two unrelated methods agreeing is the strongest
+  // statement in this file about `kind` -- though it still says nothing about
+  // any NAME, so no `confidence` moves on account of it.
+  //
+  // For those five, `measured.phraseSec` is the length of the REPEATING PHRASE,
+  // found by normalised autocorrelation of the 24s hold. It is the length a
+  // recorded clip has to be. Recording one at the pulse length instead is what
+  // "the background music is missing notes" was: 0.243s of bgm_25m is 10.6% of
+  // its 2.295s phrase and contains 1 of its 10 notes.
+  //
+  // The other nine values outlast the pulse by many times and finish on their
+  // own -- they are self-contained tunes. Holding one REPLAYS it (the 8035
+  // re-reads the latch when a tune ends), which is a fact about the hardware
+  // and not something the ROM ever asks for. 0x0D is the single exception: it
+  // plays once and stays quiet even under a 24s hold.
   //
   // *** 0x0A IS AN OPEN CONFLICT. *** See its entry and README.md.
   // ---------------------------------------------------------------------
@@ -389,7 +457,10 @@ export const SOUNDS = {
       fires: "immediately after Start -- the Kong-climbs-the-girders opening",
       note: "Priority slot, 3-frame pulse; the 8035 plays the whole tune itself.",
       rom: ["0x0ADB sets 0x608A=0x01, 0x608B=3"],
-      measured: { audible: true, behaviour: null, durationSec: null },
+      measured: {
+        audible: true, behaviour: "oneshot", durationSec: 5.423,
+        pulseSec: 5.423, sustainSec: 26.21, gated: false,
+      },
       evidence: [
         "mame dkong.cpp:178 '01 - Intro tune'",
         "trace coin_start: 0x7C00 <- 01 at frame 532, 72 frames after the Start press",
@@ -408,7 +479,10 @@ export const SOUNDS = {
         "MAME calls it the intermission tune; empirically it is the generic " +
         "start-of-board cue and fires once per life.",
       rom: ["0x0BF2 sets 0x608A=0x02, 0x608B=3 (routine 0x0BDA, which first silences via 0x011C)"],
-      measured: { audible: true, behaviour: null, durationSec: null },
+      measured: {
+        audible: true, behaviour: "oneshot", durationSec: 2.620,
+        pulseSec: 2.620, sustainSec: 26.26, gated: false,
+      },
       evidence: [
         "mame dkong.cpp:179 '02 - How High? (intermisson) tune'",
         "trace coin_start idle 90s: 0x7C00 <- 02 at frames 1237, 1960, 2683 -- once before " +
@@ -432,7 +506,11 @@ export const SOUNDS = {
           "the high nibble of 0x638C is zero (it also swaps the leading digit tile at " +
           "0x7486/0x74A6)",
       ],
-      measured: { audible: true, behaviour: null, durationSec: null },
+      measured: {
+        audible: true, behaviour: "level", gated: true,
+        pulseSec: 0.357, sustainSec: 24.07,
+        phraseSec: 4.9192, phraseCorr: 0.942, durationSec: 4.9192,
+      },
       evidence: [
         "mame dkong.cpp:180 '03 - Out of time'",
         "stimulus sweep: audible (does not name it)",
@@ -448,7 +526,11 @@ export const SOUNDS = {
         "Background slot. The ROM saves the previous background tune in 0x6389 and " +
         "restores it when the hammer runs out (0x2FAE saves, 0x2F79 restores).",
       rom: ["0x2F00 sets 0x6089=0x04 when the hammer flag 0x6217 bit0 is set"],
-      measured: { audible: true, behaviour: null, durationSec: null },
+      measured: {
+        audible: true, behaviour: "level", gated: true,
+        pulseSec: 0.381, sustainSec: 24.09,
+        phraseSec: 2.9515, phraseCorr: 0.960, durationSec: 2.9515,
+      },
       evidence: [
         "mame dkong.cpp:181 '04 - Hammer'",
         "trace test_hammer_25m_lower: 0x7C00 held at 04 from frame 1609 to 2120, then back " +
@@ -471,7 +553,10 @@ export const SOUNDS = {
         "LONGEST sounds on the whole latch, ~6.79s and ~6.82s, which is what an end " +
         "fanfare pair should look like and what two arbitrary effects should not.",
       rom: ["0x191E sets 0x608A=0x05, 0x608B=3"],
-      measured: { audible: true, behaviour: null, durationSec: 6.79 },
+      measured: {
+        audible: true, behaviour: "oneshot", durationSec: 6.762,
+        pulseSec: 6.762, sustainSec: 26.28, gated: false,
+      },
       evidence: [
         "mame dkong.cpp:182 '05 - Rivet level 2 completed (end tune)'",
         "stimulus sweep: audible, 6.79s -- joint-longest with 0x0C",
@@ -487,7 +572,10 @@ export const SOUNDS = {
         "The same routine picks the score value (0x6342 = 2 or 4) and spawns the " +
         "floating score sprite at 0x6A2C, which is what a hammer kill does.",
       rom: ["0x1F00 sets 0x608A=0x06, 0x608B=3"],
-      measured: { audible: true, behaviour: null, durationSec: null },
+      measured: {
+        audible: true, behaviour: "oneshot", durationSec: 1.130,
+        pulseSec: 1.130, sustainSec: 24.33, gated: false,
+      },
       evidence: [
         "mame dkong.cpp:183 '06 - Hammer hit'",
         "stimulus sweep: audible (does not name it)",
@@ -504,7 +592,10 @@ export const SOUNDS = {
         "clears video RAM around 0x75C4, then selects the tune. Referenced twice from " +
         "the level-end dispatch tables near 0x1650/0x16A4.",
       rom: ["0x1729 sets 0x608A=0x07, 0x608B=3"],
-      measured: { audible: true, behaviour: null, durationSec: null },
+      measured: {
+        audible: true, behaviour: "oneshot", durationSec: 3.746,
+        pulseSec: 3.746, sustainSec: 26.29, gated: false,
+      },
       evidence: [
         "mame dkong.cpp:184 '07 - Standard level end'",
         "stimulus sweep: audible (does not name it)",
@@ -518,7 +609,11 @@ export const SOUNDS = {
       fires: "the whole time board type 0x6227 == 1 (25m, girders/barrels) is being played",
       note: "MAME calls this 'Background 1 (barrels)'.",
       rom: ["0x0CD9 sets 0x6089=0x08 on the 0x6227==1 arm of the board-setup dispatch"],
-      measured: { audible: true, behaviour: null, durationSec: null },
+      measured: {
+        audible: true, behaviour: "level", gated: true,
+        pulseSec: 0.110, sustainSec: 24.05,
+        phraseSec: 2.2949, phraseCorr: 0.996, durationSec: 2.2949,
+      },
       evidence: [
         "mame dkong.cpp:185 '08 - Background 1 (barrels)'",
         "trace coin_start: 0x7C00 held at 08 from frame 1400 until the death at 1661",
@@ -534,7 +629,11 @@ export const SOUNDS = {
       note: "MAME calls this 'Background 4 (pie factory)'. MAME's Background-N numbering " +
         "is not the height order; go by 0x6227.",
       rom: ["0x0CEC sets 0x6089=0x09 on the 0x6227==2 arm"],
-      measured: { audible: true, behaviour: null, durationSec: null },
+      measured: {
+        audible: true, behaviour: "level", gated: true,
+        pulseSec: 0.374, sustainSec: 24.05,
+        phraseSec: 1.3523, phraseCorr: 0.995, durationSec: 1.3523,
+      },
       evidence: [
         "mame dkong.cpp:186 '09 - Background 4 (pie factory)'",
         "trace test_prize_50m_hat (pokes 0x6227=2): 0x7C00 held at 09 from frame 1398",
@@ -578,7 +677,11 @@ export const SOUNDS = {
       fires: "board type 0x6227 == 4 (100m, rivets)",
       note: "MAME calls this 'Background 2 (rivets)'.",
       rom: ["0x0CC0 sets 0x6089=0x0B on the fall-through (0x6227==4) arm"],
-      measured: { audible: true, behaviour: null, durationSec: null },
+      measured: {
+        audible: true, behaviour: "level", gated: true,
+        pulseSec: 0.341, sustainSec: 24.19,
+        phraseSec: 3.9338, phraseCorr: 1.000, durationSec: 3.9338,
+      },
       evidence: [
         "mame dkong.cpp:188 '0B - Background 2 (rivets)'",
         "trace level4_full (pokes 0x6227=4): 0x7C00 held at 0B from frame 1397",
@@ -596,7 +699,10 @@ export const SOUNDS = {
       note: "See rivet_end_even (0x05); same site, the other side of the parity test, " +
         "and the other of the two ~6.8s sounds on the latch.",
       rom: ["0x1916 sets 0x608A=0x0C (kept when 0x6229 bit0 is set), 0x608B=3"],
-      measured: { audible: true, behaviour: null, durationSec: 6.82 },
+      measured: {
+        audible: true, behaviour: "oneshot", durationSec: 6.860,
+        pulseSec: 6.860, sustainSec: 26.33, gated: false,
+      },
       evidence: [
         "mame dkong.cpp:189 '0C - Rivet level 1 completed (end tune)'",
         "stimulus sweep: audible, 6.82s -- the longest sound on the latch",
@@ -613,7 +719,10 @@ export const SOUNDS = {
         "tiles and raises a pending flag 0x6225; the tune is emitted a few frames later " +
         "by 0x1D95, which is gated on board type != 1.",
       rom: ["0x1A80..0x1AB9 rivet removal; 0x1D9D sets 0x608A=0x0D, 0x608B=3"],
-      measured: { audible: true, behaviour: null, durationSec: null },
+      measured: {
+        audible: true, behaviour: "oneshot", durationSec: 0.749,
+        pulseSec: 0.749, sustainSec: 0.786, gated: false,
+      },
       evidence: [
         "mame dkong.cpp:190 '0D - Rivet removed'",
         "stimulus sweep: audible (does not name it)",
@@ -631,7 +740,10 @@ export const SOUNDS = {
         "Kong shaking (0x1839), Kong falling (0x186F, trigger 4), his landing thud " +
         "(0x18BE, trigger 2) and then the rivet end tune (0x1913).",
       rom: ["0x17B7 silences via 0x011C, then 0x17BD sets 0x608A=0x0E, 0x608B=3"],
-      measured: { audible: true, behaviour: null, durationSec: null },
+      measured: {
+        audible: true, behaviour: "oneshot", durationSec: 3.271,
+        pulseSec: 3.271, sustainSec: 24.53, gated: false,
+      },
       evidence: [
         "mame dkong.cpp:191 '0E - Rivet level completed'",
         "stimulus sweep: audible (does not name it)",
@@ -650,7 +762,10 @@ export const SOUNDS = {
         "Measured at 2.010s; writing 0xFF gives 2.007s, which is the low-nibble mask " +
         "(0xFF and 0x0F select the same tune) showing up in the data.",
       rom: ["0x0BBD sets 0x608A=0x0F, 0x608B=3"],
-      measured: { audible: true, behaviour: null, durationSec: 2.01 },
+      measured: {
+        audible: true, behaviour: "oneshot", durationSec: 2.034,
+        pulseSec: 2.034, sustainSec: 25.85, gated: false,
+      },
       evidence: [
         "mame dkong.cpp:192 '0F - Gorilla roar'",
         "mame dkong.cpp:213 '0800-0fff Compressed sound sample (Gorilla roar in DKong)'",

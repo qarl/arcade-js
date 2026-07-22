@@ -38,13 +38,26 @@ let PORTS = null;  // {in0,in1,in2} input port addresses, from manifest.inputs.p
 // No audio data crosses this boundary — just (addr, value) pairs, flushed once
 // per frame alongside the framebuffer publish.
 // ---------------------------------------------------------------------------
+//
+// THE THIRD SURFACE, 0x7D80, IS POLLED RATHER THAN TAPPED. It carries the death
+// tune (see games/dkong/audio/sounds.js `irq`), but it shares its ls259 with
+// flipscreen / NMI-mask / DRQ and the board exposes no write tap for it — only
+// the stored bit, io.audioIrq. So it is read once per frame here, on exactly the
+// same edge rule as the tapped surfaces. Frame granularity is sufficient and
+// that is a measurement, not a hope: the ROM's sound service routine holds this
+// line for THREE frames (0x6088 is loaded with 3 and decremented per frame), so
+// a per-frame poll sees the 0→1 and the 1→0 with two frames to spare. A pulse
+// shorter than one frame could be missed; this ROM never writes one.
+// ---------------------------------------------------------------------------
 let audioOn = false;
 let live = null;               // the LiveMachine currently running, for re-arming
-const soundLast = new Int16Array(9).fill(-1); // 0 = 0x7C00, 1..8 = 0x7D00..0x7D07
+// 0 = 0x7C00, 1..8 = 0x7D00..0x7D07, 9 = 0x7D80 (polled, see below)
+const soundLast = new Int16Array(10).fill(-1);
+const IRQ_SLOT = 9, IRQ_ADDR = 0x7d80;
 let soundQueue = [];           // [addr, value, addr, value, ...] for this frame
 
 function emitSound(addr, value) {
-  const i = addr === 0x7c00 ? 0 : addr - 0x7cff; // 0x7D00+n -> 1+n
+  const i = addr === 0x7c00 ? 0 : addr === IRQ_ADDR ? IRQ_SLOT : addr - 0x7cff;
   if (soundLast[i] === value) return;
   soundLast[i] = value;
   soundQueue.push(addr, value);
@@ -82,6 +95,10 @@ function makeLive(Machine) {
       }
       const fl = this.frames.length;         // bound memory over a long session
       if (fl >= 3) this.frames[fl - 3] = null;
+      // The one polled sound surface. Sampled BEFORE the queue is flushed so its
+      // edge ships with the frame it happened in, and only when audio is armed,
+      // so a run with no audio reads nothing.
+      if (audioOn) emitSound(IRQ_ADDR, this.io.audioIrq & 1);
       // Sound edges accumulated during the frame, shipped as one compact
       // message. Batching per frame (not per write) keeps this off the hot path
       // and keeps the events in execution order.

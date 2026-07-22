@@ -53,19 +53,34 @@ export default {
 
   // Optional audio contract, read by the game-agnostic web player exactly the way
   // `inputs` is: `map` is the declarative sound-command map (games/dkong/audio/
-  // sounds.js — data only), `samples` the directory the local recorder writes to.
-  // BOTH PATHS ARE RELATIVE TO THIS GAME'S DIRECTORY, and the samples directory is
-  // gitignored and normally ABSENT: arcade-js ships no Donkey Kong audio, so a
-  // fresh clone simply plays silently. Declaring this block turns audio on if and
-  // only if the visitor has recorded their own clips (`make samples`); omitting it
-  // in another game's manifest means that game has no audio layer at all.
+  // sounds.js — data only), `synth` the module that RE-CREATES the board's
+  // discrete analogue effects, `samples` the directory the local recorder writes
+  // to. ALL THREE PATHS ARE RELATIVE TO THIS GAME'S DIRECTORY.
+  //
+  // The two sound sources are not equally available, and that asymmetry is the
+  // whole point of having both:
+  //   • `synth` ships with arcade-js and needs nothing installed — DK's walk,
+  //     jump and boom are discrete circuits with no sample data in any ROM, so
+  //     they are synthesised from measured circuit parameters and are our own
+  //     work. Every visitor hears these.
+  //   • `samples` holds the tunes, which come out of a second CPU running its
+  //     own ROM and so can only be recorded — LOCALLY, by the visitor's own
+  //     `make samples` from their own MAME + ROM. That directory is gitignored
+  //     and normally ABSENT; a fresh clone therefore plays the three effects and
+  //     no music. Where a recording exists it overrides the synthesis of the
+  //     same name (see the AUDIO section of web/player.html).
+  // Omitting this block in another game's manifest means that game has no audio
+  // layer at all; omitting just `synth` means it has no synthesisable effects.
   audio: {
     map: "audio/sounds.js",
+    synth: "audio/synth.js",
     samples: "audio/samples",
     // Filenames record_samples.py gives a clip, by write. Kept here rather than in
     // sounds.js because it is a property of the RECORDER's output layout, not of
     // the hardware: sounds.js is the hardware map and stays free of file paths.
-    clipIds: { trigger: "trig{n}", latch: "latch_{vv}" },
+    // `irq` is the 0x7D80 line, which carries the death tune -- it is a third
+    // write surface, not a trigger bit, so it gets its own id.
+    clipIds: { trigger: "trig{n}", latch: "latch_{vv}", irq: "irq" },
   },
 
   // ROM assembly: MAME part filenames (from your own dkong.zip), concatenated in
