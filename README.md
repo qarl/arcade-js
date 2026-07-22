@@ -1,11 +1,21 @@
 # arcade-js
 
-Arcade games faithfully **translated from their original machine code to JavaScript**,
-validated **pixel-exact against MAME**. Not a re-implementation from observation — the
-game's ROM is disassembled and translated instruction-by-instruction, then checked frame
-against frame until the pixels match.
+**An experiment in using AI agents to port existing software.** The disassembly, the
+translation, the tests and the tooling in this repo were produced by agents. Arcade ROMs are
+the testbed, chosen for one reason: **you can prove whether the port is correct.**
 
-**Donkey Kong** is the first game. The repo is structured to host many: multiple CPUs,
+Most porting work has no oracle. You rewrite something, it looks right, and "faithful" stays
+a matter of opinion. An arcade ROM doesn't have that problem — MAME already runs it, so there
+is a reference implementation emitting exact expected output. Correctness becomes falsifiable
+and frame-by-frame: did our JavaScript produce the same pixels as the original machine code,
+or did it not?
+
+Concretely, then: arcade games **translated from their original machine code to JavaScript**,
+validated **pixel-exact against MAME**. Not a re-implementation from observation — the ROM is
+disassembled and translated instruction by instruction, then checked frame against frame until
+the pixels match.
+
+**Donkey Kong** is the first subject. The repo is structured to host many: multiple CPUs,
 multiple arcade boards, and multiple game romsets, sharing what they genuinely share.
 
 > **Status:** Donkey Kong plays in the browser today. All four board *types* boot and play —
@@ -38,8 +48,9 @@ expression of the logic and it ships; the original data is Nintendo's and it nev
 
 ## How we know it's right
 
-The claim "translated faithfully" is only worth as much as what can falsify it. Every gate
-below runs from a clean checkout:
+If the question is whether agents can port software faithfully, the answer is only worth as
+much as what could have proven it wrong. These gates are the experiment's instrumentation,
+and every one of them runs from a clean checkout:
 
 - **Pixel gate.** Capture a golden from **live MAME 0.288** under a pinned, determinism-
   controlled command line, run the same input tape through our engine, and diff the frames.
