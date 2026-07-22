@@ -19,12 +19,12 @@
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { Machine } from "../games/dkong/machine.js";
-import { STATE_DUMP_SIZE } from "../boards/dkong/memory.js";
+import { Machine } from "../machine.js";
+import { STATE_DUMP_SIZE } from "../../../boards/dkong/memory.js";
 
 function parseArgs(argv) {
   const args = {
-    rom: "games/dkong/rom/maincpu.bin", frames: 1, stateOut: null, writesOut: null,
+    rom: "rom/maincpu.bin", frames: 1, stateOut: null, writesOut: null,
     framesOut: null, postBoot: false, pokes: [], inputs: [],
   };
   for (let i = 2; i < argv.length; i++) {

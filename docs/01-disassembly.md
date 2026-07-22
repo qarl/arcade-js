@@ -32,7 +32,7 @@ The hard parts it handles:
   tracer iterates to a fixpoint so control flow that only becomes reachable after another pass
   is still followed.
 - **Discovered entries.** Entry points that only reveal themselves through data (pointer tables
-  the code computes into) are recorded in `tools/entrypoints.json` and folded into the trace.
+  the code computes into) are recorded in `games/dkong/entrypoints.json` and folded into the trace.
 
 Output: `dk.asm` (the disassembly), `blocks.def` (the code map), `coverage.json` (what was
 reached), and `unreached.txt`. Anything left UNREACHED is either data or a genuinely dead path,

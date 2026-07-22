@@ -21,7 +21,7 @@ numbering is 1-based, end-of-frame (the JS emitter uses N+1 vs the MAME notifier
 | `test_hammer_50m` / `_50m_upper` | 50m | hammer grab on the conveyor board |
 | `level3_full` | 75m | coin+start + board-3 pre-set (for capturing a 75m golden) |
 | `level4_full` | 100m | coin+start + board-4 pre-set (for capturing a 100m golden) |
-| `test_prize_50m_hat` / `_50m_parasol` / `_50m_purse` | 50m | poke Mario onto a dropped prize (hat/parasol/purse) — pickup gate for `tools/prize_suite.py`: prize slot `0x6A0C` clears, BCD score `0x60B2` grows |
+| `test_prize_50m_hat` / `_50m_parasol` / `_50m_purse` | 50m | poke Mario onto a dropped prize (hat/parasol/purse) — pickup gate for `games/dkong/tools/prize_suite.py`: prize slot `0x6A0C` clears, BCD score `0x60B2` grows |
 | `test_prize_75m_hat` / `_75m_parasol` / `_75m_purse` | 75m | same, board-3 pre-set |
 | `test_prize_100m_hat` / `_100m_parasol` / `_100m_purse` | 100m | same, board-4 pre-set |
 

@@ -10,7 +10,7 @@ by following control flow from the real entry points.
 The output is the coverage map, and the coverage map is the project to-do
 list: UNREACHED bytes are code paths we have not exercised. Inputs are driven
 into MAME to reach them; newly-discovered entry points (jump-table targets,
-etc.) get added to tools/entrypoints.json and this is re-run.
+etc.) get added to games/dkong/entrypoints.json and this is re-run.
 
 Entry points:
   0x0000  Z80 reset
@@ -677,7 +677,7 @@ def write_unreached(tr: Tracer, path: str):
         "#   3. reached only on an input/state-gated path not yet exercised",
         "#",
         "# To resolve: find the entry point (MAME trace), add it to",
-        "# tools/entrypoints.json, re-run tools/trace.py.",
+        "# games/dkong/entrypoints.json, re-run tools/trace.py.",
         "",
         f"# coverage: {s['coverage_pct']}%  reached={s['code_bytes']}  "
         f"unreached={s['unreached_bytes']}",
@@ -693,7 +693,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--rom", default="rom/maincpu.bin")
     ap.add_argument("--out", default="out")
-    ap.add_argument("--entrypoints", default="tools/entrypoints.json")
+    ap.add_argument("--entrypoints", default="games/dkong/entrypoints.json")
     args = ap.parse_args()
 
     with open(args.rom, "rb") as f:

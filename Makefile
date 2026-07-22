@@ -29,7 +29,7 @@ rom-dkong:
 	$(MAKE) -C games/dkong rom
 
 trace: $(ROM)
-	python3 tools/trace.py --rom $(ROM) --out $(OUT) --entrypoints tools/entrypoints.json
+	python3 tools/trace.py --rom $(ROM) --out $(OUT) --entrypoints games/$(GAME)/entrypoints.json
 
 verify: $(ROM)
 	python3 tools/verify_decoder.py --rom $(ROM) --blocks $(OUT)/blocks.def

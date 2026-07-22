@@ -136,7 +136,8 @@ def check_rom(rom: str, blocks: str) -> int:
     # Must match how blocks.def was generated, or we compare two different
     # code maps and the mismatch goes unnoticed (trace reported 2868
     # instructions while this said 2769, and nothing flagged it).
-    ep = os.path.join(os.path.dirname(os.path.abspath(__file__)), "entrypoints.json")
+    ep = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                      "games", "dkong", "entrypoints.json")
     if os.path.exists(ep):
         with open(ep) as f:
             for e in json.load(f):

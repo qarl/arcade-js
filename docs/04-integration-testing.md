@@ -27,7 +27,7 @@ rejected. A golden captured against a subtly different machine is worse than no 
 
 ## Emitting the same artifacts (our side)
 
-`tools/emit.js` runs the JavaScript machine and writes the **same three formats** — `state.bin`,
+`games/dkong/tools/emit.js` runs the JavaScript machine and writes the **same three formats** — `state.bin`,
 `writes.txt`, `frames.rgb` — from the same inputs/pokes as the tape. It is honest about scope: if it
 can only produce a short run, it says so and exits non-zero, so a partial artifact never reads as
 complete.

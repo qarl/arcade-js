@@ -22,7 +22,7 @@ of sub-frame timing that no player could see — would fail an otherwise-perfect
 rough gate distinguishes them:
 
 > A frame may differ from MAME by a few pixels and still pass, **as long as the pixels don't
-> diverge arbitrarily.** Concretely (`tools/move_suite.py`): PASS iff the maximum per-frame
+> diverge arbitrarily.** Concretely (`games/dkong/tools/move_suite.py`): PASS iff the maximum per-frame
 > difference stays **under 5%** of the frame **and no single frame exceeds ~5%**.
 
 The key word is *reconverge*. A translation that's right will differ from MAME only in brief,
@@ -31,7 +31,7 @@ stay diverged. The percent-of-frame threshold accepts the former and rejects the
 practice the bar is met with enormous margin — e.g. Donkey Kong's attract sequence runs
 byte-identical to MAME on 727 of 728 frames, with a single 3-pixel, 0.005% transient.)
 
-`tools/prize_suite.py` runs the same rough gate over the bonus-item pickups — Pauline's dropped
+`games/dkong/tools/prize_suite.py` runs the same rough gate over the bonus-item pickups — Pauline's dropped
 parasol/hat/purse, worth level-scaled points — across the boards that carry them (50m/75m/100m).
 It applies the identical rule (max per-frame difference under 5%, no single frame over ~5%, from
 frame ~1600) plus a pickup assertion the movement gate doesn't need: the prize slot at RAM

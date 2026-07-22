@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 import subprocess, os, sys, numpy as np
 S=os.path.dirname(os.path.abspath(__file__)); ROOT=os.path.dirname(S)
+REPO=os.path.dirname(os.path.dirname(ROOT))  # repo root (games/dkong/tools -> ../../..)
 WORK=os.path.join(ROOT,"out","movework"); os.makedirs(WORK,exist_ok=True); GW=172032
 BPTR={2:0x74,3:0x76,4:0x78}
 FIELD={0x01:"P1 Right",0x02:"P1 Left",0x04:"P1 Up",0x08:"P1 Down",0x10:"P1 Button 1"}
@@ -53,7 +54,7 @@ print(f"{'test':16} {'emit':10} {'max%':>6} {'>5%':>4} {'verdict'}")
 for name,b,x,y,bits,hold in TESTS:
     lp=lua(name,b,x,y,bits,hold)
     go=f"{WORK}/g_{name}"; eo=f"{WORK}/e_{name}"
-    r=subprocess.run(["python3",f"{S}/mame_golden.py","--out",go,"--seconds","30","--tape",lp],capture_output=True,text=True,timeout=150)
+    r=subprocess.run(["python3",f"{REPO}/tools/mame_golden.py","--out",go,"--seconds","30","--tape",lp],capture_output=True,text=True,timeout=150)
     er=subprocess.run(emit_cmd(eo,b,x,y,bits,hold),cwd=ROOT,capture_output=True,text=True)
     stopped = "GAP" if "not impl" in (er.stdout+er.stderr).lower() else "ran"
     if stopped=="ran" and os.path.exists(f"{eo}/frames.rgb") and os.path.exists(f"{go}/frames.rgb"):

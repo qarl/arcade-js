@@ -39,7 +39,8 @@ import numpy as np
 
 S = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(S)
-TAPES = os.path.join(ROOT, "games", "dkong", "tapes")
+REPO = os.path.dirname(os.path.dirname(ROOT))  # repo root (games/dkong/tools -> ../../..)
+TAPES = os.path.join(ROOT, "tapes")
 WORK = os.path.join(ROOT, "out", "prizework")
 os.makedirs(WORK, exist_ok=True)
 GW = 172032           # bytes per RGB frame (256*224*3)
@@ -230,7 +231,7 @@ def main():
         eo = os.path.join(WORK, f"e_{name}")
         so = os.path.join(WORK, f"s_{name}")
         subprocess.run(
-            ["python3", os.path.join(S, "mame_golden.py"),
+            ["python3", os.path.join(REPO, "tools", "mame_golden.py"),
              "--out", go, "--seconds", "30", "--tape", lp],
             capture_output=True, text=True, timeout=400)
         er = subprocess.run(emit_cmd(eo, so, b, start, prize, hold),

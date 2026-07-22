@@ -41,9 +41,11 @@ games/                one directory per romset
     rom/              gitignored — `make rom-dkong` builds it locally
     tapes/            test input tapes (published)
     test/             unit + integration tests for the translation
+    entrypoints.json  disassembly entry points (folded into the trace)
+    tools/            per-game gate runners (emit.js · move_suite.py · prize_suite.py)
 web/                  browser front-end: pick a game and play it
 tools/                disassembler · tracer · MAME golden capture · pixel/state diff ·
-                       gate runner (verdict.sh, move_suite.py, prize_suite.py)
+                       gate runner (verdict.sh) — shared, game-agnostic
 docs/                 how it's done: disassembly → translation → testing → the pixel gate
 ```
 
