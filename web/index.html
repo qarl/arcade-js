@@ -15,12 +15,12 @@
   h1 { font-size: 20px; font-weight: 600; letter-spacing: .04em; margin: 0; color: #9fd0ff; }
   h1 small { color: #6a6a80; font-weight: 400; font-size: 13px; display: block; margin-top: 6px; }
   #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-          gap: 14px; width: 100%; max-width: 760px; }
-  a.card {
-    display: block; text-decoration: none; color: inherit; background: #14141f;
-    border: 1px solid #26263c; border-radius: 10px; padding: 16px 18px; transition: .12s;
+          gap: 14px; width: 100%; max-width: 760px; align-items: start; }
+  .card {
+    background: #14141f; border: 1px solid #26263c; border-radius: 10px; transition: .12s;
   }
-  a.card:hover { background: #1c1c2c; border-color: #4a4a70; transform: translateY(-1px); }
+  .card:hover { background: #1c1c2c; border-color: #4a4a70; transform: translateY(-1px); }
+  a.play { display: block; text-decoration: none; color: inherit; padding: 16px 18px; }
   .title { font-size: 16px; font-weight: 600; color: #cfe8b0; }
   .meta  { color: #7a7a95; font-size: 12px; margin-top: 4px; }
   .tags  { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
@@ -29,6 +29,39 @@
   #empty { color: #7a7a95; }
   footer { color: #55556c; font-size: 12px; max-width: 640px; text-align: center; }
   footer code { color: #8a8aa5; }
+
+  /* --- ROM availability -------------------------------------------------- */
+  .badge { margin-top: 10px; display: inline-block; font-size: 11px; border-radius: 4px;
+           padding: 1px 8px; border: 1px solid; }
+  .badge.probing { color: #6a6a80; background: #12121c; border-color: #24243a; }
+  .badge.ready   { color: #cfe8b0; background: #1a2414; border-color: #46702e; }
+  .badge.needrom { color: #f0cf9a; background: #241c10; border-color: #6e5326; }
+
+  /* A 64-char hash does not fit a 220px card, so an opened panel takes the whole
+     grid row. Browsers without :has() just wrap the hash — nothing is lost. */
+  .card:has(> details.romhelp[open]) { grid-column: 1 / -1; }
+  .romhelp { border-top: 1px solid #21212f; font-size: 12px; }
+  .romhelp summary { cursor: pointer; padding: 8px 18px; color: #9fd0ff; list-style: none; }
+  .romhelp summary::-webkit-details-marker { display: none; }
+  .romhelp summary::before { content: "▸ "; color: #55556c; }
+  .romhelp[open] summary::before { content: "▾ "; }
+  .romhelp summary:hover { color: #cfe8ff; }
+  .romhelp .body { padding: 0 18px 14px; }
+  .zipname { color: #b8b8cc; }
+  .zipname .file { color: #9fd0ff; }
+  table.roms { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
+  table.roms th { text-align: left; color: #6a6a80; font-weight: 400; padding: 3px 8px 3px 0;
+                  border-bottom: 1px solid #26263c; white-space: nowrap; }
+  table.roms td { padding: 5px 8px 5px 0; vertical-align: top; border-bottom: 1px solid #1c1c2c; }
+  table.roms td.name, table.roms td.size { white-space: nowrap; color: #b8b8cc; }
+  table.roms .hash { color: #7a7a95; word-break: break-all; display: inline; }
+  button.copy { font: inherit; font-size: 10px; color: #9fd0ff; background: #16202c;
+                border: 1px solid #24384a; border-radius: 4px; padding: 0 6px;
+                margin-left: 8px; white-space: nowrap; cursor: pointer; }
+  button.copy:hover { background: #1c2a3a; border-color: #35566f; }
+  button.copy:disabled { color: #55556c; border-color: #24243a; background: #12121c; cursor: default; }
+  button.copy.all { margin: 10px 0 0; }
+  .note { color: #55556c; margin-top: 10px; }
 </style>
 </head>
 <body>
@@ -41,6 +74,7 @@
 
 <script type="module">
   import { GAMES } from "../games/registry.js";
+  import { getCached } from "./romstore.js";
   const grid = document.getElementById("grid");
   const cards = await Promise.all(GAMES.map(async (id) => {
     try {
@@ -48,11 +82,17 @@
       return { id, m };
     } catch (e) { return { id, err: String(e.message || e) }; }
   }));
-  grid.innerHTML = "";
-  if (!cards.length) { grid.innerHTML = '<div id="empty">No games registered.</div>'; }
-  // Build cards with textContent (never innerHTML): `id` and `err` below come
-  // from the games/ registry and a caught import error respectively, and
-  // neither should ever be able to inject markup into this page.
+  grid.textContent = "";
+  if (!cards.length) {
+    const empty = document.createElement("div");
+    empty.id = "empty";
+    empty.textContent = "No games registered.";
+    grid.append(empty);
+  }
+  // Build cards with textContent (never innerHTML): `id`, `err` and every value
+  // read out of a manifest below are untrusted as far as this page is concerned
+  // (registry entry, caught import error, manifest field), and none of them
+  // should ever be able to inject markup into this page.
   const div = (className, text, color) => {
     const n = document.createElement("div");
     n.className = className;
@@ -66,23 +106,156 @@
     n.textContent = text;
     return n;
   };
+  const cell = (tag, text, className) => {
+    const n = document.createElement(tag);
+    if (className) n.className = className;
+    n.textContent = text;
+    return n;
+  };
+
+  // ==========================================================================
+  // ROM availability, per card. arcade-js ships no ROM data, so a game is only
+  // playable once its images exist in one of the two places player.html looks
+  // before it asks for a zip:
+  //   1. this browser's IndexedDB cache — they dropped their zip on a past visit
+  //   2. games/<id>/rom/*.bin           — developer path, they ran `make rom`
+  // Anything else means "you will be asked for your own romset", which the card
+  // says up front so nobody goes hunting for the wrong set first.
+  //
+  // Probes are fired AFTER the cards are in the DOM and are never awaited by the
+  // render path: a slow or hanging fetch must not be able to blank the page.
+  // ==========================================================================
+  const romEntries = (m) => Object.entries(m?.rom?.images ?? {});
+
+  const cachedComplete = async (id, entries) => {
+    try {
+      const images = await getCached(id);
+      return !!images && entries.every(([n, spec]) => images[n] && images[n].length === spec.size);
+    } catch { return false; }
+  };
+
+  // HEAD is enough (and cheap): web/server.py answers it with a Content-Length,
+  // so we can confirm size without pulling 29 KB of ROM per card. A server that
+  // does not report the length still counts as present on a 200.
+  const devRomPresent = async (id, entries) => {
+    try {
+      const found = await Promise.all(entries.map(async ([name, spec]) => {
+        const url = `../games/${encodeURIComponent(id)}/rom/${encodeURIComponent(name)}.bin`;
+        const r = await fetch(url, { method: "HEAD" });
+        if (!r.ok) return false;
+        const len = r.headers.get("content-length");
+        return len === null || Number(len) === spec.size;
+      }));
+      return found.every(Boolean);
+    } catch { return false; }
+  };
+
+  const copyText = async (text, btn, label) => {
+    try {
+      if (!navigator.clipboard?.writeText) return;      // no-op where unavailable
+      await navigator.clipboard.writeText(text);
+      btn.textContent = "copied";
+      setTimeout(() => { btn.textContent = label; }, 1200);
+    } catch { /* clipboard denied — leave the hash on screen to select by hand */ }
+  };
+
+  const copyButton = (text, label) => {
+    const b = cell("button", label, "copy");
+    if (!navigator.clipboard?.writeText) {
+      b.disabled = true;
+      b.title = "clipboard unavailable in this browser — select the text instead";
+      return b;
+    }
+    b.addEventListener("click", (e) => { e.preventDefault(); copyText(text, b, label); });
+    return b;
+  };
+
+  // The collapsed "what am I looking for?" panel: the romset filename plus the
+  // size and sha-256 of each assembled image, so a visitor can tell whether the
+  // set they have is the right one BEFORE they go looking for it.
+  const romDetails = (m) => {
+    const entries = romEntries(m);
+    const zipName = m.rom?.zip ?? `${m.id ?? "the"} romset zip`;
+    const d = document.createElement("details");
+    d.className = "romhelp";
+    d.append(cell("summary", "What ROM do I need?"));
+    const body = document.createElement("div");
+    body.className = "body";
+
+    const zip = div("zipname", "romset: ");
+    zip.append(span("file", zipName));
+    body.append(zip);
+
+    const table = document.createElement("table");
+    table.className = "roms";
+    const tbody = document.createElement("tbody");
+    const head = document.createElement("tr");
+    head.append(cell("th", "image"), cell("th", "size"), cell("th", "sha-256"));
+    tbody.append(head);
+    for (const [name, spec] of entries) {
+      const tr = document.createElement("tr");
+      tr.append(cell("td", `${name}.bin`, "name"), cell("td", `${spec.size} B`, "size"));
+      const td = document.createElement("td");
+      td.append(cell("div", spec.sha256, "hash"), copyButton(spec.sha256, "copy hash"));
+      tr.append(td);
+      tbody.append(tr);
+    }
+    table.append(tbody);
+    body.append(table);
+
+    const all = entries
+      .map(([name, spec]) => `${name}.bin  ${spec.size} bytes  ${spec.sha256}`)
+      .join("\n");
+    const allBtn = copyButton(`${zipName}\n${all}`, "copy all");
+    allBtn.classList.add("all");
+    body.append(allBtn);
+    body.append(div("note",
+      "These are the checksums of the assembled images — the zip's parts concatenated in " +
+      "address order — so you can confirm you have the right set and revision."));
+
+    d.append(body);
+    return d;
+  };
+
   for (const { id, m, err } of cards) {
+    const card = document.createElement("div");
+    card.className = "card";
     const a = document.createElement("a");
-    a.className = "card";
+    a.className = "play";
     a.href = `player.html?game=${encodeURIComponent(id)}`;
+    card.append(a);
     if (err) {
       a.append(div("title", id), div("meta", `manifest error: ${err}`, "#ffb0b0"));
-    } else {
-      const tags = document.createElement("div");
-      tags.className = "tags";
-      tags.append(span("tag", m.cpu), span("tag", `${m.board} board`), span("tag", m.orientation ?? "vertical"));
-      a.append(
-        div("title", m.title),
-        div("meta", `${m.manufacturer ?? ""}${m.year ? " · " + m.year : ""}`),
-        tags,
-      );
+      grid.appendChild(card);
+      continue;
     }
-    grid.appendChild(a);
+    const tags = document.createElement("div");
+    tags.className = "tags";
+    tags.append(span("tag", m.cpu), span("tag", `${m.board} board`), span("tag", m.orientation ?? "vertical"));
+    a.append(
+      div("title", m.title),
+      div("meta", `${m.manufacturer ?? ""}${m.year ? " · " + m.year : ""}`),
+      tags,
+    );
+    grid.appendChild(card);
+
+    const entries = romEntries(m);
+    if (!entries.length) continue;      // nothing declared — nothing to report
+    const badge = div("badge probing", "checking for ROM…");
+    a.append(badge);
+    // Deliberately not awaited: the grid is already rendered and stays usable
+    // whatever the probe does.
+    (async () => {
+      const ready = await cachedComplete(id, entries) || await devRomPresent(id, entries);
+      if (ready) {
+        badge.className = "badge ready";
+        badge.textContent = "✓ Ready to play";
+        return;
+      }
+      badge.className = "badge needrom";
+      badge.textContent = m.rom?.zip ? `ROM required — ${m.rom.zip}` : "ROM required";
+      card.append(romDetails(m));
+    })();
   }
 </script>
 </body>
