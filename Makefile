@@ -7,11 +7,20 @@ ROM   = games/$(GAME)/rom/maincpu.bin
 OUT   = games/$(GAME)/out
 SRC   = games/$(GAME)/translated/*.js
 
-.PHONY: help test serve rom-dkong trace verify stepcheck
+# Where YOUR romset zip lives, for `make samples` (MAME's -rompath).
+ROMPATH ?= $(HOME)/Downloads
+# Extra flags forwarded to the recorder, e.g. SAMPLEFLAGS="--dry-run".
+SAMPLEFLAGS ?=
+
+.PHONY: help test serve rom-dkong samples trace verify stepcheck
 
 help:
 	@echo "arcade-js targets:"
 	@echo "  make rom-dkong    assemble + sha256-verify the Donkey Kong ROM from your dkong.zip"
+	@echo "  make samples      record GAME's sounds from YOUR MAME + YOUR ROM into"
+	@echo "                    games/$(GAME)/audio/samples/ (gitignored, never committed)."
+	@echo "                    Needs MAME on PATH and your own romset in ROMPATH=$(ROMPATH)."
+	@echo "                    Optional: the game is fully playable, and silent, without it."
 	@echo "  make serve        start the dev web server (COOP/COEP) — pick a game and play"
 	@echo "  make test         run the unit suite (node --test)"
 	@echo "  make trace        recursive-descent disassembly of GAME's ROM  -> $(OUT)/dk.asm"
@@ -27,6 +36,13 @@ serve:
 
 rom-dkong:
 	$(MAKE) -C games/dkong rom
+
+# Drives YOUR MAME against YOUR romset and writes clips to a gitignored
+# directory on YOUR machine. arcade-js ships no game audio, ever — same posture
+# as the ROM images. See games/$(GAME)/tools/README-samples.md, and
+# `SAMPLEFLAGS=--help` for every option.
+samples:
+	python3 games/$(GAME)/tools/record_samples.py --rompath "$(ROMPATH)" $(SAMPLEFLAGS)
 
 trace: $(ROM)
 	python3 tools/trace.py --rom $(ROM) --out $(OUT) --entrypoints games/$(GAME)/entrypoints.json

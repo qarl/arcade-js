@@ -278,6 +278,36 @@ export class IO {
     this.soundLatch3d = 0;
     this.soundWrites = 0;
 
+    /**
+     * OPTIONAL SOUND-WRITE TAP -- null unless something outside the emulation
+     * asks for it. `(addr, value) => void`, called AFTER the latch has been
+     * updated, for writes to the two sound-command surfaces only:
+     *
+     *   0x7C00        ls175.3d tune latch  (value as written by the Z80)
+     *   0x7D00-0x7D07 ls259.6h trigger bit (value already masked to 0/1)
+     *
+     * WHY IT IS A PLAIN NULLABLE FIELD, AND WHY THAT IS ZERO-COST WHEN UNSET.
+     * Both call sites already were function calls reached only by those exact
+     * addresses (memory.js routes them here), so the tap adds no dispatch and
+     * no branch anywhere else on the write path -- an ordinary RAM, VRAM or
+     * control-latch write never even loads this field. When it is null the
+     * added work is one monomorphic field load and one `!== null` compare, per
+     * sound write; DK makes about ten of those per frame out of 50688 cycles.
+     * Nothing is allocated, here or in the caller.
+     *
+     * It CANNOT change emulation. It runs after the store, its return value is
+     * discarded, and it is handed only values the machine already committed --
+     * so the only way it could perturb a frame is by throwing, which is why the
+     * contract is that a listener must not throw. Audio lives strictly above
+     * the emulation (see core/audio.js); this is the one wire down to it, and
+     * the pixel gates (move_suite/prize_suite) are what prove it inert.
+     *
+     * 0x7D80 (the I8035 IRQ line -- "death") is deliberately NOT tapped: it
+     * shares its address range with flipscreen/NMI-mask/DRQ, and no recorder
+     * phase captures it, so there is no sample it could ever play.
+     */
+    this.onSoundWrite = null;
+
     // {port: bits} asserted this frame by emit.js --input; null = none.
     this.inputAssert = null;
   }
@@ -331,11 +361,13 @@ export class IO {
   writeSoundLatch3d(value) {
     this.soundLatch3d = value;
     this.soundWrites += 1;
+    if (this.onSoundWrite !== null) this.onSoundWrite(0x7c00, value);
   }
 
   writeSoundLatch6h(bit, value) {
     this.latch6h[bit] = value;
     this.soundWrites += 1;
+    if (this.onSoundWrite !== null) this.onSoundWrite(0x7d00 + bit, value);
   }
 
   writeGridColor(value) {

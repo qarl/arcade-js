@@ -89,6 +89,10 @@
     <button id="start">1-Player start <span style="color:#8a8aa5">(1)</span></button>
     <button id="pause">Pause <span style="color:#8a8aa5">(P)</span></button>
     <button id="reset">Reset <span style="color:#8a8aa5">(R)</span></button>
+    <!-- Shown only if this browser actually has recorded samples for this game;
+         arcade-js ships none, so on a fresh clone it stays hidden and the game
+         is silent. See the AUDIO section in the script below. -->
+    <button id="mute" class="hide" aria-pressed="false"></button>
   </div>
   <div id="status">booting…</div>
   <div id="romInfo" class="hide"></div>
@@ -181,11 +185,28 @@ import { getCached, putCached, clearCached } from "./romstore.js";
   const rgba = img.data;
   for (let i = 0; i < DISP_W * DISP_H; i++) rgba[i * 4 + 3] = 255;
 
+  // --- optional audio, wired further down -----------------------------------
+  // Audio sits ABOVE the emulation: the worker sends compact sound-command edges
+  // and this page turns them into sample playback. All four hooks stay inert
+  // unless setupAudio() finds recorded clips, which is why they are mutable
+  // no-ops rather than conditionals scattered through the input code.
+  let engineWorker = null;
+  let onSoundEvents = null;        // (ev) => void, once samples are loaded
+  let audioGesture = () => {};     // called from real user gestures: unblocks autoplay
+  let audioToggleMute = () => {};  // the M key / the Sound button
+  const armWorkerAudio = () => {
+    // Telling the worker to arm the board's sound tap is the ONLY thing that
+    // makes the engine emit anything at all. No samples ⇒ never sent ⇒ the
+    // engine runs exactly as it does with no audio layer present.
+    if (engineWorker && onSoundEvents) engineWorker.postMessage({ type: "audio", enabled: true });
+  };
+
   // Hand the verified ROM images to the engine worker. The ArrayBuffers are
   // TRANSFERRED (not copied) — ~29 KB for DK, but the page has no use for them
   // afterwards and the cache write already happened.
   function startEngine(images) {
     const worker = new Worker("worker.js", { type: "module" });
+    engineWorker = worker;
     const payload = {};
     const transfer = [];
     const seen = new Set();
@@ -197,9 +218,12 @@ import { getCached, putCached, clearCached } from "./romstore.js";
       if (!seen.has(exact.buffer)) { seen.add(exact.buffer); transfer.push(exact.buffer); }
     }
     worker.postMessage({ type: "init", ctrl: ctrlSAB, fb: fbSAB, game: gameId, images: payload }, transfer);
+    armWorkerAudio(); // no-op unless setupAudio() already found clips
     worker.onmessage = (e) => {
       const d = e.data;
-      if (d.type === "ready") {
+      if (d.type === "sound") {
+        if (onSoundEvents) onSoundEvents(d.ev);
+      } else if (d.type === "ready") {
         statusEl.innerHTML = "<b>running</b> — press <b>5</b> for a coin, then <b>1</b> to start";
       } else if (d.type === "restart") {
         statusEl.textContent = "";
@@ -260,10 +284,12 @@ import { getCached, putCached, clearCached } from "./romstore.js";
   }
   const push0 = () => Atomics.store(ctrl, C_IN0, in0);
   const push2 = () => Atomics.store(ctrl, C_IN2, in2);
-  const isGameKey = (c) => c in K0 || c in K2 || c === "KeyP" || c === "KeyR";
+  const isGameKey = (c) => c in K0 || c in K2 || c === "KeyP" || c === "KeyR" || c === "KeyM";
   addEventListener("keydown", (e) => {
     if (isGameKey(e.code)) e.preventDefault(); // stop arrow/space page-scroll, incl. auto-repeat
     if (e.repeat) return;                      // act once per press, but always preventDefault above
+    audioGesture();                            // a keypress IS the gesture browsers demand
+    if (e.code === "KeyM") { audioToggleMute(); return; }
     if (e.code === "KeyP") { togglePause(); return; }
     if (e.code === "KeyR") { Atomics.store(ctrl, C_RESET, 1); return; }
     if (e.code in K0) { in0 |= K0[e.code]; push0(); }
@@ -275,10 +301,158 @@ import { getCached, putCached, clearCached } from "./romstore.js";
   });
   const pulse2 = (bit) => { in2 |= bit; push2(); setTimeout(() => { in2 &= ~bit; push2(); }, 120); };
   const togglePause = () => Atomics.store(ctrl, C_PAUSED, Atomics.load(ctrl, C_PAUSED) ? 0 : 1);
-  document.getElementById("coin").onclick = () => pulse2(actions.coin.bit);
-  document.getElementById("start").onclick = () => pulse2(actions.start1.bit);
-  document.getElementById("pause").onclick = togglePause;
-  document.getElementById("reset").onclick = () => Atomics.store(ctrl, C_RESET, 1);
+  // Every one of these is a genuine user gesture, which is the only moment a
+  // browser will let an AudioContext start. audioGesture() is a no-op with no
+  // audio, and idempotent with it.
+  document.getElementById("coin").onclick = () => { audioGesture(); pulse2(actions.coin.bit); };
+  document.getElementById("start").onclick = () => { audioGesture(); pulse2(actions.start1.bit); };
+  document.getElementById("pause").onclick = () => { audioGesture(); togglePause(); };
+  document.getElementById("reset").onclick = () => { audioGesture(); Atomics.store(ctrl, C_RESET, 1); };
+
+  // =========================================================================
+  // AUDIO — optional, above the emulation, never load-bearing.
+  //
+  //   engine worker ──(addr,value) edges──▶ here ──▶ sounds.js ──▶ recorded clip
+  //
+  // The board's write tap (boards/<board>/io.js, io.onSoundWrite) is armed only
+  // once we know there is something to play. `manifest.audio` names the game's
+  // sound map and its sample directory; the clips are recorded LOCALLY by
+  // `make samples` from the visitor's own MAME + ROM and are gitignored — so on
+  // a fresh clone `index.json` is simply absent. THAT 404 IS THE NORMAL PATH:
+  // we return quietly, no button appears, the engine is never tapped, and the
+  // game plays exactly as it did before, silently.
+  //
+  // Two fields of the map decide playback, and they are NOT the same thing
+  // (games/dkong/audio/README.md is emphatic about this):
+  //   • triggers use `measured.behaviour` — what the HARDWARE does. "level"
+  //     means the sound lasts as long as the bit is held, so it is gated on the
+  //     1→0 edge; "oneshot" means the hold length is irrelevant, so it is fired
+  //     on the rising edge and left to run.
+  //   • tune-latch values use `kind` — how the ROM USES the command. "loop"
+  //     means it was parked in the background slot and is held, so it loops
+  //     until the latch changes; "oneshot" is a 3-frame pulse.
+  // Anything the map measures SILENT, marks `kind: "none"`, or flags with a
+  // `conflict` is skipped outright — notably 0x7C00 = 0x0A, whose meaning is
+  // genuinely unresolved. We do not invent a sound for it.
+  // =========================================================================
+  async function setupAudio() {
+    const spec = manifest.audio;
+    if (!spec?.map || !spec?.samples || !spec?.clipIds) return; // game has no audio layer
+
+    // ONE request decides everything. index.json is the recorder's own record of
+    // which writes produced sound and what file each landed in, so we never
+    // guess a filename and never fire a request per clip that might 404.
+    let index = null;
+    try {
+      const r = await fetch(`../games/${gameId}/${spec.samples}/index.json`);
+      if (r.ok) index = await r.json();
+    } catch { /* offline, blocked, whatever — same outcome: no audio */ }
+    if (!index || !Array.isArray(index.clips)) return;
+
+    const files = new Map(); // recorder clip id -> filename, sounding clips only
+    for (const c of index.clips) if (c && c.file && !c.silent) files.set(c.id, c.file);
+    if (!files.size) return;
+
+    let SOUNDS, SamplePlayer;
+    try {
+      SOUNDS = (await import(`../games/${gameId}/${spec.map}`)).default;
+      ({ SamplePlayer } = await import("../core/audio.js"));
+    } catch { return; }
+    if (!SOUNDS?.ports || !SOUNDS?.triggers || !SOUNDS?.latch) return;
+
+    // A map entry is playable only if it is a sound at all, is measured audible,
+    // carries no unresolved conflict, and the recorder actually captured it.
+    const clipFor = (tpl, subs) => files.get(tpl.replace(/\{(\w+)\}/g, (_, k) => subs[k]));
+    const playable = (entry, file) =>
+      !!entry && !!file && entry.kind !== "none" && !entry.conflict &&
+      entry.measured?.audible !== false;
+
+    const want = new Map(); // sample name -> filename
+    const triggers = [];    // by bit index: { name, gate } | undefined
+    const tunes = [];       // by latch value: { name, loop } | undefined
+
+    for (let n = 0; n < SOUNDS.ports.triggerCount; n++) {
+      const e = SOUNDS.triggers[n];
+      const file = clipFor(spec.clipIds.trigger, { n });
+      if (!playable(e, file)) continue;
+      const b = e.measured?.behaviour;
+      // "level" is stopped on the falling edge. "level+decay" is NOT: the map
+      // measures its clip outlasting the hold by ~1.4 s, so that tail is part of
+      // the sound and cutting it would be a fabrication of a different one.
+      triggers[n] = { name: e.name, gate: b === "level" };
+      want.set(e.name, file);
+    }
+    for (let v = 0; v <= 0x0f; v++) {
+      const e = SOUNDS.latch[v];
+      const file = clipFor(spec.clipIds.latch, { vv: v.toString(16).padStart(2, "0") });
+      if (!playable(e, file)) continue;
+      tunes[v] = { name: e.name, loop: e.kind === "loop" };
+      want.set(e.name, file);
+    }
+    if (!want.size) return;
+
+    const player = new SamplePlayer({ masterGain: 0.7 });
+    const base = `../games/${gameId}/${spec.samples}`;
+    const loaded = await Promise.all([...want].map(async ([name, file]) => {
+      try {
+        const r = await fetch(`${base}/${encodeURIComponent(file)}`);
+        if (!r.ok) return false;
+        return await player.loadSample(name, await r.arrayBuffer());
+      } catch { return false; }
+    }));
+    if (!loaded.some(Boolean)) return; // index promised clips, none arrived
+
+    const LATCH = SOUNDS.ports.latch, TRIG = SOUNDS.ports.triggerBase;
+    let tune = null; // sample name currently looping out of the tune latch
+
+    onSoundEvents = (ev) => {
+      for (let i = 0; i < ev.length; i += 2) {
+        const addr = ev[i], value = ev[i + 1];
+        if (addr === LATCH) {
+          // Any change to the tune latch ends the looping tune: the sound CPU is
+          // being told to play something else (or, for 0x00, nothing).
+          if (tune) { player.stop(tune); tune = null; }
+          // Only the low nibble reaches the sound CPU (ls175.3d maskout 0xF0),
+          // which the sweep confirms from outside: 0x10–0x1F mirror 0x00–0x0F.
+          const t = tunes[value & 0x0f];
+          if (!t) continue;
+          player.play(t.name, { loop: t.loop });
+          if (t.loop) tune = t.name;
+        } else {
+          const t = triggers[addr - TRIG];
+          if (!t) continue;
+          if (value) player.play(t.name);
+          else if (t.gate) player.stop(t.name);
+        }
+      }
+    };
+
+    const muteBtn = document.getElementById("mute");
+    const paintMute = () => {
+      muteBtn.textContent = "";
+      muteBtn.append(player.muted ? "Sound: off " : "Sound: on ", el("span", "(M)", "#8a8aa5"));
+      muteBtn.classList.toggle("hot", !player.muted);
+      muteBtn.setAttribute("aria-pressed", String(player.muted));
+    };
+    audioGesture = () => { void player.init(); };
+    audioToggleMute = () => {
+      void player.init();
+      player.setMuted(!player.muted);
+      if (player.muted) player.stopAll();
+      tune = null;
+      paintMute();
+    };
+    muteBtn.onclick = audioToggleMute;
+    paintMute();
+    muteBtn.classList.remove("hide");
+    const legend = document.querySelector(".legend");
+    if (legend) { legend.append(" · "); legend.append(el("kbd", "M")); legend.append(" mute"); }
+    armWorkerAudio(); // the worker may already be running; arm it now
+  }
+  // Kicked off alongside ROM acquisition, never awaited by it: audio must not
+  // be able to delay — or fail — the start of the game. The catch is the last
+  // line of that promise: garnish must never surface as an error on the page.
+  setupAudio().catch(() => {});
 
   // =========================================================================
   // ROM acquisition.  arcade-js ships no ROM data, so before the engine can

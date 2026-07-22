@@ -22,6 +22,40 @@ let fb = null;     // Uint8Array over the shared (double-buffered) framebuffer
 let FRAME_BYTES = 0;
 let PORTS = null;  // {in0,in1,in2} input port addresses, from manifest.inputs.ports
 
+// ---------------------------------------------------------------------------
+// SOUND EVENTS. The engine emits nothing by itself; the board exposes an
+// optional tap (io.onSoundWrite) and this file is the only thing that ever sets
+// it. Two rules keep it honest:
+//
+//   1. OPT-IN. The tap is installed only after the page says it actually has
+//      samples to play, so the default browser run — and every non-browser run
+//      — leaves the engine byte-for-byte as it was.
+//   2. EDGES ONLY. The ROM's sound service routine rewrites all nine latches
+//      EVERY frame (see games/dkong/audio/README.md), so the raw stream is ~600
+//      writes/second of mostly-nothing. Only a CHANGE is an event, which is also
+//      exactly what a player needs: a level-driven trigger's 0→1 and 1→0.
+//
+// No audio data crosses this boundary — just (addr, value) pairs, flushed once
+// per frame alongside the framebuffer publish.
+// ---------------------------------------------------------------------------
+let audioOn = false;
+let live = null;               // the LiveMachine currently running, for re-arming
+const soundLast = new Int16Array(9).fill(-1); // 0 = 0x7C00, 1..8 = 0x7D00..0x7D07
+let soundQueue = [];           // [addr, value, addr, value, ...] for this frame
+
+function emitSound(addr, value) {
+  const i = addr === 0x7c00 ? 0 : addr - 0x7cff; // 0x7D00+n -> 1+n
+  if (soundLast[i] === value) return;
+  soundLast[i] = value;
+  soundQueue.push(addr, value);
+}
+
+/** Arm or disarm the board tap on the live machine, per the page's request. */
+function syncSoundTap() {
+  if (!live) return;
+  live.io.onSoundWrite = audioOn ? emitSound : null;
+}
+
 function makeLive(Machine) {
   return class LiveMachine extends Machine {
     applyInputs(_frameIndex) {
@@ -48,6 +82,13 @@ function makeLive(Machine) {
       }
       const fl = this.frames.length;         // bound memory over a long session
       if (fl >= 3) this.frames[fl - 3] = null;
+      // Sound edges accumulated during the frame, shipped as one compact
+      // message. Batching per frame (not per write) keeps this off the hot path
+      // and keeps the events in execution order.
+      if (soundQueue.length) {
+        postMessage({ type: "sound", ev: soundQueue });
+        soundQueue = [];
+      }
       this._pace();
     }
 
@@ -104,6 +145,12 @@ async function run(gameId, provided) {
     const m = new LiveMachine(maincpu, { inputs: new Inputs(), ...gfx });
     m.captureVideo = true;
     m._next = performance.now();
+    // A fresh machine has fresh latches, so the remembered edge state has to go
+    // with it, or the first frame after a reboot would suppress real events.
+    live = m;
+    soundLast.fill(-1);
+    soundQueue = [];
+    syncSoundTap();
     let reason = null;
     try {
       m.runFrames(5_000_000); // huge budget; every frame is paced to 1/60s
@@ -125,5 +172,13 @@ onmessage = (e) => {
     fb = new Uint8Array(d.fb);
     run(d.game, d.images).catch((err) =>
       postMessage({ type: "error", reason: String((err && err.stack) || err) }));
+  } else if (d.type === "audio") {
+    // The page owns the AudioContext and knows whether any sample actually
+    // loaded; it tells us here. Until it does (and forever, if it never does)
+    // the board tap stays unset and the engine is untouched.
+    audioOn = !!d.enabled;
+    soundLast.fill(-1); // re-announce the current latch state on the next write
+    soundQueue = [];
+    syncSoundTap();
   }
 };

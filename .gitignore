@@ -2,6 +2,11 @@
 games/*/rom/*.bin
 games/*/rom/*.zip
 
+# --- Copyrighted AUDIO — NEVER commit. Recorded from YOUR ROM on YOUR machine
+#     by games/<game>/tools/record_samples.py (see that dir's README-samples.md).
+#     Same posture as the ROM data above: the repo ships the tool, not the sound.
+games/*/audio/samples/
+
 # --- Build & capture artifacts ---
 out/
 **/golden/**/*.rgb

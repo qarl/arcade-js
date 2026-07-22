@@ -51,6 +51,23 @@ export default {
     },
   },
 
+  // Optional audio contract, read by the game-agnostic web player exactly the way
+  // `inputs` is: `map` is the declarative sound-command map (games/dkong/audio/
+  // sounds.js — data only), `samples` the directory the local recorder writes to.
+  // BOTH PATHS ARE RELATIVE TO THIS GAME'S DIRECTORY, and the samples directory is
+  // gitignored and normally ABSENT: arcade-js ships no Donkey Kong audio, so a
+  // fresh clone simply plays silently. Declaring this block turns audio on if and
+  // only if the visitor has recorded their own clips (`make samples`); omitting it
+  // in another game's manifest means that game has no audio layer at all.
+  audio: {
+    map: "audio/sounds.js",
+    samples: "audio/samples",
+    // Filenames record_samples.py gives a clip, by write. Kept here rather than in
+    // sounds.js because it is a property of the RECORDER's output layout, not of
+    // the hardware: sounds.js is the hardware map and stays free of file paths.
+    clipIds: { trigger: "trig{n}", latch: "latch_{vv}" },
+  },
+
   // ROM assembly: MAME part filenames (from your own dkong.zip), concatenated in
   // address order into the flat images the engine loads. sha256 + size verify each,
   // so a wrong/damaged romset fails loudly. ROM bytes are copyrighted and never
