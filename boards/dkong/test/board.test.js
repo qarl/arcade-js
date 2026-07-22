@@ -15,8 +15,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { AddressSpace, STATE_DUMP_SIZE, UnmappedAccess } from "../memory.js";
+import {
+  AddressSpace, STATE_DUMP_SIZE, UnmappedAccess,
+  WORK_RAM_BASE, WORK_RAM_SIZE, SPRITE_RAM_BASE, SPRITE_RAM_SIZE,
+  VIDEO_RAM_BASE, VIDEO_RAM_SIZE,
+} from "../memory.js";
 import { IO } from "../io.js";
+import manifest from "../../../games/dkong/manifest.js";
 import {
   buildPalette, decodeSprites, decodeTiles, drawSprites, normalizeRange,
   renderFrameRGB, renderRowRGB, renderTilemapPens, splitProms, SPRITE_COUNT,
@@ -396,4 +401,66 @@ test("drawSprites places a sprite by the dkong formula, and the placement has te
   assert.equal(at(10, 0), 99, "pixel 0 is transparent, background survives");
   // and nothing spills left of the sprite.
   assert.equal(at(7, 0), 99, "no pixel left of the sprite's x");
+});
+
+// ---------------------------------------------------------------------------
+// DRIFT TEST: boards/dkong/hardware.json is the tool-facing declaration the
+// shared Python tools read (tools/{stateio,writeio,scope,frameio,mame_golden}.py
+// via --hardware). The engine keeps its OWN numeric constants (memory.js,
+// manifest.js) UNCHANGED -- the pixel-validated load path was deliberately not
+// refactored to import JSON. These tests are the guard that the two sources can
+// never silently diverge: the JSON must equal the engine constants. Pure
+// constant checks, so no ROM is needed (unlike the romTest siblings above).
+const HARDWARE = JSON.parse(
+  readFileSync(new URL("../hardware.json", import.meta.url)),
+);
+
+test("hardware.json stateRegions match the engine's memory.js constants", () => {
+  // base+size of each region, in the STATE_DUMP order work,sprite,video.
+  const expected = [
+    { name: "work", base: WORK_RAM_BASE, size: WORK_RAM_SIZE },
+    { name: "sprite", base: SPRITE_RAM_BASE, size: SPRITE_RAM_SIZE },
+    { name: "video", base: VIDEO_RAM_BASE, size: VIDEO_RAM_SIZE },
+  ];
+  const actual = HARDWARE.stateRegions.map((r) => ({
+    name: r.name,
+    base: r.base,
+    size: r.size,
+  }));
+  assert.deepEqual(
+    actual,
+    expected,
+    "hardware.json stateRegions drifted from boards/dkong/memory.js " +
+      "(base/size/order must match dumpState's work,sprite,video layout)",
+  );
+});
+
+test("hardware.json stateDumpSize matches the engine's STATE_DUMP_SIZE (5120)", () => {
+  assert.equal(STATE_DUMP_SIZE, 5120, "engine STATE_DUMP_SIZE sanity");
+  assert.equal(
+    HARDWARE.stateDumpSize,
+    STATE_DUMP_SIZE,
+    "hardware.json stateDumpSize drifted from memory.js STATE_DUMP_SIZE",
+  );
+  // And it must equal the sum of the declared regions, the same invariant the
+  // Python loader (tools/hardware.py) enforces at load time.
+  const summed = HARDWARE.stateRegions.reduce((a, r) => a + r.size, 0);
+  assert.equal(summed, STATE_DUMP_SIZE, "region sizes must sum to the dump size");
+});
+
+test("hardware.json screen matches games/dkong/manifest.js screen", () => {
+  assert.deepEqual(
+    { width: HARDWARE.screen.width, height: HARDWARE.screen.height },
+    { width: manifest.screen.width, height: manifest.screen.height },
+    "hardware.json screen drifted from the game manifest's screen",
+  );
+});
+
+test("hardware.json driver matches the game manifest id/board", () => {
+  // The board is named after its MAME driver/romset; manifest.id is that name.
+  assert.equal(
+    HARDWARE.driver,
+    manifest.id,
+    "hardware.json driver drifted from manifest.id",
+  );
 });

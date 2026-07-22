@@ -29,6 +29,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import hardware  # noqa: E402
 import scope  # noqa: E402
 import stateio  # noqa: E402
 
@@ -67,6 +68,7 @@ def summarize_regions(golden_buf: bytes, actual_buf: bytes):
 
 def main():
     p = argparse.ArgumentParser(description="State-diff JS RAM vs MAME golden")
+    hardware.add_hardware_arg(p)
     p.add_argument("--golden", required=True, help="dir with MAME state.bin/state.json")
     p.add_argument("--actual", required=True, help="dir with JS state.bin/state.json")
     p.add_argument(
@@ -88,6 +90,12 @@ def main():
         help="permit the JS side to cover fewer frames than golden (NOT a pass)",
     )
     args = p.parse_args()
+
+    # Load the board's hardware map and configure the shared modules from it,
+    # before any use of stateio/scope constants.
+    hw = hardware.load_from_args(args)
+    scope.configure(hw)
+    stateio.configure(hw)
 
     golden = stateio.StateSet(args.golden)
     actual = stateio.StateSet(args.actual)

@@ -33,17 +33,29 @@ TWO PHASES:
 
 import os
 
-# (start, end, name) -- the address set.
-RANGES = [
-    (0x7800, 0x780F, "dma8257"),
-    (0x7C00, 0x7C00, "sound_latch"),
-    (0x7C80, 0x7C80, "grid_color"),
-    (0x7D00, 0x7D07, "sound_trig"),
-    (0x7D80, 0x7D87, "control"),
-]
+# (start, end, name) -- the hardware write surface outside RAM. This is BOARD
+# hardware, loaded from the board's hardware.json via configure(); a shared tool
+# has no game default, so it is None until a board is configured and any use
+# before configure() fails loudly rather than silently assuming DK.
+RANGES = None
+
+
+def configure(hw):
+    """Load the hardware write-range set from a Hardware (hardware.json) object."""
+    global RANGES
+    RANGES = [(start, end, name) for (start, end, name) in hw.write_ranges]
+
+
+def _require_configured():
+    if RANGES is None:
+        raise RuntimeError(
+            "writeio is not configured: call writeio.configure(hardware) with a "
+            "Hardware loaded from --hardware before using it."
+        )
 
 
 def region_of(addr: int) -> str:
+    _require_configured()
     for lo, hi, name in RANGES:
         if lo <= addr <= hi:
             return name

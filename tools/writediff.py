@@ -27,6 +27,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import hardware  # noqa: E402
 import writeio  # noqa: E402
 
 EXIT_OK = 0
@@ -53,6 +54,7 @@ def context(trace, i, before=3, after=1):
 
 def main():
     p = argparse.ArgumentParser(description="Diff hardware write traces vs MAME")
+    hardware.add_hardware_arg(p)
     p.add_argument("--golden", required=True)
     p.add_argument("--actual", required=True)
     p.add_argument(
@@ -67,6 +69,10 @@ def main():
         help="also require cycles to match (phase 2; needs exact JS cycle accounting)",
     )
     args = p.parse_args()
+
+    # Load the board's hardware map and configure writeio's RANGES from it,
+    # before any region_of() call.
+    writeio.configure(hardware.load_from_args(args))
 
     golden = writeio.WriteTrace(args.golden)
     actual = writeio.WriteTrace(args.actual)

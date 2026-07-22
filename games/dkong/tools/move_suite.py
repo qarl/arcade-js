@@ -54,7 +54,9 @@ print(f"{'test':16} {'emit':10} {'max%':>6} {'>5%':>4} {'verdict'}")
 for name,b,x,y,bits,hold in TESTS:
     lp=lua(name,b,x,y,bits,hold)
     go=f"{WORK}/g_{name}"; eo=f"{WORK}/e_{name}"
-    r=subprocess.run(["python3",f"{REPO}/tools/mame_golden.py","--out",go,"--seconds","30","--tape",lp],capture_output=True,text=True,timeout=150)
+    r=subprocess.run(["python3",f"{REPO}/tools/mame_golden.py",
+       "--hardware",f"{REPO}/boards/dkong/hardware.json","--lua-dir",f"{REPO}/games/dkong/tools/lua",
+       "--out",go,"--seconds","30","--tape",lp],capture_output=True,text=True,timeout=150)
     er=subprocess.run(emit_cmd(eo,b,x,y,bits,hold),cwd=ROOT,capture_output=True,text=True)
     stopped = "GAP" if "not impl" in (er.stdout+er.stderr).lower() else "ran"
     if stopped=="ran" and os.path.exists(f"{eo}/frames.rgb") and os.path.exists(f"{go}/frames.rgb"):

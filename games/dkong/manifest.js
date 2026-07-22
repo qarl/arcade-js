@@ -24,6 +24,33 @@ export default {
   board: "dkong",              // boards/dkong/
   mameDriver: "dkong.cpp",     // the board is named after its MAME driver
 
+  // The declarative input contract the game-agnostic web layer reads: it builds
+  // its keyboard map, coin/start buttons, and worker port list from here, so no
+  // DK-specific ports/keys/bits are hardcoded in web/. A second game supplies its
+  // own inputs block and the same web player drives it. Values mirror the board's
+  // input ports (boards/dkong/io.js) and the historical web/player.html bindings.
+  inputs: {
+    ports: { in0: 0x7c00, in1: 0x7c80, in2: 0x7d00 },
+    // logical action -> { port address, bit mask }
+    actions: {
+      right:  { port: 0x7c00, bit: 0x01 },
+      left:   { port: 0x7c00, bit: 0x02 },
+      up:     { port: 0x7c00, bit: 0x04 },
+      down:   { port: 0x7c00, bit: 0x08 },
+      jump:   { port: 0x7c00, bit: 0x10 },
+      coin:   { port: 0x7d00, bit: 0x80 },
+      start1: { port: 0x7d00, bit: 0x04 },
+      start2: { port: 0x7d00, bit: 0x08 },
+    },
+    // web-player keyboard bindings: KeyboardEvent.code -> action name
+    keys: {
+      ArrowRight: "right", KeyD: "right", ArrowLeft: "left", KeyA: "left",
+      ArrowUp: "up", KeyW: "up", ArrowDown: "down", KeyS: "down",
+      Space: "jump", KeyZ: "jump", KeyX: "jump",
+      Digit5: "coin", KeyC: "coin", Digit1: "start1", Digit2: "start2",
+    },
+  },
+
   // ROM assembly: MAME part filenames (from your own dkong.zip), concatenated in
   // address order into the flat images the engine loads. sha256 + size verify each,
   // so a wrong/damaged romset fails loudly. ROM bytes are copyrighted and never

@@ -52,6 +52,8 @@ out:setvbuf("no")
 local meta = io.open(os.getenv("PC_META") or "state_at_pc.txt", "w")
 if meta then meta:setvbuf("no") end
 
+-- These regions mirror boards/dkong/hardware.json "stateRegions" (and the engine
+-- constants in boards/dkong/memory.js). Keep them consistent with that file.
 local REGIONS = {
   { 0x6000, 0x6BFF }, -- work
   { 0x7000, 0x73FF }, -- sprite

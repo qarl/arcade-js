@@ -27,18 +27,34 @@ import hashlib
 import json
 import os
 
+# The state-region layout is BOARD hardware, loaded from the board's
+# hardware.json via configure() -- a shared tool has no game default. Until a
+# board is configured these are None so any use before configure() fails loudly
+# rather than silently assuming DK.
+#
 # (name, start, length) -- order is part of the contract.
-REGIONS = [
-    ("work", 0x6000, 3072),
-    ("sprite", 0x7000, 1024),
-    ("video", 0x7400, 1024),
-]
+REGIONS = None
+BYTES_PER_FRAME = None
 
-BYTES_PER_FRAME = sum(r[2] for r in REGIONS)  # 5120
+
+def configure(hw):
+    """Load the state-region layout from a Hardware (hardware.json) object."""
+    global REGIONS, BYTES_PER_FRAME
+    REGIONS = [(name, base, size) for (name, base, size) in hw.state_regions]
+    BYTES_PER_FRAME = sum(size for _n, _s, size in REGIONS)  # 5120 for DK
+
+
+def _require_configured():
+    if REGIONS is None:
+        raise RuntimeError(
+            "stateio is not configured: call stateio.configure(hardware) with a "
+            "Hardware loaded from --hardware before using it."
+        )
 
 
 def region_of(offset: int):
     """Map a byte offset within a state frame to (region_name, cpu_address)."""
+    _require_configured()
     pos = 0
     for name, start, length in REGIONS:
         if pos <= offset < pos + length:
@@ -48,12 +64,14 @@ def region_of(offset: int):
 
 
 def frame_sha256(buf: bytes) -> str:
+    _require_configured()
     if len(buf) != BYTES_PER_FRAME:
         raise ValueError(f"state frame must be {BYTES_PER_FRAME} bytes, got {len(buf)}")
     return hashlib.sha256(buf).hexdigest()
 
 
 def write_index(out_dir: str, hashes: list[str]) -> str:
+    _require_configured()
     index = {
         "bytes_per_frame": BYTES_PER_FRAME,
         "count": len(hashes),
@@ -73,6 +91,7 @@ class StateSet:
     """Read-side view of a state.bin + state.json pair."""
 
     def __init__(self, path: str):
+        _require_configured()
         self.dir = (
             path if os.path.isdir(path) else os.path.dirname(os.path.abspath(path))
         )

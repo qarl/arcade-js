@@ -26,18 +26,42 @@ import hashlib
 import json
 import os
 
-WIDTH = 256
-HEIGHT = 224
+# Frame WIRE-FORMAT constants (NOT board hardware): the pixel-diff artifact is
+# always RGB888, top-left origin, 3 channels, regardless of which board it came
+# from. These stay literals.
 CHANNELS = 3
-BYTES_PER_ROW = WIDTH * CHANNELS
-BYTES_PER_FRAME = WIDTH * HEIGHT * CHANNELS  # 172032
-
 PIXEL_FORMAT = "RGB888"
 ORIGIN = "top-left"
+
+# Screen GEOMETRY is board hardware, loaded from the board's hardware.json via
+# configure() -- a shared tool has no game default, so these are None until a
+# board is configured and any use before configure() fails loudly.
+WIDTH = None
+HEIGHT = None
+BYTES_PER_ROW = None
+BYTES_PER_FRAME = None
+
+
+def configure(hw):
+    """Load the screen geometry from a Hardware (hardware.json) object."""
+    global WIDTH, HEIGHT, BYTES_PER_ROW, BYTES_PER_FRAME
+    WIDTH = hw.screen_width
+    HEIGHT = hw.screen_height
+    BYTES_PER_ROW = WIDTH * CHANNELS
+    BYTES_PER_FRAME = WIDTH * HEIGHT * CHANNELS  # 172032 for DK
+
+
+def _require_configured():
+    if WIDTH is None:
+        raise RuntimeError(
+            "frameio is not configured: call frameio.configure(hardware) with a "
+            "Hardware loaded from --hardware before using it."
+        )
 
 
 def frame_sha256(buf: bytes) -> str:
     """Hash exactly one frame's worth of bytes."""
+    _require_configured()
     if len(buf) != BYTES_PER_FRAME:
         raise ValueError(f"frame must be {BYTES_PER_FRAME} bytes, got {len(buf)}")
     return hashlib.sha256(buf).hexdigest()
@@ -45,6 +69,7 @@ def frame_sha256(buf: bytes) -> str:
 
 def write_index(out_dir: str, hashes: list[str]) -> str:
     """Write frames.json describing an already-written frames.rgb."""
+    _require_configured()
     index = {
         "width": WIDTH,
         "height": HEIGHT,
@@ -65,6 +90,7 @@ class FrameSet:
     """Read-side view of a frames.rgb + frames.json pair."""
 
     def __init__(self, path: str):
+        _require_configured()
         # Accept either the directory or either of the two files.
         if os.path.isdir(path):
             self.dir = path

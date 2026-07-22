@@ -64,6 +64,8 @@ end
 -- artifact we produce.
 if os.getenv("STATE_ENABLED") == "0" then return end
 
+-- These regions mirror boards/dkong/hardware.json "stateRegions" (and the engine
+-- constants in boards/dkong/memory.js). Keep them consistent with that file.
 local REGIONS = {
   { 0x6000, 0x6BFF },  -- work
   { 0x7000, 0x73FF },  -- sprite

@@ -232,6 +232,8 @@ def main():
         so = os.path.join(WORK, f"s_{name}")
         subprocess.run(
             ["python3", os.path.join(REPO, "tools", "mame_golden.py"),
+             "--hardware", os.path.join(REPO, "boards", "dkong", "hardware.json"),
+             "--lua-dir", os.path.join(REPO, "games", "dkong", "tools", "lua"),
              "--out", go, "--seconds", "30", "--tape", lp],
             capture_output=True, text=True, timeout=400)
         er = subprocess.run(emit_cmd(eo, so, b, start, prize, hold),

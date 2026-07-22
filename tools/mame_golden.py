@@ -11,10 +11,15 @@ this command line produce BYTE-IDENTICAL AVI output. The controls that matter
 are a fresh empty -nvram_directory per run (DK writes high scores), -nonvram_save,
 -nocheat, -noautosave, -frameskip 0, -nothrottle.
 
+This tool is GAME-AGNOSTIC: the board driver/screen/refresh come from --hardware
+(boards/<board>/hardware.json) and the Lua dumpers from --lua-dir; neither is
+defaulted. The game-specific caller (games/<id>/tools/*) supplies both.
+
 Usage:
-  mame_golden.py --out DIR --seconds 3
-  mame_golden.py --out DIR --seconds 30 --playback tape.inp
-  mame_golden.py --out DIR --seconds 30 --record tape.inp
+  mame_golden.py --hardware boards/dkong/hardware.json \
+                 --lua-dir games/dkong/tools/lua --out DIR --seconds 3
+  mame_golden.py --hardware ... --lua-dir ... --out DIR --seconds 30 --playback tape.inp
+  mame_golden.py --hardware ... --lua-dir ... --out DIR --seconds 30 --record tape.inp
 """
 
 import argparse
@@ -29,20 +34,28 @@ import sys
 import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import hardware  # noqa: E402
 import frameio  # noqa: E402
 import scope  # noqa: E402
 import stateio  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-LUA_STATE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lua", "dump_state.lua")
-LUA_AT_PC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lua", "dump_at_pc.lua")
-LUA_WRITES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lua", "dump_writes.lua")
 
-# The emulated refresh rate from MAME's dkong driver (-listxml): 60.606061 Hz.
-REFRESH_HZ = 60.606061
+# The board driver, screen size and refresh come from --hardware; the Lua dumpers
+# (game-specific) come from --lua-dir. Neither is defaulted: a shared tool must be
+# told which board it is capturing. Both are resolved in main() into args.
 
 
-def build_mame_argv(args, workdir, avi_name="out"):
+def lua_paths(lua_dir):
+    """The three dumper scripts inside a --lua-dir (game-specific Lua)."""
+    return (
+        os.path.join(lua_dir, "dump_state.lua"),
+        os.path.join(lua_dir, "dump_at_pc.lua"),
+        os.path.join(lua_dir, "dump_writes.lua"),
+    )
+
+
+def build_mame_argv(args, hw, workdir, avi_name="out"):
     """The known-good command line. Every flag here is load-bearing -- see docs/04-integration-testing.md.
 
     Gotchas encoded here so nobody rediscovers them:
@@ -52,10 +65,10 @@ def build_mame_argv(args, workdir, avi_name="out"):
     """
     argv = [
         args.mame,
-        "dkong",
+        hw.driver,  # romset/driver name, from hardware.json
         "-rompath",
         args.rompath,
-        "-norotate",  # frame contract: compare unrotated 256x224
+        "-norotate",  # frame contract: compare unrotated WxH
         "-video",
         "none",  # headless; proven byte-identical to -video soft
         "-sound",
@@ -66,7 +79,7 @@ def build_mame_argv(args, workdir, avi_name="out"):
         "-snapshot_directory",
         workdir,
         "-snapsize",
-        "256x224",
+        f"{hw.screen_width}x{hw.screen_height}",  # from hardware.json screen
         "-snapview",
         "native",
         "-nvram_directory",
@@ -98,7 +111,11 @@ def build_mame_argv(args, workdir, avi_name="out"):
         # The shim dofile()s both. Order matters: the tape installs its input
         # notifier first so its frame numbering starts at the same frame the
         # instrument samples.
-        inner = LUA_WRITES if args.writes else (LUA_AT_PC if args.at_pc else LUA_STATE)
+        inner = (
+            args.lua_writes
+            if args.writes
+            else (args.lua_at_pc if args.at_pc else args.lua_state)
+        )
         shim = os.path.join(workdir, "tape_shim.lua")
         with open(shim, "w") as fh:
             fh.write("dofile(%r)\n" % os.path.abspath(args.tape))
@@ -107,13 +124,13 @@ def build_mame_argv(args, workdir, avi_name="out"):
     elif args.writes:
         # Hardware write trace: gates the control latches, i8257
         # programming and sound latch -- the surface the state dump never covered.
-        argv += ["-autoboot_script", LUA_WRITES]
+        argv += ["-autoboot_script", args.lua_writes]
     elif args.at_pc:
         # PC-exact capture (closes the frame-boundary sampling gap): emits a
         # single state frame at the moment PC first reaches the target address.
-        argv += ["-autoboot_script", LUA_AT_PC]
+        argv += ["-autoboot_script", args.lua_at_pc]
     else:
-        argv += ["-autoboot_script", LUA_STATE]
+        argv += ["-autoboot_script", args.lua_state]
     if args.playback:
         argv += ["-playback", os.path.abspath(args.playback)]
     if args.record:
@@ -207,6 +224,14 @@ def watchdog_check(hashes, guard_from=10):
 
 def main():
     p = argparse.ArgumentParser(description="Capture golden MAME reference artifacts")
+    hardware.add_hardware_arg(p)
+    p.add_argument(
+        "--lua-dir",
+        required=True,
+        metavar="DIR",
+        help="directory holding the game's Lua dumpers (dump_state.lua, "
+        "dump_at_pc.lua, dump_writes.lua). Game-specific; the caller supplies it.",
+    )
     p.add_argument("--out", required=True, help="output directory for artifacts")
     # int, not float: MAME's -seconds_to_run truncates, so a float would make the
     # manifest's provenance record disagree with what actually ran.
@@ -244,13 +269,24 @@ def main():
         # never-reached poison unreachable and certify an empty capture green.
         p.error("--at-pc emits a state frame, so it cannot be combined with --no-state")
 
+    # Load the board hardware map and configure the shared modules from it, then
+    # resolve the game-specific Lua dumpers from --lua-dir.
+    hw = hardware.load_from_args(args)
+    frameio.configure(hw)
+    scope.configure(hw)
+    stateio.configure(hw)
+    args.lua_state, args.lua_at_pc, args.lua_writes = lua_paths(args.lua_dir)
+    for pth in (args.lua_state, args.lua_at_pc, args.lua_writes):
+        if not os.path.exists(pth):
+            p.error(f"--lua-dir missing dumper: {pth}")
+
     os.makedirs(args.out, exist_ok=True)
     workdir = tempfile.mkdtemp(prefix="mame_golden_")
     os.makedirs(os.path.join(workdir, "nvram"), exist_ok=True)
     os.makedirs(os.path.join(workdir, "cfg"), exist_ok=True)
 
     try:
-        argv = build_mame_argv(args, workdir)
+        argv = build_mame_argv(args, hw, workdir)
         env = dict(os.environ)
         env["STATE_OUT"] = os.path.join(workdir, "state.raw")
         env["CONFIG_OUT"] = os.path.join(workdir, "config.txt")
@@ -270,7 +306,7 @@ def main():
         manifest = {
             "mame_argv": argv,
             "seconds": args.seconds,
-            "refresh_hz": REFRESH_HZ,
+            "refresh_hz": hw.refresh_hz,
             "playback": args.playback,
             "record": args.record,
         }
@@ -315,12 +351,12 @@ def main():
                 # avi_frame_count = ceil(refresh * seconds) + 1.
                 # A capture that misses this was truncated or mis-run, and is the
                 # exact input that makes a short-run false PASS possible downstream.
-                expect = math.ceil(REFRESH_HZ * args.seconds) + 1
+                expect = math.ceil(hw.refresh_hz * args.seconds) + 1
                 manifest["expected_frame_count"] = expect
                 if n != expect:
                     poison.append(
                         f"frame count {n} != documented formula "
-                        f"ceil({REFRESH_HZ}*{args.seconds})+1 = {expect}"
+                        f"ceil({hw.refresh_hz}*{args.seconds})+1 = {expect}"
                     )
 
             hits = watchdog_check(fh)
@@ -385,12 +421,12 @@ def main():
                 # and the Lua dumper's documented failure mode (GC-unsubscribe ->
                 # exactly one frame, plausible-looking truncated file) would sail
                 # through certified.
-                expect_state = math.ceil(REFRESH_HZ * args.seconds) + 1
+                expect_state = math.ceil(hw.refresh_hz * args.seconds) + 1
                 manifest["expected_state_count"] = expect_state
                 if n != expect_state:
                     poison.append(
                         f"state frame count {n} != documented formula "
-                        f"ceil({REFRESH_HZ}*{args.seconds})+1 = {expect_state} "
+                        f"ceil({hw.refresh_hz}*{args.seconds})+1 = {expect_state} "
                         f"(truncated dump, or the Lua notifier unsubscribed)"
                     )
                 # Verified power-on invariant. If this is false the

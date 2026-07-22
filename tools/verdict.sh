@@ -22,6 +22,10 @@ cd "$(dirname "$0")" || { echo "cannot cd to script dir" >&2; exit 2; }
 
 ACTUAL="${1:-}"
 GOLDEN="${2:-golden/boot}"
+# The shared diff tools are game-agnostic and read the board map from --hardware.
+# This wrapper is DK-specific (golden/boot), so it names the DK board. Path is
+# relative to tools/ (we cd'd there above). Override with HARDWARE=... if needed.
+HARDWARE="${HARDWARE:-../boards/dkong/hardware.json}"
 
 if [ -z "$ACTUAL" ]; then
   echo "usage: $0 <js-output-dir> [golden-dir]" >&2
@@ -51,7 +55,7 @@ echo "=============================================================="
 echo " STATE DIFF   golden=$GOLDEN  actual=$ACTUAL"
 echo "=============================================================="
 if [ -f "$ACTUAL/state.bin" ]; then
-  python3 tools/statediff.py --golden "$GOLDEN" --actual "$ACTUAL"
+  python3 tools/statediff.py --hardware "$HARDWARE" --golden "$GOLDEN" --actual "$ACTUAL"
   rc_state=$?
   ran=$((ran + 1)); ran_state=1
 else
@@ -64,7 +68,7 @@ echo " WRITE DIFF   golden=$GOLDEN  actual=$ACTUAL"
 echo "=============================================================="
 if [ -f "$ACTUAL/writes.txt" ]; then
   if [ -f "$GOLDEN/writes.txt" ]; then
-    python3 tools/writediff.py --golden "$GOLDEN" --actual "$ACTUAL"
+    python3 tools/writediff.py --hardware "$HARDWARE" --golden "$GOLDEN" --actual "$ACTUAL"
     rc_writes=$?
     ran=$((ran + 1)); ran_writes=1
   else
@@ -84,7 +88,7 @@ echo "=============================================================="
 echo " PIXEL DIFF   golden=$GOLDEN  actual=$ACTUAL"
 echo "=============================================================="
 if [ -f "$ACTUAL/frames.rgb" ]; then
-  python3 tools/framediff.py --golden "$GOLDEN" --actual "$ACTUAL" --report diffout
+  python3 tools/framediff.py --hardware "$HARDWARE" --golden "$GOLDEN" --actual "$ACTUAL" --report diffout
   rc_frames=$?
   ran=$((ran + 1)); ran_frames=1
 else

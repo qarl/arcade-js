@@ -1,0 +1,65 @@
+{
+  "_comment": [
+    "Tool-facing hardware/address declaration for the Donkey Kong board.",
+    "SINGLE SOURCE OF TRUTH for the shared arcade-js Python tools: they read this",
+    "file (via --hardware) instead of hardcoding any DK addresses, so tools/ stays",
+    "game-agnostic. The ENGINE keeps its own numeric constants in boards/dkong/",
+    "{memory,io}.js and games/dkong/manifest.js (the pixel-validated load path is",
+    "NOT refactored to import JSON); a drift-test in boards/dkong/test/board.test.js",
+    "asserts this file matches those engine constants so they can never diverge.",
+    "Numbers are decimal (standard JSON has no 0x); '_hex' fields are annotations",
+    "the loader ignores. Values copied verbatim from boards/dkong/memory.js,",
+    "tools/writeio.py, tools/stateio.py, tools/scope.py, tools/frameio.py,",
+    "tools/mame_golden.py and games/dkong/manifest.js."
+  ],
+
+  "driver": "dkong",
+  "screen": { "width": 256, "height": 224 },
+  "refreshHz": 60.606061,
+  "cpuHz": 3072000,
+  "cyclesPerFrame": 50688,
+  "vblankIntoFrame": 46080,
+
+  "stateDumpSize": 5120,
+  "stateRegions": [
+    { "name": "work",   "base": 24576, "size": 3072, "_hex": "0x6000-0x6BFF" },
+    { "name": "sprite", "base": 28672, "size": 1024, "_hex": "0x7000-0x73FF" },
+    { "name": "video",  "base": 29696, "size": 1024, "_hex": "0x7400-0x77FF" }
+  ],
+
+  "writeRanges": [
+    { "name": "dma8257",     "start": 30720, "end": 30735, "_hex": "0x7800-0x780F i8257 programming" },
+    { "name": "sound_latch", "start": 31744, "end": 31744, "_hex": "0x7C00 ls175.3d sound latch" },
+    { "name": "grid_color",  "start": 31872, "end": 31872, "_hex": "0x7C80 grid colour (radarscp)" },
+    { "name": "sound_trig",  "start": 32000, "end": 32007, "_hex": "0x7D00-0x7D07 ls259.6h sound triggers" },
+    { "name": "control",     "start": 32128, "end": 32135, "_hex": "0x7D80-0x7D87 flipscreen/banks/NMI mask/DRQ" }
+  ],
+
+  "dsw0": { "addr": 32128, "expected": 128, "_hex_addr": "0x7D80", "_hex_expected": "0x80" },
+  "controlByte": 62,
+  "_controlByte_hex": "0x3E -- ROM 0x0000, first byte of the reset vector (LD A,n); config-probe control",
+
+  "z80Reset": {
+    "AF": 64, "BC": 0, "DE": 0, "HL": 0, "IX": 65535, "IY": 65535, "SP": 0,
+    "_hex": "AF=0x0040 (MAME sets Z flag), IX=IY=0xFFFF after reset, rest 0"
+  },
+
+  "writeTimestamp": "write-bus-cycle",
+
+  "landmarks": [
+    {
+      "name": "boot init done, NMI enable at 0x02B8 fetched",
+      "cycle": 180796,
+      "addr": 696,
+      "_hex_addr": "0x02B8",
+      "provenance": "Measured: PC-exact read tap on 0x02B8 (the NMI-enable point) fires at cycle 180796. Corroborates an independently derived 180816 to within 20 cycles; the small gap is fetch-of-0x02B8 vs completion."
+    },
+    {
+      "name": "first vblank NMI fires",
+      "cycle": 202771,
+      "addr": 102,
+      "_hex_addr": "0x0066",
+      "provenance": "Measured: read tap on the NMI vector 0x0066. Supersedes an earlier DERIVED figure of 198144, which assumed the NMI asserts at vblank start (46080 into the frame). It does not: every NMI lands at frame N.000x, i.e. AT the frame boundary, because MAME's frame origin for this driver IS the vblank point. The 10-21 cycle spread is the CPU finishing the current instruction before taking the interrupt."
+    }
+  ]
+}

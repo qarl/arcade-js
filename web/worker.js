@@ -17,6 +17,7 @@ const C_IN0 = 0, C_IN1 = 1, C_IN2 = 2, C_PAUSED = 3, C_COUNTER = 4,
 let ctrl = null;   // Int32Array over the shared control buffer
 let fb = null;     // Uint8Array over the shared (double-buffered) framebuffer
 let FRAME_BYTES = 0;
+let PORTS = null;  // {in0,in1,in2} input port addresses, from manifest.inputs.ports
 
 function makeLive(Machine) {
   return class LiveMachine extends Machine {
@@ -26,9 +27,9 @@ function makeLive(Machine) {
         throw new Error("__reset__"); // unwinds runFrames; worker reboots to attract
       }
       this.io.inputAssert = {
-        0x7c00: Atomics.load(ctrl, C_IN0) & 0xff, // IN0 joystick + jump (P1)
-        0x7c80: Atomics.load(ctrl, C_IN1) & 0xff, // IN1 (P2 / cocktail)
-        0x7d00: Atomics.load(ctrl, C_IN2) & 0xff, // IN2 coin / start
+        [PORTS.in0]: Atomics.load(ctrl, C_IN0) & 0xff, // IN0 joystick + jump (P1)
+        [PORTS.in1]: Atomics.load(ctrl, C_IN1) & 0xff, // IN1 (P2 / cocktail)
+        [PORTS.in2]: Atomics.load(ctrl, C_IN2) & 0xff, // IN2 coin / start
       };
     }
 
@@ -74,6 +75,7 @@ async function fetchBin(url) {
 
 async function run(gameId) {
   const manifest = (await import(`../games/${gameId}/manifest.js`)).default;
+  PORTS = manifest.inputs.ports; // input port addresses -> inputAssert slots (IN0/IN1/IN2)
   const { Machine } = await import(`../games/${gameId}/machine.js`);
   const { Inputs } = await import(`../boards/${manifest.board}/io.js`);
   const LiveMachine = makeLive(Machine);

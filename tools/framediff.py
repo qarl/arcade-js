@@ -169,6 +169,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import hardware  # noqa: E402
 import frameio  # noqa: E402
 import scope  # noqa: E402
 
@@ -404,6 +405,7 @@ def write_report(report_dir, idx, golden_buf, actual_buf, diff_mask):
 
 def main():
     p = argparse.ArgumentParser(description="Pixel-diff JS output vs MAME golden")
+    hardware.add_hardware_arg(p)
     p.add_argument(
         "--golden", required=True, help="dir with MAME frames.rgb/frames.json"
     )
@@ -422,6 +424,12 @@ def main():
         help="permit the JS side to cover fewer frames than golden (NOT a pass)",
     )
     args = p.parse_args()
+
+    # Load the board's hardware map and configure the shared modules from it,
+    # before any use of frameio geometry / scope landmarks.
+    hw = hardware.load_from_args(args)
+    frameio.configure(hw)
+    scope.configure(hw)
 
     offset = FROZEN_OFFSET
     if args.offset is not None and args.offset != FROZEN_OFFSET:

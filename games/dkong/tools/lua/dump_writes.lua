@@ -31,6 +31,8 @@ local out = assert(io.open(os.getenv("WRITES_OUT") or "wtrace.txt", "w"))
 out:setvbuf("no")
 
 -- The full hardware write surface outside RAM (lead-defined address set).
+-- Mirrors boards/dkong/hardware.json "writeRanges" (and tools/writeio.py RANGES).
+-- Keep them consistent with that file.
 local RANGES = {
   { 0x7800, 0x780F, "dma8257" },      -- i8257 programming
   { 0x7C00, 0x7C00, "sound_latch" },  -- ls175.3d -- modelled by nothing until now
