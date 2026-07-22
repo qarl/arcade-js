@@ -20,7 +20,7 @@ help:
 	@echo "  (GAME=<id> selects the game; default dkong. ROMs are copyrighted and never committed.)"
 
 test:
-	node --test "core/**/test/*.test.js" "boards/**/test/*.test.js" "games/**/test/*.test.js"
+	node --test "core/**/test/*.test.js" "boards/**/test/*.test.js" "games/**/test/*.test.js" "web/test/*.test.js"
 
 serve:
 	python3 web/server.py

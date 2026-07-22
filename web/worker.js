@@ -4,8 +4,11 @@
 //
 // The init message names a game id. The worker reads games/<id>/manifest.js to
 // learn its board + ROM images, dynamically imports the game's machine and the
-// board's Inputs, fetches the (locally-built) ROM binaries, and runs the REAL
-// engine with zero edits: LiveMachine subclasses the game's Machine and overrides
+// board's Inputs, takes the ROM binaries from the init message when the page
+// supplied them (assembled + sha256-verified in the page from the visitor's own
+// zip — see web/romzip.js) and otherwise fetches the locally-built ones, then
+// runs the REAL engine with zero edits: LiveMachine subclasses the game's Machine
+// and overrides
 // only the two per-frame seams the run loop already calls — applyInputs() (read
 // live keys from the shared control buffer) and finishRasterFrame() (publish the
 // frame to the shared framebuffer + pace to 60fps).
@@ -73,17 +76,23 @@ async function fetchBin(url) {
   return new Uint8Array(await r.arrayBuffer());
 }
 
-async function run(gameId) {
+async function run(gameId, provided) {
   const manifest = (await import(`../games/${gameId}/manifest.js`)).default;
   PORTS = manifest.inputs.ports; // input port addresses -> inputAssert slots (IN0/IN1/IN2)
   const { Machine } = await import(`../games/${gameId}/machine.js`);
   const { Inputs } = await import(`../boards/${manifest.board}/io.js`);
   const LiveMachine = makeLive(Machine);
 
-  // Fetch every declared ROM image (built locally via `make rom`).
+  // Every declared ROM image, per image: use the one the page handed us (already
+  // size- and sha256-checked there) if present, else fetch the locally-built
+  // .bin — so the `make rom` developer path keeps working untouched.
   const names = Object.keys(manifest.rom.images);
-  const bins = await Promise.all(
-    names.map(n => fetchBin(`../games/${gameId}/rom/${n}.bin`)));
+  const bins = await Promise.all(names.map((n) => {
+    const supplied = provided && provided[n];
+    // Transferred as ArrayBuffers; a Uint8Array copies just as happily.
+    if (supplied) return new Uint8Array(supplied);
+    return fetchBin(`../games/${gameId}/rom/${n}.bin`);
+  }));
   const images = Object.fromEntries(names.map((n, i) => [n, bins[i]]));
   const { maincpu, ...gfx } = images;
 
@@ -114,7 +123,7 @@ onmessage = (e) => {
   if (d.type === "init") {
     ctrl = new Int32Array(d.ctrl);
     fb = new Uint8Array(d.fb);
-    run(d.game).catch((err) =>
+    run(d.game, d.images).catch((err) =>
       postMessage({ type: "error", reason: String((err && err.stack) || err) }));
   }
 };

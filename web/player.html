@@ -32,6 +32,35 @@
   .warn { color: #ffb0b0; background: #2a1414; border: 1px solid #6a2a2a;
           padding: 10px 14px; border-radius: 6px; max-width: 640px; text-align: center; }
   .hide { display: none; }
+
+  /* --- drop-your-own-ROM panel ------------------------------------------- */
+  #romPanel { width: 100%; max-width: 720px; background: #14141f; border: 1px solid #26263c;
+              border-radius: 10px; padding: 18px 20px 20px; }
+  #romPanel h2 { font-size: 15px; margin: 0 0 8px; color: #cfe8b0; font-weight: 600; }
+  #romPanel p { margin: 0 0 12px; color: #9a9ab5; }
+  #romPanel .fineprint { color: #6a6a80; font-size: 12px; margin: 12px 0 0; }
+  #romPanel code { color: #9fd0ff; }
+  #dropZone { border: 2px dashed #3a3a5c; border-radius: 10px; padding: 26px 16px;
+              text-align: center; cursor: pointer; transition: .12s; background: #10101a; }
+  #dropZone:hover, #dropZone:focus-visible { border-color: #4d7a33; background: #161a12; outline: none; }
+  #dropZone.over { border-color: #7ab04a; background: #1b2414; }
+  #dropZone .dz-main { color: #cfe8b0; font-size: 15px; }
+  #dropZone .dz-sub  { color: #7a7a95; font-size: 12px; margin-top: 6px; }
+  #romProgress { color: #9fd0ff; min-height: 1.4em; margin-top: 10px; text-align: center; }
+  #romMsg { margin-top: 10px; display: flex; flex-direction: column; gap: 4px; }
+  #romTable { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 12px; }
+  #romTable th { text-align: left; color: #6a6a80; font-weight: 400; padding: 3px 8px 3px 0;
+                 border-bottom: 1px solid #26263c; white-space: nowrap; }
+  #romTable td { padding: 5px 8px 5px 0; vertical-align: top; border-bottom: 1px solid #1c1c2c; }
+  #romTable td.mark { width: 1.4em; font-size: 14px; }
+  #romTable td.name, #romTable td.size { white-space: nowrap; color: #b8b8cc; }
+  #romTable .sha { font-size: 11px; word-break: break-all; color: #7a7a95; }
+  #romTable .sha .tag { color: #55556c; }
+  .ok  { color: #9ede6a; }
+  .bad { color: #ff8f8f; }
+  #romInfo { color: #6a6a80; font-size: 12px; }
+  #romInfo button.link { background: none; border: none; padding: 0; color: #9fd0ff;
+                         text-decoration: underline; cursor: pointer; font: inherit; }
 </style>
 </head>
 <body>
@@ -41,9 +70,19 @@
     This page needs cross-origin isolation (for SharedArrayBuffer). Serve it with
     <code>python3 web/server.py</code> — opening the file directly won't work.
   </div>
-  <div id="romWarn" class="warn hide">
-    ROM not built — run: <code id="romWarnCmd">make -C games/&lt;id&gt; rom</code>
-  </div>
+  <section id="romPanel" class="hide" aria-labelledby="romPanelTitle">
+    <h2 id="romPanelTitle">This game needs its ROM — supply your own</h2>
+    <p id="romLede"></p>
+    <div id="dropZone" tabindex="0" role="button">
+      <div class="dz-main" id="dzMain">Drop your romset zip here</div>
+      <div class="dz-sub">or click to choose a file — it is never uploaded</div>
+    </div>
+    <input id="romFile" type="file" accept=".zip,application/zip" class="hide">
+    <div id="romProgress"></div>
+    <div id="romMsg"></div>
+    <table id="romTable"><tbody></tbody></table>
+    <p class="fineprint" id="romFine"></p>
+  </section>
   <canvas id="screen" aria-label="Game screen"></canvas>
   <div class="row">
     <button id="coin">Insert coin <span style="color:#8a8aa5">(5)</span></button>
@@ -52,21 +91,32 @@
     <button id="reset">Reset <span style="color:#8a8aa5">(R)</span></button>
   </div>
   <div id="status">booting…</div>
+  <div id="romInfo" class="hide"></div>
   <div class="legend">
     <kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd> move · <kbd>Space</kbd> jump ·
     <kbd>5</kbd> coin · <kbd>1</kbd> start · <kbd>P</kbd> pause · <kbd>R</kbd> reset
   </div>
 
 <script type="module">
+import { assembleImages } from "./romzip.js";
+import { getCached, putCached, clearCached } from "./romstore.js";
+
 (async () => {
   const statusEl = document.getElementById("status");
   const gameId = new URLSearchParams(location.search).get("game") || "dkong";
 
   // Build a DOM node with plain text (never innerHTML) so untrusted values —
-  // the "game" URL param, error text from the worker — can never inject HTML.
+  // the "game" URL param, error text from the worker, and above all the name and
+  // contents of a file the visitor drags in — can never inject HTML.
   const el = (tag, text, color) => {
     const n = document.createElement(tag);
     if (color) n.style.color = color;
+    n.textContent = text;
+    return n;
+  };
+  const cell = (tag, text, className) => {
+    const n = document.createElement(tag);
+    if (className) n.className = className;
     n.textContent = text;
     return n;
   };
@@ -131,33 +181,37 @@
   const rgba = img.data;
   for (let i = 0; i < DISP_W * DISP_H; i++) rgba[i * 4 + 3] = 255;
 
-  const worker = new Worker("worker.js", { type: "module" });
-  worker.postMessage({ type: "init", ctrl: ctrlSAB, fb: fbSAB, game: gameId });
-  const romWarn = document.getElementById("romWarn");
-  const ROM_404 = /\/rom\/\S+ -> 404/; // fetchBin()'s "fetch <url> -> <status>" in worker.js
-  worker.onmessage = (e) => {
-    const d = e.data;
-    if (d.type === "ready") {
-      statusEl.innerHTML = "<b>running</b> — press <b>5</b> for a coin, then <b>1</b> to start";
-    } else if (d.type === "restart") {
-      statusEl.textContent = "";
-      statusEl.append("rebooted to attract ", el("span", `(${d.reason || ""})`, "#5a5a72"));
-    } else if (d.type === "reset") {
-      statusEl.innerHTML = "<b>reset</b> — back to attract";
-    } else if (d.type === "error") {
-      const reason = d.reason || "";
-      statusEl.textContent = "";
-      if (ROM_404.test(reason)) {
-        // Fresh clone, unbuilt ROM: this is the first failure most contributors
-        // will hit. Name the fix instead of surfacing a raw fetch-404 stack.
-        document.getElementById("romWarnCmd").textContent = `make -C games/${gameId} rom`;
-        romWarn.classList.remove("hide");
-        statusEl.append(el("span", "ROM not built — see message above", "#ffb0b0"));
-      } else {
-        statusEl.append(el("span", `engine error: ${reason}`, "#ffb0b0"));
-      }
+  // Hand the verified ROM images to the engine worker. The ArrayBuffers are
+  // TRANSFERRED (not copied) — ~29 KB for DK, but the page has no use for them
+  // afterwards and the cache write already happened.
+  function startEngine(images) {
+    const worker = new Worker("worker.js", { type: "module" });
+    const payload = {};
+    const transfer = [];
+    const seen = new Set();
+    for (const [name, u8] of Object.entries(images)) {
+      // Transfer moves the WHOLE backing buffer, so hand over one that is exactly
+      // this image (a subarray view would drag its neighbours along).
+      const exact = (u8.byteOffset === 0 && u8.byteLength === u8.buffer.byteLength) ? u8 : u8.slice();
+      payload[name] = exact.buffer;
+      if (!seen.has(exact.buffer)) { seen.add(exact.buffer); transfer.push(exact.buffer); }
     }
-  };
+    worker.postMessage({ type: "init", ctrl: ctrlSAB, fb: fbSAB, game: gameId, images: payload }, transfer);
+    worker.onmessage = (e) => {
+      const d = e.data;
+      if (d.type === "ready") {
+        statusEl.innerHTML = "<b>running</b> — press <b>5</b> for a coin, then <b>1</b> to start";
+      } else if (d.type === "restart") {
+        statusEl.textContent = "";
+        statusEl.append("rebooted to attract ", el("span", `(${d.reason || ""})`, "#5a5a72"));
+      } else if (d.type === "reset") {
+        statusEl.innerHTML = "<b>reset</b> — back to attract";
+      } else if (d.type === "error") {
+        statusEl.textContent = "";
+        statusEl.append(el("span", `engine error: ${d.reason || ""}`, "#ffb0b0"));
+      }
+    };
+  }
 
   let lastCounter = 0;
   function present() {
@@ -225,6 +279,201 @@
   document.getElementById("start").onclick = () => pulse2(actions.start1.bit);
   document.getElementById("pause").onclick = togglePause;
   document.getElementById("reset").onclick = () => Atomics.store(ctrl, C_RESET, 1);
+
+  // =========================================================================
+  // ROM acquisition.  arcade-js ships no ROM data, so before the engine can
+  // start we need this game's images from exactly one of, in order:
+  //   1. this browser's IndexedDB cache  (they dropped their zip on a past visit)
+  //   2. games/<id>/rom/*.bin            (developer path: they ran `make rom`)
+  //   3. a zip the visitor drops on the page, parsed + verified right here
+  // Nothing copyrighted is ever fetched from this origin and nothing is ever
+  // uploaded: in case 3 the zip is read with FileReader-equivalent APIs and the
+  // bytes stay in this tab.
+  // =========================================================================
+  if (!manifest.rom?.images) {
+    statusEl.textContent = "";
+    statusEl.append(el("span", `"${manifest.title}" declares no ROM images — nothing to load`, "#ffb0b0"));
+    return;
+  }
+  const ROM_IMAGES = Object.entries(manifest.rom.images); // [name, {parts,size,sha256}]
+  const romPanel = document.getElementById("romPanel");
+  const romProgress = document.getElementById("romProgress");
+  const romMsg = document.getElementById("romMsg");
+
+  // A stray drop anywhere on the page would otherwise make the browser NAVIGATE
+  // to the dropped file, throwing away the session.
+  addEventListener("dragover", (e) => e.preventDefault());
+  addEventListener("drop", (e) => e.preventDefault());
+
+  // The romset table: what a correct zip must contain. Rendered before any drop
+  // (expectations only) and again afterwards with the visitor's actual hashes,
+  // so a mismatch is self-diagnosing. Built node-by-node with textContent —
+  // `report` carries values derived from an untrusted file.
+  function renderRomTable(report) {
+    const byName = new Map((report || []).map((r) => [r.name, r]));
+    const body = document.querySelector("#romTable tbody");
+    body.textContent = "";
+    const head = document.createElement("tr");
+    head.append(cell("th", ""), cell("th", "image"), cell("th", "size"), cell("th", "sha-256"));
+    body.append(head);
+    for (const [name, spec] of ROM_IMAGES) {
+      const r = byName.get(name);
+      const tr = document.createElement("tr");
+      tr.append(cell("td", r ? (r.ok ? "✓" : "✗") : "", `mark ${r ? (r.ok ? "ok" : "bad") : ""}`));
+      tr.append(cell("td", `${name}.bin`, "name"));
+      tr.append(cell("td", `${spec.size} B`, "size"));
+      const td = document.createElement("td");
+      const exp = cell("div", "", "sha");
+      exp.append(cell("span", "expected  ", "tag"), document.createTextNode(spec.sha256));
+      td.append(exp);
+      if (r && r.missingParts.length) {
+        td.append(cell("div", `missing from your zip: ${r.missingParts.join(", ")}`, "sha bad"));
+      } else if (r) {
+        const got = cell("div", "", `sha ${r.ok ? "ok" : "bad"}`);
+        got.append(cell("span", "yours     ", "tag"), document.createTextNode(r.actualSha256 || "—"));
+        td.append(got);
+        if (r.actualSize !== r.expectedSize) {
+          td.append(cell("div", `yours is ${r.actualSize} B, not ${r.expectedSize} B`, "sha bad"));
+        }
+      }
+      tr.append(td);
+      body.append(tr);
+    }
+  }
+
+  // Read + assemble + verify one dropped file. Resolves to the images on a clean
+  // pass, or null after explaining precisely what was wrong.
+  async function assembleFromFile(file) {
+    romMsg.textContent = "";
+    romProgress.textContent = `reading ${file.name} (${Math.round(file.size / 1024)} KB)…`;
+    let result;
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      romProgress.textContent = "unzipping, assembling and checksumming…";
+      result = await assembleImages(bytes, manifest.rom);
+    } catch (e) {
+      romProgress.textContent = "";
+      romMsg.append(el("div", `couldn't read "${file.name}": ${String((e && e.message) || e)}`, "#ff8f8f"));
+      romMsg.append(el("div", `Expected a zip archive named ${manifest.rom.zip}.`, "#8a8aa5"));
+      return null;
+    }
+    romProgress.textContent = "";
+    renderRomTable(result.report);
+    if (result.ok) {
+      romMsg.append(el("div", "all four images verified — starting the engine…", "#9ede6a"));
+      return result.images;
+    }
+    const missing = result.report.filter((r) => r.missingParts.length);
+    if (missing.length) {
+      romMsg.append(el("div", `"${file.name}" is missing files this romset needs:`, "#ff8f8f"));
+      for (const r of missing) {
+        romMsg.append(el("div", `${r.name}.bin needs ${r.missingParts.join(", ")}`, "#ff8f8f"));
+      }
+      romMsg.append(el("div",
+        `A correct ${manifest.rom.zip} contains every part listed above, flat or in a subfolder.`, "#8a8aa5"));
+    } else {
+      romMsg.append(el("div", "That looks like a different romset or revision.", "#ff8f8f"));
+      romMsg.append(el("div",
+        `arcade-js is pinned to exactly one ${manifest.title} set — the "expected" hashes above — ` +
+        `because the translation was validated pixel-exact against it. Your zip's hashes are on ` +
+        `the "yours" line, so you can see which set you have.`, "#8a8aa5"));
+    }
+    return null;
+  }
+
+  // Show the drop zone and resolve once a zip verifies. A bad zip leaves the
+  // panel up with its diagnosis so they can try another one.
+  function promptForZip() {
+    document.getElementById("romLede").textContent =
+      `arcade-js ships no ROM data — ${manifest.title} is copyrighted by ` +
+      `${manifest.manufacturer ?? "its publisher"}. Drop your own ${manifest.rom.zip} below and it is ` +
+      `unzipped, assembled and sha-256 verified entirely inside this tab. It is never uploaded, ` +
+      `and it stays in this browser so you only do this once.`;
+    document.getElementById("dzMain").textContent = `Drop ${manifest.rom.zip} here`;
+    document.getElementById("romFine").textContent =
+      `Have a checkout? make -C games/${gameId} rom builds the same images from the command line.`;
+    renderRomTable(null);
+    romPanel.classList.remove("hide");
+    // Nothing to look at until there is a ROM: put the panel where the game is.
+    const hidden = [canvas, document.querySelector(".row")];
+    for (const n of hidden) n.classList.add("hide");
+    statusEl.textContent = "";
+    statusEl.append(el("span", `${manifest.rom.zip} needed — see above`, "#ffb0b0"));
+
+    const dz = document.getElementById("dropZone");
+    const input = document.getElementById("romFile");
+    return new Promise((resolve) => {
+      let busy = false;
+      const handle = async (file) => {
+        if (!file || busy) return;
+        busy = true;
+        try {
+          const images = await assembleFromFile(file);
+          if (!images) return;
+          await putCached(gameId, images); // best effort; play works either way
+          romPanel.classList.add("hide");
+          for (const n of hidden) n.classList.remove("hide");
+          resolve(images);
+        } finally { busy = false; }
+      };
+      dz.addEventListener("dragover", (e) => { e.preventDefault(); dz.classList.add("over"); });
+      dz.addEventListener("dragleave", () => dz.classList.remove("over"));
+      dz.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dz.classList.remove("over");
+        handle(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]);
+      });
+      // Drag-and-drop alone is not reachable by keyboard or on touch.
+      dz.addEventListener("click", () => input.click());
+      dz.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); }
+      });
+      input.addEventListener("change", () => {
+        const f = input.files && input.files[0];
+        input.value = ""; // so re-picking the same file fires "change" again
+        handle(f);
+      });
+    });
+  }
+
+  // The developer path: images already built by `make rom` and served from disk.
+  // Any miss (404 on a fresh clone, or a truncated/oddly-served file) just means
+  // "not available" and falls through to the drop zone.
+  async function fetchDevRom() {
+    try {
+      const bins = await Promise.all(ROM_IMAGES.map(async ([name, spec]) => {
+        const r = await fetch(`../games/${gameId}/rom/${name}.bin`);
+        if (!r.ok) throw new Error(`${name}.bin -> ${r.status}`);
+        const u8 = new Uint8Array(await r.arrayBuffer());
+        if (u8.length !== spec.size) throw new Error(`${name}.bin is ${u8.length}B, want ${spec.size}B`);
+        return [name, u8];
+      }));
+      return Object.fromEntries(bins);
+    } catch {
+      return null;
+    }
+  }
+
+  const complete = (images) =>
+    images && ROM_IMAGES.every(([n, spec]) => images[n] && images[n].length === spec.size);
+
+  statusEl.textContent = "looking for the ROM…";
+  let romSource = "cache";
+  let images = await getCached(gameId);
+  if (!complete(images)) { romSource = "dev"; images = await fetchDevRom(); }
+  if (!complete(images)) { romSource = "drop"; images = await promptForZip(); }
+
+  if (romSource !== "dev") {
+    // Cached in this browser: offer a way out, both for "wrong zip, cached
+    // anyway" and for anyone who wants their ROM bytes off this machine.
+    const info = document.getElementById("romInfo");
+    info.append(el("span", `ROM: your own ${manifest.rom.zip}, cached in this browser · `));
+    const b = cell("button", "use a different zip", "link");
+    b.onclick = async () => { await clearCached(gameId); location.reload(); };
+    info.append(b);
+    info.classList.remove("hide");
+  }
+  startEngine(images);
 })();
 </script>
 </body>
