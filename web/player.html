@@ -87,6 +87,20 @@
   );
   document.title = `${manifest.title} — arcade-js`;
 
+  // The web layer is game-agnostic: it builds its keyboard map and its coin/start
+  // buttons entirely from manifest.inputs (ports/actions/keys — see docs/06). A
+  // manifest that hasn't declared it, or is missing the coin/start1 actions the
+  // buttons below need, can still pass every other gate (the pixel harness never
+  // reads it), so fail here with a clear message instead of letting the
+  // destructure and button wiring further down throw and hang the page at
+  // "booting…". Donkey Kong's manifest is fully populated, so this never fires for it.
+  const inputs = manifest.inputs;
+  if (!inputs?.ports || !inputs?.keys || !inputs?.actions?.coin || !inputs?.actions?.start1) {
+    statusEl.textContent = "";
+    statusEl.append(el("span", `"${manifest.title}" declares no input map — not playable in the browser`, "#ffb0b0"));
+    return;
+  }
+
   const SRC_W = manifest.screen?.width ?? 256, SRC_H = manifest.screen?.height ?? 224;
   const FRAME_BYTES = SRC_W * SRC_H * 3;
   const rotate = (manifest.orientation ?? "vertical") === "vertical";
@@ -182,7 +196,7 @@
   // action; the action carries its port + bit. We split the bindings into the
   // two per-port key->bit maps that back the IN0 (joystick+jump) and IN2
   // (coin/start) Atomics slots, so a key sets the right bit on the right port.
-  const { ports, actions, keys } = manifest.inputs;
+  const { ports, actions, keys } = inputs;
   const K0 = {}, K2 = {};
   for (const [code, action] of Object.entries(keys)) {
     const a = actions[action];

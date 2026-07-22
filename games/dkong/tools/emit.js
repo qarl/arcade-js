@@ -1,13 +1,15 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
- * Emit validation artifacts in QA's formats.
+ * Emit validation artifacts in the pixel-diff and state-diff artifact formats.
  *
  *   --state-out DIR   write state.bin + state.json (5120 bytes/frame)
  *   --frames N        number of frames to emit (default 1)
  *   --post-boot       also report the post-boot fingerprint (diagnostic)
  *   --rom PATH        maincpu image (default rom/maincpu.bin)
  *
- * Writes nothing unless asked (QA: "write on request, not always-on").
+ * Writes nothing unless asked (write on request, not always-on).
  *
  * SCOPE, STATED PLAINLY: boot spans ~3.52 frames, so frames 0-3 are all
  * inside it and are all we can currently produce; state[4] onward needs the
@@ -193,7 +195,7 @@ function main() {
 
   if (args.framesOut) {
     mkdirSync(args.framesOut, { recursive: true });
-    // QA's contract: headerless concatenation, 256*224*3 = 172032 bytes per
+    // The validation harness's contract: headerless concatenation, 256*224*3 = 172032 bytes per
     // frame, row-major, top-left origin, R,G,B, no padding, unrotated.
     //
     // This wrote ONE frame -- machine.renderFrame() at the END of the run --

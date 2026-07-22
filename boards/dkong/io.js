@@ -165,6 +165,10 @@ export class I8257 {
     this.transfers = 0;
     this.bytesMoved = 0;
     this.mem = null;
+    // Defensive init: only setDrq's rising-edge branch assigns this, so a
+    // cycle-charge read before the first rising DRQ would otherwise be
+    // undefined and silently NaN-poison the clock. Behavior-neutral today.
+    this.cyclesStolen = 0;
   }
 
   read(offset) {
@@ -378,7 +382,7 @@ export class IO {
  * Input state. Defaults are the idle attract-mode state: nothing pressed.
  *
  * Active-high/active-low per port matters and is not guessed here -- these
- * defaults are "no input", and QA's tapes drive the rest.
+ * defaults are "no input", and the validation harness's tapes drive the rest.
  *
  * SERVICE is deliberately absent from the API surface beyond this flag:
  * this is out-of-policy input. Holding it jumps to 0x4000, a

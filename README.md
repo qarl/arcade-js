@@ -31,10 +31,12 @@ core/                 game-agnostic engine
   audio.js            sample-player abstraction (audio lives ABOVE emulation)
 boards/               arcade hardware, named by MAME driver (a "board")
   dkong/              memory map · i8257/watchdog/latches · video/palette/geometry
+  dkong/hardware.json the same, as JSON: the single source the shared Python gate
+                      tools read via --hardware, instead of hardcoding DK addresses
   dkong/test/         unit tests for the board
 games/                one directory per romset
   dkong/
-    manifest.js       declares its cpu + board + rom set + metadata
+    manifest.js       declares its cpu + board + rom set + inputs + metadata
     translated/       the assembly-JS translation of the ROM
     optimized/        (room for) idiomatic-JS rewrites, gated for equivalence
     audio/            sound-command → sample trigger map
@@ -55,7 +57,9 @@ Tests are colocated with the code they test (`core/**/test/`, `boards/**/test/`,
 The three layers — **CPU**, **board**, **game** — are independent axes. A game's
 `manifest.js` names its CPU (`z80`) and board (`dkong`); the machine assembles
 CPU + board + translated ROM. Frogger, for example, would reuse `core/cpu/z80.js` on a
-future `boards/galaxian/`.
+future `boards/galaxian/`. The manifest also declares an `inputs` block (ports, actions,
+key bindings) that `web/` reads to build its keyboard map — see doc 6 — so a manifest
+without it can't be played in the browser.
 
 ## Quickstart
 

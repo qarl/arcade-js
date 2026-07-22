@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: GPL-3.0-only
 -- EARLY-START TAPE: coin and start as soon as the ROM will accept them.
 --
 -- WHY THIS EXISTS AND WHY IT IS A SEPARATE FILE. coin_start.lua coins at frame

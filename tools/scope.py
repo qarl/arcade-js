@@ -35,10 +35,6 @@ CPU_HZ = None
 REFRESH_HZ = None
 CYCLES_PER_FRAME = None
 
-# vblank starts at scanline VBSTART of VTOTAL, so within each frame:
-#   50688 * 240/264 = 46080 cycles
-VBLANK_INTO_FRAME = None
-
 
 # --- Machine configuration the tape runs under (harness-contract fact) ---
 # DSW0 is read by the ROM at 0x0207 and 0x024F. Its value is an INPUT to the
@@ -134,13 +130,12 @@ def configure(hw):
     the board's hardware.json (copied verbatim), so this shared tool carries no
     game-specific number.
     """
-    global CPU_HZ, REFRESH_HZ, CYCLES_PER_FRAME, VBLANK_INTO_FRAME
+    global CPU_HZ, REFRESH_HZ, CYCLES_PER_FRAME
     global DSW0_ADDR, DSW0_EXPECTED, ROM0000_CONTROL
     global Z80_RESET_STATE, WRITE_TIMESTAMP, LANDMARKS
     CPU_HZ = hw.cpu_hz
     REFRESH_HZ = hw.refresh_hz
     CYCLES_PER_FRAME = hw.cycles_per_frame
-    VBLANK_INTO_FRAME = hw.vblank_into_frame
     DSW0_ADDR = hw.dsw0_addr
     DSW0_EXPECTED = hw.dsw0_expected
     ROM0000_CONTROL = hw.control_byte

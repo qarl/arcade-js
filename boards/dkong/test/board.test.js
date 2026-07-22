@@ -20,13 +20,14 @@ import {
   WORK_RAM_BASE, WORK_RAM_SIZE, SPRITE_RAM_BASE, SPRITE_RAM_SIZE,
   VIDEO_RAM_BASE, VIDEO_RAM_SIZE,
 } from "../memory.js";
-import { IO } from "../io.js";
+import { IO, Inputs } from "../io.js";
 import manifest from "../../../games/dkong/manifest.js";
 import {
   buildPalette, decodeSprites, decodeTiles, drawSprites, normalizeRange,
   renderFrameRGB, renderRowRGB, renderTilemapPens, splitProms, SPRITE_COUNT,
 } from "../video.js";
-import { Machine } from "../../../games/dkong/machine.js";
+import { Machine, CYCLES_PER_FRAME } from "../../../games/dkong/machine.js";
+import { Regs } from "../../../core/cpu/z80.js";
 
 // The ROM/PROM/GFX images are copyright and not committed, so they are absent on
 // a fresh public clone. Guard the loads: tests that touch a ROM image skip
@@ -183,7 +184,7 @@ romTest("screen flip is exactly a 180-degree rotation of the unflipped image", (
 romTest("the undisplayed tilemap margin is two rows at EACH end, in both orientations", () => {
   // Corollary of the axis being mid-window, and it contradicts what the
   // first implementation's comment claimed. Tile rows 0..3 -- the 128 VRAM
-  // slots QA measured invisible -- must stay invisible in BOTH orientations.
+  // slots measured invisible -- must stay invisible in BOTH orientations.
   const gfx1 = new Uint8Array(readFileSync(new URL("../../../games/dkong/rom/gfx1.bin", import.meta.url)));
   const proms = new Uint8Array(readFileSync(new URL("../../../games/dkong/rom/proms.bin", import.meta.url)));
   const tiles = decodeTiles(gfx1);
@@ -363,7 +364,7 @@ romTest("decodeSprites maps the four gfx2 quadrants per MAME's spritelayout", ()
 });
 
 test("drawSprites places a sprite by the dkong formula, and the placement has teeth", () => {
-  // A STANDING version of the mutation check QA and I ran through rasterconf:
+  // A STANDING version of the mutation check run through the pixel gate:
   // color=0, code+1, x+1 and dropped-transpen each dropped the gate 727->520.
   // Here the same four are caught by explicit pixel assertions, so the teeth
   // are checked on every run, not remembered -- a green gate is worth nothing
@@ -462,5 +463,110 @@ test("hardware.json driver matches the game manifest id/board", () => {
     HARDWARE.driver,
     manifest.id,
     "hardware.json driver drifted from manifest.id",
+  );
+});
+
+test("hardware.json writeRanges match AddressSpace.isHardwareWrite in memory.js", () => {
+  // The tool-facing write surface must equal the predicate the ENGINE actually
+  // routes writes through (AddressSpace.isHardwareWrite). Rather than compare
+  // against a copied literal, reconstruct the surface FROM the function: scan
+  // the whole 16-bit space and coalesce every hardware-write address into
+  // contiguous [start,end] ranges. If the engine's ranges ever change, the JSON
+  // can no longer silently keep the old ones.
+  const engineRanges = [];
+  let runStart = null;
+  for (let addr = 0; addr <= 0x10000; addr++) {
+    const hw = addr <= 0xffff && AddressSpace.isHardwareWrite(addr);
+    if (hw && runStart === null) runStart = addr;
+    if (!hw && runStart !== null) {
+      engineRanges.push({ start: runStart, end: addr - 1 });
+      runStart = null;
+    }
+  }
+  // Sanity: the surface is exactly the five documented device windows.
+  assert.deepEqual(
+    engineRanges,
+    [
+      { start: 0x7800, end: 0x780f }, // i8257 programming
+      { start: 0x7c00, end: 0x7c00 }, // ls175.3d sound latch
+      { start: 0x7c80, end: 0x7c80 }, // grid colour
+      { start: 0x7d00, end: 0x7d07 }, // ls259.6h sound triggers
+      { start: 0x7d80, end: 0x7d87 }, // flipscreen/banks/NMI mask/DRQ
+    ],
+    "engine isHardwareWrite surface sanity",
+  );
+  const jsonRanges = HARDWARE.writeRanges.map((r) => ({ start: r.start, end: r.end }));
+  assert.deepEqual(
+    jsonRanges,
+    engineRanges,
+    "hardware.json writeRanges drifted from AddressSpace.isHardwareWrite " +
+      "(boards/dkong/memory.js) -- start/end/order must match the engine's " +
+      "hardware-write surface",
+  );
+});
+
+test("hardware.json z80Reset matches the Regs power-on state in core/cpu/z80.js", () => {
+  // The tool-facing reset vector must equal the engine's Regs constructor. Read
+  // the values straight off a freshly constructed Regs so the JSON is locked to
+  // core/cpu/z80.js and cannot silently keep a stale power-on state.
+  const r = new Regs();
+  const engine = {
+    AF: (r.a << 8) | r.f,
+    BC: r.bc,
+    DE: r.de,
+    HL: r.hl,
+    IX: r.ix,
+    IY: r.iy,
+    SP: r.sp,
+  };
+  assert.deepEqual(
+    engine,
+    { AF: 0x0040, BC: 0, DE: 0, HL: 0, IX: 0xffff, IY: 0xffff, SP: 0 },
+    "engine Regs constructor power-on sanity (AF=0x0040, IX=IY=0xFFFF, rest 0)",
+  );
+  const json = HARDWARE.z80Reset;
+  assert.deepEqual(
+    { AF: json.AF, BC: json.BC, DE: json.DE, HL: json.HL, IX: json.IX, IY: json.IY, SP: json.SP },
+    engine,
+    "hardware.json z80Reset drifted from core/cpu/z80.js Regs constructor",
+  );
+});
+
+test("hardware.json dsw0 matches io.js (addr 0x7D80, default 0x80)", () => {
+  // DSW0 is read at 0x7D80; the Inputs default is 0x80 (Cabinet=upright), a
+  // harness-contract value that FLIPS THE SCREEN if cleared. Lock the expected
+  // byte to the engine's Inputs default, and the address to the read port.
+  assert.equal(new Inputs().dsw0(), 0x80, "engine Inputs DSW0 default sanity");
+  assert.equal(
+    HARDWARE.dsw0.addr,
+    0x7d80,
+    "hardware.json dsw0 addr drifted from the 0x7D80 DSW0 read port",
+  );
+  assert.equal(
+    HARDWARE.dsw0.expected,
+    new Inputs().dsw0(),
+    "hardware.json dsw0 expected drifted from io.js Inputs DSW0 default (0x80)",
+  );
+});
+
+test("hardware.json controlByte is 0x3E (ROM 0x0000 reset-vector byte)", () => {
+  // 0x3E is the first byte of the reset vector (LD A,n at ROM 0x0000), used as
+  // the config-probe control read. There is no exported engine constant for it,
+  // so this pins the JSON to that documented literal.
+  assert.equal(
+    HARDWARE.controlByte,
+    0x3e,
+    "hardware.json controlByte drifted from 0x3E (ROM 0x0000 reset-vector byte)",
+  );
+});
+
+test("hardware.json cyclesPerFrame matches the engine CYCLES_PER_FRAME (50688)", () => {
+  // Frame length is 3072000 / 60.60606... = 50688 exactly, exported by the
+  // engine as CYCLES_PER_FRAME (games/dkong/machine.js). Lock the JSON to it.
+  assert.equal(CYCLES_PER_FRAME, 50688, "engine CYCLES_PER_FRAME sanity");
+  assert.equal(
+    HARDWARE.cyclesPerFrame,
+    CYCLES_PER_FRAME,
+    "hardware.json cyclesPerFrame drifted from games/dkong/machine.js CYCLES_PER_FRAME",
   );
 });

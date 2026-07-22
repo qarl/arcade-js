@@ -362,8 +362,8 @@ test("bit n,r and bit n,(ix+d) differ ONLY in the F3/F5 source -- both pinned vs
 });
 
 test("adc/sbc carry-in path matches MAME 0.288 exhaustively -- the branch that has never run", () => {
-  // code2 flagged that cpu.js's add(v, carryIn)/sub(v, carryIn) has only ever
-  // been called with carryIn = 0: every adc/sbc executed so far happened to
+  // A review found that core/cpu/z80.js's add(v, carryIn)/sub(v, carryIn) has
+  // only ever been called with carryIn = 0: every adc/sbc executed so far happened to
   // have carry clear. sub_239c changes that -- it runs `adc a,(ix+0x10)` at
   // 0x23A8 and `sbc a,(ix+0x12)` at 0x23B8, so translating it executes the
   // carry-in branch for the first time. Pinned here BEFORE it lands, the daa
@@ -524,20 +524,20 @@ test("sbcHl is NOT a sign-flipped adcHl -- it SETS N and uses a different overfl
 
   r.hl = 0x7fff; r.f = 0; r.sbcHl(0x0001);
   assert.ok(!(r.f & F_PV), "no PV when operands share a sign");
-  // MUTATION-PATCH  file: src/cpu.js
+  // MUTATION-PATCH  file: core/cpu/z80.js
   //   find: ((hl ^ v) & (hl ^ res) & 0x8000 ? F_PV : 0) |\n      F_N |
   //   repl: ((hl ^ v) & (hl ^ res) & 0x8000 ? F_PV : 0) |
   //   expect: FAIL  (drops N -- caught by "SBC SETS N")
-  //   verified-anchor: count == 1 in src/cpu.js
+  //   verified-anchor: count == 1 in core/cpu/z80.js
   //
   // NB this is the anchor the mutation was VERIFIED with, not a prose
   // description of the edit. My first version of this block quoted
   // `F_N |\n      (r < 0 ? F_C : 0) |` -- a shorter form I re-derived while
   // writing it up rather than the one I injected. That form matches THREE
-  // sites, so a runner applying it would have mutated three places. Same class
-  // qa hit in its own draft: a mutation spec must carry the verified anchor,
-  // because prose re-derives to a different anchor and the count silently
-  // changes.
+  // sites, so a runner applying it would have mutated three places. The same
+  // class of mistake has surfaced in a mutation spec's own draft before: a
+  // mutation spec must carry the verified anchor, because prose re-derives to a
+  // different anchor and the count silently changes.
 });
 
 romTest("cpi PRESERVES carry, takes S/Z raw and F3/F5 from an H-ADJUSTED result", () => {
@@ -588,7 +588,7 @@ test("addIy writes IY and shares addIx's verified add16 path (destination is the
 
   r.iy = 0x2000; r.f = 0; r.addIy(r.iy);
   assert.equal(r.iy, 0x4000, "add iy,iy doubles");
-  // MUTATION-PATCH  file: src/cpu.js
+  // MUTATION-PATCH  file: core/cpu/z80.js
   //   find: this.iy = this.add16(this.iy, v);
   //   repl: this.ix = this.add16(this.iy, v);
   //   expect: FAIL  (destination swap -- 4 assertions)

@@ -39,7 +39,7 @@ normally, so its callers' fallthrough is not code. Because that answer
 depends on the answers for routines it calls, we iterate to a fixpoint.
 
 Usage:
-    python3 tools/trace.py [--rom rom/maincpu.bin] [--out out]
+    python3 tools/trace.py [--rom games/dkong/rom/maincpu.bin] [--out games/dkong/out]
 """
 
 import argparse
@@ -691,8 +691,8 @@ def write_unreached(tr: Tracer, path: str):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--rom", default="rom/maincpu.bin")
-    ap.add_argument("--out", default="out")
+    ap.add_argument("--rom", default="games/dkong/rom/maincpu.bin")
+    ap.add_argument("--out", default="games/dkong/out")
     ap.add_argument("--entrypoints", default="games/dkong/entrypoints.json")
     args = ap.parse_args()
 

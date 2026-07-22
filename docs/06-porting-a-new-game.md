@@ -22,6 +22,22 @@ games/<romset>/           the translated ROM   one per game
 A game's `manifest.js` ties the three together, and the machine assembles CPU + board + translated
 ROM at load time.
 
+## The manifest's `inputs` block is required for the web player
+
+`web/` is game-agnostic: it derives its keyboard map and its worker port list entirely from
+`manifest.inputs`, never from hardcoded literals. A manifest that omits `inputs` can still pass
+every gate — the pixel harness never reads it — but it can't be played in the browser. Declare:
+
+- **`ports`** — the input-port addresses the board exposes, e.g. `{ in0, in1, in2 }`, matching the
+  board's i/o module (`boards/<driver>/io.js`).
+- **`actions`** — logical action name → `{ port, bit }`, e.g. `right: { port: 0x7c00, bit: 0x01 }`.
+  One entry per button/direction the game reads, plus `coin` and `start1` (and `start2` if the
+  cabinet has a two-player start).
+- **`keys`** — `KeyboardEvent.code` → action name, e.g. `ArrowRight: "right"`. The web player builds
+  its per-port key→bit maps from this at load time; it needs no per-game code of its own.
+
+See `games/dkong/manifest.js` for the reference shape.
+
 ## The steps
 
 1. **Pick or write the CPU.** If it's Z80, reuse `core/cpu/z80.js`. Otherwise translate the CPU core
@@ -35,7 +51,8 @@ ROM at load time.
 5. **Gate every step against MAME** (docs 4–5): capture a golden, emit the same artifacts, diff
    state → writes → pixels, and fix the engine until it passes. Never widen the tolerance to pass.
 6. **Register** the game: add its id to `games/registry.js`, and write `games/<id>/manifest.js`
-   (with the ROM part list + sha256 checksums) and a `Makefile` `rom` target.
+   (with the ROM part list + sha256 checksums, and the `inputs` block below) and a `Makefile` `rom`
+   target.
 
 ## The ROM stays out
 

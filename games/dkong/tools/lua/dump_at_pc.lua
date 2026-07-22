@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: GPL-3.0-only
 -- PC-EXACT state capture -- closes the PC-sampling gap.
 --
 -- state-diff samples at frame boundaries, so a state that exists only PARTWAY

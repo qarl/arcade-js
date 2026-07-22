@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: GPL-3.0-only
 -- TAPE: coin + start, then a MODE.  The authored input tapes live here.
 --
 --   TAPE_MODE=idle  (default)  press nothing after start

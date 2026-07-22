@@ -18,7 +18,6 @@
   "refreshHz": 60.606061,
   "cpuHz": 3072000,
   "cyclesPerFrame": 50688,
-  "vblankIntoFrame": 46080,
 
   "stateDumpSize": 5120,
   "stateRegions": [

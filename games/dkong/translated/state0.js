@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * Game-state 0 handler and its subtree.
  *
@@ -12553,7 +12555,7 @@ function loc_2b91(m) {
  *   2bd1  e6 f8        and  0xf8
  *   2bd3  81           add  a,c
  *   2bd4  4f           ld   c,a
- *   2bd5  bb           cp   e               ; first `cp r` in src/rom (S6)
+ *   2bd5  bb           cp   e               ; first `cp r` in games/dkong/translated/ (S6)
  *   2bd6  da e1 2b     jp   c,0x2be1        ; SUCCESS 1 -> entry_2be1
  *   2bd9  af           xor  a               ; loc_2bd9 -- REJECT
  *   2bda  47           ld   b,a

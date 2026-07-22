@@ -75,7 +75,7 @@ export const DMA_END = 0x780f;
 export const DISCARD_BASE = 0x6c00;
 export const DISCARD_END = 0x6fff;
 
-// QA's state-diff contract: work, sprite, video concatenated in this order.
+// The state-diff contract: work, sprite, video concatenated in this order.
 export const STATE_DUMP_SIZE = WORK_RAM_SIZE + SPRITE_RAM_SIZE + VIDEO_RAM_SIZE; // 5120
 
 export class UnmappedAccess extends Error {
@@ -128,7 +128,7 @@ export class AddressSpace {
     this.clock = null; // () => cycles, for the optional cycle column
   }
 
-  /** True for the device addresses QA's write-diff covers. */
+  /** True for the device addresses the write-diff contract covers. */
   static isHardwareWrite(addr) {
     return (
       (addr >= 0x7800 && addr <= 0x780f) || // i8257 programming
@@ -293,7 +293,7 @@ export class AddressSpace {
   }
 
   /**
-   * QA state-diff artifact: work, sprite, video concatenated, 5120 bytes.
+   * State-diff artifact: work, sprite, video concatenated, 5120 bytes.
    * Sampled at the frame boundary BEFORE that frame's CPU execution, so
    * state[0] is power-on state before a single instruction runs.
    */

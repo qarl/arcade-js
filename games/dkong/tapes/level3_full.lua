@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: GPL-3.0-only
 -- MAME L3 golden: coin+start (offset -1 vs emit) + game-start board-3 pre-set,
 -- matching the emit --input/--poke recipe (see docs/POKE-TO-ADVANCE.md). Board ptr
 -- 0x763A points at the 0x3A70 sequence-table entry for type 3.

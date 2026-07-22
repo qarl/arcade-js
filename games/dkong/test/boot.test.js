@@ -69,9 +69,9 @@ const test = ROM_PRESENT
   : (name, fn) => nodeTest(name, { skip: "skipped: ROM not built — run 'make -C games/dkong rom'" }, fn);
 
 
-test("state[0] is 5120 zero bytes (QA verified this against MAME)", () => {
-  // Sampled at the frame boundary BEFORE any instruction runs. QA dumped the
-  // same regions from real MAME at power-on: the distinct-value set is {0x00}.
+test("state[0] is 5120 zero bytes (verified against MAME)", () => {
+  // Sampled at the frame boundary BEFORE any instruction runs. The same
+  // regions were dumped from real MAME at power-on: the distinct-value set is {0x00}.
   const state0 = new Machine(ROM).dumpState();
   assert.ok(state0.every((b) => b === 0), "power-on state must be all zeroes");
 });
@@ -80,11 +80,11 @@ test("boot fills video RAM with tile 0x10 -- CONFIRMED against MAME at PC=0x02B8
   // ROM 0x0281-0x028F: `ld a,0x10` then 4 x 256 stores from 0x7400.
   //
   // HISTORY, because this comment previously said the opposite. I offered
-  // this as a fingerprint; QA found it never true at any FRAME BOUNDARY and
+  // this as a fingerprint; it was found never true at any FRAME BOUNDARY and
   // it was recorded as "not a MAME-checkable claim". That conclusion was
   // wrong in an instructive way: the state exists at PC=0x02B8, which is
-  // mid-frame, so frame-boundary sampling structurally cannot see it. QA has
-  // since built PC-exact capture (read taps, no debugger) and CONFIRMED all
+  // mid-frame, so frame-boundary sampling structurally cannot see it. PC-exact
+  // capture (read taps, no debugger) has since CONFIRMED all
   // four claims at that PC -- VRAM 0x10 across all 1024 bytes, sprite all
   // 0x00, 0x60C0-0x60FF all 0xFF, 0x60B0 = 0x60B1 = 0xC0.
   //
@@ -120,7 +120,7 @@ test("boot leaves the documented work-RAM fingerprint, including stack traffic",
   // Z80 does not clear popped bytes, so they persist at 0x6BFE/0x6BFF after
   // the `ret`. Their ABSENCE was how a review caught that translated CALLs
   // were not writing to the stack at all -- and the stack is inside the
-  // region QA diffs, so that would have shown up as a phantom mismatch.
+  // region the state diff covers, so that would have shown up as a phantom mismatch.
   assert.deepEqual(
     [...new Set(work)].sort((a, b) => a - b),
     [0x00, 0x02, 0xb8, 0xc0, 0xff],
@@ -294,7 +294,7 @@ test("reset() falls through into the main loop and does NOT return", () => {
 
 test("the first NMI fires at the first unmasked vblank and pushes a real PC", () => {
   // The NMI asserts AT the frame boundary (cycle N*50688), not partway into
-  // the frame -- QA measured entries at 202771/253451/304141/... by tapping
+  // the frame -- entries were measured at 202771/253451/304141/... by tapping
   // reads of the 0x0066 vector. Boot masks it (0x7D84=0 at reset) until
   // 0x02B8 at cycle 180816, so vblanks 0-3 are dropped and the first accepted
   // one is vblank 4 at 202752, plus a few cycles to finish the current
@@ -386,7 +386,7 @@ test("fireNmi refuses to push an unknown PC rather than guessing", () => {
 
 
 // -- write-only hardware latches -----------------------------------------
-// QA's state dump CANNOT observe 0x7D80-0x7D87: the latches are write-only,
+// The state dump CANNOT observe 0x7D80-0x7D87: the latches are write-only,
 // MAME exposes no readable path, and there is no pixel diff yet. So a wrong
 // palette bank or a dropped flipscreen write leaves the gate green and silent.
 // These assertions are the only thing covering that class of write, and every
@@ -4954,7 +4954,7 @@ test("entry_3009: A=0x05,B=0x03 -> early `ret nz` returns A=0x01 with CARRY set"
   m.regs.b = 0x03;
   entry_3009(m);
   assert.equal(m.regs.a, 0x01, "early ret nz returns A = (C ror2)&3 = 0x01");
-  assert.ok(m.regs.fC, "carry from `cp 0x03` (1<3) escapes to the caller (OQ-2, 0x23F7 `rra`)");
+  assert.ok(m.regs.fC, "carry from `cp 0x03` (1<3) escapes to the caller (0x23F7 `rra`)");
   // MUTATION this catches: `cp 0x03` dropped or carry not modelled -- the
   // caller's `rra` would then rotate a stale carry. Distinct B from the prior
   // vector also catches hard-coding the loop iteration count.
@@ -4988,7 +4988,7 @@ test("entry_3009: A=0x02,B=0x01 -> non-0x3022 path (rlca + and 0xF0), A=0x02 CAR
 });
 
 test("entry_3009 charges exact T-states and step SEQUENCE for A=0x05,B=0x02", () => {
-  // Closes the gap QA-1 named on the drain: the image gate cannot see a cycle-
+  // Closes the gap flagged on the drain: the image gate cannot see a cycle-
   // VALUE error that does not move a write across a boundary, and
   // stepcheck's default mode audits step TARGETS not counts, while its --draft
   // sequence mode is unreliable on multi-block drafts (this routine has a loop).
@@ -6028,8 +6028,8 @@ test("loc_3069 increments THROUGH the 0x63C0 pointer, gated by the rst 0x18 coun
   assert.equal(b.mem.read8(0x7000), 0x41, "body skipped -- target NOT incremented");
   assert.equal(b.mem.read8(0x6009), 0x04, "but the counter WAS decremented (5 -> 4)");
 
-  // MUTATION-PATCH (applicable; for QA's runner)
-  //   file:   src/rom/state0.js
+  // MUTATION-PATCH (applicable; for the mutation runner)
+  //   file:   games/dkong/translated/state0.js
   //   find:   regs.hl = mem.read16(0x63c0); // INDIRECT -- the word AT 0x63C0, not 0x63C0
   //   repl:   regs.hl = 0x63c0; // MUTANT: immediate instead of indirect
   //   expect: FAIL
@@ -6111,11 +6111,11 @@ test("entry_3ec3 counts two-axis overlaps over B objects, skipping inactive ones
   entry_3ec3(f);
   assert.equal(f.mem.read8(0x6060), 0x01, "axis-2 neg fires ((iy+3) < (ix+3)) -> counted");
 
-  // MUTATION-PATCH  file: src/rom/state0.js
+  // MUTATION-PATCH  file: games/dkong/translated/state0.js
   //   find: regs.bit(0, mem.read8(ea0), (ea0 >> 8) & 0xff); // INDEXED: F3/F5 from the EA high byte
   //   repl: regs.bit(1, mem.read8(ea0), (ea0 >> 8) & 0xff); // MUTANT: wrong bit
   //   expect: FAIL  (bit 1 of 0x01 is clear, so the active object reads inactive)
-  //   verified-anchor: count == 1 in src/rom/state0.js
+  //   verified-anchor: count == 1 in games/dkong/translated/state0.js
 });
 
 test("sub_30fa clamps 0x6380 to [0,5] and rst-0x28-dispatches to the right guard, propagating the skip", () => {
@@ -6160,11 +6160,11 @@ test("sub_30fa clamps 0x6380 to [0,5] and rst-0x28-dispatches to the right guard
   assert.equal(run(0, 0x06).cont, false, "idx0 601a=6: 3110 skips (bit0 clear)");
   assert.equal(run(5, 0x06).cont, true, "idx5 601a=6: 3131 continues -- different guard, same input");
 
-  // MUTATION-PATCH  file: src/rom/state0.js
+  // MUTATION-PATCH  file: games/dkong/translated/state0.js
   //   find:   return sub_0028(m, "0x3104 (sub_30fa dispatch)");
   //   repl:   sub_0028(m, "0x3104 (sub_30fa dispatch)"); return true;
   //   expect: FAIL  (drops the propagated skip -- the SKIPS cases return true)
-  //   verified-anchor: count == 1 in src/rom/state0.js
+  //   verified-anchor: count == 1 in games/dkong/translated/state0.js
 });
 
 test("entry_3e99 pops 3e88's HL, counts overlaps via 3ec3 twice, maps count to a code", () => {
@@ -6210,9 +6210,9 @@ test("entry_3e99 pops 3e88's HL, counts overlaps via 3ec3 twice, maps count to a
   // and it returns NORMALLY (not skip-capable): SP back to the return frame.
   assert.equal(run(0).sp, 0x6c00, "ordinary ret -- SP restored, no inc-sp skip");
 
-  // MUTATION-PATCH  file: src/rom/state0.js
+  // MUTATION-PATCH  file: games/dkong/translated/state0.js
   //   find:   regs.hl = m.pop16(); // pop hl -- recover entry_3e88's saved HL (sub_0028 clobbered it)
   //   repl:   regs.hl = 0x0000; // MUTANT: pop dropped, HL not recovered
   //   expect: FAIL  (SP left off by 2 -> the final ret takes the wrong frame; run(0).sp != 0x6c00)
-  //   verified-anchor: count == 1 in src/rom/state0.js
+  //   verified-anchor: count == 1 in games/dkong/translated/state0.js
 });

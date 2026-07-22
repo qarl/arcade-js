@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: GPL-3.0-only
 -- HARDWARE WRITE TRACE -- gates "what the ROM computes WITH".
 --
 -- The state dump covers RAM: what the ROM computes INTO. The machine state it

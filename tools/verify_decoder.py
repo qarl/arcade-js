@@ -23,7 +23,7 @@ those are reported separately rather than counted as mismatches -- its `-u`
 handling of undocumented prefix forms is not hardware-faithful.
 
 Usage:
-    python3 tools/verify_decoder.py [--rom rom/maincpu.bin]
+    python3 tools/verify_decoder.py [--rom games/dkong/rom/maincpu.bin]
 """
 
 import argparse
@@ -113,7 +113,7 @@ def check_synthetic() -> int:
     return mismatch
 
 
-def check_rom(rom: str, blocks: str) -> int:
+def check_rom(rom: str, blocks: str, entrypoints: str) -> int:
     if not (os.path.exists(rom) and os.path.exists(blocks)):
         # Do NOT return 0: main() would then print "OK -- decoder agrees with
         # z80dasm" having only run the synthetic half. A fresh clone has no
@@ -135,9 +135,10 @@ def check_rom(rom: str, blocks: str) -> int:
         tr.add_entry(addr, why)
     # Must match how blocks.def was generated, or we compare two different
     # code maps and the mismatch goes unnoticed (trace reported 2868
-    # instructions while this said 2769, and nothing flagged it).
-    ep = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                      "games", "dkong", "entrypoints.json")
+    # instructions while this said 2769, and nothing flagged it). The
+    # entrypoints file is per-game and comes from --entrypoints so this check
+    # is correct for `make verify GAME=<other>`, not just dkong.
+    ep = entrypoints
     if os.path.exists(ep):
         with open(ep) as f:
             for e in json.load(f):
@@ -182,8 +183,9 @@ def check_rom(rom: str, blocks: str) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--rom", default="rom/maincpu.bin")
-    ap.add_argument("--blocks", default="out/blocks.def")
+    ap.add_argument("--rom", default="games/dkong/rom/maincpu.bin")
+    ap.add_argument("--blocks", default="games/dkong/out/blocks.def")
+    ap.add_argument("--entrypoints", default="games/dkong/entrypoints.json")
     args = ap.parse_args()
 
     if not os.path.exists(Z80DASM):
@@ -191,7 +193,7 @@ def main() -> int:
         return 2
 
     syn = check_synthetic()
-    rom = check_rom(args.rom, args.blocks)
+    rom = check_rom(args.rom, args.blocks, args.entrypoints)
     if rom is None:
         # Nonzero even when the synthetic half passed: an incomplete run must
         # not exit 0, or a caller keyed on exit status reads it as a full pass.

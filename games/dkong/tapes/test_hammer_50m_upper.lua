@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: GPL-3.0-only
 local M=manager.machine
 local mem=M.devices[":maincpu"].spaces["program"]
 local I2=M.ioport.ports[":IN2"];local I0=M.ioport.ports[":IN0"]

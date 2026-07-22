@@ -20,8 +20,8 @@ boundary BEFORE that frame's CPU execution -- so state[N] <-> state[N] directly.
 pipeline and does not apply to memory dumps.)
 
 Usage:
-  statediff.py --golden golden/boot --actual out/emit
-  statediff.py --golden golden/boot --actual out/emit --max-bytes 40
+  statediff.py --hardware boards/dkong/hardware.json --golden golden/boot --actual out/emit
+  statediff.py --hardware boards/dkong/hardware.json --golden golden/boot --actual out/emit --max-bytes 40
 """
 
 import argparse

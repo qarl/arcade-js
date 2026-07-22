@@ -32,7 +32,7 @@ trace: $(ROM)
 	python3 tools/trace.py --rom $(ROM) --out $(OUT) --entrypoints games/$(GAME)/entrypoints.json
 
 verify: $(ROM)
-	python3 tools/verify_decoder.py --rom $(ROM) --blocks $(OUT)/blocks.def
+	python3 tools/verify_decoder.py --rom $(ROM) --blocks $(OUT)/blocks.def --entrypoints games/$(GAME)/entrypoints.json
 
 stepcheck: $(ROM)
 	python3 tools/stepcheck.py --selftest --asm $(OUT)/dk.asm --src "$(SRC)"

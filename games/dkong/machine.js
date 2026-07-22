@@ -498,10 +498,11 @@ export class Machine {
     if (this.rasterBuf !== null && this.rasterRow === SCREEN_H) {
       // SPRITE POST-PASS. The tilemap scanlines are all painted; sprites are a
       // frame-level pass on top, from OUR sprite RAM at end-of-frame. This is
-      // the end-to-end counterpart of rasterconf's stage-1 draw (which feeds
-      // GOLDEN sprite RAM) -- here the sprite RAM is what our own CPU + DMA
-      // produced, so a red now is translation-or-timing, never the draw model
-      // (that was proven correct against golden). Sprite RAM is zero on the
+      // the end-to-end counterpart of the earlier isolated draw check, where
+      // GOLDEN sprite RAM was fed straight into this same sprite pass -- here
+      // the sprite RAM is what our own CPU + DMA produced, so a red now is
+      // translation-or-timing, never the draw model (that was proven correct
+      // against golden sprite RAM). Sprite RAM is zero on the
       // pre-sprite frames, so drawSprites is a no-op there and the frames
       // 0-516 are byte-unchanged.
       if (this.video.sprites) {

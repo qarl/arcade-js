@@ -18,14 +18,17 @@
 # No `set -e`: both diffs must run and have their codes collected, which -e would
 # abort on the first non-zero. The cd is checked explicitly instead.
 set -uo pipefail
-cd "$(dirname "$0")" || { echo "cannot cd to script dir" >&2; exit 2; }
+# cd to the REPO ROOT (the script lives in tools/), so the repo-root-relative
+# paths below -- `tools/statediff.py`, GOLDEN=golden/boot, HARDWARE -- all resolve
+# from the same base regardless of where the caller invoked us from.
+cd "$(dirname "$0")/.." || { echo "cannot cd to repo root" >&2; exit 2; }
 
 ACTUAL="${1:-}"
 GOLDEN="${2:-golden/boot}"
 # The shared diff tools are game-agnostic and read the board map from --hardware.
 # This wrapper is DK-specific (golden/boot), so it names the DK board. Path is
-# relative to tools/ (we cd'd there above). Override with HARDWARE=... if needed.
-HARDWARE="${HARDWARE:-../boards/dkong/hardware.json}"
+# relative to the repo root (we cd'd there above). Override with HARDWARE=... if needed.
+HARDWARE="${HARDWARE:-boards/dkong/hardware.json}"
 
 if [ -z "$ACTUAL" ]; then
   echo "usage: $0 <js-output-dir> [golden-dir]" >&2
@@ -34,7 +37,7 @@ fi
 
 if [ ! -d "$GOLDEN" ]; then
   echo "no golden at '$GOLDEN'. Capture it first (docs/04-integration-testing.md):" >&2
-  echo "  tools/mame_golden.py --out $GOLDEN --seconds 12" >&2
+  echo "  tools/mame_golden.py --hardware $HARDWARE --lua-dir games/dkong/tools/lua --out $GOLDEN --seconds 12" >&2
   exit 2
 fi
 
@@ -76,7 +79,7 @@ if [ -f "$ACTUAL/writes.txt" ]; then
     # gate could not run. An unavailable gate must not read as a passed one.
     echo "  *** GATE UNAVAILABLE: $ACTUAL/writes.txt exists but $GOLDEN/writes.txt"
     echo "      does not. The write trace was NOT verified. Capture a reference:"
-    echo "        tools/mame_golden.py --out $GOLDEN --seconds N --no-frames --writes"
+    echo "        tools/mame_golden.py --hardware $HARDWARE --lua-dir games/dkong/tools/lua --out $GOLDEN --seconds N --no-frames --writes"
     gate_unavailable=1
   fi
 else

@@ -1090,7 +1090,7 @@ function loc_06a8(m) {
  * shape inverted: usually the risk is assuming flags are dead, here an
  * innocuous-looking instruction exists ONLY for its flag effect.
  *
- * `adc a,(hl)` HAS NO PRECEDENT in src/rom/ -- an S6 item not on the dispatch.
+ * `adc a,(hl)` HAS NO PRECEDENT in games/dkong/translated/ -- an S6 item not on the dispatch.
  * cpu.js's `add(v, carryIn)` was checked against MAME 0.288 z80.cpp:246
  * `adc_a` before use: C from bit 8, H from the low-nibble sum, PV as signed
  * overflow, N cleared. The formulations differ and agree.

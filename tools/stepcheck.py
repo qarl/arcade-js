@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""Audit every m.step() target in src/rom/ against the ROM's own instruction
-boundaries.
+"""Audit every m.step() target in games/<id>/translated/ against the ROM's own
+instruction boundaries.
 
 WHY THIS EXISTS. A translated routine can be byte-perfect, pass the state gate,
 pass the pixel gate and pass the write gate while charging the wrong T-states,
@@ -30,7 +30,7 @@ unchecked claim that gets believed.
 
 WHAT IT CHECKS, and what it deliberately does not:
 
-  default   every literal m.step(0xADDR, ...) in src/rom/ targets the START of
+  default   every literal m.step(0xADDR, ...) in games/<id>/translated/ targets the START of
             a decoded instruction. Stepping into the middle of an instruction
             is always wrong. Finds MISAIMED steps; blind to missing ones.
             A target inside a known-unreached span (out/unreached.txt) is
@@ -212,8 +212,8 @@ def check_draft(path):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--asm", default="out/dk.asm")
-    ap.add_argument("--src", default="src/rom/*.js")
+    ap.add_argument("--asm", default="games/dkong/out/dk.asm")
+    ap.add_argument("--src", default="games/dkong/translated/*.js")
     ap.add_argument("--unreached", default=None,
                     help="unreached-span list (default: unreached.txt beside --asm)")
     ap.add_argument("--selftest", action="store_true",

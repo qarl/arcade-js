@@ -18,8 +18,8 @@ PHASES:
   * --cycles   -- also require cycles to match. Use once DMA cycle costs land.
 
 Usage:
-  writediff.py --golden golden/boot --actual out/emit
-  writediff.py --golden golden/boot --actual out/emit --cycles
+  writediff.py --hardware boards/dkong/hardware.json --golden golden/boot --actual out/emit
+  writediff.py --hardware boards/dkong/hardware.json --golden golden/boot --actual out/emit --cycles
 """
 
 import argparse

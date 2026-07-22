@@ -161,7 +161,7 @@ loop's byte count, so that comparison is loose).
 *** fitting the reference to the implementation is how a hard gate goes soft.
 
 Usage:
-  framediff.py --golden golden/boot --actual out/emit --report diffout/
+  framediff.py --hardware boards/dkong/hardware.json --golden golden/boot --actual out/emit --report diffout/
 """
 
 import argparse

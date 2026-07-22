@@ -1,3 +1,4 @@
+-- SPDX-License-Identifier: GPL-3.0-only
 -- Movement test: coin+start, poke Mario to a mid-board slope position, hold RIGHT.
 -- Validates the 0x2AB4 slope-collision translation vs MAME. (offset: emit N == MAME N-1)
 local mach=manager.machine

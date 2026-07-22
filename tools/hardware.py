@@ -42,7 +42,6 @@ class Hardware:
         self.refresh_hz = float(data["refreshHz"])
         self.cpu_hz = int(data["cpuHz"])
         self.cycles_per_frame = int(data["cyclesPerFrame"])
-        self.vblank_into_frame = int(data["vblankIntoFrame"])
 
         self.state_dump_size = int(data["stateDumpSize"])
         # (name, base, size) -- order is part of the state-dump contract.

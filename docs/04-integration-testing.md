@@ -9,8 +9,8 @@ pinning determinism.
 
 `tools/mame_golden.py` drives MAME with a pinned, determinism-controlled command line: video/sound
 off, no throttle, no frameskip, a **fresh empty nvram and cfg directory per run**, no autosave. Two
-runs produce byte-identical output. It installs a Lua instrument (`tools/lua/`) that, each frame,
-dumps the work/sprite/video RAM and optionally a hardware-write trace; an input tape
+runs produce byte-identical output. It installs a Lua instrument (`games/dkong/tools/lua/`) that,
+each frame, dumps the work/sprite/video RAM and optionally a hardware-write trace; an input tape
 (`games/<id>/tapes/*.lua`) can press buttons and poke state to reach a chosen scenario.
 
 It then extracts three artifacts:
@@ -33,6 +33,12 @@ can only produce a short run, it says so and exits non-zero, so a partial artifa
 complete.
 
 ## Diffing in an order that localizes the fault
+
+The diff tools are shared across every board, so none of them hardcode a game's addresses: each
+takes `--hardware boards/<driver>/hardware.json`, the board's machine-readable declaration of its
+state-dump regions, MMIO write ranges, screen size, driver name, and frame timing. The JS engine
+keeps its own numeric constants in `boards/<driver>/{memory,io}.js`, unrefactored; a drift test
+(`boards/dkong/test/board.test.js`) asserts the JSON matches them so the two can never diverge.
 
 `tools/verdict.sh` runs the diffs in a deliberate order — **state → writes → pixels** — so a failure
 is interpretable:
