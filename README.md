@@ -22,6 +22,8 @@ How the agents were organised — the division of labour, the failure modes we a
 what the tooling had to do about them — is written up in
 [docs/00-how-the-agents-worked.md](docs/00-how-the-agents-worked.md).
 
+![Donkey Kong running in the arcade-js browser player](docs/media/player-screenshot.png)
+
 > **Status:** Donkey Kong plays in the browser today. All four board *types* boot and play —
 > reached via board-state pokes — and are pixel-validated frame-by-frame against MAME 0.288.
 > **Not yet done:** natural progression from board to board, the level loop, and sound (the
@@ -55,6 +57,13 @@ expression of the logic and it ships; the original data is Nintendo's and it nev
 If the question is whether agents can port software faithfully, the answer is only worth as
 much as what could have proven it wrong. These gates are the experiment's instrumentation,
 and every one of them runs from a clean checkout:
+
+![MAME 0.288 and arcade-js running the same frames side by side](docs/media/intro-sidebyside.gif)
+
+*Donkey Kong's game-start intro: MAME on the left, arcade-js on the right, driven by the same
+input tape and aligned with the pixel gate's own frame offset. Both panels are rendered from
+the very `frames.rgb` artifacts the gate diffs — not a screen recording of two windows. Shown
+at 2× speed; over this 35-second run the largest single-frame difference is 0.17%.*
 
 - **Pixel gate.** Capture a golden from **live MAME 0.288** under a pinned, determinism-
   controlled command line, run the same input tape through our engine, and diff the frames.

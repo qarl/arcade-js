@@ -16,3 +16,6 @@ __pycache__/
 # --- OS / editor cruft ---
 .DS_Store
 ._*
+
+# MAME writes this into its cwd when a tape uses the log notifier
+tape.log
