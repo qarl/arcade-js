@@ -24,10 +24,10 @@ what the tooling had to do about them — is written up in
 
 ![Donkey Kong running in the arcade-js browser player](docs/media/player-screenshot.png)
 
-> **Status:** Donkey Kong plays in the browser today. All four board *types* boot and play —
-> reached via board-state pokes — and are pixel-validated frame-by-frame against MAME 0.288.
-> **Not yet done:** natural progression from board to board, the level loop, and sound (the
-> audio layer is a seam, not an implementation).
+> **Status:** Donkey Kong plays. All four boards, natural board-to-board progression, and the
+> level loop all work — finish 100m and it wraps back to 25m at the next level, indefinitely —
+> and the rendering is pixel-validated frame-by-frame against MAME 0.288.
+> **Not yet done:** sound. The audio layer is a seam, not an implementation.
 
 ## What's here (and what isn't)
 
@@ -67,7 +67,9 @@ at 2× speed; over this 35-second run the largest single-frame difference is 0.1
 
 - **Pixel gate.** Capture a golden from **live MAME 0.288** under a pinned, determinism-
   controlled command line, run the same input tape through our engine, and diff the frames.
-  Movement 6/6 and bonus-item 9/9 scenarios pass across all four board types.
+  Movement 6/6 and bonus-item 9/9 scenarios pass across all four board types. Those scenarios
+  poke the board state to start on a given board, which keeps each one short and deterministic
+  — that's a property of the fixtures, not a limit of the game, which progresses on its own.
 - **Decoder cross-check.** Our Z80 decoder is checked against `z80dasm` over the whole ROM:
   6051 instruction boundaries, zero disagreements in either direction (`make verify`).
 - **Step audit.** Every `m.step()` target in the translation is verified to land on a real
