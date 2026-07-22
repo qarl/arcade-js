@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>arcade-js — player</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: #0b0b10; color: #e6e6ee;
+    font: 14px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 18px 14px 40px;
+  }
+  a.back { align-self: flex-start; color: #7a7a95; text-decoration: none; }
+  a.back:hover { color: #9fd0ff; }
+  h1 { font-size: 16px; font-weight: 600; letter-spacing: .04em; margin: 0; color: #9fd0ff; }
+  h1 small { color: #6a6a80; font-weight: 400; }
+  #screen { image-rendering: pixelated; background: #000; border-radius: 6px;
+            box-shadow: 0 0 0 1px #23233a, 0 18px 50px -18px #000; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; }
+  button { font: inherit; color: #e6e6ee; background: #1a1a28; border: 1px solid #33334d;
+           padding: 7px 14px; border-radius: 6px; cursor: pointer; }
+  button:hover { background: #24243a; border-color: #4a4a70; }
+  button:active { transform: translateY(1px); }
+  button.hot { background: #2a3a20; border-color: #4d7a33; color: #cfe8b0; }
+  #status { color: #7a7a95; min-height: 1.4em; text-align: center; }
+  #status b { color: #9fd0ff; }
+  .legend { color: #8a8aa5; max-width: 640px; text-align: center; }
+  .legend kbd { background: #1a1a28; border: 1px solid #33334d; border-bottom-width: 2px;
+                border-radius: 4px; padding: 1px 6px; color: #d8d8ea; font-size: 12px; }
+  .warn { color: #ffb0b0; background: #2a1414; border: 1px solid #6a2a2a;
+          padding: 10px 14px; border-radius: 6px; max-width: 640px; text-align: center; }
+  .hide { display: none; }
+</style>
+</head>
+<body>
+  <a class="back" href="index.html">← all games</a>
+  <h1 id="title">loading… <small></small></h1>
+  <div id="isoWarn" class="warn hide">
+    This page needs cross-origin isolation (for SharedArrayBuffer). Serve it with
+    <code>python3 web/server.py</code> — opening the file directly won't work.
+  </div>
+  <canvas id="screen"></canvas>
+  <div class="row">
+    <button id="coin">Insert coin <span style="color:#8a8aa5">(5)</span></button>
+    <button id="start">1-Player start <span style="color:#8a8aa5">(1)</span></button>
+    <button id="pause">Pause <span style="color:#8a8aa5">(P)</span></button>
+    <button id="reset">Reset <span style="color:#8a8aa5">(R)</span></button>
+  </div>
+  <div id="status">booting…</div>
+  <div class="legend">
+    <kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd> move · <kbd>Space</kbd> jump ·
+    <kbd>5</kbd> coin · <kbd>1</kbd> start · <kbd>P</kbd> pause · <kbd>R</kbd> reset
+  </div>
+
+<script type="module">
+(async () => {
+  const statusEl = document.getElementById("status");
+  const gameId = new URLSearchParams(location.search).get("game") || "dkong";
+
+  let manifest;
+  try { manifest = (await import(`../games/${gameId}/manifest.js`)).default; }
+  catch (e) { statusEl.innerHTML = `<span style="color:#ffb0b0">unknown game "${gameId}"</span>`; return; }
+
+  document.getElementById("title").innerHTML =
+    `${manifest.title.toUpperCase()} <small>— ${manifest.cpu} · ${manifest.board} board</small>`;
+  document.title = `${manifest.title} — arcade-js`;
+
+  const SRC_W = manifest.screen?.width ?? 256, SRC_H = manifest.screen?.height ?? 224;
+  const FRAME_BYTES = SRC_W * SRC_H * 3;
+  const rotate = (manifest.orientation ?? "vertical") === "vertical";
+  const DISP_W = rotate ? SRC_H : SRC_W, DISP_H = rotate ? SRC_W : SRC_H;
+
+  const C_IN0 = 0, C_IN1 = 1, C_IN2 = 2, C_PAUSED = 3, C_COUNTER = 4, C_RUNNING = 5, C_RESET = 6;
+
+  if (!self.crossOriginIsolated || typeof SharedArrayBuffer === "undefined") {
+    document.getElementById("isoWarn").classList.remove("hide");
+    statusEl.textContent = "not cross-origin isolated — run via web/server.py";
+    return;
+  }
+
+  const ctrlSAB = new SharedArrayBuffer(16 * 4);
+  const ctrl = new Int32Array(ctrlSAB);
+  const fbSAB = new SharedArrayBuffer(2 * FRAME_BYTES);
+  const fb = new Uint8Array(fbSAB);
+  Atomics.store(ctrl, C_RUNNING, 1);
+
+  const canvas = document.getElementById("screen");
+  canvas.width = DISP_W; canvas.height = DISP_H;
+  canvas.style.height = "min(76vh, 720px)";
+  canvas.style.width = "auto";
+  canvas.style.aspectRatio = `${DISP_W} / ${DISP_H}`;
+  const ctx = canvas.getContext("2d", { alpha: false });
+  const img = ctx.createImageData(DISP_W, DISP_H);
+  const rgba = img.data;
+  for (let i = 0; i < DISP_W * DISP_H; i++) rgba[i * 4 + 3] = 255;
+
+  const worker = new Worker("worker.js", { type: "module" });
+  worker.postMessage({ type: "init", ctrl: ctrlSAB, fb: fbSAB, game: gameId });
+  worker.onmessage = (e) => {
+    const d = e.data;
+    if (d.type === "ready") statusEl.innerHTML = "<b>running</b> — press <b>5</b> for a coin, then <b>1</b> to start";
+    else if (d.type === "restart") statusEl.innerHTML = "rebooted to attract <span style='color:#5a5a72'>(" + (d.reason || "") + ")</span>";
+    else if (d.type === "reset") statusEl.innerHTML = "<b>reset</b> — back to attract";
+    else if (d.type === "error") statusEl.innerHTML = "<span style='color:#ffb0b0'>engine error: " + (d.reason || "") + "</span>";
+  };
+
+  let lastCounter = 0;
+  function present() {
+    const counter = Atomics.load(ctrl, C_COUNTER);
+    if (counter !== lastCounter) {
+      const base = (((counter - 1) % 2) + 2) % 2 * FRAME_BYTES;
+      if (rotate) {
+        // 90° CCW into portrait: dest(dx,dy) <- src(x=SRC_W-1-dy, y=dx)
+        for (let dy = 0; dy < DISP_H; dy++) {
+          const col = base + (SRC_W - 1 - dy) * 3;
+          let d = dy * DISP_W * 4;
+          for (let dx = 0; dx < DISP_W; dx++, d += 4) {
+            const s = col + dx * SRC_W * 3;
+            rgba[d] = fb[s]; rgba[d + 1] = fb[s + 1]; rgba[d + 2] = fb[s + 2];
+          }
+        }
+      } else {
+        for (let y = 0; y < DISP_H; y++) {
+          let d = y * DISP_W * 4, s = base + y * SRC_W * 3;
+          for (let x = 0; x < DISP_W; x++, d += 4, s += 3) {
+            rgba[d] = fb[s]; rgba[d + 1] = fb[s + 1]; rgba[d + 2] = fb[s + 2];
+          }
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+      lastCounter = counter;
+    }
+    document.getElementById("pause").classList.toggle("hot", Atomics.load(ctrl, C_PAUSED) === 1);
+    requestAnimationFrame(present);
+  }
+  requestAnimationFrame(present);
+
+  let in0 = 0, in2 = 0;
+  const K0 = { ArrowRight: 0x01, KeyD: 0x01, ArrowLeft: 0x02, KeyA: 0x02,
+               ArrowUp: 0x04, KeyW: 0x04, ArrowDown: 0x08, KeyS: 0x08,
+               Space: 0x10, KeyZ: 0x10, KeyX: 0x10 };
+  const K2 = { Digit5: 0x80, KeyC: 0x80, Digit1: 0x04, Digit2: 0x08 };
+  const push0 = () => Atomics.store(ctrl, C_IN0, in0);
+  const push2 = () => Atomics.store(ctrl, C_IN2, in2);
+  const isGameKey = (c) => c in K0 || c in K2 || c === "KeyP" || c === "KeyR";
+  addEventListener("keydown", (e) => {
+    if (isGameKey(e.code)) e.preventDefault(); // stop arrow/space page-scroll, incl. auto-repeat
+    if (e.repeat) return;                      // act once per press, but always preventDefault above
+    if (e.code === "KeyP") { togglePause(); return; }
+    if (e.code === "KeyR") { Atomics.store(ctrl, C_RESET, 1); return; }
+    if (e.code in K0) { in0 |= K0[e.code]; push0(); }
+    if (e.code in K2) { in2 |= K2[e.code]; push2(); }
+  });
+  addEventListener("keyup", (e) => {
+    if (e.code in K0) { in0 &= ~K0[e.code]; push0(); e.preventDefault(); }
+    if (e.code in K2) { in2 &= ~K2[e.code]; push2(); e.preventDefault(); }
+  });
+  const pulse2 = (bit) => { in2 |= bit; push2(); setTimeout(() => { in2 &= ~bit; push2(); }, 120); };
+  const togglePause = () => Atomics.store(ctrl, C_PAUSED, Atomics.load(ctrl, C_PAUSED) ? 0 : 1);
+  document.getElementById("coin").onclick = () => pulse2(0x80);
+  document.getElementById("start").onclick = () => pulse2(0x04);
+  document.getElementById("pause").onclick = togglePause;
+  document.getElementById("reset").onclick = () => Atomics.store(ctrl, C_RESET, 1);
+})();
+</script>
+</body>
+</html>

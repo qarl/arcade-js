@@ -1,0 +1,18 @@
+# --- Copyrighted ROM data — NEVER commit. Supply your own via `make rom`. ---
+games/*/rom/*.bin
+games/*/rom/*.zip
+
+# --- Build & capture artifacts ---
+out/
+**/golden/**/*.rgb
+**/golden/**/*.bin
+*.avi
+
+# --- Tooling ---
+node_modules/
+__pycache__/
+*.pyc
+
+# --- OS / editor cruft ---
+.DS_Store
+._*

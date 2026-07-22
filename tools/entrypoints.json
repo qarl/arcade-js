@@ -1,0 +1,617 @@
+[
+  {
+    "addr": "0x051c",
+    "why": "task 0 - dispatch table 0x0307 idx 0 (jp (hl) at 0x0306)",
+    "provenance": "computed table, bounded by sub_0315 (confirmed code, called from 0x02c7)"
+  },
+  {
+    "addr": "0x059b",
+    "why": "task 1 - dispatch table 0x0307 idx 1",
+    "provenance": "computed table, bounded by sub_0315"
+  },
+  {
+    "addr": "0x05c6",
+    "why": "task 2 - dispatch table 0x0307 idx 2",
+    "provenance": "computed table, bounded by sub_0315"
+  },
+  {
+    "addr": "0x05e9",
+    "why": "task 3 - dispatch table 0x0307 idx 3",
+    "provenance": "computed table, bounded by sub_0315"
+  },
+  {
+    "addr": "0x0611",
+    "why": "task 4 - dispatch table 0x0307 idx 4",
+    "provenance": "computed table, bounded by sub_0315"
+  },
+  {
+    "addr": "0x062a",
+    "why": "task 5 - dispatch table 0x0307 idx 5",
+    "provenance": "computed table, bounded by sub_0315"
+  },
+  {
+    "addr": "0x06b8",
+    "why": "task 6 - dispatch table 0x0307 idx 6",
+    "provenance": "computed table, bounded by sub_0315"
+  },
+  {
+    "addr": "0x02bd",
+    "why": "main loop / task scheduler, pushed as return address at 0x02fa",
+    "provenance": "ld hl,0x02bd / push hl before the 0x0306 dispatch"
+  },
+  {
+    "addr": "0x01df",
+    "why": "executed in attract mode, no input (run of 64 bytes in span 0x01DF-0x0265)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x0226",
+    "why": "executed in attract mode, no input (run of 18 bytes in span 0x01DF-0x0265)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x0247",
+    "why": "executed in attract mode, no input (run of 17 bytes in span 0x01DF-0x0265)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x0259",
+    "why": "executed in attract mode, no input (run of 13 bytes in span 0x01DF-0x0265)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x03fb",
+    "why": "executed in attract mode, no input (run of 8 bytes in span 0x03FB-0x0513)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x0413",
+    "why": "executed in attract mode, no input (run of 101 bytes in span 0x03FB-0x0513)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x0486",
+    "why": "executed in attract mode, no input (run of 56 bytes in span 0x03FB-0x0513)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x0d62",
+    "why": "executed in attract mode, no input (run of 41 bytes in span 0x0D62-0x0DA6)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x127f",
+    "why": "executed in attract mode, no input (run of 4 bytes in span 0x127F-0x12F1)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x128b",
+    "why": "executed in attract mode, no input (run of 97 bytes in span 0x127F-0x12F1)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x12ed",
+    "why": "executed in attract mode, no input (run of 5 bytes in span 0x127F-0x12F1)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x197d",
+    "why": "executed in attract mode, no input (run of 112 bytes in span 0x197D-0x1DBC)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x1a07",
+    "why": "executed in attract mode, no input (run of 4 bytes in span 0x197D-0x1DBC)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x1a1e",
+    "why": "executed in attract mode, no input (run of 1 bytes in span 0x197D-0x1DBC)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x1a33",
+    "why": "executed in attract mode, no input (run of 3 bytes in span 0x197D-0x1DBC)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x1ac3",
+    "why": "executed in attract mode, no input (run of 138 bytes in span 0x197D-0x1DBC)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x1b4e",
+    "why": "executed in attract mode, no input (run of 126 bytes in span 0x197D-0x1DBC)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x1bf2",
+    "why": "executed in attract mode, no input (run of 4 bytes in span 0x197D-0x1DBC)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x1c05",
+    "why": "executed in attract mode, no input (run of 57 bytes in span 0x197D-0x1DBC)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x1c4f",
+    "why": "executed in attract mode, no input (run of 163 bytes in span 0x197D-0x1DBC)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x1d03",
+    "why": "executed in attract mode, no input (run of 122 bytes in span 0x197D-0x1DBC)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x1d8a",
+    "why": "executed in attract mode, no input (run of 19 bytes in span 0x197D-0x1DBC)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x1da6",
+    "why": "executed in attract mode, no input (run of 23 bytes in span 0x197D-0x1DBC)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x1e57",
+    "why": "executed in attract mode, no input (run of 15 bytes in span 0x1E57-0x21ED)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x1e7a",
+    "why": "executed in attract mode, no input (run of 3 bytes in span 0x1E57-0x21ED)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x1e8c",
+    "why": "executed in attract mode, no input (run of 14 bytes in span 0x1E57-0x21ED)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x1ea0",
+    "why": "executed in attract mode, no input (run of 622 bytes in span 0x1E57-0x21ED)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2118",
+    "why": "executed in attract mode, no input (run of 185 bytes in span 0x1E57-0x21ED)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2207",
+    "why": "executed in attract mode, no input (run of 3 bytes in span 0x2207-0x2601)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x22cb",
+    "why": "executed in attract mode, no input (run of 7 bytes in span 0x2207-0x2601)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x22e1",
+    "why": "executed in attract mode, no input (run of 10 bytes in span 0x2207-0x2601)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x22f9",
+    "why": "executed in attract mode, no input (run of 10 bytes in span 0x2207-0x2601)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2333",
+    "why": "executed in attract mode, no input (run of 262 bytes in span 0x2207-0x2601)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2441",
+    "why": "executed in attract mode, no input (run of 19 bytes in span 0x2207-0x2601)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2456",
+    "why": "executed in attract mode, no input (run of 10 bytes in span 0x2207-0x2601)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2471",
+    "why": "executed in attract mode, no input (run of 124 bytes in span 0x2207-0x2601)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x25f2",
+    "why": "executed in attract mode, no input (run of 3 bytes in span 0x2207-0x2601)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x26fa",
+    "why": "executed in attract mode, no input (run of 3 bytes in span 0x26FA-0x2FEF)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2808",
+    "why": "executed in attract mode, no input (run of 108 bytes in span 0x26FA-0x2FEF)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2880",
+    "why": "executed in attract mode, no input (run of 48 bytes in span 0x26FA-0x2FEF)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2913",
+    "why": "executed in attract mode, no input (run of 87 bytes in span 0x26FA-0x2FEF)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x296f",
+    "why": "executed in attract mode, no input (run of 61 bytes in span 0x26FA-0x2FEF)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2a2f",
+    "why": "executed in attract mode, no input (run of 58 bytes in span 0x26FA-0x2FEF)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2a72",
+    "why": "executed in attract mode, no input (run of 72 bytes in span 0x26FA-0x2FEF)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2acd",
+    "why": "executed in attract mode, no input (run of 6 bytes in span 0x26FA-0x2FEF)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2b1c",
+    "why": "executed in attract mode, no input (run of 7 bytes in span 0x26FA-0x2FEF)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2b29",
+    "why": "executed in attract mode, no input (run of 31 bytes in span 0x26FA-0x2FEF)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2b51",
+    "why": "executed in attract mode, no input (run of 2 bytes in span 0x26FA-0x2FEF)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2b74",
+    "why": "executed in attract mode, no input (run of 6 bytes in span 0x26FA-0x2FEF)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2b9b",
+    "why": "executed in attract mode, no input (run of 65 bytes in span 0x26FA-0x2FEF)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2be1",
+    "why": "executed in attract mode, no input (run of 91 bytes in span 0x26FA-0x2FEF)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2c41",
+    "why": "executed in attract mode, no input (run of 48 bytes in span 0x26FA-0x2FEF)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2c72",
+    "why": "executed in attract mode, no input (run of 69 bytes in span 0x26FA-0x2FEF)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2cb8",
+    "why": "executed in attract mode, no input (run of 41 bytes in span 0x26FA-0x2FEF)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2ce6",
+    "why": "executed in attract mode, no input (run of 6 bytes in span 0x26FA-0x2FEF)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2cf6",
+    "why": "executed in attract mode, no input (run of 232 bytes in span 0x26FA-0x2FEF)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2e04",
+    "why": "executed in attract mode, no input (run of 3 bytes in span 0x26FA-0x2FEF)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2ed4",
+    "why": "executed in attract mode, no input (run of 250 bytes in span 0x26FA-0x2FEF)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x3009",
+    "why": "executed in attract mode, no input (run of 5 bytes in span 0x3009-0x3049)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x3022",
+    "why": "executed in attract mode, no input (run of 40 bytes in span 0x3009-0x3049)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x30db",
+    "why": "executed in attract mode, no input (run of 9 bytes in span 0x30DB-0x30E3)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x30ed",
+    "why": "executed in attract mode, no input (run of 20 bytes in span 0x30ED-0x3E6F)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x3103",
+    "why": "executed in attract mode, no input (run of 1 bytes in span 0x30ED-0x3E6F)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x3110",
+    "why": "executed in attract mode, no input (run of 22 bytes in span 0x30ED-0x3E6F)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x313c",
+    "why": "executed in attract mode, no input (run of 80 bytes in span 0x30ED-0x3E6F)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x3195",
+    "why": "executed in attract mode, no input (run of 78 bytes in span 0x30ED-0x3E6F)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x3202",
+    "why": "executed in attract mode, no input (run of 124 bytes in span 0x30ED-0x3E6F)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x3284",
+    "why": "executed in attract mode, no input (run of 19 bytes in span 0x30ED-0x3E6F)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x32b9",
+    "why": "executed in attract mode, no input (run of 12 bytes in span 0x30ED-0x3E6F)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x32ce",
+    "why": "executed in attract mode, no input (run of 4 bytes in span 0x30ED-0x3E6F)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x330f",
+    "why": "executed in attract mode, no input (run of 39 bytes in span 0x30ED-0x3E6F)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x333d",
+    "why": "executed in attract mode, no input (run of 35 bytes in span 0x30ED-0x3E6F)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x3371",
+    "why": "executed in attract mode, no input (run of 20 bytes in span 0x30ED-0x3E6F)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x3399",
+    "why": "executed in attract mode, no input (run of 17 bytes in span 0x30ED-0x3E6F)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x33ad",
+    "why": "executed in attract mode, no input (run of 88 bytes in span 0x30ED-0x3E6F)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x3409",
+    "why": "executed in attract mode, no input (run of 111 bytes in span 0x30ED-0x3E6F)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x34f3",
+    "why": "executed in attract mode, no input (run of 54 bytes in span 0x30ED-0x3E6F)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x3e88",
+    "why": "executed in attract mode, no input (run of 5 bytes in span 0x3E88-0x3F23)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x3e99",
+    "why": "executed in attract mode, no input (run of 34 bytes in span 0x3E88-0x3F23)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x3ec3",
+    "why": "executed in attract mode, no input (run of 60 bytes in span 0x3E88-0x3F23)",
+    "provenance": "MAME instruction-fetch trace, 240s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x0d65",
+    "why": "executed in attract mode, no input (run of 38 bytes in span 0x0D65-0x0DA6)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x12e2",
+    "why": "executed in attract mode, no input (run of 10 bytes in span 0x12E2-0x12EC)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x1980",
+    "why": "executed in attract mode, no input (run of 82 bytes in span 0x1980-0x19D1)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x19da",
+    "why": "executed in attract mode, no input (run of 19 bytes in span 0x19DA-0x1A06)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x1c08",
+    "why": "executed in attract mode, no input (run of 54 bytes in span 0x1C08-0x1C4E)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x1c76",
+    "why": "executed in attract mode, no input (run of 25 bytes in span 0x1C76-0x1C8E)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x1ca1",
+    "why": "executed in attract mode, no input (run of 10 bytes in span 0x1CA1-0x1CAA)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x1cbd",
+    "why": "executed in attract mode, no input (run of 21 bytes in span 0x1CBD-0x1CD1)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x1ce7",
+    "why": "executed in attract mode, no input (run of 4 bytes in span 0x1CE7-0x1CEA)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x1e94",
+    "why": "executed in attract mode, no input (run of 2 bytes in span 0x1E94-0x1E95)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x1f46",
+    "why": "executed in attract mode, no input (run of 61 bytes in span 0x1F46-0x1F82)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x200a",
+    "why": "executed in attract mode, no input (run of 73 bytes in span 0x200A-0x2052)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x205a",
+    "why": "executed in attract mode, no input (run of 146 bytes in span 0x205A-0x20EB)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x20fd",
+    "why": "executed in attract mode, no input (run of 7 bytes in span 0x20FD-0x2103)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x214c",
+    "why": "executed in attract mode, no input (run of 7 bytes in span 0x214C-0x2152)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x23de",
+    "why": "executed in attract mode, no input (run of 41 bytes in span 0x23DE-0x2406)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x24b4",
+    "why": "executed in attract mode, no input (run of 57 bytes in span 0x24B4-0x25F1)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2816",
+    "why": "executed in attract mode, no input (run of 89 bytes in span 0x2816-0x286E)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2954",
+    "why": "executed in attract mode, no input (run of 22 bytes in span 0x2954-0x296E)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2974",
+    "why": "executed in attract mode, no input (run of 56 bytes in span 0x2974-0x2A2E)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2a85",
+    "why": "executed in attract mode, no input (run of 53 bytes in span 0x2A85-0x2ACC)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2b3d",
+    "why": "executed in attract mode, no input (run of 11 bytes in span 0x2B3D-0x2B50)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2c03",
+    "why": "executed in attract mode, no input (run of 57 bytes in span 0x2C03-0x2C40)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2c7b",
+    "why": "executed in attract mode, no input (run of 11 bytes in span 0x2C7B-0x2C85)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2c8f",
+    "why": "executed in attract mode, no input (run of 40 bytes in span 0x2C8F-0x2CB7)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2ddb",
+    "why": "executed in attract mode, no input (run of 3 bytes in span 0x2DDB-0x2E03)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x2fcb",
+    "why": "executed in attract mode, no input (run of 3 bytes in span 0x2FCB-0x2FEF)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x30f0",
+    "why": "executed in attract mode, no input (run of 10 bytes in span 0x30F0-0x30F9)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x31b1",
+    "why": "executed in attract mode, no input (run of 50 bytes in span 0x31B1-0x3201)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x3221",
+    "why": "executed in attract mode, no input (run of 8 bytes in span 0x3221-0x3228)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x3233",
+    "why": "executed in attract mode, no input (run of 36 bytes in span 0x3233-0x3256)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x328c",
+    "why": "executed in attract mode, no input (run of 11 bytes in span 0x328C-0x32B8)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x33c3",
+    "why": "executed in attract mode, no input (run of 22 bytes in span 0x33C3-0x33D8)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x33e7",
+    "why": "executed in attract mode, no input (run of 30 bytes in span 0x33E7-0x3408)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  },
+  {
+    "addr": "0x3eaa",
+    "why": "executed in attract mode, no input (run of 17 bytes in span 0x3EAA-0x3EC2)",
+    "provenance": "MAME instruction-fetch trace, 600s attract, PC==fetched-address filtered"
+  }
+]

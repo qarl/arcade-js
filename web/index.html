@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>arcade-js — pick a game</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: #0b0b10; color: #e6e6ee;
+    font: 14px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    display: flex; flex-direction: column; align-items: center; gap: 20px; padding: 40px 16px;
+  }
+  h1 { font-size: 20px; font-weight: 600; letter-spacing: .04em; margin: 0; color: #9fd0ff; }
+  h1 small { color: #6a6a80; font-weight: 400; font-size: 13px; display: block; margin-top: 6px; }
+  #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+          gap: 14px; width: 100%; max-width: 760px; }
+  a.card {
+    display: block; text-decoration: none; color: inherit; background: #14141f;
+    border: 1px solid #26263c; border-radius: 10px; padding: 16px 18px; transition: .12s;
+  }
+  a.card:hover { background: #1c1c2c; border-color: #4a4a70; transform: translateY(-1px); }
+  .title { font-size: 16px; font-weight: 600; color: #cfe8b0; }
+  .meta  { color: #7a7a95; font-size: 12px; margin-top: 4px; }
+  .tags  { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag   { font-size: 11px; color: #9fd0ff; background: #16202c; border: 1px solid #24384a;
+           border-radius: 4px; padding: 1px 7px; }
+  #empty { color: #7a7a95; }
+  footer { color: #55556c; font-size: 12px; max-width: 640px; text-align: center; }
+  footer code { color: #8a8aa5; }
+</style>
+</head>
+<body>
+  <h1>arcade-js<small>ROMs translated to JavaScript, validated pixel-exact against MAME — pick a game</small></h1>
+  <div id="grid"><div id="empty">loading…</div></div>
+  <footer>
+    Games list their own ROMs, which are copyrighted and not included. Build yours locally with
+    <code>make -C games/&lt;id&gt; rom</code>, then serve with <code>python3 web/server.py</code>.
+  </footer>
+
+<script type="module">
+  import { GAMES } from "../games/registry.js";
+  const grid = document.getElementById("grid");
+  const cards = await Promise.all(GAMES.map(async (id) => {
+    try {
+      const m = (await import(`../games/${id}/manifest.js`)).default;
+      return { id, m };
+    } catch (e) { return { id, err: String(e.message || e) }; }
+  }));
+  grid.innerHTML = "";
+  if (!cards.length) { grid.innerHTML = '<div id="empty">No games registered.</div>'; }
+  for (const { id, m, err } of cards) {
+    const a = document.createElement("a");
+    a.className = "card";
+    a.href = `player.html?game=${encodeURIComponent(id)}`;
+    if (err) {
+      a.innerHTML = `<div class="title">${id}</div><div class="meta" style="color:#ffb0b0">manifest error: ${err}</div>`;
+    } else {
+      a.innerHTML =
+        `<div class="title">${m.title}</div>` +
+        `<div class="meta">${m.manufacturer ?? ""}${m.year ? " · " + m.year : ""}</div>` +
+        `<div class="tags"><span class="tag">${m.cpu}</span>` +
+        `<span class="tag">${m.board} board</span>` +
+        `<span class="tag">${m.orientation ?? "vertical"}</span></div>`;
+    }
+    grid.appendChild(a);
+  }
+</script>
+</body>
+</html>

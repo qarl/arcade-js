@@ -1,0 +1,12 @@
+{
+  "name": "arcade-js",
+  "version": "0.0.0",
+  "description": "Arcade ROMs translated from machine code to JavaScript, validated pixel-exact against MAME. Donkey Kong first; built to host more games, CPUs, and boards.",
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test \"core/**/test/*.test.js\" \"boards/**/test/*.test.js\" \"games/**/test/*.test.js\"",
+    "serve": "python3 web/server.py"
+  }
+}
