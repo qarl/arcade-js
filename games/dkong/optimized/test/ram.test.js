@@ -9,14 +9,6 @@ import * as RAM from '../ram.js';
 const WORK_RAM_LO = 0x6000;
 const WORK_RAM_HI = 0x6bff;
 
-// The two intentional aliases: the player and world verifiers independently
-// covered the live player-context block, so each of these bytes carries two
-// verbatim names. Any OTHER shared address is a real collision and must fail.
-const INTENTIONAL_ALIASES = [
-  ['PLAYER_LIVES', 'LIVES'],            // 0x6228
-  ['EXTRA_LIFE_AWARDED', 'BONUS_LIFE_AWARDED'], // 0x622D
-];
-
 const entries = Object.entries(RAM);
 
 test('module exports at least one constant', () => {
@@ -47,40 +39,26 @@ test('every export name is unique', () => {
   assert.equal(seen.size, names.length, 'duplicate export name(s) present');
 });
 
-test('no two exports share an address except the declared intentional aliases', () => {
+test('no two exports share an address', () => {
   const byAddr = new Map(); // address -> [names]
   for (const [name, value] of entries) {
     if (!byAddr.has(value)) byAddr.set(value, []);
     byAddr.get(value).push(name);
   }
-
-  const aliasGroups = INTENTIONAL_ALIASES.map((g) => new Set(g));
   for (const [value, names] of byAddr) {
-    if (names.length === 1) continue;
-    const asSet = new Set(names);
-    const matches = aliasGroups.some(
-      (g) => g.size === asSet.size && [...asSet].every((n) => g.has(n)),
-    );
-    assert.ok(
-      matches,
-      `0x${value.toString(16)} is shared by ${names.join(', ')} but is not a declared intentional alias`,
+    assert.equal(
+      names.length,
+      1,
+      `0x${value.toString(16)} is shared by ${names.join(', ')} — each address must have one canonical name`,
     );
   }
 });
 
-test('each declared alias pair resolves to the same address', () => {
-  for (const [a, b] of INTENTIONAL_ALIASES) {
-    assert.ok(a in RAM, `alias member ${a} is not exported`);
-    assert.ok(b in RAM, `alias member ${b} is not exported`);
-    assert.equal(
-      RAM[a],
-      RAM[b],
-      `alias ${a} (0x${RAM[a].toString(16)}) != ${b} (0x${RAM[b].toString(16)})`,
-    );
-  }
-  // Pin the alias addresses so a future rename can't quietly move them.
-  assert.equal(RAM.PLAYER_LIVES, 0x6228, 'PLAYER_LIVES/LIVES must be 0x6228');
-  assert.equal(RAM.EXTRA_LIFE_AWARDED, 0x622d, 'EXTRA_LIFE_AWARDED/BONUS_LIFE_AWARDED must be 0x622D');
+test('the retired alias names are gone (one canonical name per byte)', () => {
+  assert.ok(!('PLAYER_LIVES' in RAM), 'PLAYER_LIVES should be retired in favour of LIVES');
+  assert.ok(!('EXTRA_LIFE_AWARDED' in RAM), 'EXTRA_LIFE_AWARDED should be retired in favour of BONUS_LIFE_AWARDED');
+  assert.equal(RAM.LIVES, 0x6228, 'LIVES must be 0x6228');
+  assert.equal(RAM.BONUS_LIFE_AWARDED, 0x622d, 'BONUS_LIFE_AWARDED must be 0x622D');
 });
 
 test('calibration anchors: MARIO_X, MARIO_Y, GAME_STATE', () => {

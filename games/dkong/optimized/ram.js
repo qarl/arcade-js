@@ -18,13 +18,12 @@
  * `ram-findings-world.md`, `ram-verify-player.md`, and `ram-verify-world.md`
  * beside this file.
  *
- * TWO INTENTIONAL ALIASES (the player and world verifiers split their halves,
- * and their coverage overlapped on the live player-context block):
- *   0x6228  PLAYER_LIVES  === LIVES               (lives of the player up)
- *   0x622D  EXTRA_LIFE_AWARDED === BONUS_LIFE_AWARDED (extra-life granted latch)
- * Both names for each byte are kept verbatim from their verify files rather
- * than silently dropping one; the twin is cross-referenced inline and the
- * alias is asserted explicitly in test/ram.test.js.
+ * TWO BYTES WERE NAMED BY BOTH VERIFIERS (their halves overlapped on the live
+ * player-context block) — independent corroboration, not a conflict. Each keeps
+ * ONE canonical name; the other verifier's name is preserved in the findings
+ * files and noted inline where it aids a code search:
+ *   0x6228  LIVES               (player findings also called it PLAYER_LIVES)
+ *   0x622D  BONUS_LIFE_AWARDED  (player findings also called it EXTRA_LIFE_AWARDED)
  */
 
 // ── Player & motion ──────────────────────────────────────────────────────────
@@ -175,17 +174,10 @@ export const MARIO_START_FALL = 0x6221;
  *  gates the sound but nothing else reads it -- low confidence. */
 export const MARIO_CLIMB_SOUND_TOGGLE = 0x6224;
 
-/** Lives remaining for the current player. The on-screen lives indicator is redrawn from it
- *  (entry_06b8, ROM 0x06C7) and the score-threshold bonus increments it (sub_0350, 0x037B). Poking 5
- *  then dying reads 4 and draws 4 markers; observed 3->2->1->0 across deaths.
- *  ALIAS: same byte as LIVES (0x6228, world verifier's name); see the alias note in the header. */
-export const PLAYER_LIVES = 0x6228;
-
-/** Sticky flag: the score-threshold bonus life has already been granted, so it is not granted twice.
- *  sub_0350 (ROM 0x0350) early-outs on it (`ret nz`) and sets it to 1 (0x0375) immediately before
- *  `inc (0x6228)`. ROM-unambiguous but never observed set (score never crossed the threshold).
- *  ALIAS: same byte as BONUS_LIFE_AWARDED (0x622D, world verifier's name); see the header. */
-export const EXTRA_LIFE_AWARDED = 0x622D;
+// The player verifier also named 0x6228 (lives) and 0x622D (bonus-life-granted latch),
+// as PLAYER_LIVES / EXTRA_LIFE_AWARDED. Canonical names LIVES and BONUS_LIFE_AWARDED are
+// in the Board/level section below; both verifiers confirmed them independently, and the
+// player-side evidence is folded into those entries.
 
 /** 16-bit up-counter for how long the current hammer has been active (loc_2f43, ROM 0x2F4C `inc (hl)`);
  *  the hammer ends when the high byte reaches 2 (~512 frames), clearing 0x6217 and restoring the BGM.
@@ -255,9 +247,10 @@ export const P2_CONTEXT = 0x6048;
 export const BOARD = 0x6227;
 
 /** Lives remaining for the player currently up; offset 0 of the live context (0x6228-0x622F).
- *  Init from DIP_LIVES; `dec (hl)` on death (ROM 0x12FC), `inc` on bonus-life award. Observed
- *  3@f463 → 2@f1957 one frame into the death sub-state.
- *  ALIAS: same byte as PLAYER_LIVES (0x6228, player verifier's name); see the header alias note. */
+ *  Init from DIP_LIVES; `dec (hl)` on death (ROM 0x12FC), `inc` on bonus-life award; the on-screen
+ *  lives indicator is redrawn from it (entry_06b8, ROM 0x06C7). Both verifiers confirmed it
+ *  independently — poking 5 then dying reads 4 and draws 4 markers, and 3@f463 → 2@f1957 one frame
+ *  into the death sub-state. (Player findings named it PLAYER_LIVES.) */
 export const LIVES = 0x6228;
 
 /** Level number, 1-based binary, clamped to 99 (`cp 0x64` @ROM 0x06E4). Bonus = min(10*LEVEL+40,80).
@@ -276,9 +269,10 @@ export const BOARD_SEQ_PTR = 0x622A; // +1 = high byte
  *  intro. */
 export const PLAY_INTRO = 0x622C;
 
-/** Latch so the extra life is granted once per player. `ret nz` guards the score compare at
- *  ROM 0x0350; set to 1 the moment LIVES is incremented. 0 at each board start (not yet awarded).
- *  ALIAS: same byte as EXTRA_LIFE_AWARDED (0x622D, player verifier's name); see the header. */
+/** Latch so the score-threshold extra life is granted once per player. sub_0350 (ROM 0x0350)
+ *  early-outs on it (`ret nz`) and sets it to 1 (ROM 0x0375) immediately before `inc (LIVES)`.
+ *  ROM-unambiguous but never observed set (score never crossed the threshold); 0 at each board
+ *  start. (Player findings named it EXTRA_LIFE_AWARDED.) */
 export const BONUS_LIFE_AWARDED = 0x622D;
 
 /** Height index for the "HOW HIGH CAN YOU GET?" interlude, clamped to 5. Stepped when BOARD_SEQ_PTR
