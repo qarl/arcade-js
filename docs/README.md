@@ -11,7 +11,11 @@ behaviour you didn't observe is a bug waiting to happen. Translating the ROM *co
 the JavaScript does what the silicon did because it runs the same logic the same way, and a
 frame-against-frame diff against a reference emulator (MAME) catches any place it doesn't.
 
-These documents describe the strategies, in the order you'd apply them to a new game:
+Start with [How the agents worked](00-how-the-agents-worked.md) — the port was produced by AI
+agents, and that document covers the division of labour, the failure modes we actually hit,
+and what the structure had to do about them. It is the experiment; the rest is the method.
+
+The remaining documents describe the strategies, in the order you'd apply them to a new game:
 
 1. [Disassembly](01-disassembly.md) — recovering code and hardware structure from the ROM.
 2. [Translation to "assembly-JavaScript"](02-translation.md) — turning Z80 routines into JS.

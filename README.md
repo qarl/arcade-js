@@ -18,6 +18,10 @@ the pixels match.
 **Donkey Kong** is the first subject. The repo is structured to host many: multiple CPUs,
 multiple arcade boards, and multiple game romsets, sharing what they genuinely share.
 
+How the agents were organised — the division of labour, the failure modes we actually hit, and
+what the tooling had to do about them — is written up in
+[docs/00-how-the-agents-worked.md](docs/00-how-the-agents-worked.md).
+
 > **Status:** Donkey Kong plays in the browser today. All four board *types* boot and play —
 > reached via board-state pokes — and are pixel-validated frame-by-frame against MAME 0.288.
 > **Not yet done:** natural progression from board to board, the level loop, and sound (the
