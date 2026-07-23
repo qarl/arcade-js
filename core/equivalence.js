@@ -123,6 +123,9 @@ function assertRunHealthy(m, capturedFrames, nFrames, label) {
  * @param {object|Map} overrides  { targetAddr: optimizedFn } to wire on the
  *   optimized side. Each fn is wrapped with an invocation counter so an EQUAL
  *   result that never actually dispatched the override cannot pass vacuously.
+ *   The wrapper forwards extra call args (`m.call(addr, ...args)`), matching the
+ *   machine's raw override registration, so parameterized routines (draw_0578,
+ *   sub_0028) are testable through this gate rather than needing a local wrapper.
  * @returns {object} { equal, framesCompared, invocations, ...firstDiff }
  */
 export function wholeMachineEquivalence(makeMachine, nFrames, overrides) {
@@ -137,9 +140,9 @@ export function wholeMachineEquivalence(makeMachine, nFrames, overrides) {
   for (const [k, fn] of overrideEntries(overrides)) {
     const addr = normAddr(k);
     invocations.set(addr, 0);
-    wrapped.set(addr, (mm) => {
+    wrapped.set(addr, (mm, ...args) => {
       invocations.set(addr, invocations.get(addr) + 1);
-      return fn(mm);
+      return fn(mm, ...args);
     });
   }
   const opt = makeMachine(wrapped);
