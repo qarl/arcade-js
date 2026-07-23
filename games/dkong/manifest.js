@@ -279,5 +279,6 @@ export default {
     "0x0cdf": { module: "./optimized/loc_0cdf.js", export: "loc_0cdf" },
     "0x0cf2": { module: "./optimized/loc_0cf2.js", export: "loc_0cf2" },
     "0x0d00": { module: "./optimized/sub_0d00.js", export: "sub_0d00" },
+    "0x0d27": { module: "./optimized/sub_0d27.js", export: "sub_0d27" },
   },
 };
