@@ -185,9 +185,27 @@ export const MARIO_CLIMB_SOUND_TOGGLE = 0x6224;
 export const HAMMER_TIMER_LO = 0x6394;
 export const HAMMER_TIMER_HI = 0x6395;
 
+// ── Sprite / display buffer ──────────────────────────────────────────────────
+// Confirmed from the DMA descriptor + block-copy cites during the optimization sweep.
+
+/** Sprite shadow buffer: 96 hardware sprite records × 4 bytes at 0x6900-0x6A7F. The CPU fills it and
+ *  the i8257 DMA blits it to sprite RAM 0x7000 on the rising DRQ edge every vblank (sub_0141, ROM
+ *  0x0141: ch0 src 0x6900, ch1 dst 0x7000, count 0x180 = 96×4). Boot/board-setup clears the 384-byte
+ *  span (sub_0874). MARIO_SPRITE_RECORD (0x694C) lives inside it. HOW WE KNOW: the DMA descriptor
+ *  names 0x6900 as ch0 SOURCE and 0x7000 as ch1 DEST — an unambiguous ROM + i8257-hardware cite. */
+export const SPRITE_BUFFER = 0x6900;
+
+/** A 10-record (40-byte) sprite-object group at SPRITE_BUFFER+8 (0x6908-0x692F). sub_004e (ROM 0x004E
+ *  `ld de,0x6908 / ld bc,0x28 / ldir`) block-copies a ROM template into it; the record fields are then
+ *  positioned by rst-0x38 stride-4 add-loops. CONTENT is scene-dependent (board decor, cutscene
+ *  props) but the STRUCTURE — 10 records inside SPRITE_BUFFER — is fixed. HOW WE KNOW: sub_004e
+ *  hard-wires DE=0x6908/BC=0x28 (one unambiguous role) + 11 optimized routines target it identically. */
+export const SPRITE_OBJ_BLOCK = 0x6908;
+
 /** Mario's 4-byte hardware sprite record: +0 X (0x6203), +1 code (0x6207), +2 attr (0x6208), +3 Y
  *  (0x6205), copied in that deliberate order by entry_1da6 (ROM 0x1DA6) and DMA'd to sprite RAM
- *  0x704C. Observed byte-identical to the source tuple; the hammer overrides +1 via loc_2f43. */
+ *  0x704C. Observed byte-identical to the source tuple; the hammer overrides +1 via loc_2f43.
+ *  (Inside SPRITE_BUFFER, above.) */
 export const MARIO_SPRITE_RECORD = 0x694C;
 
 // ── Game state & NMI dispatch ────────────────────────────────────────────────
@@ -223,10 +241,43 @@ export const SUBSTATE_TIMER = 0x6009;
  *  poking 0x16 advances 25m->100m. */
 export const GAME_SUBSTATE = 0x600A;
 
+/** Player currently up: 0 = P1, non-zero = P2. sub_055f (ROM 0x055F) selects the score slot from it
+ *  (`ret z` → 0x60B2 P1, else 0x60B5 P2); sub_0350 reads it for the extra-life context. Toggled on
+ *  the player switch (loc_13aa sets 1, loc_13bb clears 0). HOW WE KNOW: CONTROL — with 0x600D=1 an
+ *  injected score award landed in P2_SCORE (0x60B6) not P1 (0x60B3), plus the unambiguous sub_055f
+ *  cite. Mined from the optimization sweep + confirmed by a separate verifier. */
+export const CURRENT_PLAYER = 0x600D;
+
+/** 1 = two-player game, 0 = one-player. Written EXACTLY ONCE at game start, as the high byte of
+ *  loc_08f8's `ld (0x600E),hl` (ROM 0x0938; HL=0x0100 on the 2P-start arm, 0x0000 on 1P). Every
+ *  reader branches on it as "2-player": loc_09ab arms the alternation screen, loc_12f2 takes the 2P
+ *  game-over path, handler_0779 draws the extra 2P glyphs (ROM 0x079B `cp 0x01 / call z`). HOW WE
+ *  KNOW: single writer with values {0,1} + four consistent readers (ROM cite + cross-routine). */
+export const TWO_PLAYER_GAME = 0x600F;
+
 /** Step index of the opening Kong-climb cutscene; ROM 0x0A76 does `ld a,(0x6385) / rst 0x28` on it
  *  against the 8-entry table at 0x0A7A. Walks 1→7 over the cutscene (roar audio 0x608A=0x0F at
  *  step 7). Reached only while GAME_SUBSTATE (0x600A) == 7. */
 export const INTRO_STEP = 0x6385;
+
+// ── Engine / object scratch (mined from the optimization sweep) ───────────────
+// Cross-routine consistency across the optimized set + ROM cites; confirmed by a separate verifier
+// (proposer != confirmer). See docs/06 "Expanding the table is a standing job of optimization".
+
+/** Record count of the object-list sweep currently being searched, staged for the bounding-box
+ *  search entry_2913. Every per-board collision handler stores its sweep length here just before the
+ *  search (sub_2880/28b0/28e0/2901, e.g. ROM 0x2884 `ld (0x63b9),a`); on a hit the found-handler
+ *  reads it back and recovers the matched record's index as count − B (loc_281d, ROM 0x2846). HOW WE
+ *  KNOW: 9 writers all storing a sweep count + one index-recovery reader. */
+export const OBJ_SEARCH_COUNT = 0x63B9;
+
+/** 16-bit INDIRECT pointer (lo,hi): the ADDRESS of the counter the gated tick helper loc_3069
+ *  advances. loc_3069 (ROM 0x306A `ld hl,(0x63c0) / inc (hl)`) loads the WORD stored here and
+ *  increments the byte it points at, but only once the 0x6009 gate expires. Setup routines re-point
+ *  it — loc_0ae8/loc_0b06 seed 0x6385 (INTRO_STEP) for the cutscene, loc_17b6 seeds 0x6388 for the
+ *  how-high render. HOW WE KNOW: the `ld hl,(nn)` indirect load is an unambiguous ROM cite + three
+ *  consistent writers. */
+export const SEQ_ADVANCE_PTR = 0x63C0;
 
 // ── Board / level / sequence ─────────────────────────────────────────────────
 // Source: ram-verify-world.md (live player-context block 0x6228-0x622F + board/rivet state).
