@@ -178,7 +178,12 @@ export class Machine {
    * @param {Uint8Array} [opts.gfx1]  tile ROMs -- enables frame rendering
    * @param {Uint8Array} [opts.proms] colour PROMs -- enables frame rendering
    */
-  constructor(rom, { inputs, gfx1, proms, gfx2, overrides } = {}) {
+  constructor(rom, opts = {}) {
+    const { inputs, gfx1, proms, gfx2, overrides } = opts;
+    // Retained so clone() can build a fresh Machine on the SAME rom + assets
+    // (the constructor's options bag) without the caller re-supplying them.
+    this.rom = rom;
+    this.assets = opts;
     this.io = new IO({ inputs: inputs ?? new Inputs() });
     this.mem = new AddressSpace(rom, this.io);
     this.regs = new Regs();
@@ -634,5 +639,45 @@ export class Machine {
   /** 5120-byte state dump: work + sprite + video, per the frame-sampling contract. */
   dumpState() {
     return this.mem.dumpState();
+  }
+
+  /** Map a dumpState() byte offset back to its RAM address (delegates to mem). */
+  stateOffsetToAddr(off) {
+    return this.mem.stateOffsetToAddr(off);
+  }
+
+  /**
+   * A fresh Machine on this one's ROM + assets, restored to this machine's
+   * observable state: all RAM, the full register file, and IO value-state. The
+   * clone's frame machinery is neutralised (boundaries/NMI/budget set to
+   * Infinity) so that running ONE routine on it in isolation cannot trip a frame
+   * sample, fire an NMI, or throw FramesComplete -- the unit gate measures the
+   * routine, not the scheduler.
+   *
+   * Overrides are deliberately not carried: a clone is used to run a single
+   * translated/optimized routine directly, not to dispatch through the map.
+   */
+  clone() {
+    const c = new Machine(this.rom, this.assets);
+    c.mem.workRam.set(this.mem.workRam);
+    c.mem.spriteRam.set(this.mem.spriteRam);
+    c.mem.videoRam.set(this.mem.videoRam);
+    c.mem.discardedWrites = this.mem.discardedWrites;
+
+    c.regs.copyFrom(this.regs);
+    c.io.loadStateFrom(this.io);
+
+    c.cycles = this.cycles;
+    c.pc = this.pc;
+    c.pcKnown = this.pcKnown;
+    c.frame = this.frame;
+    c.nmiCount = this.nmiCount;
+    c.booted = this.booted;
+
+    c.nextBoundary = Infinity;
+    c.nextNmi = Infinity;
+    c.maxFrames = Infinity;
+    c.maxCycles = Infinity;
+    return c;
   }
 }

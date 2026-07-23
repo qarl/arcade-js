@@ -408,6 +408,49 @@ export class IO {
   writeDmaDrq(value) {
     this.dma.setDrq(value);
   }
+
+  /**
+   * Copy the i8257 / latch / input / watchdog VALUE-state from another IO of the
+   * same board into this one -- the observable IO state a machine clone must
+   * carry. This lives on IO because IO owns the field set (nmiMask, spriteBank,
+   * latch6h, the DMA registers, the input mirror, the watchdog counters); a
+   * cloner should not have to enumerate them.
+   *
+   * Deliberately does NOT touch dma.mem: the destination IO's AddressSpace
+   * already bound its own dma.mem, and rebinding it to the source's address
+   * space would make the clone's DMA write into the wrong RAM.
+   */
+  loadStateFrom(src) {
+    this.nmiMask = src.nmiMask;
+    this.flipScreen = src.flipScreen;
+    this.spriteBank = src.spriteBank;
+    this.paletteBank = src.paletteBank;
+    this.gridEnable = src.gridEnable;
+    this.audioIrq = src.audioIrq;
+    this.soundLatch3d = src.soundLatch3d;
+    this.soundWrites = src.soundWrites;
+    this.latch6h.set(src.latch6h);
+    this.inputAssert = src.inputAssert ? { ...src.inputAssert } : null;
+
+    this.inputs.service1 = src.inputs.service1;
+    this.inputs._in0 = src.inputs._in0;
+    this.inputs._in1 = src.inputs._in1;
+    this.inputs._in2 = src.inputs._in2;
+    this.inputs._dsw0 = src.inputs._dsw0;
+
+    this.watchdog.timeoutFrames = src.watchdog.timeoutFrames;
+    this.watchdog.framesSinceKick = src.watchdog.framesSinceKick;
+    this.watchdog.enabled = src.watchdog.enabled;
+
+    this.dma.addr.set(src.dma.addr);
+    this.dma.count.set(src.dma.count);
+    this.dma.flipFlop = src.dma.flipFlop;
+    this.dma.mode = src.dma.mode;
+    this.dma.drq = src.dma.drq;
+    this.dma.transfers = src.dma.transfers;
+    this.dma.bytesMoved = src.dma.bytesMoved;
+    this.dma.cyclesStolen = src.dma.cyclesStolen;
+  }
 }
 
 /**

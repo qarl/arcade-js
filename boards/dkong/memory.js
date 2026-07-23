@@ -304,4 +304,20 @@ export class AddressSpace {
     out.set(this.videoRam, WORK_RAM_SIZE + SPRITE_RAM_SIZE);
     return out;
   }
+
+  /**
+   * Inverse of dumpState()'s layout: map a byte offset in the 5120-byte dump
+   * back to the RAM address it came from. The dump is work(0x6000..) +
+   * sprite(0x7000..) + video(0x7400..) concatenated in that order, so the board
+   * -- which defines that concatenation -- owns the reverse map too. The
+   * equivalence engine uses it to name the address a state diff diverges at,
+   * without hardcoding the region bases.
+   */
+  stateOffsetToAddr(off) {
+    if (off < WORK_RAM_SIZE) return WORK_RAM_BASE + off;
+    if (off < WORK_RAM_SIZE + SPRITE_RAM_SIZE) {
+      return SPRITE_RAM_BASE + (off - WORK_RAM_SIZE);
+    }
+    return VIDEO_RAM_BASE + (off - WORK_RAM_SIZE - SPRITE_RAM_SIZE);
+  }
 }

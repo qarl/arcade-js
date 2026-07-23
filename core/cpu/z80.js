@@ -42,6 +42,19 @@ function sz8(v) {
   return (v & 0x80 ? F_S : 0) | (v === 0 ? F_Z : 0) | (v & (F_F3 | F_F5));
 }
 
+/**
+ * The Z80 register file: every one of these is an own primitive field on Regs
+ * (bc/de/hl/af and the flag getters are prototype accessors, so they are not
+ * enumerated). It is the CPU's own definition of what state it carries, so
+ * copying and diffing THIS list is copying and diffing the CPU -- which is why
+ * it lives here beside the class rather than being re-listed by every consumer
+ * (the equivalence engine's register diff and Regs.copyFrom both read it).
+ */
+export const REG_FIELDS = [
+  "a", "f", "b", "c", "d", "e", "h", "l", "ix", "iy", "sp",
+  "a_", "f_", "b_", "c_", "d_", "e_", "h_", "l_",
+];
+
 export class Regs {
   /**
    * Power-on register state, MEASURED from MAME at t=0 before a single
@@ -123,6 +136,17 @@ export class Regs {
     this.e_ = 0;
     this.h_ = 0;
     this.l_ = 0;
+  }
+
+  /**
+   * Overwrite every data register from another Regs, leaving the prototype
+   * accessors (bc/de/hl/af, the flag tests) untouched. Copies exactly REG_FIELDS
+   * -- the CPU's own definition of its state -- so a caller cloning a machine
+   * does not have to know which fields the register file holds. Returns this.
+   */
+  copyFrom(other) {
+    for (const k of REG_FIELDS) this[k] = other[k];
+    return this;
   }
 
   get bc() {
