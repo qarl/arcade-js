@@ -113,7 +113,13 @@ Three caveats, each of which the sweep has hit:
   counter-example: it dispatches the longest interruptible per-frame work, the NMI routinely lands
   mid-cascade, and collapsing its total is *demonstrably wrong* — the harness diverges it in the
   stack region. It is kept per-instruction. When in doubt, keep per-instruction and let the harness
-  tell you the collapse is safe; never the other way round.
+  tell you the collapse is safe; never the other way round. And crucially, **atomicity is a property
+  of every call path, not the routine alone**: a leaf reached by `m.call` from several places is
+  atomic only if the NMI cannot fire inside it on *any* of them. The `rst`-vector helpers run inside
+  the NMI (atomic there) but are also called from the mask-enabled main loop and from `loc_197a`'s
+  interruptible cascade — so they are *not* atomic, and are kept per-instruction, even though a short
+  attract run collapses cleanly (the NMI just never lands in that tiny window on that trajectory —
+  absence of evidence again). Check the callers, not only the routine.
 - **Hardware writes carry a bus cycle the RAM gate cannot see.** A write to a tagged hardware latch
   (`0x7D80`–`0x7D87` palette bank / flip-screen / sound, `0x7C00`, `0x7800`-block) records its bus
   cycle — `clock() + busOffset` — in the `emit --writes` trace. That column is invisible to the
