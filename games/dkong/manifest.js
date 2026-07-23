@@ -145,5 +145,9 @@ export default {
     "0x05c6": { module: "./optimized/handler_05c6.js", export: "handler_05c6" },
     "0x05e9": { module: "./optimized/handler_05e9.js", export: "handler_05e9" },
     "0x0611": { module: "./optimized/entry_0611.js", export: "entry_0611" },
+    "0x051c": { module: "./optimized/entry_051c.js", export: "entry_051c" },
+    "0x059b": { module: "./optimized/loc_059b.js", export: "loc_059b" },
+    "0x062a": { module: "./optimized/entry_062a.js", export: "entry_062a" },
+    "0x06b8": { module: "./optimized/entry_06b8.js", export: "entry_06b8" },
   },
 };
