@@ -242,3 +242,86 @@ global — the wiring and the whole-game gates (`npm test`, `move_suite` 6/6, `p
 once per batch, not per routine. The author never gates their own reach: a separate reviewer reads
 the rewrite against the oracle and must substantiate any finding before reporting it. Only then does
 it commit.
+
+## The interruptible surface is small — and a lighter gate that would exploit it
+
+The atomicity rule keeps a routine per-instruction whenever the NMI *could* land inside it on *some*
+call path. That raises a measurable question: how large is that surface actually? Over a full
+credited game (2500 frames, 2488 accepted NMIs), the pushed PC was recorded at every interrupt. It
+landed in 63 distinct addresses. **99.6% of the landings (2478 of 2488) fall in the main-loop band
+ROM 0x02BD–0x0372** (`sub_0315` / `sub_0347` / `sub_0350` and their neighbours) — the CPU finishes
+each frame's work quickly and spends the rest of the frame spinning for vblank, so the interrupt
+almost always catches it in the loop. No landing fell inside a 0x1xxx/0x2xxx gameplay routine on this
+run — but that is *not* a licence to collapse them. `loc_197a` is the demonstrated counter-example in
+the Cycles section above (the harness diverges its collapse), and a single 2500-frame run that
+happens not to catch it mid-cascade is exactly the absence-of-evidence this section goes on to warn
+against. What the histogram *does* license is narrower and firmer: the foreground interruptible
+surface — where the main loop actually spends its cycles — is this 0x02BD–0x0372 band plus the thin
+tail below.
+
+But the tail is real, and it is exactly where the rule earns its keep. The other 10 landings — 0.4% —
+fell **inside `sub_0008`** (pcs 0x0008/0x000b/0x000c, 8 landings) and in the 0x0600 dispatch region
+(2). `sub_0008` is one of the `rst` helpers this batch declined to collapse precisely because it is
+reached on the mask-enabled main-loop path — and here is the vblank NMI, measured landing inside it.
+Had it been collapsed, those 8 interrupts would each have pushed the wrong PC. So the per-call-path
+caution was not over-conservative theatre; it is the case this run actually exercised. The lesson
+holds in both directions: a routine the NMI *never* reaches is free to collapse, but "never" has to
+be *measured over real gameplay*, not assumed from a short attract run — the interruptible leaves are
+rare targets, not impossible ones.
+
+What happens when you *do* collapse a routine the NMI lands inside was measured directly, by
+collapsing `sub_0347` (a pure leaf, no writes, so the only channel is the stack) and diffing the
+whole-machine trace against the oracle over the same run. The NMI landed inside it 6 times; every
+resulting divergence — 24 stack bytes across 659 frames — stayed **inside the stack region, with zero
+bytes leaking to gameplay or state RAM.** That confinement is structural, not luck: the divergent
+byte is a popped-and-abandoned return PC below the stack pointer, and it is only ever *read* after a
+later push has overwritten it with the matching value. It is dead the whole time it differs — which
+is why the exact routines pass the pixel gates and a collapse changes nothing a player could see.
+
+One intuition needs correcting, though. The divergence does **not** reliably heal within a few
+frames. A byte in a *deep* stack slot — one the stack revisits only under deep nesting — held its
+stale divergent value for **659 consecutive frames** before a matching push finally healed it. So a
+converge/diverge gate must *not* be built on a "RAM reconverges within N frames" rule: that rule
+would have failed this entirely benign collapse. The robust invariant is **region confinement** —
+the divergence never leaves the dead stack scratch below the resting SP, and the pixels never differ.
+
+That points at a lighter gate than the byte-exact one, for the day per-instruction verbosity becomes
+the bottleneck: **diff every byte except the stack scratch below the resting SP, and require the
+rendered frame to match.** It accepts the benign stack residue while still catching real corruption —
+because real corruption reaches live RAM or a pixel, and the dead stack never does. Adopting it would
+delete the entire per-call-path atomicity analysis and let every routine collapse. It is **not**
+adopted today: per-instruction is cheap and always correct, and the win is only scaffolding
+verbosity. But it is the sound way to get collapse-everywhere, and the measurement above is what a
+future stack-exclusion mask would be built from. The one thing such a gate *cannot* rescue is a wrong
+cycle **total**, which reseeds the PRNG — the subject of the next section.
+
+## When the RNG itself is the obstacle — a fallback
+
+Every divergence above is confined to dead memory and invisible in play. The **one channel that does
+not behave this way is the RNG**, and it is worth recording how to handle it, because the next game
+may force the issue.
+
+Donkey Kong seeds its randomness from timing: each vblank `sub_0057` does `RNG(0x6018) += FRAME +
+SPIN_COUNT`, and `SPIN_COUNT(0x6019)` counts main-loop passes per frame — a pure function of how many
+cycles the frame's work consumed. A *correct* collapse preserves each routine's **total**, so it
+never changes the per-frame cycle budget, so `SPIN_COUNT` and the PRNG stay identical:
+**total-preservation is what keeps the RNG out of the collapse's way.** But a wrong total *does*
+reseed the PRNG (channel 1 in the cycles section), and unlike a stack byte a wrong random draw does
+not wash out — it compounds. The RNG is the one place where a timing error is permanent.
+
+If a future game couples its RNG to timing more tightly than total-preservation can hold — sampled
+from a free-running counter on *every read*, or coupled to beam position or analog noise — then no
+converge/diverge gate can save it, and the fallback is to **replace the timing-seeded RNG with a
+deterministic, timing-independent generator installed identically on both sides**: a ROM patch (or
+memory hook) on the MAME oracle, and an override through the swap registry on the port, seeded
+identically at reset. With the stream pinned, cycle differences can no longer move it, and
+equivalence again isolates real logic bugs.
+
+The catch makes this a tool, not a shipping path. Pinning the RNG **changes the game's actual
+behaviour versus a real cabinet** — the enemy sequence is no longer the hardware's — so you have
+replaced part of the oracle and forfeited falsifiability against real hardware. Use it as **a
+diagnostic**: pin the RNG on both sides and see whether a stubborn divergence *vanishes*, which
+cleanly separates a timing/RNG bug from a logic bug — then unpin and fix the timing. At most, use it
+as a **last-resort shipping compromise**, documented loudly. For faithful shipping, keep the real
+RNG. On Donkey Kong it is **not needed and not used**: total-preservation keeps the PRNG identical,
+and the only residual is the dead-stack channel above.
