@@ -21,7 +21,8 @@
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { Machine } from "../machine.js";
+import { Machine, resolveOverrides } from "../machine.js";
+import manifest from "../manifest.js";
 import { STATE_DUMP_SIZE } from "../../../boards/dkong/memory.js";
 
 function parseArgs(argv) {
@@ -106,9 +107,17 @@ function parseArgs(argv) {
 
 const sha256 = (buf) => createHash("sha256").update(buf).digest("hex");
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv);
   const rom = new Uint8Array(readFileSync(args.rom));
+  // Resolve the declarative manifest.optimized (proven-equal optimized routines)
+  // into a Map<addr,fn> BEFORE building any Machine, and hand it to every Machine
+  // below via opts.overrides — the constructor cannot resolve the { module, export }
+  // form itself. Relative to this game's manifest, exactly as web/worker.js does it.
+  const overrides = await resolveOverrides(
+    manifest.optimized,
+    new URL("../manifest.js", import.meta.url),
+  );
   // Video ROMs are only loaded when a frame buffer is requested -- they are
   // not needed for state or write traces.
   const video = args.framesOut
@@ -118,7 +127,7 @@ function main() {
         proms: new Uint8Array(readFileSync(join(dirname(args.rom), "proms.bin"))),
       }
     : {};
-  const machine = new Machine(rom, video);
+  const machine = new Machine(rom, { ...video, overrides });
   machine.pokes = args.pokes;
   machine.inputTape = args.inputs;
   if (args.writesOut) machine.mem.writeTrace = [];
@@ -267,7 +276,7 @@ function main() {
     // A FRESH machine: re-resetting the one runFrames() used would double
     // discardedWrites (2048, against the 1024 asserted below) and append
     // bogus frames sampled from already-booted memory.
-    const fresh = new Machine(rom);
+    const fresh = new Machine(rom, { overrides });
     fresh.runBoot();
     const st = fresh.dumpState();
     const distinct = (buf) => [...new Set(buf)].map((v) => `0x${v.toString(16)}`);
@@ -295,4 +304,4 @@ function main() {
   return short || stopped ? 1 : 0;
 }
 
-process.exit(main());
+process.exit(await main());

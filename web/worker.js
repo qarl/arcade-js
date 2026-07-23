@@ -137,9 +137,19 @@ async function fetchBin(url) {
 async function run(gameId, provided) {
   const manifest = (await import(`../games/${gameId}/manifest.js`)).default;
   PORTS = manifest.inputs.ports; // input port addresses -> inputAssert slots (IN0/IN1/IN2)
-  const { Machine } = await import(`../games/${gameId}/machine.js`);
+  const { Machine, resolveOverrides } = await import(`../games/${gameId}/machine.js`);
   const { Inputs } = await import(`../boards/${manifest.board}/io.js`);
   const LiveMachine = makeLive(Machine);
+
+  // Resolve the game's declarative manifest.optimized (proven-equal optimized
+  // routines) into a Map<addr,fn> ONCE, relative to the game's manifest — exactly
+  // as games/dkong/tools/emit.js does — and reuse it for every (re)boot below.
+  // The Machine constructor cannot resolve the { module, export } form itself; an
+  // absent/empty block resolves to an empty Map, i.e. a pure translated run.
+  const overrides = await resolveOverrides(
+    manifest.optimized,
+    new URL(`../games/${gameId}/manifest.js`, import.meta.url),
+  );
 
   // Every declared ROM image, per image: use the one the page handed us (already
   // size- and sha256-checked there) if present, else fetch the locally-built
@@ -159,7 +169,7 @@ async function run(gameId, provided) {
   postMessage({ type: "ready" });
 
   while (Atomics.load(ctrl, C_RUNNING) === 1) {
-    const m = new LiveMachine(maincpu, { inputs: new Inputs(), ...gfx });
+    const m = new LiveMachine(maincpu, { inputs: new Inputs(), ...gfx, overrides });
     m.captureVideo = true;
     m._next = performance.now();
     // A fresh machine has fresh latches, so the remembered edge state has to go

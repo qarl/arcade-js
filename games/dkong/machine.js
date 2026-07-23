@@ -15,7 +15,6 @@
 import { AddressSpace } from "../../boards/dkong/memory.js";
 import { IO, Inputs, NotImplemented } from "../../boards/dkong/io.js";
 import { Regs } from "../../core/cpu/z80.js";
-import manifest from "./manifest.js";
 import { bootOnly, reset as romReset } from "./translated/boot.js";
 import { entry_0066 } from "./translated/nmi.js";
 import {
@@ -103,10 +102,13 @@ export class FramesComplete extends Error {
  * what keeps the resolution identical in Node and in the browser worker: both call
  * `resolveOverrides()`, which uses the dynamic import available in both.
  *
- * THE SHIPPED PATH NEEDS NONE OF THAT. `manifest.optimized` is `{}`, so the
- * default build below produces an empty Map with no imports and no async — every
- * player gets the exact translated behaviour, and the override branch in
- * `dispatchGameState` is inert.
+ * THE DEFAULT CONSTRUCTOR PATH NEEDS NONE OF THAT. It builds from `opts.overrides`
+ * only; when that is omitted this produces an empty Map with no imports and no
+ * async — every such player gets the exact translated behaviour, and the override
+ * branch in `dispatchGameState` / `dispatchTask` is inert. The shipped
+ * `manifest.optimized` is declarative, so it is resolved (by `resolveOverrides()`)
+ * and passed in by the run paths that want those routines live, never consumed
+ * here — buildOverrides would throw on its `{ module, export }` form.
  *
  * @param {object|Map} [spec]
  * @returns {Map<number, function>}
@@ -191,13 +193,19 @@ export class Machine {
     this.frame = 0;
     this.booted = false;
 
-    // Per-routine override map: dispatch target -> optimized handler. Built from
-    // the shipped manifest.optimized by default (which is {}, so an empty Map and
-    // therefore inert), or from a caller-supplied, already-resolved map/object
-    // via opts.overrides — the seam the equivalence harness drives. See
-    // buildOverrides / resolveOverrides above, and the prepend in
-    // dispatchGameState (nmi.js) that consults it.
-    this.overrides = buildOverrides(overrides ?? manifest.optimized);
+    // Per-routine override map: dispatch target -> optimized handler. Empty and
+    // therefore INERT unless a caller supplies an already-resolved map/object via
+    // opts.overrides — the seam the equivalence harness and the run paths drive.
+    //
+    // The shipped manifest.optimized is now DECLARATIVE ({ module, export }), which
+    // buildOverrides cannot turn into functions synchronously (that needs an async
+    // import). So the constructor does NOT consume it here; a run path that wants
+    // those live routines resolves the block with resolveOverrides() first and
+    // passes the resulting Map in via opts.overrides (see emit.js, web/worker.js).
+    // A Machine built with no overrides therefore runs the exact translated
+    // behaviour. See buildOverrides / resolveOverrides above, and the prepend in
+    // dispatchGameState (nmi.js) / dispatchTask (mainloop.js) that consults it.
+    this.overrides = buildOverrides(overrides);
 
     this.cycles = 0;
     this.frames = []; // captured state dumps, one per frame boundary

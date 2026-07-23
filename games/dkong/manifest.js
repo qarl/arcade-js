@@ -128,10 +128,20 @@ export default {
   // (games/dkong/translated/nmi.js); the VALUE names the optimized module + its
   // named export to route that address to.
   //
-  // SHIPPED VALUE IS EMPTY, DELIBERATELY. Nothing is overridden by default, so
-  // players get the exact translated behaviour and the override branch in
-  // dispatchGameState is inert. An entry is added here ONLY after its optimized
-  // routine is proven EQUAL by the harness. Until then, pilots are wired inside
-  // the harness/tests via opts.overrides on a test-constructed Machine, never here.
-  optimized: {},
+  // An entry is added here ONLY after its optimized routine is proven EQUAL by
+  // the harness (games/dkong/optimized/harness.js). The three below are each
+  // proven byte-identical to their translated oracle and now run live: the run
+  // paths (games/dkong/tools/emit.js and web/worker.js) resolve this declarative
+  // block with resolveOverrides() and hand the resulting Map to the Machine.
+  //
+  // This block is DECLARATIVE and therefore NOT resolvable synchronously, so the
+  // Machine constructor no longer consumes it directly (it would throw on the
+  // { module, export } form). A Machine built with no opts.overrides runs the
+  // exact translated behaviour; a run path that wants these live resolves them
+  // first (see machine.js resolveOverrides + the constructor's default).
+  optimized: {
+    "0x01c3": { module: "./optimized/handlers.js", export: "handler_01c3" },
+    "0x05c6": { module: "./optimized/handlers.js", export: "handler_05c6" },
+    "0x05e9": { module: "./optimized/handlers.js", export: "handler_05e9" },
+  },
 };
