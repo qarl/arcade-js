@@ -27,10 +27,6 @@ what the tooling had to do about them — is written up in
 > **Status:** Donkey Kong plays. All four boards, natural board-to-board progression, and the
 > level loop all work — finish 100m and it wraps back to 25m at the next level, indefinitely —
 > and the rendering is pixel-validated frame-by-frame against MAME 0.288.
-> **Sound works too:** the engine taps the ROM's sound-latch writes and plays them. Walk, jump and
-> boom are **synthesised** in WebAudio — fitted to the real analog netlist, so they need no ROM or
-> samples and play for everyone out of the box. The I8035 tunes are **bring-your-own**, recorded
-> locally from your own MAME (`make samples`), since we can't ship Nintendo's audio.
 
 ## What's here (and what isn't)
 
