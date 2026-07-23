@@ -695,8 +695,14 @@ export class Machine {
    * sample, fire an NMI, or throw FramesComplete -- the unit gate measures the
    * routine, not the scheduler.
    *
-   * Overrides are deliberately not carried: a clone is used to run a single
-   * translated/optimized routine directly, not to dispatch through the map.
+   * A clone rebuilds from `this.assets` (the source's constructor opts), so it
+   * carries whatever `overrides` the source was built with — including the unit
+   * gate's snapshot override. That is harmless here: the unit gate invokes the
+   * routine under test DIRECTLY (translatedFn/optimizedFn on the clone), so the
+   * override map is consulted only for an m.call the target makes INTO itself,
+   * where the snapshot delegates to the oracle — exactly the callee-is-oracle
+   * isolation the unit gate wants. (Whole-machine equivalence backstops the one
+   * case this can't distinguish: an optimized routine that recurses into itself.)
    */
   clone() {
     const c = new Machine(this.rom, this.assets);

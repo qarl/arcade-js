@@ -13,10 +13,10 @@
  *     pushed the frame's work past the vblank spin) does not hide here, it
  *     surfaces as downstream state drift. RAM is the real contract.
  *
- *   • unitEquivalence — capture the machine at the instant the routine
- *     dispatches, clone it, run translated vs optimized on the two clones, and
- *     diff state + the CPU registers. Faster, and it localizes a failure to the
- *     routine itself instead of to some frame downstream.
+ *   • unitEquivalence — capture the machine at the instant the routine is first
+ *     entered (via a dispatch OR a direct m.call), clone it, run translated vs
+ *     optimized on the two clones, and diff state + the CPU registers. Faster, and
+ *     it localizes a failure to the routine itself instead of to some frame downstream.
  *
  * Cycles are deliberately NOT compared: the ROM self-synchronises at its vblank
  * spin, so a routine's internal cycle distribution is unobservable as long as
@@ -171,36 +171,45 @@ export function wholeMachineEquivalence(makeMachine, nFrames, overrides) {
 /**
  * Prove translated vs optimized equal for ONE routine, in isolation.
  *
- * Captures the live machine at the instant `target` first dispatches (via a
+ * Captures the live machine at the instant `target` is first entered (via a
  * temporary override that snapshots on entry, then delegates to the translated
  * routine so the host run continues to a clean stop), then runs the translated
  * and optimized implementations on two independent clones of that entry state
  * and diffs the result.
  *
+ * The snapshot override is installed at CONSTRUCTION (passed through
+ * `makeMachine`), not mutated onto the machine afterward. That matters because a
+ * routine reached only by a direct call — `m.call(target)` — resolves through the
+ * registry built at construction, which a post-construction `overrides` mutation
+ * would not touch; it would be caught only if `target` were a dispatch point.
+ * Constructing with the override makes BOTH the dispatch consult and `m.call`
+ * resolve to it, so the entry is captured however the routine is first entered
+ * (this is the same construction-time wiring the whole-machine gate already uses).
+ *
  * @param {(overrides?:Map|object)=>object} makeMachine  factory returning a
- *   machine for the game under test (called with no argument here — the target
- *   is wired via the machine's own `overrides` map after construction).
- * @param {number} target      dispatch address of the routine (e.g. 0x01c3)
+ *   machine for the game under test; called with the snapshot override so it is
+ *   wired into the machine's routine registry at construction.
+ * @param {number} target      address of the routine (e.g. 0x01c3)
  * @param {function} translatedFn  the oracle implementation
  * @param {function} optimizedFn   the implementation under test
  * @param {object} [opts]      { maxFrames = 240 } — how long to run to reach the
- *                             first dispatch of `target`
+ *                             first entry of `target`
  * @returns {object} { equal, ram, regs, pc }
  */
 export function unitEquivalence(makeMachine, target, translatedFn, optimizedFn, opts = {}) {
   const maxFrames = opts.maxFrames ?? 240;
 
-  const host = makeMachine();
   let entry = null;
-  host.overrides = new Map([[target, (mm) => {
+  const snapshot = new Map([[target, (mm) => {
     if (entry === null) entry = mm.clone(); // pristine entry state
     return translatedFn(mm); // let the host game proceed normally
   }]]);
+  const host = makeMachine(snapshot);
   host.runFrames(maxFrames);
   if (entry === null) {
     throw new Error(
-      `unit harness: 0x${target.toString(16).padStart(4, "0")} never dispatched ` +
-        `within ${maxFrames} frames`,
+      `unit harness: 0x${target.toString(16).padStart(4, "0")} never entered ` +
+        `(neither dispatched nor m.call'd) within ${maxFrames} frames`,
     );
   }
 
