@@ -143,5 +143,6 @@ export default {
     "0x01c3": { module: "./optimized/handlers.js", export: "handler_01c3" },
     "0x05c6": { module: "./optimized/handlers.js", export: "handler_05c6" },
     "0x05e9": { module: "./optimized/handlers.js", export: "handler_05e9" },
+    "0x0611": { module: "./optimized/handlers.js", export: "entry_0611" },
   },
 };
