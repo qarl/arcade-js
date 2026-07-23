@@ -1,27 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * optimized/ — rung 1 of the ladder: a VERBATIM relocation, not yet an
- * optimization.
+ * optimized/ — hand-optimized rewrites of translated/ routines, each proven
+ * equal to its oracle by the equivalence harness.
  *
- * `handler_01c3` below is a character-for-character copy of the same routine in
- * ../translated/state0.js: same logic, same `m.step()` T-state charges, same
- * write order. Its ONLY purpose is to give the equivalence harness a routine it
- * can prove EQUAL against the oracle — the identity case that must pass before
- * any real rewrite is trusted. Do NOT optimize it here; that is the next phase,
- * and it happens only after the harness gate is green on this copy.
+ * `handler_01c3` below is at rung 2/3 of the ladder (named + documented,
+ * byte-identical to ../translated/state0.js). See its own docstring for the
+ * ladder status and why its cycle charges must stay.
  *
- * WHAT IS IMPORTED vs COPIED, and why:
- *   - sub_0874, sub_0a53, sub_309f (state0.js) and entry_06b8 (mainloop.js) are
- *     EXPORTED by translated/, so the copy calls them directly — the oracle
- *     stays the single implementation of each.
- *   - sub_0207 is NOT exported by state0.js, and translated/ is the oracle and
- *     is never edited (README §1) — so it cannot be imported. It is reproduced
- *     here verbatim as a file-private helper. It is self-contained (it calls no
- *     other translated routine, only machine/register/memory methods), so the copy is
- *     exact and needs no further imports.
+ * Every callee is imported straight from translated/ — all routines there are
+ * exported (README §1), so the oracle stays the single implementation of each
+ * and there are NO copies here to drift out of sync. Only routines actually
+ * being rewritten live in this file.
  */
 
-import { sub_0874, sub_0a53, sub_309f } from "../translated/state0.js";
+import { sub_0874, sub_0207, sub_0a53, sub_309f } from "../translated/state0.js";
 import { entry_06b8 } from "../translated/mainloop.js";
 import { ATTRACT, LEVEL, LIVES, GAME_STATE, BOARD, GAME_SUBSTATE } from "./ram.js";
 
@@ -88,144 +80,6 @@ export function handler_01c3(m) {
     regs.de = de;   m.step(after, 10);
     m.push16(next); m.step(0x309f, 17); sub_309f(m);
   }
-
-  m.ret();
-}
-
-/**
- * sub_0207 -- ROM 0x0207-0x0264  [VERBATIM copy; see note in the file header]
- *
- * Unpacks DSW0 into the settings block at 0x6020 (lives, bonus threshold in
- * BCD, coinage counters, two-player flag) and ends with an `ldir` of 0xAA bytes
- * from ROM 0x3565 to 0x6100. Copied here only because state0.js does not export
- * it; behaviour is identical to the oracle's.
- */
-function sub_0207(m) {
-  const { regs, mem } = m;
-
-  regs.a = mem.read8(0x7d80); // DSW0
-  m.step(0x020a, 13);
-  regs.c = regs.a;
-  m.step(0x020b, 4);
-  regs.hl = 0x6020;
-  m.step(0x020e, 10);
-  regs.and(0x03);
-  m.step(0x0210, 7);
-  regs.add(0x03);
-  m.step(0x0212, 7);
-  mem.write8(regs.hl, regs.a); // lives
-  m.step(0x0213, 7);
-  regs.hl = (regs.hl + 1) & 0xffff;
-  m.step(0x0214, 6);
-
-  regs.a = regs.c;
-  m.step(0x0215, 4);
-  regs.rrca();
-  m.step(0x0216, 4);
-  regs.rrca();
-  m.step(0x0217, 4);
-  regs.and(0x03);
-  m.step(0x0219, 7);
-  const zero = regs.fZ; // captured BEFORE the flag-neutral loads below
-  regs.b = regs.a;
-  m.step(0x021a, 4);
-  regs.a = 0x07;
-  m.step(0x021c, 7);
-  if (zero) {
-    m.step(0x0226, 10); // jp z taken -- bonus stays 7
-  } else {
-    m.step(0x021f, 10);
-    regs.a = 0x05;
-    m.step(0x0221, 7);
-    do {
-      regs.add(0x05);
-      m.step(0x0223, 7);
-      regs.daa(); // BCD -- exact semantics matter here
-      m.step(0x0224, 4);
-      regs.djnz();
-      m.step(regs.b !== 0 ? 0x0221 : 0x0226, regs.b !== 0 ? 13 : 8);
-    } while (regs.b !== 0);
-  }
-
-  mem.write8(regs.hl, regs.a); // bonus threshold
-  m.step(0x0227, 7);
-  regs.hl = (regs.hl + 1) & 0xffff;
-  m.step(0x0228, 6);
-  regs.a = regs.c;
-  m.step(0x0229, 4);
-  regs.bc = 0x0101;
-  m.step(0x022c, 10);
-  regs.de = 0x0102;
-  m.step(0x022f, 10);
-  regs.and(0x70); // coinage bits
-  m.step(0x0231, 7);
-  for (const nxt of [0x0232, 0x0233, 0x0234, 0x0235]) {
-    regs.rla();
-    m.step(nxt, 4);
-  }
-
-  if (regs.fZ) {
-    m.step(0x0247, 10); // jp z -- defaults already in BC/DE
-  } else {
-    m.step(0x0238, 10);
-    if (regs.fC) {
-      m.step(0x0241, 10);
-      regs.add(0x02);
-      m.step(0x0243, 7);
-      regs.b = regs.a;
-      m.step(0x0244, 4);
-      regs.d = regs.a;
-      m.step(0x0245, 4);
-      regs.add(regs.a); // add a,a
-      m.step(0x0246, 4);
-      regs.e = regs.a;
-      m.step(0x0247, 4);
-    } else {
-      m.step(0x023b, 10);
-      regs.a = regs.inc8(regs.a);
-      m.step(0x023c, 4);
-      regs.c = regs.a;
-      m.step(0x023d, 4);
-      regs.e = regs.d;
-      m.step(0x023e, 4);
-      m.step(0x0247, 10); // jp 0x0247
-    }
-  }
-
-  // loc_0247: store D, E, B, C into 0x6022-0x6025
-  for (const [v, nxt, inc] of [
-    [regs.d, 0x0248, 0x0249], [regs.e, 0x024a, 0x024b],
-    [regs.b, 0x024c, 0x024d], [regs.c, 0x024e, 0x024f],
-  ]) {
-    mem.write8(regs.hl, v);
-    m.step(nxt, 7);
-    regs.hl = (regs.hl + 1) & 0xffff;
-    m.step(inc, 6);
-  }
-
-  regs.a = mem.read8(0x7d80); // DSW0 again
-  m.step(0x0252, 13);
-  regs.rlca(); // bit 7 into carry
-  m.step(0x0253, 4);
-  regs.a = 0x01;
-  m.step(0x0255, 7);
-  if (regs.fC) {
-    m.step(0x0259, 10); // jp c taken -- A stays 1
-  } else {
-    m.step(0x0258, 10);
-    regs.a = regs.dec8(regs.a); // A = 0
-    m.step(0x0259, 4);
-  }
-  mem.write8(regs.hl, regs.a);
-  m.step(0x025a, 7);
-
-  regs.hl = 0x3565;
-  m.step(0x025d, 10);
-  regs.de = 0x6100;
-  m.step(0x0260, 10);
-  regs.bc = 0x00aa;
-  m.step(0x0263, 10);
-  m.ldirAt(0x0263, 0x0265);
 
   m.ret();
 }

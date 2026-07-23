@@ -42,3 +42,18 @@ Assembly-JavaScript is deliberately *not* idiomatic JavaScript — it trades rea
 provable correspondence to the ROM. Rewriting individual routines as ordinary, higher-level JS is a
 separate, later project: an optimized routine may replace its translated counterpart only after it
 passes the same gates that prove equivalence (unit + mutation + pixel). See `games/<id>/optimized/`.
+
+### Convention: export every translated routine
+
+**Every top-level routine in `translated/` is `export`ed — no exceptions, from the first line of
+a new game.** The optimization layer reuses the oracle's own implementation of any callee it
+hasn't rewritten yet, so each routine has exactly one implementation and there is never a copy to
+drift out of sync. You cannot predict which routines a future rewrite will call, so exporting them
+all up front is the only way to avoid discovering a missing export mid-optimization and being
+tempted to paste a verbatim copy into `optimized/` (which reintroduces the drift the whole design
+avoids).
+
+`export function foo` runs identically to `function foo` — it is behaviour-neutral and does not
+touch the disassembly correspondence. This is the one edit allowed to a `translated/` file after
+the fact; everything else about it stays frozen. (Donkey Kong was retrofitted; the next game does
+it from the start.)

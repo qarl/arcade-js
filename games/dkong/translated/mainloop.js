@@ -856,7 +856,7 @@ export function entry_062a(m) {
  * cells and enters the shared tail with A = 0x10, where the non-zero arm
  * enters with A = the high nibble itself.
  */
-function loc_066a(m) {
+export function loc_066a(m) {
   const { regs, mem } = m;
 
   regs.c = regs.a; // the ORIGINAL -- loc_0691 keeps it in B instead
@@ -900,7 +900,7 @@ function loc_066a(m) {
 }
 
 /** loc_0689 -- ROM 0x0689-0x0690, the shared tail of both loc_066a arms. */
-function loc_0689(m) {
+export function loc_0689(m) {
   const { regs, mem } = m;
 
   mem.write8(0x74e6, regs.a); // 0x74E6 BEFORE 0x74C6 -- see loc_066a
@@ -942,7 +942,7 @@ function loc_0689(m) {
  * The second entry passes A = high nibble + 0x0A, i.e. the same routine is
  * invoked once per BCD digit with the second index offset by ten.
  */
-function loc_0691(m) {
+export function loc_0691(m) {
   const { regs, mem } = m;
 
   regs.a = mem.read8(0x638c);
@@ -1001,7 +1001,7 @@ function loc_0691(m) {
  * `jp 0x066a` at 0x06B5 is BACKWARD BUT NOT A LOOP -- 0x066A cannot reach
  * 0x06B5, so this is a join into the shared digit-rendering tail, not a cycle.
  */
-function loc_06a8(m) {
+export function loc_06a8(m) {
   const { regs, mem } = m;
 
   regs.sub(0x01); // sets N=1, H and C -- all read by the daa at 0x06B1
@@ -1116,7 +1116,7 @@ function loc_06a8(m) {
  * eventually runs is the one belonging to entry_051c's own caller. Enters
  * tail_05da, shared with handler_05c6.
  */
-function entry_051c(m) {
+export function entry_051c(m) {
   const { regs, mem } = m;
 
   regs.c = regs.a; // the task payload
@@ -1348,7 +1348,7 @@ export function loc_059b(m) {
  * 0x05CB is executed and then possibly OVERWRITTEN at 0x05D2 -- the fall
  * through IS the selection, not a mistake.
  */
-function handler_05c6(m) {
+export function handler_05c6(m) {
   const { regs } = m;
 
   regs.cp(0x03);
@@ -1394,7 +1394,7 @@ function handler_05c6(m) {
  * the step that LANDS on 0x05DA, because its cost differs by route -- 10 T for
  * handler_05c6's not-taken `jp nz`, 10 T for 0x055C's unconditional `jp`.
  */
-function tail_05da(m) {
+export function tail_05da(m) {
   const { regs } = m;
 
   regs.de = 0x60ba;
@@ -1426,7 +1426,7 @@ function tail_05da(m) {
  * exits and the flags are `and a`'s -- entry_051c's second call site at 0x0550
  * is followed immediately by `ld hl,0x60b8`, so neither is read there.
  */
-function sub_055f(m) {
+export function sub_055f(m) {
   const { regs, mem } = m;
 
   regs.de = 0x60b2;
@@ -1460,7 +1460,7 @@ function sub_055f(m) {
  * 0x057C, AFTER its own `ld ix`. So the two entry points differ only in
  * which IX they establish.
  */
-function draw_056b(m) {
+export function draw_056b(m) {
   const { regs } = m;
   regs.ix = 0x7781;
   m.step(0x056f, 14);
@@ -1503,7 +1503,7 @@ function draw_056b(m) {
  * `enteredAt057C` skips the `ld ix` when reached from draw_056b, which has
  * already chosen a different destination.
  */
-function draw_0578(m, enteredAt057C = false) {
+export function draw_0578(m, enteredAt057C = false) {
   const { regs } = m;
 
   if (!enteredAt057C) {
@@ -1553,7 +1553,7 @@ function draw_0578(m, enteredAt057C = false) {
  * sub_0616 that means the tail jump's caller, which is the whole point of a
  * tail jump.
  */
-function loop_0583(m) {
+export function loop_0583(m) {
   const { regs, mem } = m;
 
   do {
@@ -1593,7 +1593,7 @@ function loop_0583(m) {
  * Masks to one BCD digit, stores it, and advances IX by DE -- so the caller
  * controls the step direction and the digit routine stays position-agnostic.
  */
-function sub_0593(m) {
+export function sub_0593(m) {
   const { regs, mem } = m;
   regs.and(0x0f);
   m.step(0x0595, 7);
@@ -2096,7 +2096,7 @@ export function sub_03a2(m) {
  * The caller supplies HL = 0x6A29 and B pre-loaded. Called from both arms of
  * sub_03a2.
  */
-function sub_03f2(m) {
+export function sub_03f2(m) {
   const { regs, mem } = m;
 
   mem.write8(regs.hl, regs.b);

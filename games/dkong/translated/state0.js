@@ -194,7 +194,7 @@ export function entry_03fb(m) {
 }
 
 /** loc_0413 -- frame flags: gate on (0x6391)/(0x601A), then fall into loc_0426. */
-function loc_0413(m) {
+export function loc_0413(m) {
   const { regs, mem } = m;
   regs.a = mem.read8(0x6391);
   m.step(0x0416, 13); // ld a,(0x6391)
@@ -216,7 +216,7 @@ function loc_0413(m) {
 }
 
 /** loc_0426 -- the frame counter (0x6390); 0x80 -> reset (loc_0464); 32-frame boundary -> table copy. */
-function loc_0426(m) {
+export function loc_0426(m) {
   const { regs, mem } = m;
   regs.hl = 0x6390;
   m.step(0x0429, 10); // ld hl,0x6390
@@ -262,7 +262,7 @@ function loc_0426(m) {
 }
 
 /** loc_0450 -- (0x6227) bit dispatch: bit0==0 -> loc_0478; bit1 -> loc_0486; else rst 0x38 sprite. */
-function loc_0450(m) {
+export function loc_0450(m) {
   const { regs, mem } = m;
   regs.a = mem.read8(0x6227);
   m.step(0x0453, 13); // ld a,(0x6227)
@@ -284,7 +284,7 @@ function loc_0450(m) {
 }
 
 /** loc_0464 -- counter hit 0x80 -> reset (0x6390)/(0x6391); (0x6393)==0 -> table copy; back to loc_0450. */
-function loc_0464(m) {
+export function loc_0464(m) {
   const { regs, mem } = m;
   regs.xor(regs.a);
   m.step(0x0465, 4); // xor a
@@ -308,7 +308,7 @@ function loc_0464(m) {
 }
 
 /** loc_0478 -- (6227) bit0==0 arm (COLD): rst 0x38 sprite offset, then loc_0486. */
-function loc_0478(m) {
+export function loc_0478(m) {
   const { regs, mem } = m;
   regs.hl = 0x6908;
   m.step(0x047b, 10); // ld hl,0x6908
@@ -330,7 +330,7 @@ function loc_0478(m) {
 }
 
 /** loc_0486 -- colour tail (reached 7 ways): C=frame counter; (6227)==4 -> loc_04be blink block. */
-function loc_0486(m) {
+export function loc_0486(m) {
   const { regs, mem } = m;
   regs.a = mem.read8(0x6390);
   m.step(0x0489, 13); // ld a,(0x6390)
@@ -360,7 +360,7 @@ function loc_0486(m) {
 }
 
 /** loc_04a1 -- A = 0x10, then fall into loc_04a3. */
-function loc_04a1(m) {
+export function loc_04a1(m) {
   const { regs } = m;
   regs.a = 0x10;
   m.step(0x04a3, 7); // ld a,0x10 -- falls into 0x04a3
@@ -368,7 +368,7 @@ function loc_04a1(m) {
 }
 
 /** loc_04a3 -- write colour column (sub_0514), then read (0x6905) for the blink flip. */
-function loc_04a3(m) {
+export function loc_04a3(m) {
   const { regs, mem } = m;
   regs.hl = 0x75c4;
   m.step(0x04a6, 10); // ld hl,0x75c4
@@ -379,7 +379,7 @@ function loc_04a3(m) {
 }
 
 /** loc_04ac -- SHARED store of (0x6905) + the 3-way blink exit (jp target from 0x04EE, 0x0506). */
-function loc_04ac(m) {
+export function loc_04ac(m) {
   const { regs, mem } = m;
   mem.write8(0x6905, regs.a);
   m.step(0x04af, 13); // ld (0x6905),a
@@ -405,7 +405,7 @@ function loc_04ac(m) {
 }
 
 /** loc_04be -- (6227)==4 blink block (COLD/latent): two colour writes, then bit6/X routing. */
-function loc_04be(m) {
+export function loc_04be(m) {
   const { regs, mem } = m;
   regs.a = 0x10;
   m.step(0x04c0, 7); // ld a,0x10
@@ -434,7 +434,7 @@ function loc_04be(m) {
 }
 
 /** loc_04e1 -- blink ON: set bit7 of (0x6901) and (0x6905); back to loc_04ac (jp from 0x0511). */
-function loc_04e1(m) {
+export function loc_04e1(m) {
   const { regs, mem } = m;
   regs.a = mem.read8(0x6901);
   m.step(0x04e4, 13); // ld a,(0x6901)
@@ -451,7 +451,7 @@ function loc_04e1(m) {
 }
 
 /** loc_04f1 -- colour write then fall into loc_04f9 (blink OFF). */
-function loc_04f1(m) {
+export function loc_04f1(m) {
   const { regs, mem } = m;
   regs.a = 0xef;
   m.step(0x04f3, 7); // ld a,0xef
@@ -462,7 +462,7 @@ function loc_04f1(m) {
 }
 
 /** loc_04f9 -- blink OFF: clear bit7 of (0x6901) and (0x6905); back to loc_04ac (jp nc from 0x050E). */
-function loc_04f9(m) {
+export function loc_04f9(m) {
   const { regs, mem } = m;
   regs.a = mem.read8(0x6901);
   m.step(0x04fc, 13); // ld a,(0x6901)
@@ -479,7 +479,7 @@ function loc_04f9(m) {
 }
 
 /** loc_0509 -- (6227)==4, bit6 clear arm: route on X (0x6203) to loc_04f9 / loc_04e1. */
-function loc_0509(m) {
+export function loc_0509(m) {
   const { regs, mem } = m;
   regs.a = mem.read8(0x6203);
   m.step(0x050c, 13); // ld a,(0x6203)
@@ -1069,7 +1069,7 @@ export function handler_0779(m) {
  * preserve them -- it hands them over, which is the whole mechanism behind
  * the call-then-fall-through at 0x07AA.
  */
-function sub_07ad(m) {
+export function sub_07ad(m) {
   const { regs, mem } = m;
 
   mem.write8(regs.hl, regs.e);
@@ -1125,7 +1125,7 @@ function sub_07ad(m) {
  * 0x0A2E unconditionally), so it is a shared drawing fragment rather than
  * part of either caller.
  */
-function sub_09ee(m) {
+export function sub_09ee(m) {
   const { regs, mem } = m;
 
   regs.a = 0x02;
@@ -1229,7 +1229,7 @@ export function sub_0a1b(m) {
  * instances of the same handler, each with a different parameter, which is
  * how the attract screen draws several strings from one routine.
  */
-function sub_0965(m) {
+export function sub_0965(m) {
   const { regs } = m;
 
   regs.de = 0x0400;
@@ -3410,7 +3410,7 @@ export function sub_31f6(m) {
  * routines' rets are this block's rets. Same shape as loc_0038/sub_003d in
  * nmi.js. sub_342c falls through into it; sub_3478 will jump to it.
  */
-function loc_3445(m) {
+export function loc_3445(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
 
@@ -3782,7 +3782,7 @@ export function sub_30fa(m) {
  * Not yet wired into the live dispatcher: reached only through entry_30fa's rst 0x28
  * table, which is untranslated. 0x601a is not interpreted.
  */
-function guard_3110(m) {
+export function guard_3110(m) {
   const { regs, mem } = m;
   regs.a = mem.read8(0x601a);
   m.step(0x3113, 13); // ld a,(0x601a)
@@ -3803,7 +3803,7 @@ function guard_3110(m) {
   return false;
 }
 
-function guard_311b(m) {
+export function guard_311b(m) {
   const { regs, mem } = m;
   regs.a = mem.read8(0x601a);
   m.step(0x311e, 13); // ld a,(0x601a)
@@ -3824,7 +3824,7 @@ function guard_311b(m) {
   return false;
 }
 
-function guard_3126(m) {
+export function guard_3126(m) {
   const { regs, mem } = m;
   regs.a = mem.read8(0x601a);
   m.step(0x3129, 13); // ld a,(0x601a)
@@ -3845,7 +3845,7 @@ function guard_3126(m) {
   return false;
 }
 
-function guard_3131(m) {
+export function guard_3131(m) {
   const { regs, mem } = m;
   regs.a = mem.read8(0x601a);
   m.step(0x3134, 13); // ld a,(0x601a)
@@ -3866,7 +3866,7 @@ function guard_3131(m) {
   return false;
 }
 
-export { guard_3110, guard_311b, guard_3126, guard_3131 };
+// (guard_3110/311b/3126/3131 are exported directly at their declarations above)
 
 /**
  * entry_3ec3 -- ROM 0x3EC3-0x3EFE  (60 bytes, 25 instructions)
@@ -5774,7 +5774,7 @@ export function sub_3fc0(m) {
  * Ends with an `ldir` of 0xAA bytes from ROM 0x3565 to 0x6100 -- a 170-byte
  * table copied into work RAM, so that ROM span is data.
  */
-function sub_0207(m) {
+export function sub_0207(m) {
   const { regs, mem } = m;
 
   regs.a = mem.read8(0x7d80); // DSW0
@@ -6424,7 +6424,7 @@ export function loc_0f35(m) {
  * 0x101B-0x101E shows as UNREACHED in the coverage map. It is data, not
  * unexercised code, and the same shape as the 9 bytes before handler_01c3.
  */
-function loc_0fd7(m) {
+export function loc_0fd7(m) {
   const { regs } = m;
 
   regs.hl = 0x3ddc;
@@ -7229,7 +7229,7 @@ export function loc_12ac(m) {
 /**
  * loc_12cb -- 12AC's interior tail (0x12CB-0x12DD): advance the 0x639D state.
  */
-function tail12cb(m) {
+export function tail12cb(m) {
   const { regs, mem } = m;
 
   regs.hl = 0x694d;
@@ -7693,7 +7693,7 @@ export function loc_141e(m) {
 }
 
 /** loc_144f -- 141E interior: record 3 found -> player index 1, then loc_1459. */
-function loc_144f(m) {
+export function loc_144f(m) {
   const { regs, mem } = m;
   regs.a = 0x01;
   m.step(0x1451, 7); // ld a,0x01
@@ -7707,7 +7707,7 @@ function loc_144f(m) {
 }
 
 /** loc_1459 -- 141E interior: 0x7D82 hardware write, then 12 sub_309f enqueues. */
-function loc_1459(m) {
+export function loc_1459(m) {
   const { regs, mem } = m;
   regs.hl = 0x6026;
   m.step(0x145c, 10); // ld hl,0x6026
@@ -7739,7 +7739,7 @@ function loc_1459(m) {
 }
 
 /** loc_1475 -- 141E interior: neither found -> flip 0x7D82, clear 0x600A. */
-function loc_1475(m) {
+export function loc_1475(m) {
   const { regs, mem } = m;
   regs.a = 0x01;
   m.step(0x1477, 7); // ld a,0x01
@@ -8458,7 +8458,7 @@ export function entry_1a07(m) {
 }
 
 /** loc_1a15 -- idx1 INIT: clear (0x6387), advance state (0x6386) to 2; falls into 0x1A1E ret. */
-function loc_1a15(m) {
+export function loc_1a15(m) {
   const { regs, mem } = m;
   regs.xor(regs.a);
   m.step(0x1a16, 4); // xor a
@@ -8472,7 +8472,7 @@ function loc_1a15(m) {
 }
 
 /** loc_1a1f -- idx2 DELAY: countdown (0x6387); at 0 advance state to 3. */
-function loc_1a1f(m) {
+export function loc_1a1f(m) {
   const { regs, mem } = m;
   regs.hl = 0x6387;
   m.step(0x1a22, 10); // ld hl,0x6387
@@ -8488,7 +8488,7 @@ function loc_1a1f(m) {
 }
 
 /** loc_1a2a -- idx3 WAIT+EXIT: when (0x6216)==0, caller-skip loc_197a to its 0x19D2 tail. */
-function loc_1a2a(m) {
+export function loc_1a2a(m) {
   const { regs, mem } = m;
   regs.a = mem.read8(0x6216);
   m.step(0x1a2d, 13); // ld a,(0x6216)
@@ -8647,7 +8647,7 @@ export function sub_1a33(m) {
   m.ret(10);
 }
 /** arm_1a4b -- sub_1a33 edge-hit: set (0x6291)=1 (arm the pickup). */
-function arm_1a4b(m) {
+export function arm_1a4b(m) {
   const { regs, mem } = m;
   regs.a = 0x01;
   m.step(0x1a4d, 7);
@@ -8728,7 +8728,7 @@ export function entry_1ac3(m) {
 }
 
 /** loc_1ae6 -- WALK/CLIMB direction pick, gated by 241f's (D,E). */
-function loc_1ae6(m, R) {
+export function loc_1ae6(m, R) {
   const { regs, mem } = m;
   m.push16(0x1ae9);
   m.step(0x241f, 17); // call 0x241f
@@ -8749,7 +8749,7 @@ function loc_1ae6(m, R) {
 }
 
 /** loc_1af5 -- second direction (D), then fall to loc_1afe (climb collision). */
-function loc_1af5(m, R) {
+export function loc_1af5(m, R) {
   const { regs } = m;
   regs.d = regs.dec8(regs.d);
   m.step(0x1af6, 4); // dec d
@@ -8767,7 +8767,7 @@ function loc_1af5(m, R) {
 /**
  * loc_1afe -- climb collision. ** CONTAINS THE 236e HIDDEN EXIT + push/pop af. **
  */
-function loc_1afe(m, R) {
+export function loc_1afe(m, R) {
   const { regs, mem } = m;
   regs.a = mem.read8(0x6217);
   m.step(0x1b01, 13); // ld a,(0x6217)
@@ -8849,7 +8849,7 @@ function loc_1afe(m, R) {
 }
 
 /** loc_1b38 (0x1B38-0x1B4D): input bit3 -> jump-phase; bit2 -> 0x1d03; else ret. */
-function loc_1b38(m) {
+export function loc_1b38(m) {
   const { regs, mem } = m;
   regs.a = mem.read8(0x6010);
   m.step(0x1b3b, 13); // ld a,(0x6010)
@@ -8867,7 +8867,7 @@ function loc_1b38(m) {
 }
 
 /** loc_1b45 (0x1B45-0x1B4D): input bit2 -> 0x1d03 (external); else ret. */
-function loc_1b45(m) {
+export function loc_1b45(m) {
   const { regs, mem } = m;
   regs.a = mem.read8(0x6010);
   m.step(0x1b48, 13); // ld a,(0x6010)
@@ -8880,7 +8880,7 @@ function loc_1b45(m) {
 
 /** entry_1b4e (0x1B4E-0x1B54): store B,D at (HL+1),(HL+3) then jp into loc_1b45.
  *  Reached from loc_1afe's 0x1B2E jp z; HL is 0x621A there. */
-function entry_1b4e(m) {
+export function entry_1b4e(m) {
   const { regs, mem } = m;
   regs.l = regs.inc8(regs.l);
   m.step(0x1b4f, 4); // inc l
@@ -8895,7 +8895,7 @@ function entry_1b4e(m) {
 }
 
 /** loc_1b55 (0x1B55-0x1B6D): the 0x621E lock countdown. */
-function loc_1b55(m) {
+export function loc_1b55(m) {
   const { regs, mem } = m;
   regs.hl = 0x621e;
   m.step(0x1b58, 10); // ld hl,0x621e
@@ -8924,7 +8924,7 @@ function loc_1b55(m) {
 }
 
 /** loc_1b6e (0x1B6E-0x1BB1): JUMP INIT. */
-function loc_1b6e(m) {
+export function loc_1b6e(m) {
   const { regs, mem } = m;
   regs.a = 0x01;
   m.step(0x1b70, 7); // ld a,0x01
@@ -8952,7 +8952,7 @@ function loc_1b6e(m) {
 }
 
 /** loc_1b8a (0x1B8A-0x1BB1): write the jump record, set sprite, snapshot Y, sound. */
-function loc_1b8a(m) {
+export function loc_1b8a(m) {
   const { regs, mem } = m;
   regs.xor(regs.a); // A = 0
   m.step(0x1b8b, 4); // xor a
@@ -8998,7 +8998,7 @@ function loc_1b8a(m) {
 }
 
 /** loc_1bb2 (0x1BB2-0x1BF1): AIRBORNE (0x6216==1). Sets IX=0x6200 (its OWN regime). */
-function loc_1bb2(m) {
+export function loc_1bb2(m) {
   const { regs, mem } = m;
   regs.ix = 0x6200; // this path's IX (do NOT share R with the spine)
   m.step(0x1bb6, 14); // ld ix,0x6200
@@ -9031,7 +9031,7 @@ function loc_1bb2(m) {
 }
 
 /** entry_1bf2 (0x1BF2-0x1C04): D-nonzero branch of loc_1bb2. */
-function entry_1bf2(m, X) {
+export function entry_1bf2(m, X) {
   const { regs, mem } = m;
   regs.e = regs.dec8(regs.e);
   m.step(0x1bf3, 4); // dec e
@@ -9048,7 +9048,7 @@ function entry_1bf2(m, X) {
 }
 
 /** loc_1bd8 (0x1BD8-0x1BF1): landing target via 2407, gravity via 239c. */
-function loc_1bd8(m, X) {
+export function loc_1bd8(m, X) {
   const { regs, mem } = m;
   regs.a = mem.read8(0x6220);
   m.step(0x1bdb, 13); // ld a,(0x6220)
@@ -9069,7 +9069,7 @@ function loc_1bd8(m, X) {
 }
 
 /** loc_1bec (0x1BEC-0x1BF1): gravity via 239c, then jp into the 1c05 dispatch. */
-function loc_1bec(m, X) {
+export function loc_1bec(m, X) {
   m.push16(0x1bef);
   m.step(0x239c, 17); // call 0x239c
   sub_239c(m);
@@ -9078,7 +9078,7 @@ function loc_1bec(m, X) {
 }
 
 /** entry_1c05 (0x1C05-0x1C32): 2b1c dispatch + the LIVE 0x1C23 block. */
-function entry_1c05(m, X) {
+export function entry_1c05(m, X) {
   const { regs, mem } = m;
   m.push16(0x1c08);
   m.step(0x2b1c, 17); // call 0x2b1c
@@ -9124,7 +9124,7 @@ function entry_1c05(m, X) {
 }
 
 /** loc_1c33 (0x1C33-0x1C39): inc a; if wrapped to 0 call 2954; tail-jump 0x1da6. */
-function loc_1c33(m) {
+export function loc_1c33(m) {
   const { regs } = m;
   regs.a = regs.inc8(regs.a);
   m.step(0x1c34, 4); // inc a
@@ -9141,7 +9141,7 @@ function loc_1c33(m) {
 
 /** loc_1c3a (0x1C3A-0x1C4E): B==1 -> entry_1c4f; else advance 0x621f, clear the
  *  5-byte jump record (djnz), tail-jump 0x1da6. */
-function loc_1c3a(m) {
+export function loc_1c3a(m) {
   const { regs, mem } = m;
   regs.b = regs.dec8(regs.b);
   m.step(0x1c3b, 4); // dec b
@@ -9171,7 +9171,7 @@ function loc_1c3a(m) {
 }
 
 /** entry_1c4f (0x1C4F-0x1C75): reset to state 0, arm the 0x621E lock, sound frontier. */
-function entry_1c4f(m) {
+export function entry_1c4f(m) {
   const { regs, mem } = m;
   mem.write8(0x6216, regs.a); // A = 0 (from the dec b path)
   m.step(0x1c52, 13); // ld (0x6216),a
@@ -9238,7 +9238,7 @@ export function sub_1d95(m) {
 }
 
 /** entry_1c76 (0x1C76-0x1C8E): landed-check; set 0x6220, sound; tail-jump 0x1da6. */
-function entry_1c76(m) {
+export function entry_1c76(m) {
   const { regs, mem } = m;
   regs.a = mem.read8(0x6205);
   m.step(0x1c79, 13); // ld a,(0x6205)
@@ -9264,7 +9264,7 @@ function entry_1c76(m) {
 
 /** loc_1c8f (0x1C8F-0x1CAA): MOVE +dir. Twin of loc_1cab: B=+1, 3009 arg=0x05,
  *  extra `or 0x80`. Shares loc_1cc2. */
-function loc_1c8f(m) {
+export function loc_1c8f(m) {
   const { regs, mem } = m;
   regs.b = 0x01; // +1 delta
   m.step(0x1c91, 7); // ld b,0x01
@@ -9295,7 +9295,7 @@ function loc_1c8f(m) {
 
 /** loc_1cab (0x1CAB-0x1CC1): MOVE -dir. Twin of loc_1c8f: B=0xFF, 3009 arg=0x01,
  *  NO `or 0x80`. Shares loc_1cc2. */
-function loc_1cab(m) {
+export function loc_1cab(m) {
   const { regs, mem } = m;
   regs.b = 0xff; // -1 delta
   m.step(0x1cad, 7); // ld b,0xff
@@ -9322,7 +9322,7 @@ function loc_1cab(m) {
 }
 
 /** loc_1cc2 (0x1CC2-0x1CD1): shared move tail. Store facing, bit0 -> sound 1d8f. */
-function loc_1cc2(m) {
+export function loc_1cc2(m) {
   const { regs, mem } = m;
   regs.hl = 0x6207;
   m.step(0x1cc5, 10); // ld hl,0x6207
@@ -9346,7 +9346,7 @@ function loc_1cc2(m) {
 }
 
 /** loc_1cd2 (0x1CD2-0x1CF1): apply movement (0x6203 += B, signed); 0x6227 clamp. */
-function loc_1cd2(m) {
+export function loc_1cd2(m) {
   const { regs, mem } = m;
   regs.hl = 0x6203; // player X
   m.step(0x1cd5, 10); // ld hl,0x6203
@@ -9379,7 +9379,7 @@ function loc_1cd2(m) {
 }
 
 /** loc_1ceb (0x1CEB-0x1CF1): dec (0x620f) jump-phase, tail-jump 0x1da6. */
-function loc_1ceb(m) {
+export function loc_1ceb(m) {
   const { regs, mem } = m;
   regs.hl = 0x620f;
   m.step(0x1cee, 10); // ld hl,0x620f
@@ -9390,7 +9390,7 @@ function loc_1ceb(m) {
 }
 
 /** loc_1cf2 (0x1CF2-0x1D02): jump-phase handler. nonzero -> 0x1d8a; else jp 0x1d11. */
-function loc_1cf2(m) {
+export function loc_1cf2(m) {
   const { regs, mem } = m;
   regs.a = mem.read8(0x620f);
   m.step(0x1cf5, 13); // ld a,(0x620f)
@@ -9454,7 +9454,7 @@ export function sub_1f72(m) {
 
 /** loc_1f83 (0x1F83): per-slot state check. active (==1) -> loc_1f93; else skip
  *  the slot's 4 buffer bytes and advance. */
-function loc_1f83(m) {
+export function loc_1f83(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
   regs.a = mem.read8(R(0x00));
@@ -9474,7 +9474,7 @@ function loc_1f83(m) {
 
 /** loc_1f8d (0x1F8D-0x1F92): 4th inc l + loop advance. SHARED ENTRY from loc_21ba
  *  (0x21CE jp 0x1f8d) -- the SCC continuation. */
-function loc_1f8d(m) {
+export function loc_1f8d(m) {
   const { regs } = m;
   regs.l = regs.inc8(regs.l);
   m.step(0x1f8e, 4); // inc l (4th; 0x1F8D external entry lands here)
@@ -9487,7 +9487,7 @@ function loc_1f8d(m) {
 }
 
 /** loc_1f93: active-slot dispatch on (ix+1)/(ix+2). All targets are exx branches. */
-function loc_1f93(m) {
+export function loc_1f93(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
   regs.a = mem.read8(R(0x01));
@@ -9516,7 +9516,7 @@ function loc_1f93(m) {
 
 /** branch_1fac (0x1FAC-0x1FE4): exx; animate -- advance (ix+5); on (ix+17)==(ix+5)
  *  recompute sprite; else step (ix+0f). Both jp 0x21ba. */
-function branch_1fac(m) {
+export function branch_1fac(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
   regs.exx(); // swap to shadow BC/DE/HL (IX untouched)
@@ -9551,7 +9551,7 @@ function branch_1fac(m) {
 
 /** loc_1fce (0x1FCE-0x1FE4): the (ix+17)!=(ix+5) tail. ALSO the SHARED ENTRY tail-
  *  reached from 0x210B. Steps (ix+0f); on expiry toggles (ix+7), reloads =4. */
-function loc_1fce(m) {
+export function loc_1fce(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
   regs.a = mem.read8(R(0x0f));
@@ -9578,7 +9578,7 @@ function loc_1fce(m) {
 }
 
 /** branch_1fe5 (0x1FE5-0x1FEC): exx; +X velocity BC=0x0100, inc (ix+3); jp shared_1ff6. */
-function branch_1fe5(m) {
+export function branch_1fe5(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
   regs.exx();
@@ -9593,7 +9593,7 @@ function branch_1fe5(m) {
 
 /** branch_1fef (0x1FEF-0x1FF5): exx; -X velocity BC=0xff04, dec (ix+3); FALLS INTO
  *  shared_1ff6. Twin of branch_1fe5 (BC sign, inc vs dec). */
-function branch_1fef(m) {
+export function branch_1fef(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
   regs.exx();
@@ -9607,7 +9607,7 @@ function branch_1fef(m) {
 
 /** shared_1ff6 (0x1FF6-0x2052): tail of branch_1fe5/1fef. On (H&7)==3 -> loc_215f;
  *  else clamp via 0x2333, write (ix+5), run 23de/24b4, and set the velocity record. */
-function shared_1ff6(m) {
+export function shared_1ff6(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
   regs.h = mem.read8(R(0x03));
@@ -9668,7 +9668,7 @@ function shared_1ff6(m) {
 }
 
 /** shared_202f (0x202F-0x2037): the low-X (jp c) velocity variant. */
-function shared_202f(m) {
+export function shared_202f(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
   regs.xor(regs.a); // A = 0
@@ -9681,7 +9681,7 @@ function shared_202f(m) {
 }
 
 /** shared_2038 (0x2038-0x2052): the common velocity/sprite record write. A=0. */
-function shared_2038(m) {
+export function shared_2038(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
   mem.write8(R(0x12), 0xff);
@@ -9704,7 +9704,7 @@ function shared_2038(m) {
 
 /** branch_2053 (0x2053-0x20E9): exx; ACTIVE-MOVEMENT. 239c gravity, 2a2f collision,
  *  then an (ix+3) bounds ladder and an (ix+0e) sub-state dispatch. */
-function branch_2053(m) {
+export function branch_2053(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
   regs.exx();
@@ -9750,7 +9750,7 @@ function branch_2053(m) {
 }
 
 /** sub_2079 (0x2079-0x2082): (ix+3)+8 < 0x10 -- deactivate the slot. */
-function sub_2079(m) {
+export function sub_2079(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
   regs.xor(regs.a);
@@ -9764,7 +9764,7 @@ function sub_2079(m) {
 }
 
 /** sub_2083 (0x2083-0x20E9): the 2a2f-nonzero sub-state machine on (ix+0e). */
-function sub_2083(m) {
+export function sub_2083(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
   mem.write8(R(0x0e), regs.inc8(mem.read8(R(0x0e))));
@@ -9799,7 +9799,7 @@ function sub_2083(m) {
 }
 
 /** sub_20a2 (0x20A2-0x20C2): state-1 -- proximity check (ix+15)/(0x6205). */
-function sub_20a2(m) {
+export function sub_20a2(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
   regs.a = mem.read8(R(0x15));
@@ -9822,7 +9822,7 @@ function sub_20a2(m) {
 }
 
 /** sub_20b5 (0x20B5-0x20C2): sets the horizontal velocity sign into (ix+10/11). */
-function sub_20b5(m) {
+export function sub_20b5(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
   regs.a = mem.read8(R(0x10));
@@ -9840,7 +9840,7 @@ function sub_20b5(m) {
 
 /** sub_20c3 (0x20C3-0x20E0): 2407 (fixed-point), HL >>= 2 (srl h/rr l x2), store
  *  landing (ix+12/13), clear (ix+14/04/06). jp 0x21ba. */
-function sub_20c3(m) {
+export function sub_20c3(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
   m.push16(0x20c6);
@@ -9871,7 +9871,7 @@ function sub_20c3(m) {
 }
 
 /** sub_20e1 (0x20E1-0x20EB): the (ix+10)!=0 velocity variant, then jp 0x20c3. */
-function sub_20e1(m) {
+export function sub_20e1(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
   mem.write8(R(0x10), 0x01);
@@ -9884,7 +9884,7 @@ function sub_20e1(m) {
 
 /** branch_20ec (0x20EC-0x2100): exx; 239c gravity; a proximity gate -> loc_2104;
  *  a 2a2f collision -> entry_2118; else fall into loc_2101. */
-function branch_20ec(m) {
+export function branch_20ec(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
   regs.exx();
@@ -9914,7 +9914,7 @@ function branch_20ec(m) {
 
 /** loc_2101 (0x2101-0x2103): the 20ec branch tail (was `defb`-hidden). call 24b4,
  *  fall into loc_2104. */
-function loc_2101(m) {
+export function loc_2101(m) {
   m.push16(0x2104);
   m.step(0x24b4, 17); // call 0x24b4
   if (!entry_24b4(m)) return; // skip-capable: spliced to 21ba/loop -> do NOT continue inline
@@ -9923,7 +9923,7 @@ function loc_2101(m) {
 
 /** loc_2104 (0x2104-0x2117): reached from loc_2101 AND from 0x20F7 (jp c). BOTH
  *  INTERNAL. bounds-check (ix+3)+8: >= 0x10 -> loc_1fce (0x210B); else deactivate. */
-function loc_2104(m) {
+export function loc_2104(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
   regs.a = mem.read8(R(0x03));
@@ -10044,7 +10044,7 @@ export function entry_2118(m) {
 }
 
 /** loc_2146 (0x2146-0x2152): the (ix+5) < 0xE0 path -- 2407 + 22cb, snapshot (ix+5). */
-function loc_2146(m) {
+export function loc_2146(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
   m.push16(0x2149);
@@ -10063,7 +10063,7 @@ function loc_2146(m) {
 }
 
 /** loc_2153 (0x2153-0x215C): clear (ix+14/04/06), tail. A = 0 on entry. */
-function loc_2153(m) {
+export function loc_2153(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
   mem.write8(R(0x14), regs.a);
@@ -10223,7 +10223,7 @@ export function loc_197a(m) {
 }
 
 /** tail_19d2 -- shared tail (also `jp 0x19d2` from 0x1A30). Re-arms the rst-18 counter. */
-function tail_19d2(m) {
+export function tail_19d2(m) {
   const { regs, mem } = m;
   regs.hl = 0x600a;
   m.step(0x19d5, 10); // ld hl,0x600a
@@ -10639,7 +10639,7 @@ export function entry_1d03(m) {
  * loc_1d11 -- shared animation body (ROM 0x1D11).  A = delta (LIVE-IN): -2 from
  * entry_1d03, +2 from the twin loc_1cf2. (0x6205) += delta; toggle phase 0x6222.
  */
-function loc_1d11(m) {
+export function loc_1d11(m) {
   const { regs, mem } = m;
   regs.hl = 0x6205;
   m.step(0x1d14, 10); // ld hl,0x6205
@@ -10691,7 +10691,7 @@ function loc_1d11(m) {
 }
 
 /** loc_1d3f -- write sprite-control (0x6207): flip direction bit (xor 0x80), OR in frame B. */
-function loc_1d3f(m) {
+export function loc_1d3f(m) {
   const { regs, mem } = m;
   regs.a = 0x80;
   m.step(0x1d41, 7); // ld a,0x80
@@ -10709,7 +10709,7 @@ function loc_1d3f(m) {
 }
 
 /** loc_1d49 -- mark the sprite dirty (0x6215:=1), tail-jump entry_1da6. */
-function loc_1d49(m) {
+export function loc_1d49(m) {
   const { regs, mem } = m;
   regs.a = 0x01;
   m.step(0x1d4b, 7); // ld a,0x01
@@ -10720,7 +10720,7 @@ function loc_1d49(m) {
 }
 
 /** loc_1d51 -- phase-1 arm: adjust (0x6203), toggle 0x6224, conditionally trigger sound. */
-function loc_1d51(m) {
+export function loc_1d51(m) {
   const { regs, mem } = m;
   regs.l = (regs.l - 1) & 0xff;
   m.step(0x1d52, 4); // dec l (hl 0x6205 -> 0x6204)
@@ -10752,7 +10752,7 @@ function loc_1d51(m) {
 }
 
 /** loc_1d67 -- limit-reached: sprite-control := 6, clear 0x6219/0x6215, tail-jump entry_1da6. */
-function loc_1d67(m) {
+export function loc_1d67(m) {
   const { regs, mem } = m;
   regs.a = 0x06;
   m.step(0x1d69, 7); // ld a,0x06
@@ -10769,7 +10769,7 @@ function loc_1d67(m) {
 }
 
 /** loc_1d76 -- timer-running branch: 0x621A gates; falls into the shared tail entry_1d8a. */
-function loc_1d76(m) {
+export function loc_1d76(m) {
   const { regs, mem } = m;
   regs.a = mem.read8(0x621a);
   m.step(0x1d79, 13); // ld a,(0x621a)
@@ -10984,7 +10984,7 @@ export function loc_1e4a(m) {
  * clear low bit picks (DE,B) = bit0=0->(1,0x7B), bit1=0->(3,0x7D), else (5,0x7F);
  * tail-jumps to loc_1e28.
  */
-function loc_3e70(m) {
+export function loc_3e70(m) {
   const { regs } = m;
   regs.de = 0x0001;
   m.step(0x3e73, 10); // ld de,0x0001
@@ -11016,7 +11016,7 @@ function loc_3e70(m) {
  * (shared; modelled as a plain ret here, NOT a call to loc_1e49). DE,B live-in from
  * loc_3e70.
  */
-function loc_1e28(m) {
+export function loc_1e28(m) {
   const { regs, mem } = m;
   m.push16(0x1e2b);
   m.step(0x309f, 17); // call 0x309f -- queue task
@@ -11164,7 +11164,7 @@ export function sub_1e57(m) {
 }
 
 /** loc_1e6d -- 1E57 interior: set 0x694D mirror flag by carry, then unwind. */
-function loc_1e6d(m) {
+export function loc_1e6d(m) {
   const { regs, mem } = m;
   regs.a = 0x00;
   m.step(0x1e6f, 7); // ld a,0x00
@@ -11182,7 +11182,7 @@ function loc_1e6d(m) {
 }
 
 /** loc_1e7a -- 1E57 interior: cp 0x31 -> normal ret, or into loc_1e6d. */
-function loc_1e7a(m) {
+export function loc_1e7a(m) {
   const { regs } = m;
   regs.cp(0x31);
   m.step(0x1e7c, 7); // cp 0x31
@@ -11196,7 +11196,7 @@ function loc_1e7a(m) {
 }
 
 /** loc_1e80 -- 1E57 interior: 0x6290 test -> normal ret, or unwind. */
-function loc_1e80(m) {
+export function loc_1e80(m) {
   const { regs, mem } = m;
   regs.a = mem.read8(0x6290);
   m.step(0x1e83, 13); // ld a,(0x6290)
@@ -11211,7 +11211,7 @@ function loc_1e80(m) {
 }
 
 /** loc_1e85 -- 1E57 interior: 0x600A=0x16, then UNWIND (pop own return, ret to caller's caller). */
-function loc_1e85(m) {
+export function loc_1e85(m) {
   const { regs, mem } = m;
   regs.a = 0x16;
   m.step(0x1e87, 7); // ld a,0x16
@@ -12083,7 +12083,7 @@ export function sub_2a85(m) {
  *   2ac0 fe b0 cp 0xb0   2ac2 da cd 2a jp c,0x2acd   2ac5 e6 0f and 0x0f
  *   2ac7 fe 08 cp 0x08   2ac9 d2 cd 2a jp nc,0x2acd   2acc c9 ret
  */
-function loc_2ab4(m) {
+export function loc_2ab4(m) {
   const { regs, mem } = m;
   regs.a = regs.d;
   m.step(0x2ab5, 4); // ld a,d
@@ -12111,7 +12111,7 @@ function loc_2ab4(m) {
 }
 
 /** entry_2acd -- ROM 0x2ACD-0x2AD2  set slope-contact flag 0x6221 = 1, ret. */
-function entry_2acd(m) {
+export function entry_2acd(m) {
   const { regs, mem } = m;
   regs.a = 0x01;
   m.step(0x2acf, 7); // ld a,0x01
@@ -12418,7 +12418,7 @@ export function entry_2b29(m) {
 }
 
 /** loc_2b51 -- pop hl / ret: SKIP past entry_2b1c (discard 2b29's return, ret to 2b1c's caller). */
-function skip_2b51(m) {
+export function skip_2b51(m) {
   const { regs } = m;
   regs.hl = m.pop16();
   m.step(0x2b52, 10); // pop hl -- discard 2b29's return
@@ -12427,7 +12427,7 @@ function skip_2b51(m) {
 }
 
 /** loc_2b74 -- A=0, B=0, then pop hl / ret: SKIP. */
-function skip_2b74(m) {
+export function skip_2b74(m) {
   const { regs } = m;
   regs.a = 0x00;
   m.step(0x2b76, 7); // ld a,0x00
@@ -12440,7 +12440,7 @@ function skip_2b74(m) {
 }
 
 /** loc_2b53 -- (0x6227)!=1 arm: probe (X-3, Y+7), classify, maybe a second probe (D+7, E). */
-function loc_2b53(m) {
+export function loc_2b53(m) {
   const { regs, mem } = m;
   regs.a = mem.read8(0x6203);
   m.step(0x2b56, 13); // ld a,(0x6203)
@@ -12479,7 +12479,7 @@ function loc_2b53(m) {
 }
 
 /** loc_2b7a -- shared tail: adjust X by (0x6210) parity, store to (0x6203)/(0x694c); pop hl/ret SKIP. */
-function loc_2b7a(m) {
+export function loc_2b7a(m) {
   const { regs, mem } = m;
   regs.a = mem.read8(0x6210);
   m.step(0x2b7d, 13); // ld a,(0x6210)
@@ -12498,7 +12498,7 @@ function loc_2b7a(m) {
 }
 
 /** loc_2b8b -- (0x6210)==0 variant of the X adjust. */
-function loc_2b8b(m) {
+export function loc_2b8b(m) {
   const { regs } = m;
   regs.sub(0x08);
   m.step(0x2b8d, 7); // sub 0x08
@@ -12510,7 +12510,7 @@ function loc_2b8b(m) {
 }
 
 /** loc_2b91 -- store the adjusted X to (0x6203) and (0x694c), A=1, then pop hl/ret SKIP. */
-function loc_2b91(m) {
+export function loc_2b91(m) {
   const { regs, mem } = m;
   mem.write8(0x6203, regs.a);
   m.step(0x2b94, 13); // ld (0x6203),a
@@ -12737,7 +12737,7 @@ export function entry_2be1(m) {
 }
 
 /** loc_2bd9 -- entry_2b9b's REJECT tail: A=0, B=0, plain ret. */
-function reject2b9b(m) {
+export function reject2b9b(m) {
   const { regs } = m;
   regs.xor(regs.a);
   m.step(0x2bda, 4); // xor a
@@ -12991,7 +12991,7 @@ export function sub_236e(m) {
  * (see sub_236e's header). Module-local because both hit paths converge on it,
  * mirroring the ROM's shared 0x2398 tail.
  */
-function tail2398(m) {
+export function tail2398(m) {
   const { regs, mem } = m;
   regs.bc = m.pop16(); // restores the caller's BC...
   m.step(0x2399, 10); // pop bc
@@ -13118,7 +13118,7 @@ export function sub_23de(m) {
 }
 
 /** tail_23de -- 0x2403-0x2406: write A to (ix+0x0F), ret. */
-function tail_23de(m, R) {
+export function tail_23de(m, R) {
   const { regs, mem } = m;
   mem.write8(R(0x0f), regs.a);
   m.step(0x2406, 19); // ld (ix+0x0f),a
@@ -13709,7 +13709,7 @@ export function sub_22cb(m) {
 }
 
 /** loc_22e1 -- mode 0: pick A from (0x6229): 1 -> 0x01, 2 -> 0xB1, else 0xE9; jp loc_22f9. */
-function loc_22e1(m) {
+export function loc_22e1(m) {
   const { regs, mem } = m;
   regs.a = mem.read8(0x6229);
   m.step(0x22e4, 13); // ld a,(0x6229)
@@ -13734,7 +13734,7 @@ function loc_22e1(m) {
 }
 
 /** loc_22f6 -- the RNG velocity (difficulty 1/2): A = (0x6018); falls into loc_22f9. */
-function loc_22f6(m) {
+export function loc_22f6(m) {
   const { regs, mem } = m;
   regs.a = mem.read8(0x6018); // RNG
   m.step(0x22f9, 13); // ld a,(0x6018)
@@ -13742,7 +13742,7 @@ function loc_22f6(m) {
 }
 
 /** loc_22f9 -- store the velocity pair: (ix+0x11)=A; (ix+0x10)=(A&1)-1 (0x00 odd/0xFF even). */
-function loc_22f9(m) {
+export function loc_22f9(m) {
   const { regs, mem } = m;
   mem.write8((regs.ix + 0x11) & 0xffff, regs.a); // ld (ix+0x11),a -- magnitude/value
   m.step(0x22fc, 19);
@@ -13910,7 +13910,7 @@ export function sub_216d(m) {
 }
 
 /** tail21ae -- 216D interior: RNG & 0x18 gate -> ret nz, else tail21b2. */
-function tail21ae(m, R) {
+export function tail21ae(m, R) {
   const { regs } = m;
   regs.a = regs.c; // the full RNG byte saved at 0x218F
   m.step(0x21af, 4); // ld a,c
@@ -13925,7 +13925,7 @@ function tail21ae(m, R) {
 }
 
 /** tail21b2 -- 216D success tail: inc (ix+0x07), set 0,(ix+0x02). */
-function tail21b2(m, R) {
+export function tail21b2(m, R) {
   const { regs, mem } = m;
   regs.incMem8(mem, R(0x07)); // inc (ix+0x07)
   m.step(0x21b5, 23);
@@ -14460,7 +14460,7 @@ export function loc_2d15(m) {
 }
 
 /** loc_2d51 -- load the string pointer (0x62A8), fall into loc_2d54. */
-function loc_2d51(m) {
+export function loc_2d51(m) {
   const { regs, mem } = m;
   regs.hl = mem.read16(0x62a8);
   m.step(0x2d54, 16); // ld hl,(0x62a8)
@@ -14468,7 +14468,7 @@ function loc_2d51(m) {
 }
 
 /** loc_2d54 -- char loop body: write a 4-byte record via DE=(0x62AC), IX=(0x62AA); 0x7F -> loc_2d8c. */
-function loc_2d54(m) {
+export function loc_2d54(m) {
   const { regs, mem } = m;
   regs.a = mem.read8(regs.hl);
   m.step(0x2d55, 7); // ld a,(hl)
@@ -14526,7 +14526,7 @@ function loc_2d54(m) {
 }
 
 /** loc_2d83 -- wrap the string pointer to 0x39CC, re-enter loc_2d54. */
-function loc_2d83(m) {
+export function loc_2d83(m) {
   const { regs, mem } = m;
   regs.hl = 0x39cc;
   m.step(0x2d86, 10); // ld hl,0x39cc
@@ -14537,7 +14537,7 @@ function loc_2d83(m) {
 }
 
 /** loc_2d8c -- 0x7F terminator: reinit the object record (IX+0..+14) + call 0x004E + rst 0x38. */
-function loc_2d8c(m) {
+export function loc_2d8c(m) {
   const { regs, mem } = m;
   regs.hl = 0x39c3;
   m.step(0x2d8f, 10); // ld hl,0x39c3
@@ -14703,7 +14703,7 @@ export function entry_2e04(m) {
 }
 
 /** obj_2e12 -- process one object; every path converges on loc_2e78 (the IX/IY advance). */
-function obj_2e12(m) {
+export function obj_2e12(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
   const RY = (d) => (regs.iy + d) & 0xffff;
@@ -14761,7 +14761,7 @@ function obj_2e12(m) {
 }
 
 /** loc_2e4b -- store the string pointer; at the 0xB7 boundary + terminator, set state 4 + sound. */
-function loc_2e4b(m) {
+export function loc_2e4b(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
   mem.write8(R(0x0e), regs.l);
@@ -14794,7 +14794,7 @@ function loc_2e4b(m) {
 }
 
 /** loc_2e6c -- mirror (ix+3)/(ix+5) to (iy+0)/(iy+3); falls into loc_2e78. */
-function loc_2e6c(m) {
+export function loc_2e6c(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
   const RY = (d) => (regs.iy + d) & 0xffff;
@@ -14810,7 +14810,7 @@ function loc_2e6c(m) {
 }
 
 /** loc_2e78 -- advance IX by 0x10 and IY by 0x04; returns to the djnz in entry_2e04. */
-function loc_2e78(m) {
+export function loc_2e78(m) {
   const { regs } = m;
   regs.de = 0x0010;
   m.step(0x2e7b, 10); // ld de,0x0010
@@ -14823,7 +14823,7 @@ function loc_2e78(m) {
 }
 
 /** loc_2e84 -- state 4: rise (ix+5)+=3; at 0xF8 deactivate the object; -> loc_2e6c. */
-function loc_2e84(m) {
+export function loc_2e84(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
   regs.a = 0x03;
@@ -14845,7 +14845,7 @@ function loc_2e84(m) {
 }
 
 /** loc_2e9c -- 0x7F terminator: reset the string pointer to 0x39AA + sound; -> loc_2e4b. */
-function loc_2e9c(m) {
+export function loc_2e9c(m) {
   const { regs, mem } = m;
   regs.hl = 0x39aa;
   m.step(0x2e9f, 10); // ld hl,0x39aa
@@ -14858,7 +14858,7 @@ function loc_2e9c(m) {
 }
 
 /** loc_2ea7 -- inactive object: spawn on (0x6396) bit0 (via sub_0057), else just advance. */
-function loc_2ea7(m) {
+export function loc_2ea7(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
   regs.a = mem.read8(0x6396);
@@ -15000,7 +15000,7 @@ export function entry_2ed4(m) {
 }
 
 /** loc_2f43 -- advance the 0x6394/0x6395 counter chain; on wrap, flip (0x6217) + neg X into (ix+0e). */
-function loc_2f43(m) {
+export function loc_2f43(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
   regs.a = regs.c;
@@ -15053,7 +15053,7 @@ function loc_2f43(m) {
 }
 
 /** loc_2f7c -- THE RECORD WRITE (convergence): DE->HL, write x/B/C/y, mirror x/y to (ix+3)/(ix+5). */
-function loc_2f7c(m) {
+export function loc_2f7c(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
   regs.exDeHl();
@@ -15088,7 +15088,7 @@ function loc_2f7c(m) {
 }
 
 /** loc_2f97 -- (0x6217) bit0 clear: ret if (0x6218) bit0 clear; else build an alt B/C -> loc_2f7c. */
-function loc_2f97(m) {
+export function loc_2f97(m) {
   const { regs, mem } = m;
   const R = (d) => (regs.ix + d) & 0xffff;
   regs.a = mem.read8(0x6218);
@@ -15122,7 +15122,7 @@ function loc_2f97(m) {
 }
 
 /** loc_2fb7 -- (0x6394) counter did not wrap: (0x6395)==0 -> loc_2f7c, else loc_2fbe. */
-function loc_2fb7(m) {
+export function loc_2fb7(m) {
   const { regs, mem } = m;
   regs.a = mem.read8(0x6395);
   m.step(0x2fba, 13); // ld a,(0x6395)
@@ -15134,7 +15134,7 @@ function loc_2fb7(m) {
 }
 
 /** loc_2fbe -- (0x601A) bit3 gate: clear -> loc_2f7c; set -> C=0x01 -> loc_2f7c. */
-function loc_2fbe(m) {
+export function loc_2fbe(m) {
   const { regs, mem } = m;
   regs.a = mem.read8(0x601a);
   m.step(0x2fc1, 13); // ld a,(0x601a)
@@ -16230,7 +16230,7 @@ export function loc_18c6(m) {
   m.ret();
 }
 /** loc_18c6_wrap -- 0x62AF-wrap: walk 0x622A, reset 0x6388=0, set 0x600A=8 (hand to state 8). ROM 0x193D-0x196A. */
-function loc_18c6_wrap(m) {
+export function loc_18c6_wrap(m) {
   const { regs, mem } = m;
   regs.hl = mem.read16(0x622a); // ld hl,(0x622a) INDIRECT
   m.step(0x1940, 16);
@@ -17300,7 +17300,7 @@ export function sub_2243(m) {
 /** loc_2257 -- pop hl / ret: caller-skip to the grandparent. Returns false so the
  *  caller (loc_2227/loc_2259) PROPAGATES the skip and does NOT run its own tail/ret
  *  (the pop hl + ret here already unwound this frame + the grandparent's return). */
-function skip_2257(m) {
+export function skip_2257(m) {
   const { regs } = m;
   regs.hl = m.pop16();
   m.step(0x2258, 10); // pop hl
@@ -17444,7 +17444,7 @@ export function sub_27da(m) {
   m.step(0x2806, 10); // (0x62A7) = 0x34
   return dec_2806(m);
 }
-function dec_2806(m) {
+export function dec_2806(m) {
   const { regs, mem } = m;
   mem.write8(regs.hl, regs.dec8(mem.read8(regs.hl)));
   m.step(0x2807, 11); // dec (0x62A7)
@@ -17579,7 +17579,7 @@ export function loc_16bb(m) {
   return loc_16d0(m);
 }
 /** loc_16d0 -- 0x62A0 = 1, then loc_16d5. */
-function loc_16d0(m) {
+export function loc_16d0(m) {
   const { regs, mem } = m;
   regs.a = 0x01;
   m.step(0x16d2, 7);
@@ -17588,7 +17588,7 @@ function loc_16d0(m) {
   return loc_16d5(m);
 }
 /** loc_16d5 -- call 0x2602, rst 0x38, ret. */
-function loc_16d5(m) {
+export function loc_16d5(m) {
   const { regs, mem } = m;
   m.push16(0x16d8); m.step(0x2602, 17); sub_2602(m); // call 0x2602
   regs.a = mem.read8(0x63a3);
@@ -17601,7 +17601,7 @@ function loc_16d5(m) {
   m.ret(10);
 }
 /** loc_16e1 -- (0x6910) >= 0x5A: vs 0x5D + bit7(C) -> loc_16d0/16d5, else reinit + advance 0x6388. */
-function loc_16e1(m) {
+export function loc_16e1(m) {
   const { regs, mem } = m;
   regs.cp(0x5d);
   m.step(0x16e3, 7);
@@ -17615,7 +17615,7 @@ function loc_16e1(m) {
   return loc_16d5(m);
 }
 /** loc_16ee -- reinit board object block (0x690C=0x66, clear 0x6924/2C/62AF), advance 0x6388. */
-function loc_16ee(m) {
+export function loc_16ee(m) {
   const { regs, mem } = m;
   regs.hl = 0x388c;
   m.step(0x16f1, 10);
@@ -17639,7 +17639,7 @@ function loc_16ee(m) {
   m.ret(10);
 }
 /** loc_1662 -- shared tail (sub_1654 fall-through + sub_168a jp): advance 0x6388, rst-0x30 gate, rst 0x38. ROM 0x1662-0x166F. */
-function tail_1662(m) {
+export function tail_1662(m) {
   const { regs, mem } = m;
   regs.hl = 0x6388;
   m.step(0x1665, 10);
@@ -17709,7 +17709,7 @@ export function sub_0d27(m) {
   return sub_0d30(m);
 }
 /** sub_0d30 -- fill 0x11 cells 0xFD, +0x0F, fill 0x11 cells 0xFC. HL live-in. ROM 0x0D30-0x0D42. */
-function sub_0d30(m) {
+export function sub_0d30(m) {
   const { regs, mem } = m;
   regs.b = 0x11;
   m.step(0x0d32, 7);
@@ -17748,7 +17748,7 @@ export function sub_0d43(m) {
   return sub_0d4c(m);
 }
 /** sub_0d4c -- fill 0x04 cells 0xFD, +0x1C, fill 0x04 cells 0xFC. HL live-in. ROM 0x0D4C-0x0D5E. */
-function sub_0d4c(m) {
+export function sub_0d4c(m) {
   const { regs, mem } = m;
   regs.b = 0x04;
   m.step(0x0d4e, 7);
@@ -17812,7 +17812,7 @@ export function sub_2745(m) {
   return loc_2766(m);
 }
 /** loc_2766 -- reset: 0x6398=0, 0x6221=1. */
-function loc_2766(m) {
+export function loc_2766(m) {
   const { regs, mem } = m;
   regs.xor(regs.a);
   m.step(0x2767, 4);
@@ -17825,7 +17825,7 @@ function loc_2766(m) {
   m.ret(10);
 }
 /** loc_276f -- move down: (0x6205)<0x71 -> reset277f; else dec (0x6205), mirror to 0x694F. */
-function loc_276f(m) {
+export function loc_276f(m) {
   const { regs, mem } = m;
   regs.a = mem.read8(0x6205);
   m.step(0x2772, 13);
@@ -17842,7 +17842,7 @@ function loc_276f(m) {
   m.ret(10);
 }
 /** loc_2787 -- move up: (0x6205)>=0xE8 -> reset277f; else inc (0x6205), mirror to 0x694F. */
-function loc_2787(m) {
+export function loc_2787(m) {
   const { regs, mem } = m;
   regs.a = mem.read8(0x6205);
   m.step(0x278a, 13);
@@ -17859,7 +17859,7 @@ function loc_2787(m) {
   m.ret(10);
 }
 /** loc_277f -- edge reset: 0x6200=0, 0x6398=0. */
-function loc_277f(m) {
+export function loc_277f(m) {
   const { regs, mem } = m;
   regs.xor(regs.a);
   m.step(0x2780, 4);
@@ -17897,7 +17897,7 @@ export function sub_2679(m) {
   return tail_268d(m);
 }
 /** tail_268d -- sub_2679 shared tail: 0x62A6->0x63A6 via 0x26e9; every 32nd frame call 0x26a6(0x69F4). */
-function tail_268d(m) {
+export function tail_268d(m) {
   const { regs, mem } = m;
   regs.hl = 0x62a6;
   m.step(0x2690, 10);
@@ -17950,7 +17950,7 @@ export function sub_262f(m) {
   return loc_264c(m);
 }
 /** loc_264c -- sub_262f shared tail. */
-function loc_264c(m) {
+export function loc_264c(m) {
   const { regs, mem } = m;
   regs.hl = 0x62a3;
   m.step(0x264f, 10);
@@ -17983,7 +17983,7 @@ function loc_264c(m) {
   m.ret(10);
 }
 /** loc_266f -- sub_262f Y<0xC0 pre-check: if bit7(0x62A3) -> tail; else (0x62A3)=0xFF. */
-function loc_266f(m) {
+export function loc_266f(m) {
   const { regs, mem } = m;
   regs.bit(7, mem.read8(regs.hl));
   m.step(0x2671, 12); // bit 7,(hl)
@@ -18030,7 +18030,7 @@ export function sub_2ad3(m) {
   m.ret(10); // Y not on a platform row
 }
 /** arm_2af6 -- Y==0x78: pick 0x63A5 (X>=0x80) or 0x63A4, then move. */
-function arm_2af6(m) {
+export function arm_2af6(m) {
   const { regs, mem } = m;
   regs.a = regs.b;
   m.step(0x2af7, 4);
@@ -18045,7 +18045,7 @@ function arm_2af6(m) {
   return move_2b02(m);
 }
 /** move_2b02 -- A=velocity: X+=A, mirror 0x694C, clamp via sub_241F, edge-adjust X. */
-function move_2b02(m) {
+export function move_2b02(m) {
   const { regs, mem } = m;
   regs.add(regs.b);
   m.step(0x2b03, 4); // velocity + X
@@ -18178,7 +18178,7 @@ export function loc_2259(m) {
   m.ret(10);
 }
 /** descend_2284 -- loc_2259's Y-descend: Y++ / call 0x3FC0 / Y++. */
-function descend_2284(m) {
+export function descend_2284(m) {
   const { regs, mem } = m;
   regs.hl = 0x6205;
   m.step(0x2284, 10);

@@ -29,6 +29,23 @@ It also means `translated/` never goes stale: an optimized routine is proven aga
 stays permanently exercised as the reference rather than rotting once the manifest routes past
 it.
 
+**"Never edited" means its LOGIC and ADDRESSES never change — not that the file is frozen.**
+Two behaviour-neutral changes are allowed, because they touch neither the logic nor the
+disassembly correspondence a reader checks:
+
+- **Every routine is `export`ed.** An optimized routine reuses the oracle's own implementation
+  of any callee it hasn't rewritten (so there is one implementation, never a copy that can
+  drift). We can't predict which routines a future rewrite will call, so *all* of `translated/`'s
+  top-level routines are exported up front. `export function foo` runs identically to
+  `function foo`; the body, the hex, and the mnemonics are untouched.
+- That is the *only* license. Renaming an address, changing a value, restructuring control
+  flow — anything that alters what runs or breaks the line-up with the disassembly — stays
+  forbidden. The names go in `ram.js` and the optimized copy, never in `translated/`.
+
+The rule that would have forced a *copy* of every unexported callee — reproducing a routine
+verbatim in `optimized/` — is retired: it manufactured exactly the drift hazard this whole
+design avoids. Exporting is strictly better and just as faithful.
+
 ### 2. The ROM self-synchronises, so cycles are mostly unobservable
 
 The instinct is that `m.step(addr, tstates)` charges are load-bearing everywhere, because the

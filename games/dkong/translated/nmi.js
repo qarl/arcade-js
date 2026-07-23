@@ -263,7 +263,7 @@ export function entry_0066(m) {
  * `rla`s and merged with the direction nibble, and the pair is stored to
  * 0x6010/0x6011 in one `ld (0x6010),hl`.
  */
-function readControls(m) {
+export function readControls(m) {
   const { regs, mem } = m;
 
   regs.a = mem.read8(0x6026);
@@ -342,7 +342,7 @@ function readControls(m) {
  * Decrementing 0x601A is what releases the main loop, which spins comparing
  * it against 0x6383.
  */
-function perFrame(m) {
+export function perFrame(m) {
   const { regs, mem } = m;
 
   regs.hl = 0x601a;
@@ -455,7 +455,7 @@ function perFrame(m) {
  * data reaches the screen through this, not through direct writes, so the
  * WHEN matters as much as the WHAT.
  */
-function sub_0141(m) {
+export function sub_0141(m) {
   const { regs, mem } = m;
 
   regs.xor(regs.a);
@@ -727,7 +727,7 @@ export function sub_017b(m) {
  * The tail drives the ls175.3d latch (0x7C00) from 0x6089/0x608B and the
  * audio IRQ (0x7D80) from 0x6088.
  */
-function sub_00e0(m) {
+export function sub_00e0(m) {
   const { regs, mem } = m;
 
   regs.hl = 0x6080;
@@ -847,7 +847,7 @@ function sub_00e0(m) {
  * clears 0x600A and ADVANCES THE GAME STATE by incrementing 0x6005 -- so
  * this is the state that steps the machine on to the next one.
  */
-function handler_073c(m) {
+export function handler_073c(m) {
   const { regs, mem } = m;
 
   regs.hl = 0x600a;
@@ -1051,7 +1051,7 @@ export function sub_0020(m) {
  * Ends in a TAIL JUMP to 0x0C92, so 0x0C92's `ret` returns to this handler's
  * caller and this handler has no `ret` of its own.
  */
-function handler_0763(m) {
+export function handler_0763(m) {
   const { regs, mem } = m;
 
   m.push16(0x0764);
@@ -1131,7 +1131,7 @@ function handler_0763(m) {
  * confirmed against mame0288 z80.lst, identical microcode to `ld (ix+d),a`.
  * The immediate form `ld (ix+d),n` (dd 36) is also 19 T, already precedented.
  */
-function handler_123c(m) {
+export function handler_123c(m) {
   const { regs, mem } = m;
 
   m.push16(0x123d);
@@ -1260,7 +1260,7 @@ export function loc_0c91(m) {
  * untranslated deliberately -- translating them would be unexercised code
  * written to spec, which is what coverage-as-to-do-list exists to prevent.
  */
-function loc_0c92(m) {
+export function loc_0c92(m) {
   const { regs, mem } = m;
 
   m.push16(0x0c95);
@@ -1333,7 +1333,7 @@ function loc_0c92(m) {
 
 /** loc_0cdf -- ROM 0x0CDF-0x0CF1. Board 2 (50m conveyor) setup: DE=layout ptr,
  *  latches, (0x6089)=9 mode; tail-jumps to the shared draw tail loc_0cc6 (DE live-out). */
-function loc_0cdf(m) {
+export function loc_0cdf(m) {
   const { regs, mem } = m;
   regs.de = 0x3b5d;
   m.step(0x0ce2, 10); // ld de,0x3b5d -- conveyor layout ptr (live-out)
@@ -1355,7 +1355,7 @@ function loc_0cdf(m) {
 
 /** loc_0cf2 -- ROM 0x0CF2-0x0CFF. Board 3 (75m elevator) setup: clear a sprite row,
  *  (0x6089)=0x0A mode, DE=layout ptr; tail-jumps to loc_0cc6 (DE live-out). */
-function loc_0cf2(m) {
+export function loc_0cf2(m) {
   const { regs, mem } = m;
   m.push16(0x0cf5);
   m.step(0x0d27, 17); // call 0x0d27 -- sprite-row clear
@@ -1406,7 +1406,7 @@ function loc_0cf2(m) {
  * 0x6088-0x608B as its own block. So `ld a,0x08 / ld (0x6089),a` is QUEUEING
  * A SOUND, and each arm queues a different one -- 0x08, 0x09, 0x0A, 0x0B.
  */
-function loc_0cd4(m) {
+export function loc_0cd4(m) {
   const { regs, mem } = m;
 
   regs.de = 0x3ae4;
@@ -1451,7 +1451,7 @@ function loc_0cd4(m) {
  * does mean divergence. Traces show 0x0D00 executed by no tape on hand -- a
  * dynamic claim, distinct from its being statically reachable, which it is.
  */
-function loc_0cc6(m) {
+export function loc_0cc6(m) {
   const { regs, mem } = m;
 
   m.push16(0x0cc9);
@@ -1483,7 +1483,7 @@ function loc_0cc6(m) {
  * A call then a tail jump, so 0x0D5F's eventual `ret` returns to whoever
  * called into 0x3FA0 -- which is loc_0cc6's caller, not loc_0cc6.
  */
-function loc_3fa0(m) {
+export function loc_3fa0(m) {
   m.push16(0x3fa3);
   m.step(0x3fa6, 17);
   sub_3fa6(m);
@@ -1505,7 +1505,7 @@ function loc_3fa0(m) {
  * was a question. It does -- see the note at sub_0f56's tail. The `rst 0x28`
  * consumes its own pushed continuation, not this call's.
  */
-function loc_0d5f(m) {
+export function loc_0d5f(m) {
   const { regs, mem } = m;
 
   m.push16(0x0d62);
@@ -1648,7 +1648,7 @@ function loc_0d5f(m) {
  * Two `inc hl` rather than one `inc hl` twice-over: the cells are two apart
  * because tilemap columns are 2 bytes apart in this address layout.
  */
-function sub_3fa6(m) {
+export function sub_3fa6(m) {
   const { regs, mem } = m;
 
   regs.a = 0x02;
@@ -1905,7 +1905,7 @@ export function sub_0da7(m) {
  * the -0x30 is selecting a different glyph for the second cell rather than
  * doing arithmetic on a coordinate.
  */
-function loc_0dd3(m) {
+export function loc_0dd3(m) {
   const { regs, mem } = m;
 
   mem.write8(0x63b1, regs.a);
@@ -2013,7 +2013,7 @@ function loc_0dd3(m) {
  * be correct arithmetically and wrong observably -- 0x63B2 is inside the
  * diffed work RAM, so its intermediate values are visible to the state gate.
  */
-function loc_0e19(m) {
+export function loc_0e19(m) {
   const { regs, mem } = m;
 
   for (;;) {
@@ -2073,7 +2073,7 @@ function loc_0e19(m) {
  * the record and re-enters the walk. Returns here so sub_0da7's `for(;;)`
  * continues rather than recursing.
  */
-function loc_0e2a(m) {
+export function loc_0e2a(m) {
   const { regs, mem } = m;
 
   regs.a = mem.read8(0x63b0);
@@ -2129,7 +2129,7 @@ function loc_0e2a(m) {
  * Bounds are exact -- the pushed continuation 0x00D2 is the first byte after
  * the table.
  */
-function dispatchGameState(m, target, site = "0x00CA (NMI game state)") {
+export function dispatchGameState(m, target, site = "0x00CA (NMI game state)") {
   if (m.overrides && m.overrides.has(target)) return m.overrides.get(target)(m);
   if (target === 0x01c3) return handler_01c3(m);
   if (target === 0x073c) return handler_073c(m);
@@ -2250,7 +2250,7 @@ function dispatchGameState(m, target, site = "0x00CA (NMI game state)") {
  * `jp p` at 0x0EDC is the same sign test as loc_0dd3's -- bit 7 of
  * (0x63B5 - 0xF0), NOT an unsigned comparison. See that routine's note.
  */
-function loc_0e4f(m) {
+export function loc_0e4f(m) {
   const { regs, mem } = m;
 
   regs.a = mem.read8(0x63b3);
