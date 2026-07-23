@@ -59,3 +59,45 @@ once every routine is exported up front, the optimization layer never needs to r
 changed.** (`export function foo` runs identically to `function foo`, so it costs nothing.
 Donkey Kong predates this convention and was exported in a one-time retrofit; the next game does
 it from the first line.)
+
+### Convention: make every call `m.call(0xADDR)`, not a direct function call
+
+A translated `call 0xNNNN` is written **`m.call(0x00nn, …args)`**, never a direct
+`sub_00nn(m)`. `m.call` looks the address up in the routine registry
+(`games/<id>/routines.js`) — the oracle for every ROM address, with any proven-equal optimized
+rewrites laid over the top — and invokes whichever is registered. The `m.push16(ret)` and the
+`m.step(target, cycles)` that model the CALL's stack push and cycle cost still sit at the call
+site next to it; only the *invocation* goes through `m.call`. (Extra args are forwarded for a
+routine the translation parameterises; the return value is forwarded for the `rst` caller-skip
+idiom, `if (!m.call(0x0008)) return;`.)
+
+**This is what makes optimization total.** An override installed for an address replaces its
+oracle at *every* call site, not just the two dispatch points, so any routine — a leaf
+subroutine as much as a dispatch target — goes live the instant it is proven equal. Without it,
+a routine reached only by a direct call can never be swapped, because the caller holds a fixed
+reference to the oracle. The registry is the patch table over the address space; `m.call` is the
+one seam every transfer of control passes through, exactly like a real `CALL` fetching whatever
+code lives at the target.
+
+The address is parsed from the routine's name (`sub_0874` → `0x0874`), so exporting every routine
+(above) is what lets `routines.js` build the table by itself. Names of the exact shape
+`prefix_hhhh` are ROM addresses. Helper splits the translator introduces (`sub_25f2_body`,
+`loc_18c6_wrap`) do **not** match that shape, so they are left out automatically and stay
+direct-called inside their parent. The one name that matches the shape yet must **not** claim its
+address is `tail_23de` — a tail fragment of `sub_23de`, which owns 0x23de — so it is excluded
+explicitly (the `NON_CANONICAL` set in `routines.js`, its only member).
+
+Do this *at translation time*, from the first line — like exporting, it is behaviour-neutral
+(with no overrides `m.call` resolves to the same oracle function a direct call would have reached)
+and it means `translated/` never needs a retrofit. **Donkey Kong predates this convention and its
+~880 call sites were converted in a one-time mechanical pass, gate-verified byte-identical; the
+next game writes `m.call` from the start.**
+
+### Convention: one file per routine in `optimized/`
+
+Each optimized rewrite is its own file, `optimized/<name>.js`, exporting that one function
+(`optimized/handler_01c3.js` → `handler_01c3`). This keeps the manifest entry, the equivalence
+test, and the routine in an obvious one-to-one correspondence, and — because two rewrites never
+touch the same file — it lets many routines be optimized in parallel without collision. The
+manifest's `optimized` block maps each dispatch address to `{ module, export }`; the registry
+overlays those onto the oracle table.

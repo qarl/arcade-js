@@ -7,7 +7,7 @@
  *
  * Three jobs:
  *
- *   1. EQUAL — the idiomatic optimized handler_05c6 (optimized/handlers.js) reads
+ *   1. EQUAL — the idiomatic optimized handler_05c6 (optimized/handler_05c6.js) reads
  *      EQUAL against its translated oracle, whole-machine and unit. The override
  *      is wired through dispatchTask (mainloop.js), the twin of the one already
  *      in dispatchGameState; both are inert when the override map is empty.
@@ -35,7 +35,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
 import { handler_05c6 as translated_05c6 } from "../../translated/mainloop.js";
-import { handler_05c6 as optimized_05c6 } from "../handlers.js";
+import { handler_05c6 as optimized_05c6 } from "../handler_05c6.js";
 import { unitEquivalence, wholeMachineEquivalence } from "../harness.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);

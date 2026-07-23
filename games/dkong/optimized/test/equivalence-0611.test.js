@@ -7,7 +7,7 @@
  *
  * Three jobs:
  *
- *   1. EQUAL -- the idiomatic optimized entry_0611 (optimized/handlers.js) reads
+ *   1. EQUAL -- the idiomatic optimized entry_0611 (optimized/entry_0611.js) reads
  *      EQUAL against its translated oracle, whole-machine and unit. The override
  *      routes through dispatchTask's override consult (mainloop.js), inert when
  *      the map is empty.
@@ -40,7 +40,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
 import { entry_0611 as translated_0611 } from "../../translated/mainloop.js";
-import { entry_0611 as optimized_0611 } from "../handlers.js";
+import { entry_0611 as optimized_0611 } from "../entry_0611.js";
 import { unitEquivalence, wholeMachineEquivalence } from "../harness.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);

@@ -29,16 +29,21 @@ It also means `translated/` never goes stale: an optimized routine is proven aga
 stays permanently exercised as the reference rather than rotting once the manifest routes past
 it.
 
-**The rule is simply: `translated/` is never changed.** An optimized routine reuses the oracle's
-own implementation of any callee it hasn't rewritten, so there is one implementation and never a
-copy that can drift — and that reuse works because **every translated routine is already
-exported**. Exporting is a *translation-time* convention (see `docs/02`), done when the routine
-is written, so by the time optimization begins there is nothing left to add and no reason to
-reach into `translated/` at all.
+**The rule is simply: `translated/` is never changed** (after the one-time retrofits below). An
+optimized routine reuses the oracle's own implementation of any callee it hasn't rewritten, so
+there is one implementation and never a copy that can drift. The reuse works through the **routine
+registry** (`../routines.js`): every call is written `m.call(0xADDR)`, which resolves the address
+to the optimized rewrite if one exists, else the oracle. So an optimized routine names its callees
+by address and never imports them — and installing an override swaps that callee at *every* call
+site, not just the two dispatch points, which is what lets a leaf subroutine go live at all. The
+only imports here are RAM *names* (from `ram.js`) and the odd error class (`NotImplemented`, for an
+untranslated stub); code — every callee — is reached by address, never imported. See `docs/02` for the
+`m.call`, export-everything, and one-file-per-routine conventions the next game writes from line one.
 
-(Donkey Kong predates that convention, so its routines were exported in one retrofit pass — a
-one-time, behaviour-neutral change made before any optimization began. Future games export from
-the first line, and `translated/` is then genuinely frozen.)
+(Donkey Kong predates those conventions, so two one-time, behaviour-neutral, gate-verified passes
+were made before/around optimization: every routine was `export`ed, and its ~880 call sites were
+converted to `m.call`. Both are provably identical with an empty override map. Future games do it
+from the first line, and `translated/` is then genuinely frozen.)
 
 ### 2. A routine's TOTAL cycle cost is preserved; its distribution is free
 

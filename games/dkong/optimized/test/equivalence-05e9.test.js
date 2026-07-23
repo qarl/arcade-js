@@ -8,7 +8,7 @@
  *
  * Three jobs:
  *
- *   1. EQUAL -- the idiomatic optimized handler_05e9 (optimized/handlers.js)
+ *   1. EQUAL -- the idiomatic optimized handler_05e9 (optimized/handler_05e9.js)
  *      reads EQUAL against its translated oracle, whole-machine and unit. The
  *      routine has NO callees (it inlines sub_0020's `pop hl / ret` tail), so
  *      there is nothing to import from translated/.
@@ -41,7 +41,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
 import { handler_05e9 as translated_05e9 } from "../../translated/mainloop.js";
-import { handler_05e9 as optimized_05e9 } from "../handlers.js";
+import { handler_05e9 as optimized_05e9 } from "../handler_05e9.js";
 import { unitEquivalence, wholeMachineEquivalence } from "../harness.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);

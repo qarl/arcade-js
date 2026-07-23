@@ -73,11 +73,11 @@ export function mainLoop(m) {
 
     m.push16(0x02ca);
     m.step(0x0315, 17); // call 0x0315
-    sub_0315(m);
+    m.call(0x0315);
 
     m.push16(0x02cd);
     m.step(0x0350, 17); // call 0x0350
-    sub_0350(m);
+    m.call(0x0350);
 
     regs.hl = 0x6019;
     m.step(0x02d0, 10);
@@ -104,11 +104,11 @@ export function mainLoop(m) {
 
     m.push16(0x02de);
     m.step(0x037f, 17);
-    sub_037f(m);
+    m.call(0x037f);
 
     m.push16(0x02e1);
     m.step(0x03a2, 17);
-    sub_03a2(m);
+    m.call(0x03a2);
 
     m.step(0x02bd, 12); // jr 0x02bd
   }
@@ -231,13 +231,13 @@ export function sub_0315(m) {
   // rst 0x08 -- may skip the remainder of THIS routine by returning past it.
   m.push16(0x031d);
   m.step(0x0008, 11);
-  if (!sub_0008(m)) return;
+  if (!m.call(0x0008)) return;
 
   regs.a = mem.read8(0x600d);
   m.step(0x0320, 13);
   m.push16(0x0323);
   m.step(0x0347, 17);
-  sub_0347(m); // HL = column base
+  m.call(0x0347); // HL = column base
 
   regs.de = 0xffe0; // -32: one tilemap row
   m.step(0x0326, 10);
@@ -275,7 +275,7 @@ export function sub_0315(m) {
     m.step(0x033b, 7);
     m.push16(0x033e);
     m.step(0x0347, 17);
-    sub_0347(m);
+    m.call(0x0347);
   }
 
   // loc_033e
@@ -401,7 +401,7 @@ export function sub_0350(m) {
   // it is constant TRUE now, so this is inert today; it stops a future reader
   // seeing a bare call at a tail and inferring the boolean does not matter).
   m.step(0x06b8, 10);
-  return entry_06b8(m);
+  return m.call(0x06b8);
 }
 
 /**
@@ -479,7 +479,7 @@ export function entry_06b8(m) {
   // erroneous `if (!entry_06b8(m)) return;` is INERT, whereas undefined is
   // falsy and would make that same mistake a LIVE defect. DO NOT add a guard
   // at the callers.
-  if (!sub_0008(m)) return true;
+  if (!m.call(0x0008)) return true;
 
   regs.b = 0x06;
   m.step(0x06bc, 7);
@@ -668,13 +668,13 @@ export function dispatchTask(m) {
   m.step(regs.hl, 4); // jp (hl)
 
   if (m.overrides && m.overrides.has(regs.hl)) return m.overrides.get(regs.hl)(m);
-  if (regs.hl === 0x05e9) return handler_05e9(m);
-  if (regs.hl === 0x05c6) return handler_05c6(m);
-  if (regs.hl === 0x0611) return entry_0611(m);
-  if (regs.hl === 0x051c) return entry_051c(m);
-  if (regs.hl === 0x062a) return entry_062a(m);
-  if (regs.hl === 0x06b8) return entry_06b8(m);
-  if (regs.hl === 0x059b) return loc_059b(m); // 0x0307 task table idx 2 (gameplay)
+  if (regs.hl === 0x05e9) return m.call(0x05e9);
+  if (regs.hl === 0x05c6) return m.call(0x05c6);
+  if (regs.hl === 0x0611) return m.call(0x0611);
+  if (regs.hl === 0x051c) return m.call(0x051c);
+  if (regs.hl === 0x062a) return m.call(0x062a);
+  if (regs.hl === 0x06b8) return m.call(0x06b8);
+  if (regs.hl === 0x059b) return m.call(0x059b); // 0x0307 task table idx 2 (gameplay)
   throw new NotImplemented(
     `task handler at ROM 0x${regs.hl.toString(16).padStart(4, "0")} ` +
       `(0x0307 table index ${index}, payload 0x${regs.a.toString(16)})`,
@@ -726,7 +726,7 @@ export function entry_062a(m) {
   m.step(0x062b, 4); // and a
   if (regs.fZ) {
     m.step(0x0691, 10); // jp z,0x0691 taken
-    return loc_0691(m);
+    return m.call(0x0691);
   }
   m.step(0x062e, 10); // jp z not taken
 
@@ -736,7 +736,7 @@ export function entry_062a(m) {
   m.step(0x0632, 4); // and a
   if (regs.fNZ) {
     m.step(0x06a8, 10); // jp nz,0x06a8 taken
-    return loc_06a8(m);
+    return m.call(0x06a8);
   }
   m.step(0x0635, 10); // jp nz not taken
 
@@ -820,7 +820,7 @@ export function entry_062a(m) {
 
   regs.a = mem.read8(0x638c);
   m.step(0x066a, 13); // ld a,(0x638c)
-  return loc_066a(m);
+  return m.call(0x066a);
 }
 
 /**
@@ -876,7 +876,7 @@ export function loc_066a(m) {
   m.step(0x0675, 7); // and 0x0f
   if (regs.fNZ) {
     m.step(0x0689, 10); // jp nz,0x0689 taken -- A is the high nibble
-    return loc_0689(m);
+    return m.call(0x0689);
   }
   m.step(0x0678, 10); // jp nz not taken
 
@@ -897,7 +897,7 @@ export function loc_066a(m) {
   regs.a = 0x10;
   m.step(0x0689, 7); // ld a,0x10
 
-  return loc_0689(m); // fallthrough, NOT a jump
+  return m.call(0x0689); // fallthrough, NOT a jump
 }
 
 /** loc_0689 -- ROM 0x0689-0x0690, the shared tail of both loc_066a arms. */
@@ -957,7 +957,7 @@ export function loc_0691(m) {
   m.step(0x0698, 11); // push bc
   m.push16(0x069b);
   m.step(0x051c, 17); // call 0x051c
-  entry_051c(m);
+  m.call(0x051c);
   regs.bc = m.pop16();
   m.step(0x069c, 10); // pop bc
 
@@ -973,7 +973,7 @@ export function loc_0691(m) {
   m.step(0x06a5, 7); // add a,0x0a
 
   m.step(0x051c, 10); // jp 0x051c -- TAIL JUMP, nothing pushed
-  return entry_051c(m);
+  return m.call(0x051c);
 }
 
 /**
@@ -1023,7 +1023,7 @@ export function loc_06a8(m) {
   m.step(0x06b5, 13); // ld (0x638c),a
 
   m.step(0x066a, 10); // jp 0x066a -- backward, and NOT a loop
-  return loc_066a(m);
+  return m.call(0x066a);
 }
 
 /**
@@ -1125,11 +1125,11 @@ export function entry_051c(m) {
 
   m.push16(0x051e);
   m.step(0x0008, 11); // rst 0x08
-  if (!sub_0008(m)) return; // skipped: sub_0008 returned to OUR caller
+  if (!m.call(0x0008)) return; // skipped: sub_0008 returned to OUR caller
 
   m.push16(0x0521);
   m.step(0x055f, 17); // call 0x055f
-  sub_055f(m); // DE = 0x60B2 or 0x60B5
+  m.call(0x055f); // DE = 0x60B2 or 0x60B5
 
   regs.a = regs.c;
   m.step(0x0522, 4); // ld a,c
@@ -1176,7 +1176,7 @@ export function entry_051c(m) {
 
   m.push16(0x053e);
   m.step(0x056b, 17); // call 0x056b
-  draw_056b(m);
+  m.call(0x056b);
 
   regs.de = m.pop16();
   m.step(0x053f, 10); // pop de
@@ -1220,7 +1220,7 @@ export function entry_051c(m) {
   // loc_0550: ours is higher, so copy it over the high score.
   m.push16(0x0553);
   m.step(0x055f, 17); // call 0x055f -- does NOT touch B
-  sub_055f(m);
+  m.call(0x055f);
 
   regs.hl = 0x60b8;
   m.step(0x0556, 10); // ld hl,0x60b8
@@ -1239,7 +1239,7 @@ export function entry_051c(m) {
   } while (regs.b !== 0);
 
   m.step(0x05da, 10); // jp 0x05da -- TAIL jump, nothing pushed
-  return tail_05da(m);
+  return m.call(0x05da);
 }
 
 /*
@@ -1327,7 +1327,7 @@ export function loc_059b(m) {
   m.step(0x05ba, 10);
 
   m.step(0x05c6, 10); // jp 0x05c6 -- TAIL jump, nothing pushed
-  return handler_05c6(m); // its ret returns on our behalf
+  return m.call(0x05c6); // its ret returns on our behalf
 }
 
 /**
@@ -1374,10 +1374,10 @@ export function handler_05c6(m) {
   m.step(0x05d7, 7);
   if (regs.fNZ) {
     m.step(0x056b, 10);
-    return draw_056b(m);
+    return m.call(0x056b);
   }
   m.step(0x05da, 10);
-  return tail_05da(m);
+  return m.call(0x05da);
 }
 
 /**
@@ -1401,7 +1401,7 @@ export function tail_05da(m) {
   regs.de = 0x60ba;
   m.step(0x05dd, 10); // ld de,0x60ba
   m.step(0x0578, 10); // jp 0x0578 -- tail jump, nothing pushed
-  return draw_0578(m);
+  return m.call(0x0578);
 }
 
 /**
@@ -1475,7 +1475,7 @@ export function draw_056b(m) {
     m.step(0x0576, 14);
     m.step(0x057c, 12);
   }
-  return draw_0578(m, true);
+  return m.call(0x0578, true);
 }
 
 /**
@@ -1518,7 +1518,7 @@ export function draw_0578(m, enteredAt057C = false) {
   regs.bc = 0x0304;
   m.step(0x0583, 10);
 
-  loop_0583(m);
+  m.call(0x0583);
 }
 
 /**
@@ -1566,13 +1566,13 @@ export function loop_0583(m) {
     }
     m.push16(0x058b);
     m.step(0x0593, 17);
-    sub_0593(m); // high nibble
+    m.call(0x0593); // high nibble
 
     regs.a = mem.read8(regs.hl);
     m.step(0x058c, 7);
     m.push16(0x058f);
     m.step(0x0593, 17);
-    sub_0593(m); // low nibble
+    m.call(0x0593); // low nibble
 
     regs.hl = (regs.hl - 1) & 0xffff;
     m.step(0x0590, 6);
@@ -1980,11 +1980,11 @@ export function sub_03a2(m) {
 
   m.push16(0x03a5);
   m.step(0x0030, 11); // rst 0x30
-  if (!sub_0030(m)) return;
+  if (!m.call(0x0030)) return;
 
   m.push16(0x03a6);
   m.step(0x0010, 11); // rst 0x10
-  if (!sub_0010(m)) return;
+  if (!m.call(0x0010)) return;
 
   regs.a = mem.read8(0x6350);
   m.step(0x03a9, 13); // ld a,(0x6350)
@@ -2035,7 +2035,7 @@ export function sub_03a2(m) {
     m.step(0x03ec, 19); // ld (ix+0x0a),0x00
     m.push16(0x03ef);
     m.step(0x03f2, 17); // call 0x03f2
-    sub_03f2(m);
+    m.call(0x03f2);
     m.step(0x03de, 10); // jp 0x03de
   } else {
     m.step(0x03c4, 10); // jp nc not taken
@@ -2049,7 +2049,7 @@ export function sub_03a2(m) {
     m.step(0x03ce, 4); // inc b  -- B = 0x42
     m.push16(0x03d1);
     m.step(0x03f2, 17); // call 0x03f2
-    sub_03f2(m);
+    m.call(0x03f2);
 
     regs.hl = 0x62ba;
     m.step(0x03d4, 10); // ld hl,0x62ba
@@ -2148,7 +2148,7 @@ export function entry_0611(m) {
     return;
   }
   m.step(0x0616, 5); // not taken: 5, and falls through into sub_0616
-  sub_0616(m);
+  m.call(0x0616);
 }
 
 /**
@@ -2178,7 +2178,7 @@ export function sub_0616(m) {
   m.step(0x0618, 7);
   m.push16(0x061b);
   m.step(0x05e9, 17);
-  handler_05e9(m);
+  m.call(0x05e9);
 
   regs.hl = 0x6001;
   m.step(0x061e, 10);
@@ -2189,5 +2189,5 @@ export function sub_0616(m) {
   regs.b = 0x01;
   m.step(0x0627, 7);
   m.step(0x0583, 10); // jp -- a TAIL jump, no return address pushed
-  loop_0583(m);
+  m.call(0x0583);
 }

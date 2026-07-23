@@ -107,7 +107,7 @@ export function loc_0038(m) {
 
   // FALL-THROUGH, not a call: nothing is pushed here, and sub_003d's `ret`
   // pops whatever the `rst 0x38` pushed at the call site.
-  sub_003d(m);
+  m.call(0x003d);
 }
 
 /**
@@ -237,7 +237,7 @@ export function entry_0066(m) {
   m.tick(10);
   m.push16(0x0080);
   m.tick(17);
-  sub_0141(m);
+  m.call(0x0141);
 
   regs.a = mem.read8(0x6007);
   m.tick(13);
@@ -352,15 +352,15 @@ export function perFrame(m) {
 
   m.push16(0x00bc);
   m.tick(17);
-  sub_0057(m);
+  m.call(0x0057);
 
   m.push16(0x00bf);
   m.tick(17);
-  sub_017b(m);
+  m.call(0x017b);
 
   m.push16(0x00c2);
   m.tick(17);
-  sub_00e0(m);
+  m.call(0x00e0);
 
   // Push the epilogue address so the dispatched state handler's `ret` lands
   // on 0x00D2. This is the pattern that bounds the inline jump table exactly.
@@ -372,7 +372,7 @@ export function perFrame(m) {
   m.tick(13);
   m.push16(0x00ca); // rst 0x28 pushes its return address = the table base
   m.tick(11);
-  sub_0028(m);
+  m.call(0x0028);
 
   // loc_00d2 -- epilogue
   regs.iy = m.pop16();
@@ -626,7 +626,7 @@ export function sub_017b(m) {
     m.step(0x019d, 10); // jp z,0x019d (state 3 -> skip the coin sound)
   } else {
     m.step(0x0195, 10);
-    m.push16(0x0198); m.step(0x011c, 17); sub_011c(m); // call 0x011c
+    m.push16(0x0198); m.step(0x011c, 17); m.call(0x011c); // call 0x011c
     regs.a = 0x03;
     m.step(0x019a, 7); // ld a,0x03
     mem.write8(0x6083, regs.a); // sound trigger
@@ -671,7 +671,7 @@ export function sub_017b(m) {
   m.step(0x01b3, 7);
   regs.de = 0x0400;
   m.step(0x01b6, 10); // ld de,0x0400
-  m.push16(0x01b9); m.step(0x309f, 17); sub_309f(m); // call 0x309f
+  m.push16(0x01b9); m.step(0x309f, 17); m.call(0x309f); // call 0x309f
   m.ret(); // ret (0x01B9)
 }
 
@@ -875,7 +875,7 @@ export function handler_073c(m) {
   m.step(0x0747, 7);
   m.push16(0x0748); // rst 0x28 pushes the table base
   m.step(0x0028, 11);
-  sub_0028(m, SUBSTATE_TABLE_073C);
+  m.call(0x0028, SUBSTATE_TABLE_073C);
 }
 
 /** Handlers reached from the 0x0748 table; two slots are unused (0x0000). */
@@ -1023,7 +1023,7 @@ export function sub_0020(m) {
   m.step(0x0024, 11);
   if (regs.fZ) {
     m.step(0x0018, 12); // jr z taken -- TAIL jump into sub_0018
-    return sub_0018(m);
+    return m.call(0x0018);
   }
   m.step(0x0026, 7); // jr z not taken
   regs.hl = m.pop16(); // pop hl -- discards this routine's return address
@@ -1056,7 +1056,7 @@ export function handler_0763(m) {
 
   m.push16(0x0764);
   m.step(0x0020, 11); // rst 0x20
-  if (!sub_0020(m)) return; // skipped: control never came back here
+  if (!m.call(0x0020)) return; // skipped: control never came back here
 
   regs.xor(regs.a);
   m.step(0x0765, 4);
@@ -1074,7 +1074,7 @@ export function handler_0763(m) {
   m.step(0x0776, 13);
 
   m.step(0x0c92, 10); // jp 0x0c92 -- TAIL jump, no return address pushed
-  loc_0c92(m);
+  m.call(0x0c92);
 }
 
 /**
@@ -1136,7 +1136,7 @@ export function handler_123c(m) {
 
   m.push16(0x123d);
   m.step(0x0018, 11); // rst 0x18
-  if (!sub_0018(m)) return; // counter still ticking -- skipped this frame
+  if (!m.call(0x0018)) return; // counter still ticking -- skipped this frame
 
   regs.a = mem.read8(0x6227);
   m.step(0x1240, 13); // ld a,(0x6227)
@@ -1196,7 +1196,7 @@ export function handler_123c(m) {
 
   m.push16(0x127b);
   m.step(0x309f, 17); // call 0x309f -- enqueue task (D=0x06, E=0x01)
-  sub_309f(m);
+  m.call(0x309f);
 
   m.ret(); // 127b
 }
@@ -1221,9 +1221,9 @@ export function handler_123c(m) {
 export function loc_0c91(m) {
   m.push16(0x0c92); // rst 0x18 pushes its return address = 0x0C92 (the fall-through)
   m.step(0x0018, 11); // rst 0x18
-  if (!sub_0018(m)) return; // counter still ticking -- skipped; loc_0c92 does not run
+  if (!m.call(0x0018)) return; // counter still ticking -- skipped; loc_0c92 does not run
 
-  return loc_0c92(m); // pc is already 0x0C92 (sub_0018's ret z); its ret returns for us
+  return m.call(0x0c92); // pc is already 0x0C92 (sub_0018's ret z); its ret returns for us
 }
 
 /**
@@ -1265,7 +1265,7 @@ export function loc_0c92(m) {
 
   m.push16(0x0c95);
   m.step(0x0874, 17);
-  sub_0874(m);
+  m.call(0x0874);
 
   regs.xor(regs.a);
   m.step(0x0c96, 4);
@@ -1276,7 +1276,7 @@ export function loc_0c92(m) {
 
   m.push16(0x0c9f);
   m.step(0x309f, 17);
-  sub_309f(m);
+  m.call(0x309f);
 
   regs.hl = 0x7d86;
   m.step(0x0ca2, 10);
@@ -1293,7 +1293,7 @@ export function loc_0c92(m) {
   m.step(0x0cab, 4);
   if (regs.fZ) {
     m.step(0x0cd4, 10); // jp z taken -- the only arm this path reaches
-    return loc_0cd4(m);
+    return m.call(0x0cd4);
   }
   m.step(0x0cae, 10); // jp z,0x0cd4 NOT taken (board 1)
 
@@ -1301,7 +1301,7 @@ export function loc_0c92(m) {
   m.step(0x0caf, 4); // dec a (board 2 check)
   if (regs.fZ) {
     m.step(0x0cdf, 10); // jp z,0x0cdf taken -- board 2 (50m conveyor)
-    return loc_0cdf(m);
+    return m.call(0x0cdf);
   }
   m.step(0x0cb2, 10); // jp z,0x0cdf NOT taken
 
@@ -1309,7 +1309,7 @@ export function loc_0c92(m) {
   m.step(0x0cb3, 4); // dec a (board 3 check)
   if (regs.fZ) {
     m.step(0x0cf2, 10); // jp z,0x0cf2 taken -- board 3 (75m elevator)
-    return loc_0cf2(m);
+    return m.call(0x0cf2);
   }
   m.step(0x0cb6, 10); // jp z,0x0cf2 NOT taken -- board 4 (0x6227==4, 100m rivet)
 
@@ -1317,7 +1317,7 @@ export function loc_0c92(m) {
   // Reachable -- 100m rivet is level-1's 2nd board (seq 0x3A73 has id 04).
   m.push16(0x0cb9);
   m.step(0x0d43, 17); // call 0x0d43 -- sprite-row clear
-  sub_0d43(m);
+  m.call(0x0d43);
   regs.hl = 0x7d86;
   m.step(0x0cbc, 10); // ld hl,0x7d86
   mem.write8(regs.hl, 0x01, 7);
@@ -1328,7 +1328,7 @@ export function loc_0c92(m) {
   m.step(0x0cc3, 13); // ld (0x6089),a -- rivet board mode 0x0B
   regs.de = 0x3c8b;
   m.step(0x0cc6, 10); // ld de,0x3c8b -- rivet layout ptr (live-out); FALL INTO loc_0cc6
-  return loc_0cc6(m);
+  return m.call(0x0cc6);
 }
 
 /** loc_0cdf -- ROM 0x0CDF-0x0CF1. Board 2 (50m conveyor) setup: DE=layout ptr,
@@ -1350,7 +1350,7 @@ export function loc_0cdf(m) {
   mem.write8(0x6089, regs.a);
   m.step(0x0cef, 13); // ld (0x6089),a -- board mode 9
   m.step(0x0cc6, 10); // jp 0x0cc6 -- TAIL into the shared draw tail
-  return loc_0cc6(m);
+  return m.call(0x0cc6);
 }
 
 /** loc_0cf2 -- ROM 0x0CF2-0x0CFF. Board 3 (75m elevator) setup: clear a sprite row,
@@ -1359,7 +1359,7 @@ export function loc_0cf2(m) {
   const { regs, mem } = m;
   m.push16(0x0cf5);
   m.step(0x0d27, 17); // call 0x0d27 -- sprite-row clear
-  sub_0d27(m);
+  m.call(0x0d27);
   regs.a = 0x0a;
   m.step(0x0cf7, 7); // ld a,0x0a
   mem.write8(0x6089, regs.a);
@@ -1367,7 +1367,7 @@ export function loc_0cf2(m) {
   regs.de = 0x3be5;
   m.step(0x0cfd, 10); // ld de,0x3be5 -- elevator layout ptr (live-out, set last)
   m.step(0x0cc6, 10); // jp 0x0cc6 -- TAIL
-  return loc_0cc6(m);
+  return m.call(0x0cc6);
 }
 
 /**
@@ -1422,7 +1422,7 @@ export function loc_0cd4(m) {
   // images are complete. Second time in this file that an edit added a step
   // beside the throw rather than in place of it.
   m.step(0x0cc6, 10); // jp 0x0cc6 -- the shared tail of all four arms
-  loc_0cc6(m);
+  m.call(0x0cc6);
 }
 
 /**
@@ -1456,7 +1456,7 @@ export function loc_0cc6(m) {
 
   m.push16(0x0cc9);
   m.step(0x0da7, 17);
-  sub_0da7(m);
+  m.call(0x0da7);
 
   regs.a = mem.read8(0x6227);
   m.step(0x0ccc, 13);
@@ -1465,13 +1465,13 @@ export function loc_0cc6(m) {
   if (regs.fZ) {
     m.push16(0x0cd1); // call z,0x0d00 taken (0x6227==4, board 4 rivet)
     m.step(0x0d00, 17);
-    sub_0d00(m);
+    m.call(0x0d00);
   } else {
     m.step(0x0cd1, 10); // call z,0x0d00 not taken
   }
 
   m.step(0x3fa0, 10); // jp -- TAIL jump, no return address pushed
-  loc_3fa0(m);
+  m.call(0x3fa0);
 }
 
 /**
@@ -1486,9 +1486,9 @@ export function loc_0cc6(m) {
 export function loc_3fa0(m) {
   m.push16(0x3fa3);
   m.step(0x3fa6, 17);
-  sub_3fa6(m);
+  m.call(0x3fa6);
   m.step(0x0d5f, 10); // jp -- TAIL jump
-  loc_0d5f(m);
+  m.call(0x0d5f);
 }
 
 /**
@@ -1510,11 +1510,11 @@ export function loc_0d5f(m) {
 
   m.push16(0x0d62);
   m.step(0x0f56, 17);
-  sub_0f56(m);
+  m.call(0x0f56);
 
   m.push16(0x0d65);
   m.step(0x2441, 17);
-  sub_2441(m);
+  m.call(0x2441);
 
   regs.hl = 0x6009;
   m.step(0x0d68, 10); // ld hl,0x6009
@@ -1529,7 +1529,7 @@ export function loc_0d5f(m) {
 
   m.push16(0x0d72);
   m.step(0x004e, 17);
-  sub_004e(m);
+  m.call(0x004e);
 
   // HL IS LIVE ACROSS THAT CALL. sub_004e copies 0x28 bytes from the HL it
   // was handed and leaves HL at 0x385C + 0x28 = 0x3884, which is the source
@@ -1563,7 +1563,7 @@ export function loc_0d5f(m) {
     m.step(0x0d90, 7); // ld c,0x44
     m.push16(0x0d91);
     m.step(0x0038, 11); // rst 0x38
-    loc_0038(m);
+    m.call(0x0038);
 
     regs.de = 0x0004;
     m.step(0x0d94, 10); // ld de,0x0004
@@ -1573,7 +1573,7 @@ export function loc_0d5f(m) {
     m.step(0x0d9a, 10); // ld hl,0x6900
     m.push16(0x0d9d);
     m.step(0x003d, 17); // call 0x003d
-    sub_003d(m);
+    m.call(0x003d);
 
     regs.bc = 0x02f8;
     m.step(0x0da0, 10); // ld bc,0x02f8
@@ -1581,7 +1581,7 @@ export function loc_0d5f(m) {
     m.step(0x0da3, 10); // ld hl,0x6903
     m.push16(0x0da6);
     m.step(0x003d, 17); // call 0x003d
-    sub_003d(m);
+    m.call(0x003d);
 
     m.ret(); // 0x0da6 -- returns to loc_0d5f's caller
     return;
@@ -1614,7 +1614,7 @@ export function loc_0d5f(m) {
   // a `ret`.
   m.push16(0x0d8a);
   m.step(0x0038, 11); // rst 0x38
-  loc_0038(m);
+  m.call(0x0038);
 
   m.ret(); // 0d8a
 }
@@ -1655,7 +1655,7 @@ export function sub_3fa6(m) {
   m.step(0x3fa8, 7);
   m.push16(0x3fa9);
   m.step(0x0030, 11); // rst 0x30
-  if (!sub_0030(m)) return; // skipped: control never came back here
+  if (!m.call(0x0030)) return; // skipped: control never came back here
 
   regs.b = 0x02;
   m.step(0x3fab, 7);
@@ -1780,7 +1780,7 @@ export function sub_0da7(m) {
   m.step(0x0db7, 11);
   m.push16(0x0dba);
   m.step(0x2ff0, 17);
-  sub_2ff0(m);
+  m.call(0x2ff0);
   regs.de = m.pop16();
   m.step(0x0dbb, 10);
 
@@ -1815,7 +1815,7 @@ export function sub_0da7(m) {
     m.step(0x0dd3, 8); // neg is ED-prefixed
   }
 
-  loc_0dd3(m); // returns having reached loc_0e4b's `jp 0x0da7`
+  m.call(0x0dd3); // returns having reached loc_0e4b's `jp 0x0da7`
   }
 }
 
@@ -1931,7 +1931,7 @@ export function loc_0dd3(m) {
   m.step(0x0de4, 11);
   m.push16(0x0de7);
   m.step(0x2ff0, 17);
-  sub_2ff0(m);
+  m.call(0x2ff0);
   regs.de = m.pop16();
   m.step(0x0de8, 10);
   mem.write16(0x63ad, regs.hl);
@@ -1943,7 +1943,7 @@ export function loc_0dd3(m) {
   m.step(0x0df0, 7);
   if (regs.fP) {
     m.step(0x0e4f, 10); // jp p taken -- record kind >= 2
-    return loc_0e4f(m);
+    return m.call(0x0e4f);
   }
   m.step(0x0df3, 10);
 
@@ -1989,7 +1989,7 @@ export function loc_0dd3(m) {
     m.step(0x0e19, 13);
   }
 
-  loc_0e19(m);
+  m.call(0x0e19);
 }
 
 /**
@@ -2035,7 +2035,7 @@ export function loc_0e19(m) {
     m.step(0x0e19, 10); // jp 0x0e19
   }
 
-  loc_0e2a(m);
+  m.call(0x0e2a);
 }
 
 /**
@@ -2131,87 +2131,87 @@ export function loc_0e2a(m) {
  */
 export function dispatchGameState(m, target, site = "0x00CA (NMI game state)") {
   if (m.overrides && m.overrides.has(target)) return m.overrides.get(target)(m);
-  if (target === 0x01c3) return handler_01c3(m);
-  if (target === 0x073c) return handler_073c(m);
-  if (target === 0x0779) return handler_0779(m);
-  if (target === 0x0763) return handler_0763(m);
-  if (target === 0x08b2) return loc_08b2(m); // game state 2 (GAMEPLAY) entry
-  if (target === 0x08ba) return loc_08ba(m); // 0x08B6 table[0] (0x600A==0)
-  if (target === 0x08f8) return loc_08f8(m); // 0x08B6 table[1] (0x600A==1)
-  if (target === 0x06fe) return loc_06fe(m); // game state 3, 0x0702 table by 0x600A
-  if (target === 0x0986) return loc_0986(m); // 0x0702 table entries (0x600A index)
-  if (target === 0x09ab) return loc_09ab(m);
-  if (target === 0x09d6) return sub_09d6(m);
-  if (target === 0x09fe) return sub_09fe(m);
-  if (target === 0x0a1b) return sub_0a1b(m);
-  if (target === 0x0a37) return loc_0a37(m);
-  if (target === 0x0a63) return loc_0a63(m);
-  if (target === 0x0a76) return loc_0a76(m);
-  if (target === 0x0bda) return loc_0bda(m);
-  if (target === 0x0a8a) return loc_0a8a(m); // 0x0A7A table (0x6385 seq)
-  if (target === 0x0abf) return loc_0abf(m);
-  if (target === 0x0ae8) return loc_0ae8(m);
-  if (target === 0x0b06) return loc_0b06(m);
-  if (target === 0x0b68) return loc_0b68(m);
-  if (target === 0x0bb3) return loc_0bb3(m);
-  if (target === 0x3069) return loc_3069(m); // shared rate-limiter (0x0A7A idx3/5)
+  if (target === 0x01c3) return m.call(0x01c3);
+  if (target === 0x073c) return m.call(0x073c);
+  if (target === 0x0779) return m.call(0x0779);
+  if (target === 0x0763) return m.call(0x0763);
+  if (target === 0x08b2) return m.call(0x08b2); // game state 2 (GAMEPLAY) entry
+  if (target === 0x08ba) return m.call(0x08ba); // 0x08B6 table[0] (0x600A==0)
+  if (target === 0x08f8) return m.call(0x08f8); // 0x08B6 table[1] (0x600A==1)
+  if (target === 0x06fe) return m.call(0x06fe); // game state 3, 0x0702 table by 0x600A
+  if (target === 0x0986) return m.call(0x0986); // 0x0702 table entries (0x600A index)
+  if (target === 0x09ab) return m.call(0x09ab);
+  if (target === 0x09d6) return m.call(0x09d6);
+  if (target === 0x09fe) return m.call(0x09fe);
+  if (target === 0x0a1b) return m.call(0x0a1b);
+  if (target === 0x0a37) return m.call(0x0a37);
+  if (target === 0x0a63) return m.call(0x0a63);
+  if (target === 0x0a76) return m.call(0x0a76);
+  if (target === 0x0bda) return m.call(0x0bda);
+  if (target === 0x0a8a) return m.call(0x0a8a); // 0x0A7A table (0x6385 seq)
+  if (target === 0x0abf) return m.call(0x0abf);
+  if (target === 0x0ae8) return m.call(0x0ae8);
+  if (target === 0x0b06) return m.call(0x0b06);
+  if (target === 0x0b68) return m.call(0x0b68);
+  if (target === 0x0bb3) return m.call(0x0bb3);
+  if (target === 0x3069) return m.call(0x3069); // shared rate-limiter (0x0A7A idx3/5)
   // -- full dispatch-table wiring (0x0748 state-1 sub, 0x0702 idx10+, 0x1283, 0x2874, 0x1648) --
-  if (target === 0x07c3) return loc_07c3(m);
-  if (target === 0x07cb) return loc_07cb(m);
-  if (target === 0x084b) return loc_084b(m);
-  if (target === 0x0c91) return loc_0c91(m); // nmi-local
-  if (target === 0x127c) return loc_127c(m);
-  if (target === 0x128b) return entry_128b(m);
-  if (target === 0x12ac) return loc_12ac(m);
-  if (target === 0x12de) return loc_12de(m);
-  if (target === 0x17b6) return loc_17b6(m);
-  if (target === 0x1839) return loc_1839(m);
-  if (target === 0x186f) return loc_186f(m);
-  if (target === 0x1880) return loc_1880(m);
-  if (target === 0x18c6) return loc_18c6(m);
-  if (target === 0x2880) return sub_2880(m);
-  if (target === 0x28b0) return sub_28b0(m);
-  if (target === 0x28e0) return sub_28e0(m);
-  if (target === 0x2901) return sub_2901(m);
+  if (target === 0x07c3) return m.call(0x07c3);
+  if (target === 0x07cb) return m.call(0x07cb);
+  if (target === 0x084b) return m.call(0x084b);
+  if (target === 0x0c91) return m.call(0x0c91); // nmi-local
+  if (target === 0x127c) return m.call(0x127c);
+  if (target === 0x128b) return m.call(0x128b);
+  if (target === 0x12ac) return m.call(0x12ac);
+  if (target === 0x12de) return m.call(0x12de);
+  if (target === 0x17b6) return m.call(0x17b6);
+  if (target === 0x1839) return m.call(0x1839);
+  if (target === 0x186f) return m.call(0x186f);
+  if (target === 0x1880) return m.call(0x1880);
+  if (target === 0x18c6) return m.call(0x18c6);
+  if (target === 0x2880) return m.call(0x2880);
+  if (target === 0x28b0) return m.call(0x28b0);
+  if (target === 0x28e0) return m.call(0x28e0);
+  if (target === 0x2901) return m.call(0x2901);
   // -- L2 board-advance: loc_1615 + its 0x1623/0x1637 sub-tables --
-  if (target === 0x1615) return loc_1615(m); // 0x0702 table idx 0x16 (0x600A=0x16)
-  if (target === 0x1654) return sub_1654(m);
-  if (target === 0x1670) return sub_1670(m);
-  if (target === 0x168a) return sub_168a(m);
-  if (target === 0x1732) return sub_1732(m);
-  if (target === 0x1757) return sub_1757(m);
-  if (target === 0x178e) return sub_178e(m);
-  if (target === 0x16a3) return loc_16a3(m);
-  if (target === 0x16bb) return loc_16bb(m);
-  if (target === 0x123c) return handler_123c(m);
-  if (target === 0x1977) return handler_1977(m); // game state 1 sub-state (0x0748 table) -- THE FINALE reach-mover
-  if (target === 0x197a) return loc_197a(m); // game state 3 gameplay (0x0702 table @0x600A) enters the cascade at 0x197A (skips handler_1977's 0x1977 sub_21ee call)
-  if (target === 0x07cb) return loc_07cb(m); // 0x0748 task table (dw 0x07cb @0x0754)
+  if (target === 0x1615) return m.call(0x1615); // 0x0702 table idx 0x16 (0x600A=0x16)
+  if (target === 0x1654) return m.call(0x1654);
+  if (target === 0x1670) return m.call(0x1670);
+  if (target === 0x168a) return m.call(0x168a);
+  if (target === 0x1732) return m.call(0x1732);
+  if (target === 0x1757) return m.call(0x1757);
+  if (target === 0x178e) return m.call(0x178e);
+  if (target === 0x16a3) return m.call(0x16a3);
+  if (target === 0x16bb) return m.call(0x16bb);
+  if (target === 0x123c) return m.call(0x123c);
+  if (target === 0x1977) return m.call(0x1977); // game state 1 sub-state (0x0748 table) -- THE FINALE reach-mover
+  if (target === 0x197a) return m.call(0x197a); // game state 3 gameplay (0x0702 table @0x600A) enters the cascade at 0x197A (skips handler_1977's 0x1977 sub_21ee call)
+  if (target === 0x07cb) return m.call(0x07cb); // 0x0748 task table (dw 0x07cb @0x0754)
   // The 0x3110 guard family -- SKIP-CAPABLE targets reached via sub_30fa's
   // rst 0x28. These return a boolean ("should the dispatch caller continue?"),
   // which sub_0028 now propagates. Adding them relies on nothing new: the arms
   // above already `return`.
-  if (target === 0x3110) return guard_3110(m);
-  if (target === 0x311b) return guard_311b(m);
-  if (target === 0x3126) return guard_3126(m);
-  if (target === 0x3131) return guard_3131(m);
+  if (target === 0x3110) return m.call(0x3110);
+  if (target === 0x311b) return m.call(0x311b);
+  if (target === 0x3126) return m.call(0x3126);
+  if (target === 0x3131) return m.call(0x3131);
   // entry_3e88's rst 0x28 table (base 0x3E8D). Reached ONLY through that
   // dispatcher, which is untranslated (called from 0x286B), so these arms never
   // fire on the live NMI/substate/sub_30fa paths.
-  if (target === 0x3e99) return entry_3e99(m);
-  if (target === 0x28b0) return sub_28b0(m);
-  if (target === 0x28e0) return sub_28e0(m);
-  if (target === 0x2901) return sub_2901(m);
-  if (target === 0x2880) return sub_2880(m); // sub_286f's 0x2874 collision table (0x6227)
-  if (target === 0x138f) return loc_138f(m); // 0x0702 table idx16
-  if (target === 0x13a1) return loc_13a1(m); // 0x0702 table idx17 -- twin of 138f (table-audit)
-  if (target === 0x13aa) return loc_13aa(m); // 0x0702 table idx18
-  if (target === 0x13bb) return loc_13bb(m); // 0x0702 table idx19
-  if (target === 0x141e) return loc_141e(m); // 0x0702 table idx20
-  if (target === 0x1486) return sub_1486(m); // 0x0702 table idx21 -- bonus-item phase handler
-  if (target === 0x196b) return loc_196b(m); // 0x0702 table idx23 -- computed phase transition
-  if (target === 0x12f2) return loc_12f2(m); // 0x0702 table idx14 -- counter-gated state setup (reached at play start)
-  if (target === 0x1344) return loc_1344(m); // 0x0702 table idx15 -- twin of loc_12f2
+  if (target === 0x3e99) return m.call(0x3e99);
+  if (target === 0x28b0) return m.call(0x28b0);
+  if (target === 0x28e0) return m.call(0x28e0);
+  if (target === 0x2901) return m.call(0x2901);
+  if (target === 0x2880) return m.call(0x2880); // sub_286f's 0x2874 collision table (0x6227)
+  if (target === 0x138f) return m.call(0x138f); // 0x0702 table idx16
+  if (target === 0x13a1) return m.call(0x13a1); // 0x0702 table idx17 -- twin of 138f (table-audit)
+  if (target === 0x13aa) return m.call(0x13aa); // 0x0702 table idx18
+  if (target === 0x13bb) return m.call(0x13bb); // 0x0702 table idx19
+  if (target === 0x141e) return m.call(0x141e); // 0x0702 table idx20
+  if (target === 0x1486) return m.call(0x1486); // 0x0702 table idx21 -- bonus-item phase handler
+  if (target === 0x196b) return m.call(0x196b); // 0x0702 table idx23 -- computed phase transition
+  if (target === 0x12f2) return m.call(0x12f2); // 0x0702 table idx14 -- counter-gated state setup (reached at play start)
+  if (target === 0x1344) return m.call(0x1344); // 0x0702 table idx15 -- twin of loc_12f2
   throw new NotImplemented(
     `handler at ROM 0x${target.toString(16).padStart(4, "0")} ` +
       `(reached via rst 0x28 table at ${site})`,
@@ -2259,7 +2259,7 @@ export function loc_0e4f(m) {
   m.step(0x0e54, 7);
   if (regs.fNZ) {
     m.step(0x0ee8, 10); // jp nz -- kind 3 or more
-    return loc_0ee8(m); // kind 3 -> strip drawer; kind 4+ -> entry_0f1b (tail via loc_0ee8)
+    return m.call(0x0ee8); // kind 3 -> strip drawer; kind 4+ -> entry_0f1b (tail via loc_0ee8)
   }
   m.step(0x0e57, 10);
 

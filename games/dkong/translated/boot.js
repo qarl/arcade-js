@@ -229,7 +229,7 @@ export function bootInit(m) {
   // 02B5: call 0x011c -- pushes 0x02B8, the address of the next instruction.
   m.push16(0x02b8);
   m.tick(17); // call nn
-  sub_011c(m);
+  m.call(0x011c);
 
   // 02B8-02BC: re-enable the vblank NMI. From here the NMI can fire.
   regs.a = 0x01;

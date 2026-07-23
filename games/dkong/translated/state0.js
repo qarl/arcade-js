@@ -60,7 +60,7 @@ export function handler_01c3(m) {
 
   m.push16(0x01c6);
   m.step(0x0874, 17);
-  sub_0874(m);
+  m.call(0x0874);
 
   regs.hl = 0x01ba;
   m.step(0x01c9, 10);
@@ -84,11 +84,11 @@ export function handler_01c3(m) {
   // tracer misclassifies 0x06B8 as never-returning (see README known issues).
   m.push16(0x01df);
   m.step(0x06b8, 17);
-  entry_06b8(m);
+  m.call(0x06b8);
 
   m.push16(0x01e2);
   m.step(0x0207, 17);
-  sub_0207(m);
+  m.call(0x0207);
 
   regs.a = 0x01;
   m.step(0x01e4, 7);
@@ -105,7 +105,7 @@ export function handler_01c3(m) {
 
   m.push16(0x01f4);
   m.step(0x0a53, 17);
-  sub_0a53(m);
+  m.call(0x0a53);
 
   // Three tasks queued, each a 16-bit (D,E) pair.
   for (const [de, after, next] of [
@@ -117,7 +117,7 @@ export function handler_01c3(m) {
     m.step(after, 10);
     m.push16(next);
     m.step(0x309f, 17);
-    sub_309f(m);
+    m.call(0x309f);
   }
 
   m.ret();
@@ -173,7 +173,7 @@ export function entry_03fb(m) {
   m.step(0x03fe, 13); // ld a,(0x6227)
   regs.cp(0x02);
   m.step(0x0400, 7); // cp 0x02
-  if (regs.fNZ) { m.step(0x0413, 10); return loc_0413(m); } // jp nz,0x0413
+  if (regs.fNZ) { m.step(0x0413, 10); return m.call(0x0413); } // jp nz,0x0413
   m.step(0x0403, 10); // jp nz NOT taken -> (6227)==2 arm
 
   // ---- (6227)==2 arm (COLD on tape) ----
@@ -183,14 +183,14 @@ export function entry_03fb(m) {
   m.step(0x0409, 13); // ld a,(0x63a3)
   regs.c = regs.a;
   m.step(0x040a, 4); // ld c,a
-  m.push16(0x040b); m.step(0x0038, 11); loc_0038(m); // rst 0x38 = CALL loc_0038
+  m.push16(0x040b); m.step(0x0038, 11); m.call(0x0038); // rst 0x38 = CALL loc_0038
   regs.a = mem.read8(0x6910);
   m.step(0x040e, 13); // ld a,(0x6910)
   regs.sub(0x3b);
   m.step(0x0410, 7); // sub 0x3b
   mem.write8(0x63b7, regs.a);
   m.step(0x0413, 13); // ld (0x63b7),a -- falls into 0x0413
-  return loc_0413(m);
+  return m.call(0x0413);
 }
 
 /** loc_0413 -- frame flags: gate on (0x6391)/(0x601A), then fall into loc_0426. */
@@ -200,19 +200,19 @@ export function loc_0413(m) {
   m.step(0x0416, 13); // ld a,(0x6391)
   regs.and(regs.a);
   m.step(0x0417, 4); // and a
-  if (regs.fNZ) { m.step(0x0426, 10); return loc_0426(m); } // jp nz,0x0426
+  if (regs.fNZ) { m.step(0x0426, 10); return m.call(0x0426); } // jp nz,0x0426
   m.step(0x041a, 10);
   regs.a = mem.read8(0x601a);
   m.step(0x041d, 13); // ld a,(0x601a)
   regs.and(regs.a);
   m.step(0x041e, 4); // and a
-  if (regs.fNZ) { m.step(0x0486, 10); return loc_0486(m); } // jp nz,0x0486
+  if (regs.fNZ) { m.step(0x0486, 10); return m.call(0x0486); } // jp nz,0x0486
   m.step(0x0421, 10);
   regs.a = 0x01;
   m.step(0x0423, 7); // ld a,0x01
   mem.write8(0x6391, regs.a);
   m.step(0x0426, 13); // ld (0x6391),a -- falls into 0x0426
-  return loc_0426(m);
+  return m.call(0x0426);
 }
 
 /** loc_0426 -- the frame counter (0x6390); 0x80 -> reset (loc_0464); 32-frame boundary -> table copy. */
@@ -226,13 +226,13 @@ export function loc_0426(m) {
   m.step(0x042b, 7); // ld a,(hl)
   regs.cp(0x80);
   m.step(0x042d, 7); // cp 0x80
-  if (regs.fZ) { m.step(0x0464, 10); return loc_0464(m); } // jp z,0x0464
+  if (regs.fZ) { m.step(0x0464, 10); return m.call(0x0464); } // jp z,0x0464
   m.step(0x0430, 10);
   regs.a = mem.read8(0x6393);
   m.step(0x0433, 13); // ld a,(0x6393)
   regs.and(regs.a);
   m.step(0x0434, 4); // and a
-  if (regs.fNZ) { m.step(0x0486, 10); return loc_0486(m); } // jp nz,0x0486
+  if (regs.fNZ) { m.step(0x0486, 10); return m.call(0x0486); } // jp nz,0x0486
   m.step(0x0437, 10);
   regs.a = mem.read8(regs.hl); // hl still 0x6390
   m.step(0x0438, 7); // ld a,(hl)
@@ -240,7 +240,7 @@ export function loc_0426(m) {
   m.step(0x0439, 4); // ld b,a
   regs.and(0x1f);
   m.step(0x043b, 7); // and 0x1f
-  if (regs.fNZ) { m.step(0x0486, 10); return loc_0486(m); } // jp nz,0x0486
+  if (regs.fNZ) { m.step(0x0486, 10); return m.call(0x0486); } // jp nz,0x0486
   m.step(0x043e, 10); // NOT taken: 32-frame boundary
   regs.hl = 0x39cf;
   m.step(0x0441, 10); // ld hl,0x39cf
@@ -253,12 +253,12 @@ export function loc_0426(m) {
     regs.hl = 0x39f7;
     m.step(0x0448, 10); // ld hl,0x39f7
   }
-  m.push16(0x044b); m.step(0x004e, 17); sub_004e(m); // call 0x004e
+  m.push16(0x044b); m.step(0x004e, 17); m.call(0x004e); // call 0x004e
   regs.a = 0x03;
   m.step(0x044d, 7); // ld a,0x03
   mem.write8(0x6082, regs.a);
   m.step(0x0450, 13); // ld (0x6082),a -- falls into 0x0450
-  return loc_0450(m);
+  return m.call(0x0450);
 }
 
 /** loc_0450 -- (0x6227) bit dispatch: bit0==0 -> loc_0478; bit1 -> loc_0486; else rst 0x38 sprite. */
@@ -268,19 +268,19 @@ export function loc_0450(m) {
   m.step(0x0453, 13); // ld a,(0x6227)
   regs.rrca();
   m.step(0x0454, 4); // rrca -- C = (6227) bit0
-  if (regs.fNC) { m.step(0x0478, 10); return loc_0478(m); } // jp nc,0x0478
+  if (regs.fNC) { m.step(0x0478, 10); return m.call(0x0478); } // jp nc,0x0478
   m.step(0x0457, 10); // bit0==1
   regs.rrca();
   m.step(0x0458, 4); // rrca -- C = (6227) bit1
-  if (regs.fC) { m.step(0x0486, 10); return loc_0486(m); } // jp c,0x0486
+  if (regs.fC) { m.step(0x0486, 10); return m.call(0x0486); } // jp c,0x0486
   m.step(0x045b, 10); // bit1==0
   regs.hl = 0x690b;
   m.step(0x045e, 10); // ld hl,0x690b
   regs.c = 0xfc;
   m.step(0x0460, 7); // ld c,0xfc (-4)
-  m.push16(0x0461); m.step(0x0038, 11); loc_0038(m); // rst 0x38 = CALL loc_0038
+  m.push16(0x0461); m.step(0x0038, 11); m.call(0x0038); // rst 0x38 = CALL loc_0038
   m.step(0x0486, 10); // jp 0x0486
-  return loc_0486(m);
+  return m.call(0x0486);
 }
 
 /** loc_0464 -- counter hit 0x80 -> reset (0x6390)/(0x6391); (0x6393)==0 -> table copy; back to loc_0450. */
@@ -298,13 +298,13 @@ export function loc_0464(m) {
   m.step(0x046b, 13); // ld a,(0x6393)
   regs.and(regs.a);
   m.step(0x046c, 4); // and a
-  if (regs.fNZ) { m.step(0x0486, 10); return loc_0486(m); } // jp nz,0x0486
+  if (regs.fNZ) { m.step(0x0486, 10); return m.call(0x0486); } // jp nz,0x0486
   m.step(0x046f, 10); // (6393)==0 (COLD arm)
   regs.hl = 0x385c;
   m.step(0x0472, 10); // ld hl,0x385c
-  m.push16(0x0475); m.step(0x004e, 17); sub_004e(m); // call 0x004e
+  m.push16(0x0475); m.step(0x004e, 17); m.call(0x004e); // call 0x004e
   m.step(0x0450, 10); // jp 0x0450 (BACKWARD rejoin, not a loop)
-  return loc_0450(m);
+  return m.call(0x0450);
 }
 
 /** loc_0478 -- (6227) bit0==0 arm (COLD): rst 0x38 sprite offset, then loc_0486. */
@@ -325,8 +325,8 @@ export function loc_0478(m) {
     regs.c = regs.a;
     m.step(0x0485, 4); // ld c,a
   }
-  m.push16(0x0486); m.step(0x0038, 11); loc_0038(m); // rst 0x38 -> falls into 0x0486
-  return loc_0486(m);
+  m.push16(0x0486); m.step(0x0038, 11); m.call(0x0038); // rst 0x38 -> falls into 0x0486
+  return m.call(0x0486);
 }
 
 /** loc_0486 -- colour tail (reached 7 ways): C=frame counter; (6227)==4 -> loc_04be blink block. */
@@ -342,21 +342,21 @@ export function loc_0486(m) {
   m.step(0x0490, 13); // ld a,(0x6227)
   regs.cp(0x04);
   m.step(0x0492, 7); // cp 0x04
-  if (regs.fZ) { m.step(0x04be, 10); return loc_04be(m); } // jp z,0x04be
+  if (regs.fZ) { m.step(0x04be, 10); return m.call(0x04be); } // jp z,0x04be
   m.step(0x0495, 10); // (6227)!=4
   regs.a = regs.c;
   m.step(0x0496, 4); // ld a,c
   regs.and(regs.a);
   m.step(0x0497, 4); // and a
-  if (regs.fZ) { m.step(0x04a1, 10); return loc_04a1(m); } // jp z,0x04a1
+  if (regs.fZ) { m.step(0x04a1, 10); return m.call(0x04a1); } // jp z,0x04a1
   m.step(0x049a, 10); // counter != 0
   regs.a = 0xef;
   m.step(0x049c, 7); // ld a,0xef
   const b6 = regs.bit(6, regs.c);
   m.step(0x049e, 8); // bit 6,c
-  if (b6) { m.step(0x04a3, 10); return loc_04a3(m); } // jp nz,0x04a3 (A stays 0xef)
+  if (b6) { m.step(0x04a3, 10); return m.call(0x04a3); } // jp nz,0x04a3 (A stays 0xef)
   m.step(0x04a1, 10); // bit6==0 -> fall to 0x04a1
-  return loc_04a1(m);
+  return m.call(0x04a1);
 }
 
 /** loc_04a1 -- A = 0x10, then fall into loc_04a3. */
@@ -364,7 +364,7 @@ export function loc_04a1(m) {
   const { regs } = m;
   regs.a = 0x10;
   m.step(0x04a3, 7); // ld a,0x10 -- falls into 0x04a3
-  return loc_04a3(m);
+  return m.call(0x04a3);
 }
 
 /** loc_04a3 -- write colour column (sub_0514), then read (0x6905) for the blink flip. */
@@ -372,10 +372,10 @@ export function loc_04a3(m) {
   const { regs, mem } = m;
   regs.hl = 0x75c4;
   m.step(0x04a6, 10); // ld hl,0x75c4
-  m.push16(0x04a9); m.step(0x0514, 17); sub_0514(m); // call 0x0514
+  m.push16(0x04a9); m.step(0x0514, 17); m.call(0x0514); // call 0x0514
   regs.a = mem.read8(0x6905);
   m.step(0x04ac, 13); // ld a,(0x6905) -- falls into loc_04ac
-  return loc_04ac(m);
+  return m.call(0x04ac);
 }
 
 /** loc_04ac -- SHARED store of (0x6905) + the 3-way blink exit (jp target from 0x04EE, 0x0506). */
@@ -411,26 +411,26 @@ export function loc_04be(m) {
   m.step(0x04c0, 7); // ld a,0x10
   regs.hl = 0x7623;
   m.step(0x04c3, 10); // ld hl,0x7623
-  m.push16(0x04c6); m.step(0x0514, 17); sub_0514(m); // call 0x0514
+  m.push16(0x04c6); m.step(0x0514, 17); m.call(0x0514); // call 0x0514
   regs.hl = 0x7583;
   m.step(0x04c9, 10); // ld hl,0x7583
-  m.push16(0x04cc); m.step(0x0514, 17); sub_0514(m); // call 0x0514
+  m.push16(0x04cc); m.step(0x0514, 17); m.call(0x0514); // call 0x0514
   regs.bit(6, regs.c);
   m.step(0x04ce, 8); // bit 6,c
-  if (regs.fZ) { m.step(0x0509, 10); return loc_0509(m); } // jp z,0x0509
+  if (regs.fZ) { m.step(0x0509, 10); return m.call(0x0509); } // jp z,0x0509
   m.step(0x04d1, 10);
   regs.a = mem.read8(0x6203);
   m.step(0x04d4, 13); // ld a,(0x6203)
   regs.cp(0x80);
   m.step(0x04d6, 7); // cp 0x80
-  if (regs.fNC) { m.step(0x04f1, 10); return loc_04f1(m); } // jp nc,0x04f1
+  if (regs.fNC) { m.step(0x04f1, 10); return m.call(0x04f1); } // jp nc,0x04f1
   m.step(0x04d9, 10); // (6203) < 0x80
   regs.a = 0xdf;
   m.step(0x04db, 7); // ld a,0xdf
   regs.hl = 0x7623;
   m.step(0x04de, 10); // ld hl,0x7623
-  m.push16(0x04e1); m.step(0x0514, 17); sub_0514(m); // call 0x0514 -> falls into 0x04e1
-  return loc_04e1(m);
+  m.push16(0x04e1); m.step(0x0514, 17); m.call(0x0514); // call 0x0514 -> falls into 0x04e1
+  return m.call(0x04e1);
 }
 
 /** loc_04e1 -- blink ON: set bit7 of (0x6901) and (0x6905); back to loc_04ac (jp from 0x0511). */
@@ -447,7 +447,7 @@ export function loc_04e1(m) {
   regs.or(0x80);
   m.step(0x04ee, 7); // or 0x80
   m.step(0x04ac, 10); // jp 0x04ac (BACKWARD rejoin)
-  return loc_04ac(m);
+  return m.call(0x04ac);
 }
 
 /** loc_04f1 -- colour write then fall into loc_04f9 (blink OFF). */
@@ -457,8 +457,8 @@ export function loc_04f1(m) {
   m.step(0x04f3, 7); // ld a,0xef
   regs.hl = 0x7583;
   m.step(0x04f6, 10); // ld hl,0x7583
-  m.push16(0x04f9); m.step(0x0514, 17); sub_0514(m); // call 0x0514 -> falls into 0x04f9
-  return loc_04f9(m);
+  m.push16(0x04f9); m.step(0x0514, 17); m.call(0x0514); // call 0x0514 -> falls into 0x04f9
+  return m.call(0x04f9);
 }
 
 /** loc_04f9 -- blink OFF: clear bit7 of (0x6901) and (0x6905); back to loc_04ac (jp nc from 0x050E). */
@@ -475,7 +475,7 @@ export function loc_04f9(m) {
   regs.and(0x7f);
   m.step(0x0506, 7); // and 0x7f
   m.step(0x04ac, 10); // jp 0x04ac (BACKWARD rejoin)
-  return loc_04ac(m);
+  return m.call(0x04ac);
 }
 
 /** loc_0509 -- (6227)==4, bit6 clear arm: route on X (0x6203) to loc_04f9 / loc_04e1. */
@@ -485,10 +485,10 @@ export function loc_0509(m) {
   m.step(0x050c, 13); // ld a,(0x6203)
   regs.cp(0x80);
   m.step(0x050e, 7); // cp 0x80
-  if (regs.fNC) { m.step(0x04f9, 10); return loc_04f9(m); } // jp nc,0x04f9
+  if (regs.fNC) { m.step(0x04f9, 10); return m.call(0x04f9); } // jp nc,0x04f9
   m.step(0x0511, 10); // (6203) < 0x80
   m.step(0x04e1, 10); // jp 0x04e1 (BACKWARD rejoin)
-  return loc_04e1(m);
+  return m.call(0x04e1);
 }
 
 /** loc_06fe's inline jump table -- the site string names the dispatch base. */
@@ -513,7 +513,7 @@ export function loc_06fe(m) {
 
   m.push16(0x0702); // rst 0x28 pushes its return address = the TABLE BASE
   m.step(0x0028, 11);
-  sub_0028(m, DISPATCH_TABLE_0702); // reads the table from ROM; ends in jp (hl)
+  m.call(0x0028, DISPATCH_TABLE_0702); // reads the table from ROM; ends in jp (hl)
 }
 
 /**
@@ -529,7 +529,7 @@ export function loc_07c3(m) {
 
   m.push16(0x07c6); // call 0x0874 pushes the return address 0x07C6
   m.step(0x0874, 17); // call 0x0874
-  sub_0874(m);
+  m.call(0x0874);
 
   regs.hl = 0x600a;
   m.step(0x07c9, 10); // ld hl,0x600a
@@ -552,7 +552,7 @@ export function loc_084b(m) {
 
   m.push16(0x084c); // rst 0x20 PUSHES its return address (the rst's own semantics)
   m.step(0x0020, 11); // rst 0x20
-  if (!sub_0020(m)) return; // skipped: control went to our caller, 0x600A untouched
+  if (!m.call(0x0020)) return; // skipped: control went to our caller, 0x600A untouched
 
   regs.hl = 0x600a;
   m.step(0x084f, 10); // ld hl,0x600a
@@ -575,7 +575,7 @@ export function loc_08b2(m) {
 
   m.push16(0x08b6); // rst 0x28 pushes its return address = the TABLE BASE (0x08B6, NOT 0x0702)
   m.step(0x0028, 11);
-  sub_0028(m, "0x08B6 (0x600A, 2-entry)"); // reads the table from ROM; ends in jp (hl)
+  m.call(0x0028, "0x08B6 (0x600A, 2-entry)"); // reads the table from ROM; ends in jp (hl)
 }
 
 /**
@@ -817,7 +817,7 @@ export function loc_08ba(m) {
 
   m.push16(0x08bd); // call 0x0874
   m.step(0x0874, 17);
-  sub_0874(m);
+  m.call(0x0874);
 
   regs.xor(regs.a); // xor a -- A = 0
   m.step(0x08be, 4);
@@ -828,7 +828,7 @@ export function loc_08ba(m) {
   m.step(0x08c4, 10); // ld de,0x030c
   m.push16(0x08c7); // call 0x309f -- DE=0x030C is a parameter
   m.step(0x309f, 17);
-  sub_309f(m);
+  m.call(0x309f);
 
   regs.hl = 0x600a;
   m.step(0x08ca, 10); // ld hl,0x600a
@@ -837,7 +837,7 @@ export function loc_08ba(m) {
 
   m.push16(0x08ce); // call 0x0965 -- sees the already-incremented 0x600A
   m.step(0x0965, 17);
-  sub_0965(m);
+  m.call(0x0965);
 
   regs.xor(regs.a); // xor a -- A = 0
   m.step(0x08cf, 4);
@@ -850,7 +850,7 @@ export function loc_08ba(m) {
   mem.write8(regs.hl, regs.a, 7); // 0x7D87 = 0
   m.step(0x08d5, 7); // ld (hl),a
 
-  return loc_08d5(m); // fall through -- loc_08d5's ret returns for both. NO push16.
+  return m.call(0x08d5); // fall through -- loc_08d5's ret returns for both. NO push16.
 }
 
 /**
@@ -909,10 +909,10 @@ export function loc_08d5(m) {
     m.step(0x08ed, 4); // ld a,e
     m.push16(0x08f0); // call 0x05e9
     m.step(0x05e9, 17);
-    handler_05e9(m); // returns normally to 0x08F0 (see the header)
+    m.call(0x05e9); // returns normally to 0x08F0 (see the header)
     m.push16(0x08f3); // call 0x0616
     m.step(0x0616, 17);
-    sub_0616(m);
+    m.call(0x0616);
   }
 
   // -- loc_08f3 --
@@ -977,17 +977,17 @@ export function handler_0779(m) {
   m.step(0x0784, 10);
   m.push16(0x0787);
   m.step(0x309f, 17);
-  sub_309f(m);
+  m.call(0x309f);
 
   regs.e = regs.inc8(regs.e);
   m.step(0x0788, 4);
   m.push16(0x078b);
   m.step(0x309f, 17);
-  sub_309f(m);
+  m.call(0x309f);
 
   m.push16(0x078e);
   m.step(0x0965, 17);
-  sub_0965(m);
+  m.call(0x0965);
 
   regs.hl = 0x6009;
   m.step(0x0791, 10);
@@ -1005,11 +1005,11 @@ export function handler_0779(m) {
 
   m.push16(0x0798);
   m.step(0x0874, 17);
-  sub_0874(m);
+  m.call(0x0874);
 
   m.push16(0x079b);
   m.step(0x0a53, 17);
-  sub_0a53(m);
+  m.call(0x0a53);
 
   regs.a = mem.read8(0x600f);
   m.step(0x079e, 13);
@@ -1018,7 +1018,7 @@ export function handler_0779(m) {
   if (regs.fZ) {
     m.push16(0x07a3);
     m.step(0x09ee, 17);
-    sub_09ee(m);
+    m.call(0x09ee);
   } else {
     m.step(0x07a3, 10); // call not taken: 10, not 17
   }
@@ -1034,8 +1034,8 @@ export function handler_0779(m) {
   // loading them rather than preserving them.
   m.push16(0x07ad);
   m.step(0x07ad, 17);
-  sub_07ad(m);
-  sub_07ad(m);
+  m.call(0x07ad);
+  m.call(0x07ad);
 }
 
 /**
@@ -1153,15 +1153,15 @@ export function sub_09d6(m) {
   m.step(0x09dd, 13);
   regs.de = 0x0302;
   m.step(0x09e0, 10);
-  m.push16(0x09e3); m.step(0x309f, 17); sub_309f(m);
+  m.push16(0x09e3); m.step(0x309f, 17); m.call(0x309f);
   regs.de = 0x0201;
   m.step(0x09e6, 10);
-  m.push16(0x09e9); m.step(0x309f, 17); sub_309f(m);
+  m.push16(0x09e9); m.step(0x309f, 17); m.call(0x309f);
   regs.a = 0x05;
   m.step(0x09eb, 7);
   mem.write8(0x600a, regs.a);
   m.step(0x09ee, 13); // 0x600A = 5 -> fall into sub_09ee
-  return sub_09ee(m);
+  return m.call(0x09ee);
 }
 /** sub_09fe -- copy 0x6048->0x6228[8], set board id (0x6227) from (0x622A) deref, arm 0x6009=0x78/0x600A=4. ROM 0x09FE-0x0A1A. */
 export function sub_09fe(m) {
@@ -1200,11 +1200,11 @@ export function sub_0a1b(m) {
   m.step(0x0a22, 13);
   regs.de = 0x0303;
   m.step(0x0a25, 10);
-  m.push16(0x0a28); m.step(0x309f, 17); sub_309f(m);
+  m.push16(0x0a28); m.step(0x309f, 17); m.call(0x309f);
   regs.de = 0x0201;
   m.step(0x0a2b, 10);
-  m.push16(0x0a2e); m.step(0x309f, 17); sub_309f(m);
-  m.push16(0x0a31); m.step(0x09ee, 17); sub_09ee(m); // shared tail
+  m.push16(0x0a2e); m.step(0x309f, 17); m.call(0x309f);
+  m.push16(0x0a31); m.step(0x09ee, 17); m.call(0x09ee); // shared tail
   regs.a = 0x05;
   m.step(0x0a33, 7);
   mem.write8(0x600a, regs.a);
@@ -1236,7 +1236,7 @@ export function sub_0965(m) {
   m.step(0x0968, 10);
   m.push16(0x096b);
   m.step(0x309f, 17);
-  sub_309f(m);
+  m.call(0x309f);
 
   regs.de = 0x0314;
   m.step(0x096e, 10);
@@ -1245,7 +1245,7 @@ export function sub_0965(m) {
   do {
     m.push16(0x0973);
     m.step(0x309f, 17);
-    sub_309f(m);
+    m.call(0x309f);
     regs.e = regs.inc8(regs.e);
     m.step(0x0974, 4);
     regs.b = (regs.b - 1) & 0xff; // djnz -- no flags
@@ -1274,7 +1274,7 @@ export function loc_08f8(m) {
 
   m.push16(0x08fb);
   m.step(0x08d5, 17);
-  loc_08d5(m); // A = mem[0x7D00] & B -- the return VALUE is what we test
+  m.call(0x08d5); // A = mem[0x7D00] & B -- the return VALUE is what we test
 
   regs.cp(0x04);
   m.step(0x08fd, 7); // cp 0x04 -- overwrites loc_08d5's flags
@@ -1285,7 +1285,7 @@ export function loc_08f8(m) {
     // -- loc_0906 --
     m.push16(0x0909);
     m.step(0x0977, 17);
-    sub_0977(m);
+    m.call(0x0977);
     regs.hl = 0x6048;
     m.step(0x090c, 10); // ld hl,0x6048
     regs.b = 0x08;
@@ -1315,10 +1315,10 @@ export function loc_08f8(m) {
     m.step(0x0919, 10);
     m.push16(0x091c);
     m.step(0x0977, 17);
-    sub_0977(m); // FIRST call
+    m.call(0x0977); // FIRST call
     m.push16(0x091f);
     m.step(0x0977, 17);
-    sub_0977(m); // SECOND call -- not a duplicate
+    m.call(0x0977); // SECOND call -- not a duplicate
 
     regs.de = 0x6048; // <-- 0x6048 HERE; the tail uses 0x6040
     m.step(0x0922, 10);
@@ -1338,7 +1338,7 @@ export function loc_08f8(m) {
     m.step(0x0932, 10);
     m.push16(0x0935);
     m.step(0x309f, 17);
-    sub_309f(m);
+    m.call(0x309f);
     regs.hl = 0x0100; // the JOIN value for this arm
     m.step(0x0938, 10); // ld hl,0x0100
   }
@@ -1348,7 +1348,7 @@ export function loc_08f8(m) {
   m.step(0x093b, 16);
   m.push16(0x093e);
   m.step(0x0874, 17);
-  sub_0874(m); // edge -- not mine
+  m.call(0x0874); // edge -- not mine
 
   regs.de = 0x6040; // <-- 0x6040, NOT 0x6048
   m.step(0x0941, 10);
@@ -1368,7 +1368,7 @@ export function loc_08f8(m) {
   m.step(0x0951, 10);
   m.push16(0x0954);
   m.step(0x309f, 17);
-  sub_309f(m);
+  m.call(0x309f);
 
   regs.xor(regs.a); // A = 0
   m.step(0x0955, 4);
@@ -1410,7 +1410,7 @@ export function sub_0977(m) {
   m.step(0x0982, 10); // ld de,0x0400
   m.push16(0x0985); // call 0x309f -- balanced, not skip-capable
   m.step(0x309f, 17);
-  sub_309f(m);
+  m.call(0x309f);
   m.ret(); // ret (0x0985)
 }
 
@@ -1419,10 +1419,10 @@ export function loc_0986(m) {
 
   m.push16(0x0989);
   m.step(0x0852, 17); // call 0x0852
-  sub_0852(m);
+  m.call(0x0852);
   m.push16(0x098c);
   m.step(0x011c, 17); // call 0x011c
-  sub_011c(m);
+  m.call(0x011c);
 
   regs.de = 0x7d82;
   m.step(0x098f, 10); // ld de,0x7d82
@@ -1548,22 +1548,22 @@ export function loc_0a37(m) {
   m.step(0x0a3a, 10); // ld de,0x0304
   m.push16(0x0a3d);
   m.step(0x309f, 17); // call 0x309f
-  sub_309f(m);
+  m.call(0x309f);
   regs.de = 0x0202;
   m.step(0x0a40, 10); // ld de,0x0202
   m.push16(0x0a43);
   m.step(0x309f, 17); // call 0x309f
-  sub_309f(m);
+  m.call(0x309f);
   regs.de = 0x0200;
   m.step(0x0a46, 10); // ld de,0x0200
   m.push16(0x0a49);
   m.step(0x309f, 17); // call 0x309f
-  sub_309f(m);
+  m.call(0x309f);
   regs.de = 0x0600;
   m.step(0x0a4c, 10); // ld de,0x0600
   m.push16(0x0a4f);
   m.step(0x309f, 17); // call 0x309f
-  sub_309f(m);
+  m.call(0x309f);
 
   regs.hl = 0x600a;
   m.step(0x0a52, 10); // ld hl,0x600a
@@ -1599,7 +1599,7 @@ export function loc_0a76(m) {
 
   m.push16(0x0a7a); // rst 0x28 pushes its return address = the TABLE BASE (0x0A7A)
   m.step(0x0028, 11);
-  sub_0028(m, "0x0A7A (0x6385 sequence)"); // reads the table from ROM; ends in jp (hl)
+  m.call(0x0028, "0x0A7A (0x6385 sequence)"); // reads the table from ROM; ends in jp (hl)
 }
 
 /**
@@ -1623,11 +1623,11 @@ export function loc_0a63(m) {
 
   m.push16(0x0a64); // rst 0x18 pushes its return address
   m.step(0x0018, 11); // rst 0x18
-  if (!sub_0018(m)) return; // counter still ticking -- skipped to our caller
+  if (!m.call(0x0018)) return; // counter still ticking -- skipped to our caller
 
   m.push16(0x0a67);
   m.step(0x0874, 17); // call 0x0874
-  sub_0874(m);
+  m.call(0x0874);
 
   regs.hl = 0x6009;
   m.step(0x0a6a, 10); // ld hl,0x6009
@@ -1674,7 +1674,7 @@ export function loc_0a8a(m) {
   m.step(0x0a95, 10); // ld de,0x380d
   m.push16(0x0a98);
   m.step(0x0da7, 17);
-  sub_0da7(m);
+  m.call(0x0da7);
 
   regs.a = 0x10;
   m.step(0x0a9a, 7); // ld a,0x10
@@ -1716,13 +1716,13 @@ export function loc_0abf(m) {
 
   m.push16(0x0ac0);
   m.step(0x0018, 11); // rst 0x18
-  if (!sub_0018(m)) return; // countdown not expired -- aborted to caller
+  if (!m.call(0x0018)) return; // countdown not expired -- aborted to caller
 
   regs.hl = 0x388c;
   m.step(0x0ac3, 10); // ld hl,0x388c
   m.push16(0x0ac6);
   m.step(0x004e, 17);
-  sub_004e(m); // copy 0x28 bytes ROM 0x388C -> 0x6908
+  m.call(0x004e); // copy 0x28 bytes ROM 0x388C -> 0x6908
 
   regs.hl = 0x6908;
   m.step(0x0ac9, 10); // ld hl,0x6908
@@ -1730,7 +1730,7 @@ export function loc_0abf(m) {
   m.step(0x0acb, 7); // ld c,0x30
   m.push16(0x0acc);
   m.step(0x0038, 11); // rst 0x38 -- add-pass 1
-  loc_0038(m);
+  m.call(0x0038);
 
   regs.hl = 0x690b;
   m.step(0x0acf, 10); // ld hl,0x690b
@@ -1738,7 +1738,7 @@ export function loc_0abf(m) {
   m.step(0x0ad1, 7); // ld c,0x99
   m.push16(0x0ad2);
   m.step(0x0038, 11); // rst 0x38 -- add-pass 2 (different HL, C)
-  loc_0038(m);
+  m.call(0x0038);
 
   regs.a = 0x1f;
   m.step(0x0ad4, 7); // ld a,0x1f
@@ -1770,7 +1770,7 @@ export function loc_0ae8(m) {
 
   m.push16(0x0aeb);
   m.step(0x306f, 17);
-  sub_306f(m);
+  m.call(0x306f);
 
   regs.a = mem.read8(0x62af);
   m.step(0x0aee, 13); // ld a,(0x62af)
@@ -1780,7 +1780,7 @@ export function loc_0ae8(m) {
   if (regs.fZ) {
     m.push16(0x0af3);
     m.step(0x304a, 17); // call z,0x304a taken
-    sub_304a(m);
+    m.call(0x304a);
   } else {
     m.step(0x0af3, 10); // call z NOT taken
   }
@@ -1907,7 +1907,7 @@ export function loc_0bb3(m) {
   // -- loc_0bd1: the merge. HL from above is DEAD; sub_0018 sets HL = 0x6009. --
   m.push16(0x0bd2); // rst 0x18 PUSHES its return address
   m.step(0x0018, 11); // rst 0x18
-  if (!sub_0018(m)) return; // countdown not expired -- skipped to our caller
+  if (!m.call(0x0018)) return; // countdown not expired -- skipped to our caller
 
   regs.xor(regs.a); // xor a -- A = 0
   m.step(0x0bd3, 4);
@@ -1957,7 +1957,7 @@ export function loc_0b06(m) {
     m.step(0x0b1c, 10); // ld hl,0x690b
     m.push16(0x0b1d);
     m.step(0x0038, 11); // rst 0x38 -- add the table byte
-    loc_0038(m);
+    m.call(0x0038);
     m.ret();
     return;
   }
@@ -1967,7 +1967,7 @@ export function loc_0b06(m) {
   m.step(0x0b21, 10); // ld hl,0x385c
   m.push16(0x0b24);
   m.step(0x004e, 17);
-  sub_004e(m); // copies 0x28 bytes; LEAVES HL = 0x3884
+  m.call(0x004e); // copies 0x28 bytes; LEAVES HL = 0x3884
 
   regs.de = 0x6900; // HL is NOT reloaded -- it is 0x3884 from sub_004e
   m.step(0x0b27, 10); // ld de,0x6900
@@ -1981,20 +1981,20 @@ export function loc_0b06(m) {
   m.step(0x0b31, 7); // ld c,0x50
   m.push16(0x0b32);
   m.step(0x0038, 11); // rst 0x38
-  loc_0038(m);
+  m.call(0x0038);
   regs.hl = 0x690b;
   m.step(0x0b35, 10); // ld hl,0x690b
   regs.c = 0xfc;
   m.step(0x0b37, 7); // ld c,0xfc
   m.push16(0x0b38);
   m.step(0x0038, 11); // rst 0x38
-  loc_0038(m);
+  m.call(0x0038);
 
   // do { call 0x304A } while (0x638E != 0x0A)
   for (;;) {
     m.push16(0x0b3b);
     m.step(0x304a, 17);
-    sub_304a(m); // advances 0x638E toward 0x0A
+    m.call(0x304a); // advances 0x638E toward 0x0A
     regs.a = mem.read8(0x638e);
     m.step(0x0b3e, 13); // ld a,(0x638e)
     regs.cp(0x0a);
@@ -2014,7 +2014,7 @@ export function loc_0b06(m) {
   m.step(0x0b4b, 10); // ld de,0x392c
   m.push16(0x0b4e);
   m.step(0x0da7, 17);
-  sub_0da7(m);
+  m.call(0x0da7);
 
   regs.a = 0x10;
   m.step(0x0b50, 7); // ld a,0x10
@@ -2074,14 +2074,14 @@ export function loc_0b68(m) {
     m.step(0x0b7e, 4); // ld c,a
     m.push16(0x0b7f);
     m.step(0x0038, 11); // rst 0x38 -- add the table byte
-    loc_0038(m);
+    m.call(0x0038);
     regs.hl = 0x6908;
     m.step(0x0b82, 10); // ld hl,0x6908
     regs.c = 0xff;
     m.step(0x0b84, 7); // ld c,0xff -- adds -1
     m.push16(0x0b85);
     m.step(0x0038, 11); // rst 0x38
-    loc_0038(m);
+    m.call(0x0038);
     m.ret();
     return;
   }
@@ -2119,7 +2119,7 @@ export function loc_0b68(m) {
   m.step(0x0ba1, 4); // ex de,hl
   m.push16(0x0ba4);
   m.step(0x0da7, 17);
-  sub_0da7(m); // render the record
+  m.call(0x0da7); // render the record
 
   regs.hl = 0x638d;
   m.step(0x0ba7, 10); // ld hl,0x638d
@@ -2147,15 +2147,15 @@ export function loc_0bda(m) {
 
   m.push16(0x0bdd);
   m.step(0x011c, 17); // call 0x011c -- UNCONDITIONAL, before the gate
-  sub_011c(m);
+  m.call(0x011c);
 
   m.push16(0x0bde);
   m.step(0x0018, 11); // rst 0x18 -- gate on everything after
-  if (!sub_0018(m)) return; // skipped -> aborted to caller
+  if (!m.call(0x0018)) return; // skipped -> aborted to caller
 
   m.push16(0x0be1);
   m.step(0x0874, 17); // call 0x0874
-  sub_0874(m);
+  m.call(0x0874);
 
   regs.d = 0x06;
   m.step(0x0be3, 7); // ld d,0x06
@@ -2165,7 +2165,7 @@ export function loc_0bda(m) {
   m.step(0x0be7, 4); // ld e,a
   m.push16(0x0bea);
   m.step(0x309f, 17); // call 0x309f -- enqueue DE = (0x06, mem[0x6200])
-  sub_309f(m);
+  m.call(0x309f);
 
   // -- seed state --
   regs.hl = 0x7d86;
@@ -2363,7 +2363,7 @@ export function loc_0bda(m) {
   m.step(0x0c85, 10); // ld de,0x0307
   m.push16(0x0c88);
   m.step(0x309f, 17); // call 0x309f -- enqueue DE = 0x0307
-  sub_309f(m);
+  m.call(0x309f);
 
   regs.hl = 0x6009;
   m.step(0x0c8b, 10); // ld hl,0x6009
@@ -2597,7 +2597,7 @@ export function entry_30db(m) {
   m.step(0x30e4, 7); // ld b,0x06
 
   // FALLTHROUGH into sub_30e4, no push -- its ret returns to OUR caller.
-  return sub_30e4(m);
+  return m.call(0x30e4);
 }
 
 /**
@@ -2892,14 +2892,14 @@ export function sub_304a(m) {
 
   m.push16(0x3059); // call 0x3064 -- real call, sub_3064 rets back to 0x3059
   m.step(0x3064, 17);
-  sub_3064(m); // preserves BC and DE
+  m.call(0x3064); // preserves BC and DE
 
   regs.hl = 0x75c0;
   m.step(0x305c, 10); // ld hl,0x75c0
 
   m.push16(0x305f); // call 0x3064 -- reuses BC and DE preserved across the first
   m.step(0x3064, 17);
-  sub_3064(m);
+  m.call(0x3064);
 
   regs.hl = 0x638e;
   m.step(0x3062, 10); // ld hl,0x638e
@@ -2936,7 +2936,7 @@ export function sub_304a(m) {
  * THE STACK SPLICE (the judgement point): the first THREE are real `call`s
  * (push a return, sub_30e4 rets back). The FOURTH is a `jp` -- a TAIL JUMP that
  * pushes NOTHING, so sub_30e4's `ret` returns to sub_30bd's OWN caller. Modelled
- * `m.step(0x30e4, 10); return sub_30e4(m)` with no push16 -- identical to
+ * `m.step(0x30e4, 10); return m.call(0x30e4)` with no push16 -- identical to
  * entry_30db's fallthrough, differing only in charging the jp's 10 T-states.
  * Translating the tail jump as a call (an extra push + an implied ret) would
  * splice a phantom frame onto the stack (the tail-jump-is-not-a-call trap;
@@ -2956,7 +2956,7 @@ export function sub_30bd(m) {
   m.step(0x30c2, 7); // ld b,0x02
   m.push16(0x30c5); // call 0x30e4 -- real call, rets back to 0x30c5
   m.step(0x30e4, 17);
-  sub_30e4(m); // preserves H
+  m.call(0x30e4); // preserves H
 
   regs.l = 0x80; // L only -- HL = 0x6980, H preserved at 0x69
   m.step(0x30c7, 7); // ld l,0x80
@@ -2964,7 +2964,7 @@ export function sub_30bd(m) {
   m.step(0x30c9, 7); // ld b,0x0a
   m.push16(0x30cc); // call 0x30e4 -- rets back to 0x30cc
   m.step(0x30e4, 17);
-  sub_30e4(m);
+  m.call(0x30e4);
 
   regs.l = 0xb8; // HL = 0x69b8
   m.step(0x30ce, 7); // ld l,0xb8
@@ -2972,7 +2972,7 @@ export function sub_30bd(m) {
   m.step(0x30d0, 7); // ld b,0x0b
   m.push16(0x30d3); // call 0x30e4 -- rets back to 0x30d3
   m.step(0x30e4, 17);
-  sub_30e4(m);
+  m.call(0x30e4);
 
   regs.hl = 0x6a0c; // full HL reload for the last run
   m.step(0x30d6, 10); // ld hl,0x6a0c
@@ -2981,7 +2981,7 @@ export function sub_30bd(m) {
 
   // TAIL JUMP: no push. sub_30e4's ret returns to sub_30bd's caller.
   m.step(0x30e4, 10); // jp 0x30e4
-  return sub_30e4(m);
+  return m.call(0x30e4);
 }
 
 /**
@@ -3064,7 +3064,7 @@ export function sub_306f(m) {
   // skip. loc_0038 sets DE=0x0004 as the side effect the sub_3096 calls need.
   m.push16(0x307d);
   m.step(0x0038, 11); // rst 0x38
-  loc_0038(m); // sets DE=0x0004; leaves it (sub_003d only reads DE)
+  m.call(0x0038); // sets DE=0x0004; leaves it (sub_003d only reads DE)
 
   regs.c = 0x81; // XOR mask for the two sub_3096 calls
   m.step(0x307f, 7); // ld c,0x81
@@ -3072,17 +3072,17 @@ export function sub_306f(m) {
   m.step(0x3082, 10); // ld hl,0x6909
   m.push16(0x3085);
   m.step(0x3096, 17); // call 0x3096
-  sub_3096(m); // DE=0x0004 from the rst; preserves DE and C
+  m.call(0x3096); // DE=0x0004 from the rst; preserves DE and C
 
   regs.hl = 0x691d;
   m.step(0x3088, 10); // ld hl,0x691d
   m.push16(0x308b);
   m.step(0x3096, 17); // call 0x3096
-  sub_3096(m); // DE still 0x0004 from the rst
+  m.call(0x3096); // DE still 0x0004 from the rst
 
   m.push16(0x308e);
   m.step(0x0057, 17); // call 0x0057
-  sub_0057(m); // A = (0x6018)+(0x601A)+(0x6019), written back to 0x6018
+  m.call(0x0057); // A = (0x6018)+(0x601A)+(0x6019), written back to 0x6018
 
   regs.and(0x80); // keep bit 7 of the sum
   m.step(0x3090, 7); // and 0x80
@@ -3114,7 +3114,7 @@ export function sub_306f(m) {
  *
  * SKIP-CAPABLE: returns a boolean per the caller-skip convention (cf. sub_33a1) --
  * `true` on a normal ret (0x3178 ret nz / 0x3194 ret z), `false` on the splice --
- * so its future caller entry_30ed guards it with `if (!entry_313c(m)) return;`.
+ * so its future caller entry_30ed guards it with `if (!m.call(0x313c)) return;`.
  * (The draft skeleton used bare `return`; the integrator applied the boolean form
  * that callcheck detects via `return false;`.)
  *
@@ -3315,7 +3315,7 @@ export function sub_31dd(m) {
 
   m.push16(0x31e6);
   m.step(0x31f6, 17); // call 0x31f6
-  sub_31f6(m); // returns a value in A; cp 0x01 below re-sets the flags
+  m.call(0x31f6); // returns a value in A; cp 0x01 below re-sets the flags
 
   regs.cp(0x01);
   m.step(0x31e8, 7); // cp 0x01
@@ -3524,7 +3524,7 @@ export function sub_342c(m) {
   m.step(0x3445, 23); // inc (ix+0x03)
 
   // FALLTHROUGH into loc_3445 -- its rets are this routine's rets.
-  return loc_3445(m);
+  return m.call(0x3445);
 }
 
 /**
@@ -3581,7 +3581,7 @@ export function entry_3e88(m) {
   // and returns the target's value, which we pass straight up.
   m.push16(0x3e8d);
   m.step(0x0028, 11); // rst 0x28
-  return sub_0028(m, "0x3E8D (entry_3e88 dispatch)");
+  return m.call(0x0028, "0x3E8D (entry_3e88 dispatch)");
 }
 
 /**
@@ -3624,7 +3624,7 @@ export function entry_3e88(m) {
  * NOT skip-capable: no inc sp, all exits are ordinary `ret`. It returns a
  * collision-severity CODE in A (count 0/1/2/>=3 -> 0/1/3/7), not a boolean, so
  * when entry_3e88 lands its dispatchGameState arm is a plain `return
- * entry_3e99(m)` like the game-state handlers. `cp 0x03` then `ld a,0x03` then
+ * m.call(0x3e99)` like the game-state handlers. `cp 0x03` then `ld a,0x03` then
  * `ret c` reads the carry from the cp ACROSS the flag-neutral `ld` -- the value
  * 0x03 is loaded before the branch that decides whether to return it. 0x6060 /
  * the object fields not interpreted.
@@ -3647,7 +3647,7 @@ export function entry_3e99(m) {
 
   m.push16(0x3eaa);
   m.step(0x3ec3, 17); // call 0x3ec3
-  entry_3ec3(m); // group 1; leaves 0x6060 = overlap count so far
+  m.call(0x3ec3); // group 1; leaves 0x6060 = overlap count so far
 
   regs.b = 0x05;
   m.step(0x3eac, 7); // ld b,0x05
@@ -3656,7 +3656,7 @@ export function entry_3e99(m) {
 
   m.push16(0x3eb3);
   m.step(0x3ec3, 17); // call 0x3ec3
-  entry_3ec3(m); // group 2; accumulates into the same 0x6060
+  m.call(0x3ec3); // group 2; accumulates into the same 0x6060
 
   regs.a = mem.read8(0x6060);
   m.step(0x3eb6, 13); // ld a,(0x6060)
@@ -3712,9 +3712,9 @@ export function entry_3e99(m) {
  * THE TAIL CASE (lead ruling condition 3). The rst 0x28 is sub_30fa's LAST
  * instruction -- 0x3104+ is table data, not code -- so sub_30fa has NO frame of
  * its own when the guard rets: the guard returns straight to sub_30fa's caller.
- * `return sub_0028(m, ...)` therefore passes the guard's skip-boolean up
+ * `return m.call(0x0028, ...)` therefore passes the guard's skip-boolean up
  * TRANSPARENTLY. A caller of sub_30fa that dispatches a skip-capable target must
- * consume it: `if (!sub_30fa(m)) return;`. (3e88/3e99 do NOT share this shape --
+ * consume it: `if (!m.call(0x30fa)) return;`. (3e88/3e99 do NOT share this shape --
  * they push HL across the dispatch -- and must be derived from their own bytes.)
  *
  * rst 0x28 pushes 0x3104 (the address after the opcode = the TABLE BASE); sub_0028
@@ -3739,7 +3739,7 @@ export function sub_30fa(m) {
   // and returns the selected guard's skip-boolean, which we pass straight up.
   m.push16(0x3104);
   m.step(0x0028, 11); // rst 0x28
-  return sub_0028(m, "0x3104 (sub_30fa dispatch)");
+  return m.call(0x0028, "0x3104 (sub_30fa dispatch)");
 }
 
 /**
@@ -4046,7 +4046,7 @@ export function entry_3ec3(m) {
  * loc_3069's return address -- exactly where our `ret` would have gone -- so it
  * cuts THIS body short and the caller continues either way (the entry_06b8
  * scope-error lesson). TRUE rather than void so a future erroneous
- * `if (!loc_3069(m)) return;` is INERT rather than a live defect.
+ * `if (!m.call(0x3069)) return;` is INERT rather than a live defect.
  *
  * `ld hl,(nn)` has 10 precedents in the ROM. Not a novel form.
  *
@@ -4059,7 +4059,7 @@ export function loc_3069(m) {
 
   m.push16(0x306a);
   m.step(0x0018, 11); // rst 0x18
-  if (!sub_0018(m)) return true; // counter still counting -- body cut short, caller continues
+  if (!m.call(0x0018)) return true; // counter still counting -- body cut short, caller continues
 
   regs.hl = mem.read16(0x63c0); // INDIRECT -- the word AT 0x63C0, not 0x63C0
   m.step(0x306d, 16); // ld hl,(0x63c0)
@@ -4097,7 +4097,7 @@ export function loc_3069(m) {
  *      is a NORMAL (just early) return, which is why this path returns TRUE.
  *   2. `inc sp / inc sp / ret` (0x33AA) discards sub_33a1's OWN return address,
  *      so the ret goes to entry_333d's CALLER -- entry_333d is SKIPPED. That
- *      path returns FALSE, and entry_333d must `if (!sub_33a1(m)) return;`.
+ *      path returns FALSE, and entry_333d must `if (!m.call(0x33a1)) return;`.
  *
  * So the boolean here means "was entry_333d returned to normally?", NOT "did the
  * gate fire". Conflating the two would make the rst path look like a skip and
@@ -4117,7 +4117,7 @@ export function sub_33a1(m) {
 
   m.push16(0x33a4);
   m.step(0x0030, 11); // rst 0x30 -- caller-skip gate
-  if (!sub_0030(m)) return true; // gate fired: entry_333d WAS returned to (early)
+  if (!m.call(0x0030)) return true; // gate fired: entry_333d WAS returned to (early)
 
   regs.a = mem.read8(R(0x0f));
   m.step(0x33a7, 19); // ld a,(ix+0x0f)
@@ -4184,7 +4184,7 @@ export function sub_32bd(m) {
     m.step(0x32ce, 10); // jp z,0x32ce TAKEN
     m.push16(0x32d1);
     m.step(0x342c, 17); // call 0x342c
-    sub_342c(m);
+    m.call(0x342c);
     m.ret(); // 32d1
     return;
   }
@@ -4197,7 +4197,7 @@ export function sub_32bd(m) {
     m.step(0x32d2, 10); // jp z,0x32d2 TAKEN
     m.push16(0x32d5);
     m.step(0x3478, 17); // call 0x3478
-    sub_3478(m); // no ret of its own -- loc_3445's ret consumes 0x32D5
+    m.call(0x3478); // no ret of its own -- loc_3445's ret consumes 0x32D5
     m.ret(); // 32d5
     return;
   }
@@ -4205,7 +4205,7 @@ export function sub_32bd(m) {
 
   m.push16(0x32cd);
   m.step(0x34b9, 17); // call 0x34b9
-  sub_34b9(m);
+  m.call(0x34b9);
 
   m.ret(); // 32cd
 }
@@ -4364,7 +4364,7 @@ export function sub_34b9(m) {
  * IT HAS NO `ret`. Both exits (0x34A5, 0x34B6) are `jp 0x3445`, jumping INTO
  * sub_342c's shared loc_3445 tail with NOTHING pushed -- so loc_3445's ret
  * returns to sub_3478's OWN caller. Modelled `m.step(0x3445, 10); return
- * loc_3445(m)`. Treating either exit as a call (push + ret) would splice a
+ * m.call(0x3445)`. Treating either exit as a call (push + ret) would splice a
  * phantom frame; treating it as a duplicated tail would double the code the ROM
  * shares. Note a `jp` into a shared tail never appears in a call-graph walk,
  * so this edge is invisible to exactly the tooling used to find callees --
@@ -4424,13 +4424,13 @@ export function sub_3478(m) {
     regs.decMem8(mem, R(0x03)); // dec (ix+0x03)
     m.step(0x34b6, 23); // dec (ix+0x03)
     m.step(0x3445, 10); // jp 0x3445 -- TAIL JUMP, nothing pushed
-    return loc_3445(m);
+    return m.call(0x3445);
   }
   m.step(0x34a2, 10); // jp nz NOT taken -- forward
   regs.incMem8(mem, R(0x03)); // inc (ix+0x03)
   m.step(0x34a5, 23); // inc (ix+0x03)
   m.step(0x3445, 10); // jp 0x3445 -- TAIL JUMP, nothing pushed
-  return loc_3445(m);
+  return m.call(0x3445);
 }
 
 /**
@@ -4490,7 +4490,7 @@ export function sub_32d6(m) {
   const tail_330b = () => {
     m.push16(0x330e);
     m.step(0x330f, 17); // call 0x330f
-    entry_330f(m);
+    m.call(0x330f);
     m.ret(); // 330e
   };
   // loc_3303 -- zero two fields, then fall into loc_330b.
@@ -4600,7 +4600,7 @@ export function entry_33e7(m) {
 
   m.push16(0x33ea); // call 0x3409 -- real call, rets back to 0x33EA
   m.step(0x3409, 17);
-  sub_3409(m);
+  m.call(0x3409);
 
   regs.a = mem.read8(R(0x0d));
   m.step(0x33ed, 19); // ld a,(ix+0x0d)
@@ -4764,7 +4764,7 @@ export function entry_33c3(m) {
 
   m.push16(0x33d5);
   m.step(0x2333, 17); // call 0x2333
-  entry_2333(m); // entry_2333 (< 0x3000) -- returns a modified L
+  m.call(0x2333); // entry_2333 (< 0x3000) -- returns a modified L
 
   mem.write8(R(0x0f), regs.l); // store the returned L
   m.step(0x33d8, 19); // ld (ix+0x0f),l
@@ -4795,7 +4795,7 @@ export function entry_33c3(m) {
  * sub_3409 (integrated), shared by both arms before the fall-through.
  *
  * NO RET OF ITS OWN -- it FALLS THROUGH into entry_33c3. Modelled
- * as `return entry_33c3(m)` with NO push16: entry_33ad has no frame of its own at
+ * as `return m.call(0x33c3)` with NO push16: entry_33ad has no frame of its own at
  * that point, so entry_33c3's ret ends both. The two routines are physically
  * INTERLEAVED -- the ==1 arm (0x33D9-0x33E5) sits after entry_33c3's body and
  * jumps back to the shared 0x33C0.
@@ -4843,8 +4843,8 @@ export function entry_33ad(m) {
   // 0x33c0: shared call 0x3409, then FALL THROUGH into entry_33c3 (NO ret here)
   m.push16(0x33c3);
   m.step(0x3409, 17); // call 0x3409
-  sub_3409(m);
-  return entry_33c3(m); // FALL THROUGH -- entry_33c3's ret ends both
+  m.call(0x3409);
+  return m.call(0x33c3); // FALL THROUGH -- entry_33c3's ret ends both
 }
 
 /**
@@ -5002,10 +5002,10 @@ export function entry_330f(m) {
  * TWO SKIP-CAPABLE MOVEMENT-PATH CALLEES, both boolean-guarded:
  *   0x334A call sub_33a1 (mine) -- a rst-0x30 dispatcher that, on (ix+0x0f) < 0x59,
  *     does `inc sp / inc sp / ret` and unwinds to entry_333d's CALLER, returning
- *     false. Guard: `if (!sub_33a1(m)) return;`.
+ *     false. Guard: `if (!m.call(0x33a1)) return;`.
  *  0x3359 call sub_236e (< 0x3000) -- on its cpir-miss path does
  *     `pop hl / ret` at 0x239A and unwinds to entry_333d's CALLER, returning
- *     false. Guard: `if (!sub_236e(m)) return;`. On the FOUND path it returns
+ *     false. Guard: `if (!m.call(0x236e)) return;`. On the FOUND path it returns
  *     A (0/1, steering the `and a / jp z`) and B (stored to (ix+0x1f)).
  * A plain call at either site would let this JS keep running after the machine
  * already returned to entry_3202 -- double execution, the 216d defect class.
@@ -5084,7 +5084,7 @@ export function entry_333d(m) {
   // -- movement path (0x334A) --
   m.push16(0x334d);
   m.step(0x33a1, 17); // call 0x33a1
-  if (!sub_33a1(m)) return; // sub_33a1 spliced (inc sp/inc sp/ret) -> 333d skipped
+  if (!m.call(0x33a1)) return; // sub_33a1 spliced (inc sp/inc sp/ret) -> 333d skipped
 
   regs.a = mem.read8(R(0x0f));
   m.step(0x3350, 19); // ld a,(ix+0x0f)
@@ -5099,7 +5099,7 @@ export function entry_333d(m) {
 
   m.push16(0x335c);
   m.step(0x236e, 17); // call 0x236e
-  if (!sub_236e(m)) return; // 236e cpir-miss unwound -> 333d skipped (HL = 0x335C)
+  if (!m.call(0x236e)) return; // 236e cpir-miss unwound -> 333d skipped (HL = 0x335C)
 
   regs.and(regs.a);
   m.step(0x335d, 4); // and a -- test 236e's result A
@@ -5200,7 +5200,7 @@ export function entry_3202(m) {
         m.step(0x321e, 10); // jp z NOT taken
         m.push16(0x3221);
         m.step(0x330f, 17); // call 0x330f
-        entry_330f(m);
+        m.call(0x330f);
       // fall into 0x3221
       case 0x3221:
         regs.a = mem.read8(0x6018);
@@ -5221,7 +5221,7 @@ export function entry_3202(m) {
       case 0x3230:
         m.push16(0x3233);
         m.step(0x333d, 17); // call 0x333d -- MAY RETURN EARLY; either way lands 0x3233
-        entry_333d(m);
+        m.call(0x333d);
       // fall into 0x3233 (3202 tolerates 333d's early return -- see header decision 1)
       case 0x3233:
         regs.a = mem.read8(R(0x0d));
@@ -5232,10 +5232,10 @@ export function entry_3202(m) {
         m.step(0x323b, 10); // jp p NOT taken
         m.push16(0x323e);
         m.step(0x33ad, 17); // call 0x33ad (falls through into entry_33c3, rets to 0x323e)
-        entry_33ad(m);
+        m.call(0x33ad);
         m.push16(0x3241);
         m.step(0x298c, 17); // call 0x298c (tile-in-range predicate)
-        sub_298c(m);
+        m.call(0x298c);
         regs.cp(0x01);
         m.step(0x3243, 7); // cp 0x01 -- test 298c's return A
         if (regs.fZ) { label = 0x3297; continue; } // jp z,0x3297 (298c returned 1)
@@ -5291,13 +5291,13 @@ export function entry_3202(m) {
       case 0x327a:
         m.push16(0x327d);
         m.step(0x32bd, 17); // call 0x32bd
-        sub_32bd(m);
+        m.call(0x32bd);
         m.ret(); // 327d EXIT -- ret passes 32bd's A/flags up
         return;
       case 0x327e:
         m.push16(0x3281);
         m.step(0x32d6, 17); // call 0x32d6
-        sub_32d6(m);
+        m.call(0x32d6);
         m.step(0x3229, 10); // jp 0x3229 (backward)
         label = 0x3229;
         continue;
@@ -5320,7 +5320,7 @@ export function entry_3202(m) {
       case 0x3291:
         m.push16(0x3294);
         m.step(0x33e7, 17); // call 0x33e7
-        entry_33e7(m);
+        m.call(0x33e7);
         m.step(0x3257, 10); // jp 0x3257
         label = 0x3257;
         continue;
@@ -5344,7 +5344,7 @@ export function entry_3202(m) {
         m.step(0x32ab, 19); // ld (ix+0x0d),a
         m.push16(0x32ae);
         m.step(0x33c3, 17); // call 0x33c3
-        entry_33c3(m);
+        m.call(0x33c3);
         m.step(0x3257, 10); // jp 0x3257
         label = 0x3257;
         continue;
@@ -5414,7 +5414,7 @@ export function entry_31b1(m) {
 
   m.push16(0x31b4);
   m.step(0x31dd, 17); // call 0x31dd -- init/mode-setup
-  sub_31dd(m);
+  m.call(0x31dd);
 
   regs.xor(regs.a);
   m.step(0x31b5, 4); // xor a
@@ -5445,7 +5445,7 @@ export function entry_31b1(m) {
       m.step(0x31cd, 10); // jp z NOT taken -- non-empty
       m.push16(0x31d0);
       m.step(0x3202, 17); // call 0x3202
-      entry_3202(m);
+      m.call(0x3202);
     }
 
     // loc_31d0
@@ -5489,10 +5489,10 @@ export function entry_31b1(m) {
  *   0x30FA call sub_30fa -- a rst-0x28 TAIL dispatcher to the 0x3110 guard family;
  *     a guard that splices (inc sp/inc sp/ret) unwinds PAST entry_30ed to its
  *     caller. sub_30fa passes that skip-boolean up via `return sub_0028(...)`.
- *     Guard: `if (!sub_30fa(m)) return;`.
+ *     Guard: `if (!m.call(0x30fa)) return;`.
  *   0x313C call entry_313c -- on counter==0 it does inc sp/inc sp/ret (its own
  *     comment names entry_30ed as the spliced caller) and returns false.
- *     Guard: `if (!entry_313c(m)) return;`.
+ *     Guard: `if (!m.call(0x313c)) return;`.
  * The other two (entry_31b1, entry_34f3) return NORMALLY (verified: no boolean,
  * no inc sp) -> plain calls. entry_30f0 (the 0x313c call site) has NO static
  * caller -- ruled an interior/tracer-artifact label, not a second entry.
@@ -5500,20 +5500,20 @@ export function entry_31b1(m) {
 export function entry_30ed(m) {
   m.push16(0x30f0);
   m.step(0x30fa, 17); // call 0x30fa
-  if (!sub_30fa(m)) return; // sub_30fa's dispatched guard spliced -> entry_30ed skipped
+  if (!m.call(0x30fa)) return; // sub_30fa's dispatched guard spliced -> entry_30ed skipped
 
   // 0x30f0 (entry_30f0 label -- interior)
   m.push16(0x30f3);
   m.step(0x313c, 17); // call 0x313c
-  if (!entry_313c(m)) return; // entry_313c spliced (counter==0) -> entry_30ed skipped
+  if (!m.call(0x313c)) return; // entry_313c spliced (counter==0) -> entry_30ed skipped
 
   m.push16(0x30f6);
   m.step(0x31b1, 17); // call 0x31b1
-  entry_31b1(m);
+  m.call(0x31b1);
 
   m.push16(0x30f9);
   m.step(0x34f3, 17); // call 0x34f3
-  entry_34f3(m);
+  m.call(0x34f3);
 
   m.ret(); // 30f9
 }
@@ -6362,10 +6362,10 @@ export function sub_0f56(m) {
   m.step(0x0037, 4); // ex de,hl
   m.step(target, 4); // jp (hl)
 
-  if (target === 0x0fd7) return loc_0fd7(m);
-  if (target === 0x101f) return loc_101f(m); // board 2 (0x6227==2, 0x0FCD table idx 2)
-  if (target === 0x1087) return loc_1087(m); // board 3 (0x0FCD table idx 3)
-  if (target === 0x1131) return loc_1131(m); // board 4 (0x0FCD table idx 4)
+  if (target === 0x0fd7) return m.call(0x0fd7);
+  if (target === 0x101f) return m.call(0x101f); // board 2 (0x6227==2, 0x0FCD table idx 2)
+  if (target === 0x1087) return m.call(0x1087); // board 3 (0x0FCD table idx 3)
+  if (target === 0x1131) return m.call(0x1131); // board 4 (0x0FCD table idx 4)
   throw new NotImplemented(
     `sub_0f56 dispatches via rst 0x28 to ROM 0x${target.toString(16).padStart(4, "0")} ` +
       `(table at 0x0FCD, index C=${regs.c}), which is not translated.`,
@@ -6397,7 +6397,7 @@ export function loc_0f35(m) {
   m.step(0x0f49, 6); // inc de
 
   m.step(0x0da7, 10); // jp 0x0da7 -- TAIL JUMP, nothing pushed
-  sub_0da7(m); // its ret returns for us
+  m.call(0x0da7); // its ret returns for us
 }
 
 /**
@@ -6446,7 +6446,7 @@ export function loc_0fd7(m) {
 
   m.push16(0x0fef);
   m.step(0x122a, 17);
-  sub_122a(m);
+  m.call(0x122a);
 
   // HL here is a LIVE-IN PARAMETER to sub_11fa (0x3DF4), not a value sub_11fa
   // sets. sub_122a has left C = 0x1C and HL = 0x3DEC, both dead across this.
@@ -6454,7 +6454,7 @@ export function loc_0fd7(m) {
   m.step(0x0ff2, 10);
   m.push16(0x0ff5);
   m.step(0x11fa, 17);
-  sub_11fa(m);
+  m.call(0x11fa);
 
   regs.hl = 0x3e00;
   m.step(0x0ff8, 10);
@@ -6471,7 +6471,7 @@ export function loc_0fd7(m) {
   m.step(0x1003, 10);
   m.push16(0x1006);
   m.step(0x11a6, 17);
-  sub_11a6(m);
+  m.call(0x11a6);
 
   // 0x101B is the four DATA bytes (00 00 02 02) after this routine's `ret`.
   regs.hl = 0x101b;
@@ -6482,7 +6482,7 @@ export function loc_0fd7(m) {
   m.step(0x100f, 10);
   m.push16(0x1012);
   m.step(0x122a, 17);
-  sub_122a(m);
+  m.call(0x122a);
 
   // Reloads DE and B ONLY -- not HL, not C. This is the site that proves
   // sub_122a preserves both; see the note on sub_122a.
@@ -6492,7 +6492,7 @@ export function loc_0fd7(m) {
   m.step(0x1017, 7);
   m.push16(0x101a);
   m.step(0x122a, 17);
-  sub_122a(m);
+  m.call(0x122a);
 
   m.ret(); // 101a
 }
@@ -6913,7 +6913,7 @@ export function sub_11a6(m) {
   // HL is NOT set here -- it is this routine's live-in, passed through.
   m.push16(0x11af);
   m.step(0x11ec, 17); // call 0x11ec
-  sub_11ec(m);
+  m.call(0x11ec);
 
   regs.hl = 0x3e08; // ROM table pointer, 4 below the caller's 0x3E0C
   m.step(0x11b2, 10); // ld hl,0x3e08
@@ -6924,7 +6924,7 @@ export function sub_11a6(m) {
 
   m.push16(0x11bb);
   m.step(0x122a, 17); // call 0x122a
-  sub_122a(m);
+  m.call(0x122a);
 
   regs.ix = 0x6680;
   m.step(0x11bf, 14); // ld ix,0x6680
@@ -6942,7 +6942,7 @@ export function sub_11a6(m) {
 
   m.push16(0x11d2);
   m.step(0x11d3, 17); // call 0x11d3
-  sub_11d3(m);
+  m.call(0x11d3);
 
   m.ret(); // 11d2
 }
@@ -7103,8 +7103,8 @@ export function sub_122a(m) {
 export function loc_127c(m) {
   m.push16(0x127f);
   m.step(0x1dbd, 17); // call 0x1dbd
-  sub_1dbd(m);
-  return entry_127f(m); // fall through -- entry_127f's dispatch tail returns for us
+  m.call(0x1dbd);
+  return m.call(0x127f); // fall through -- entry_127f's dispatch tail returns for us
 }
 
 /**
@@ -7121,7 +7121,7 @@ export function entry_127f(m) {
 
   m.push16(0x1283); // rst 0x28 pushes its return address = the TABLE BASE (0x1283)
   m.step(0x0028, 11);
-  sub_0028(m, "0x1283 (0x639D dispatch)"); // reads the table from ROM; ends in jp (hl)
+  m.call(0x0028, "0x1283 (0x639D dispatch)"); // reads the table from ROM; ends in jp (hl)
 }
 
 export function entry_128b(m) {
@@ -7129,7 +7129,7 @@ export function entry_128b(m) {
 
   m.push16(0x128c);
   m.step(0x0018, 11); // rst 0x18
-  if (!sub_0018(m)) return; // (0x6009) not expired -> body skipped
+  if (!m.call(0x0018)) return; // (0x6009) not expired -> body skipped
 
   regs.hl = 0x694d;
   m.step(0x128f, 10); // ld hl,0x694d
@@ -7155,7 +7155,7 @@ export function entry_128b(m) {
   m.step(0x12a3, 13);
   m.push16(0x12a6);
   m.step(0x30bd, 17); // call 0x30bd
-  sub_30bd(m);
+  m.call(0x30bd);
   regs.a = 0x03;
   m.step(0x12a8, 7); // ld a,0x03
   mem.write8(0x6088, regs.a); // 0x6088 := 3
@@ -7179,7 +7179,7 @@ export function loc_12ac(m) {
 
   m.push16(0x12ad);
   m.step(0x0018, 11); // rst 0x18
-  if (!sub_0018(m)) return; // counter did not expire -- dispatch abandoned
+  if (!m.call(0x0018)) return; // counter did not expire -- dispatch abandoned
 
   regs.a = 0x08;
   m.step(0x12af, 7); // ld a,0x08
@@ -7274,11 +7274,11 @@ export function loc_12de(m) {
 
   m.push16(0x12df);
   m.step(0x0018, 11); // rst 0x18
-  if (!sub_0018(m)) return; // counter did not expire -- dispatch abandoned
+  if (!m.call(0x0018)) return; // counter did not expire -- dispatch abandoned
 
   m.push16(0x12e2);
   m.step(0x30db, 17); // call 0x30db -- entry_30db, falls through into sub_30e4
-  entry_30db(m);
+  m.call(0x30db);
 
   regs.hl = 0x600a;
   m.step(0x12e5, 10); // ld hl,0x600a
@@ -7319,7 +7319,7 @@ export function loc_12f2(m) {
 
   m.push16(0x12f5);
   m.step(0x011c, 17);
-  sub_011c(m);
+  m.call(0x011c);
   regs.xor(regs.a); // A = 0
   m.step(0x12f6, 4);
   mem.write8(0x622c, regs.a);
@@ -7368,7 +7368,7 @@ export function loc_12f2(m) {
   m.step(0x130f, 10); // ld hl,0x60b2
   m.push16(0x1312);
   m.step(0x13ca, 17);
-  sub_13ca(m); // HL=0x60B2, A=0x01 -- ordinary call, no guard
+  m.call(0x13ca); // HL=0x60B2, A=0x01 -- ordinary call, no guard
 
   regs.hl = 0x76d4;
   m.step(0x1315, 10); // ld hl,0x76d4
@@ -7384,18 +7384,18 @@ export function loc_12f2(m) {
     m.step(0x131e, 10); // ld de,0x0302
     m.push16(0x1321);
     m.step(0x309f, 17);
-    sub_309f(m);
+    m.call(0x309f);
     regs.hl = (regs.hl - 1) & 0xffff; // dec hl -- HL = 0x76D3
     m.step(0x1322, 6);
   }
   m.push16(0x1325);
   m.step(0x1826, 17);
-  sub_1826(m); // fill helper -- HL live-in 0x76D4 or 0x76D3
+  m.call(0x1826); // fill helper -- HL live-in 0x76D4 or 0x76D3
   regs.de = 0x0300;
   m.step(0x1328, 10); // ld de,0x0300
   m.push16(0x132b);
   m.step(0x309f, 17);
-  sub_309f(m);
+  m.call(0x309f);
 
   regs.hl = 0x6009;
   m.step(0x132e, 10); // ld hl,0x6009
@@ -7427,7 +7427,7 @@ export function loc_138f(m) {
 
   m.push16(0x1390);
   m.step(0x0018, 11); // rst 0x18
-  if (!sub_0018(m)) return; // counter did not expire -- dispatch abandoned
+  if (!m.call(0x0018)) return; // counter did not expire -- dispatch abandoned
 
   regs.c = 0x17;
   m.step(0x1392, 7); // ld c,0x17
@@ -7465,7 +7465,7 @@ export function loc_13a1(m) {
   const { regs, mem } = m;
   m.push16(0x13a2);
   m.step(0x0018, 11); // rst 0x18
-  if (!sub_0018(m)) return; // counter did not expire -- dispatch abandoned
+  if (!m.call(0x0018)) return; // counter did not expire -- dispatch abandoned
   regs.c = 0x17;
   m.step(0x13a4, 7); // ld c,0x17
   regs.a = mem.read8(0x6040); // 0x6040 (vs loc_138f's 0x6048)
@@ -7510,7 +7510,7 @@ export function sub_13ca(m) {
 
   m.push16(0x13cf); // rst 0x08 pushes its return address
   m.step(0x0008, 11); // rst 0x08
-  if (!sub_0008(m)) return; // SKIP: bit0 of 0x6007 set -> aborted to caller
+  if (!m.call(0x0008)) return; // SKIP: bit0 of 0x6007 set -> aborted to caller
 
   regs.de = (regs.de + 1) & 0xffff; // inc de -- DE = 0x61C7
   m.step(0x13d0, 6);
@@ -7629,13 +7629,13 @@ export function loc_141e(m) {
 
   m.push16(0x1421);
   m.step(0x0616, 17); // call 0x0616
-  sub_0616(m);
+  m.call(0x0616);
   m.push16(0x1422);
   m.step(0x0018, 11); // rst 0x18
-  if (!sub_0018(m)) return; // counter not expired -- aborted
+  if (!m.call(0x0018)) return; // counter not expired -- aborted
   m.push16(0x1425);
   m.step(0x0874, 17); // call 0x0874
-  sub_0874(m);
+  m.call(0x0874);
 
   regs.a = 0x00;
   m.step(0x1427, 7); // ld a,0x00
@@ -7658,7 +7658,7 @@ export function loc_141e(m) {
     m.step(0x1438, 7); // cp (hl)
     if (regs.fZ) {
       m.step(0x1459, 10); // jp z,0x1459
-      return loc_1459(m); // A = 0x01 here
+      return m.call(0x1459); // A = 0x01 here
     }
     m.step(0x143b, 10); // jp z NOT taken
     regs.addHl(regs.de);
@@ -7679,7 +7679,7 @@ export function loc_141e(m) {
     m.step(0x1446, 7); // cp (hl)
     if (regs.fZ) {
       m.step(0x144f, 10); // jp z,0x144f
-      return loc_144f(m);
+      return m.call(0x144f);
     }
     m.step(0x1449, 10); // jp z NOT taken
     regs.addHl(regs.de);
@@ -7689,7 +7689,7 @@ export function loc_141e(m) {
   } while (regs.b !== 0);
 
   m.step(0x1475, 10); // jp 0x1475 -- neither found
-  return loc_1475(m);
+  return m.call(0x1475);
 }
 
 /** loc_144f -- 141E interior: record 3 found -> player index 1, then loc_1459. */
@@ -7703,7 +7703,7 @@ export function loc_144f(m) {
   m.step(0x1457, 13);
   regs.a = 0x00; // A = 0 for loc_1459 (differs from the state-1 path)
   m.step(0x1459, 7); // ld a,0x00
-  return loc_1459(m);
+  return m.call(0x1459);
 }
 
 /** loc_1459 -- 141E interior: 0x7D82 hardware write, then 12 sub_309f enqueues. */
@@ -7729,7 +7729,7 @@ export function loc_1459(m) {
   do {
     m.push16(0x1471);
     m.step(0x309f, 17); // call 0x309f
-    sub_309f(m); // DE sweeps 0x030D..0x0318
+    m.call(0x309f); // DE sweeps 0x030D..0x0318
     regs.de = (regs.de + 1) & 0xffff;
     m.step(0x1472, 6); // inc de
     regs.b = (regs.b - 1) & 0xff;
@@ -8182,7 +8182,7 @@ export function sub_2523(m) {
   let toType = false;
   m.push16(0x2548);
   m.step(0x0057, 17);
-  sub_0057(m); // pseudo-random -> A
+  m.call(0x0057); // pseudo-random -> A
   regs.cp(0x60);
   m.step(0x254a, 7); // cp 0x60
   mem.write8(IX(0x05), 0x7c); // ld (ix+0x05),0x7c -- default field5
@@ -8201,7 +8201,7 @@ export function sub_2523(m) {
       m.step(0x256e, 10); // jp nz,0x256e
       m.push16(0x2571);
       m.step(0x0057, 17);
-      sub_0057(m); // SECOND RNG draw
+      m.call(0x0057); // SECOND RNG draw
       regs.cp(0x68);
       m.step(0x2573, 7); // cp 0x68
       m.step(0x2560, 10); // jp 0x2560 -- into the field3 block (carry = cp 0x68's)
@@ -8342,7 +8342,7 @@ export function sub_19da(m) {
     m.step(0x19e3, 7); // cp (hl)
     if (regs.fZ) {
       m.step(0x19ed, 10); // jp z,0x19ed -- X-match; TAIL-jump (entry_19ed's ret returns to our caller)
-      return entry_19ed(m);
+      return m.call(0x19ed);
     }
     m.step(0x19e6, 10); // jp z not taken
     regs.l = regs.inc8(regs.l);
@@ -8446,10 +8446,10 @@ export function entry_1a07(m) {
   m.step(0x0037, 4); // ex de,hl
   m.step(target, 4); // jp (hl)
 
-  if (target === 0x1a1e) { sub_1a1e(m); return true; } // idx0 -- no-op ret
-  if (target === 0x1a15) { loc_1a15(m); return true; } // idx1 -- INIT
-  if (target === 0x1a1f) { loc_1a1f(m); return true; } // idx2 -- DELAY
-  if (target === 0x1a2a) return loc_1a2a(m); // idx3 -- true (ret-nz) / false (caller-skip)
+  if (target === 0x1a1e) { m.call(0x1a1e); return true; } // idx0 -- no-op ret
+  if (target === 0x1a15) { m.call(0x1a15); return true; } // idx1 -- INIT
+  if (target === 0x1a1f) { m.call(0x1a1f); return true; } // idx2 -- DELAY
+  if (target === 0x1a2a) return m.call(0x1a2a); // idx3 -- true (ret-nz) / false (caller-skip)
   // idx4+ ((0x6386) >= 4): table[4] = dw 0x0000 -> jp 0x0000, a wild jump (never on tape).
   throw new NotImplemented(
     `entry_1a07 rst 0x28 dispatches to ROM 0x${target.toString(16).padStart(4, "0")} ` +
@@ -8499,7 +8499,7 @@ export function loc_1a2a(m) {
   m.pop16(); // pop hl -- HIDDEN EXIT: discards loc_197a's 0x19BF continuation
   m.step(0x1a30, 10);
   m.step(0x19d2, 10); // jp 0x19d2 -> loc_197a's shared tail
-  tail_19d2(m); // runs the tail; its ret returns to loc_197a's caller (dispatch)
+  m.call(0x19d2); // runs the tail; its ret returns to loc_197a's caller (dispatch)
   return false; // CALLER-SKIP: loc_197a must NOT continue past 0x19BF
 }
 /**
@@ -8514,16 +8514,16 @@ export function sub_1a33(m) {
   regs.a = 0x08;
   m.step(0x1a35, 7);
   m.push16(0x1a36); m.step(0x0030, 11);
-  if (!sub_0030(m)) return; // rst 0x30 gate closed -> caller-skip
+  if (!m.call(0x0030)) return; // rst 0x30 gate closed -> caller-skip
   regs.a = mem.read8(0x6203);
   m.step(0x1a39, 13); // player X
   regs.cp(0x4b);
   m.step(0x1a3b, 7);
-  if (regs.fZ) { m.step(0x1a4b, 10); return arm_1a4b(m); } // X == 0x4B -> arm
+  if (regs.fZ) { m.step(0x1a4b, 10); return m.call(0x1a4b); } // X == 0x4B -> arm
   m.step(0x1a3e, 10);
   regs.cp(0xb3);
   m.step(0x1a40, 7);
-  if (regs.fZ) { m.step(0x1a4b, 10); return arm_1a4b(m); } // X == 0xB3 -> arm
+  if (regs.fZ) { m.step(0x1a4b, 10); return m.call(0x1a4b); } // X == 0xB3 -> arm
   m.step(0x1a43, 10);
   regs.a = mem.read8(0x6291);
   m.step(0x1a46, 13);
@@ -8642,7 +8642,7 @@ export function sub_1a33(m) {
   m.step(0x1ab8, 13);
   regs.and(regs.a);
   m.step(0x1ab9, 4);
-  if (regs.fZ) { m.push16(0x1abc); m.step(0x1d95, 17); sub_1d95(m); } // call z,0x1d95
+  if (regs.fZ) { m.push16(0x1abc); m.step(0x1d95, 17); m.call(0x1d95); } // call z,0x1d95
   else m.step(0x1abc, 10);
   m.ret(10);
 }
@@ -8672,7 +8672,7 @@ export function arm_1a4b(m) {
  * THREE LOAD-BEARING FACTS:
  *  (1) call 0x236e @ 0x1B13 (loc_1afe) is a HIDDEN EXIT -- on a miss it unwinds
  *      past entry_1ac3 to loc_197a and aborts this routine. Boolean-guarded:
- *      `if (!sub_236e(m)) return;`. Its found-path A is carried across a
+ *      `if (!m.call(0x236e)) return;`. Its found-path A is carried across a
  *      flag-clobbering region by a push af / pop af bracket (0x1B16-0x1B2D) --
  *      modelled as regs.af save/restore; dropping it corrupts the 0x1B2D branch.
  *  (2) 0x1C23-0x1C32 is LIVE CODE the listing hides as `defb UNREACHED` (the
@@ -8694,37 +8694,37 @@ export function entry_1ac3(m) {
   m.step(0x1ac6, 13); // ld a,(0x6216)
   regs.a = regs.dec8(regs.a);
   m.step(0x1ac7, 4); // dec a
-  if (regs.fZ) { m.step(0x1bb2, 10); return loc_1bb2(m); } // jp z -- state 1 (airborne)
+  if (regs.fZ) { m.step(0x1bb2, 10); return m.call(0x1bb2); } // jp z -- state 1 (airborne)
   m.step(0x1aca, 10);
 
   regs.a = mem.read8(0x621e); // lock/freeze countdown
   m.step(0x1acd, 13); // ld a,(0x621e)
   regs.and(regs.a);
   m.step(0x1ace, 4); // and a
-  if (regs.fNZ) { m.step(0x1b55, 10); return loc_1b55(m); } // jp nz -- lock ticking
+  if (regs.fNZ) { m.step(0x1b55, 10); return m.call(0x1b55); } // jp nz -- lock ticking
   m.step(0x1ad1, 10);
 
   regs.a = mem.read8(0x6217); // climb sub-state
   m.step(0x1ad4, 13); // ld a,(0x6217)
   regs.a = regs.dec8(regs.a);
   m.step(0x1ad5, 4); // dec a
-  if (regs.fZ) { m.step(0x1ae6, 10); return loc_1ae6(m, R); } // jp z -- climb path
+  if (regs.fZ) { m.step(0x1ae6, 10); return m.call(0x1ae6, R); } // jp z -- climb path
   m.step(0x1ad8, 10);
 
   regs.a = mem.read8(0x6215);
   m.step(0x1adb, 13); // ld a,(0x6215)
   regs.a = regs.dec8(regs.a);
   m.step(0x1adc, 4); // dec a
-  if (regs.fZ) { m.step(0x1b38, 10); return loc_1b38(m); } // jp z
+  if (regs.fZ) { m.step(0x1b38, 10); return m.call(0x1b38); } // jp z
   m.step(0x1adf, 10);
 
   regs.a = mem.read8(0x6010); // PLAYER INPUT
   m.step(0x1ae2, 13); // ld a,(0x6010)
   regs.rla(); // bit 7 (button) -> carry
   m.step(0x1ae3, 4); // rla
-  if (regs.fC) { m.step(0x1b6e, 10); return loc_1b6e(m); } // jp c -- start jump
+  if (regs.fC) { m.step(0x1b6e, 10); return m.call(0x1b6e); } // jp c -- start jump
   m.step(0x1ae6, 5); // falls through to loc_1ae6
-  return loc_1ae6(m, R);
+  return m.call(0x1ae6, R);
 }
 
 /** loc_1ae6 -- WALK/CLIMB direction pick, gated by 241f's (D,E). */
@@ -8732,7 +8732,7 @@ export function loc_1ae6(m, R) {
   const { regs, mem } = m;
   m.push16(0x1ae9);
   m.step(0x241f, 17); // call 0x241f
-  sub_241f(m); // returns (D,E); plain call
+  m.call(0x241f); // returns (D,E); plain call
   regs.a = mem.read8(0x6010);
   m.step(0x1aec, 13); // ld a,(0x6010)
   regs.e = regs.dec8(regs.e); // E was 241f's E
@@ -8741,11 +8741,11 @@ export function loc_1ae6(m, R) {
     m.step(0x1af0, 10); // jr nz NOT to loc_1af5
     regs.bit(0, regs.a); // input dir bit 0 (register form)
     m.step(0x1af2, 12); // bit 0,a
-    if (regs.fNZ) { m.step(0x1c8f, 10); return loc_1c8f(m); } // jp nz
+    if (regs.fNZ) { m.step(0x1c8f, 10); return m.call(0x1c8f); } // jp nz
   } else {
     m.step(0x1af5, 10);
   }
-  return loc_1af5(m, R);
+  return m.call(0x1af5, R);
 }
 
 /** loc_1af5 -- second direction (D), then fall to loc_1afe (climb collision). */
@@ -8757,11 +8757,11 @@ export function loc_1af5(m, R) {
     m.step(0x1af9, 10);
     regs.bit(1, regs.a);
     m.step(0x1afb, 12); // bit 1,a
-    if (regs.fNZ) { m.step(0x1cab, 10); return loc_1cab(m); } // jp nz
+    if (regs.fNZ) { m.step(0x1cab, 10); return m.call(0x1cab); } // jp nz
   } else {
     m.step(0x1afe, 10);
   }
-  return loc_1afe(m, R);
+  return m.call(0x1afe, R);
 }
 
 /**
@@ -8794,7 +8794,7 @@ export function loc_1afe(m, R) {
   // ** THE HIDDEN EXIT ** -- 236e miss unwinds to 197a; body below is found-only
   m.push16(0x1b16);
   m.step(0x236e, 17); // call 0x236e
-  if (!sub_236e(m)) return; // miss: already unwound to loc_197a
+  if (!m.call(0x236e)) return; // miss: already unwound to loc_197a
 
   m.push16(regs.af); // push af -- carry 236e's A across the flag-clobbering region
   m.step(0x1b17, 11);
@@ -8829,7 +8829,7 @@ export function loc_1afe(m, R) {
   m.step(0x1b2d, 10);
   regs.and(regs.a);
   m.step(0x1b2e, 4); // and a
-  if (regs.fZ) { m.step(0x1b4e, 10); return entry_1b4e(m); } // jp z
+  if (regs.fZ) { m.step(0x1b4e, 10); return m.call(0x1b4e); } // jp z
   m.step(0x1b31, 10);
   regs.a = mem.read8(regs.hl);
   m.step(0x1b32, 7); // ld a,(hl)
@@ -8845,7 +8845,7 @@ export function loc_1afe(m, R) {
   m.step(0x1b37, 4); // inc l
   mem.write8(regs.hl, regs.b);
   m.step(0x1b38, 7); // ld (hl),b
-  return loc_1b38(m);
+  return m.call(0x1b38);
 }
 
 /** loc_1b38 (0x1B38-0x1B4D): input bit3 -> jump-phase; bit2 -> 0x1d03; else ret. */
@@ -8855,7 +8855,7 @@ export function loc_1b38(m) {
   m.step(0x1b3b, 13); // ld a,(0x6010)
   regs.bit(3, regs.a);
   m.step(0x1b3d, 8); // bit 3,a
-  if (regs.fNZ) { m.step(0x1cf2, 10); return loc_1cf2(m); } // jp nz,0x1cf2
+  if (regs.fNZ) { m.step(0x1cf2, 10); return m.call(0x1cf2); } // jp nz,0x1cf2
   m.step(0x1b40, 10);
   regs.a = mem.read8(0x6215);
   m.step(0x1b43, 13); // ld a,(0x6215)
@@ -8863,7 +8863,7 @@ export function loc_1b38(m) {
   m.step(0x1b44, 4); // and a
   if (regs.fZ) { m.ret(11); return; } // ret z
   m.step(0x1b45, 5);
-  return loc_1b45(m);
+  return m.call(0x1b45);
 }
 
 /** loc_1b45 (0x1B45-0x1B4D): input bit2 -> 0x1d03 (external); else ret. */
@@ -8873,7 +8873,7 @@ export function loc_1b45(m) {
   m.step(0x1b48, 13); // ld a,(0x6010)
   regs.bit(2, regs.a);
   m.step(0x1b4a, 8); // bit 2,a
-  if (regs.fNZ) { m.step(0x1d03, 10); return entry_1d03(m); } // jp nz -- external
+  if (regs.fNZ) { m.step(0x1d03, 10); return m.call(0x1d03); } // jp nz -- external
   m.step(0x1b4d, 10);
   m.ret(10);
 }
@@ -8891,7 +8891,7 @@ export function entry_1b4e(m) {
   mem.write8(regs.hl, regs.d);
   m.step(0x1b52, 7); // ld (hl),d
   m.step(0x1b45, 10); // jp 0x1b45
-  return loc_1b45(m);
+  return m.call(0x1b45);
 }
 
 /** loc_1b55 (0x1B55-0x1B6D): the 0x621E lock countdown. */
@@ -8920,7 +8920,7 @@ export function loc_1b55(m) {
   mem.write8(0x6202, regs.a);
   m.step(0x1b6b, 13); // ld (0x6202),a
   m.step(0x1da6, 10); // jp 0x1da6
-  return entry_1da6(m);
+  return m.call(0x1da6);
 }
 
 /** loc_1b6e (0x1B6E-0x1BB1): JUMP INIT. */
@@ -8938,17 +8938,17 @@ export function loc_1b6e(m) {
   m.step(0x1b7c, 10); // ld bc,0x0080
   regs.rra(); // input bit 0 -> carry
   m.step(0x1b7d, 4); // rra
-  if (regs.fC) { m.step(0x1b8a, 10); return loc_1b8a(m); } // jp c
+  if (regs.fC) { m.step(0x1b8a, 10); return m.call(0x1b8a); } // jp c
   m.step(0x1b80, 10);
   regs.bc = 0xff80; // -X velocity
   m.step(0x1b83, 10); // ld bc,0xff80
   regs.rra(); // input bit 1 -> carry
   m.step(0x1b84, 4); // rra
-  if (regs.fC) { m.step(0x1b8a, 10); return loc_1b8a(m); } // jp c
+  if (regs.fC) { m.step(0x1b8a, 10); return m.call(0x1b8a); } // jp c
   m.step(0x1b87, 10);
   regs.bc = 0x0000;
   m.step(0x1b8a, 10); // ld bc,0x0000
-  return loc_1b8a(m);
+  return m.call(0x1b8a);
 }
 
 /** loc_1b8a (0x1B8A-0x1BB1): write the jump record, set sprite, snapshot Y, sound. */
@@ -9013,13 +9013,13 @@ export function loc_1bb2(m) {
   m.step(0x1bc2, 19); // ld (ix+0x0c),a
   m.push16(0x1bc5);
   m.step(0x239c, 17); // call 0x239c
-  sub_239c(m);
+  m.call(0x239c);
   m.push16(0x1bc8);
   m.step(0x241f, 17); // call 0x241f
-  sub_241f(m); // returns (D,E)
+  m.call(0x241f); // returns (D,E)
   regs.d = regs.dec8(regs.d);
   m.step(0x1bc9, 4); // dec d
-  if (regs.fNZ) { m.step(0x1bf2, 10); return entry_1bf2(m, X); } // jp nz
+  if (regs.fNZ) { m.step(0x1bf2, 10); return m.call(0x1bf2, X); } // jp nz
   m.step(0x1bcc, 5);
   mem.write8(X(0x10), 0x00);
   m.step(0x1bd0, 19); // ld (ix+0x10),0x00
@@ -9027,7 +9027,7 @@ export function loc_1bb2(m) {
   m.step(0x1bd4, 19); // ld (ix+0x11),0x80
   mem.write8(X(0x07), regs.set(7, mem.read8(X(0x07))));
   m.step(0x1bd8, 23); // set 7,(ix+0x07)
-  return loc_1bd8(m, X);
+  return m.call(0x1bd8, X);
 }
 
 /** entry_1bf2 (0x1BF2-0x1C04): D-nonzero branch of loc_1bb2. */
@@ -9035,7 +9035,7 @@ export function entry_1bf2(m, X) {
   const { regs, mem } = m;
   regs.e = regs.dec8(regs.e);
   m.step(0x1bf3, 4); // dec e
-  if (regs.fNZ) { m.step(0x1c05, 10); return entry_1c05(m, X); } // jp nz
+  if (regs.fNZ) { m.step(0x1c05, 10); return m.call(0x1c05, X); } // jp nz
   m.step(0x1bf6, 5);
   mem.write8(X(0x10), 0xff);
   m.step(0x1bfa, 19); // ld (ix+0x10),0xff
@@ -9044,7 +9044,7 @@ export function entry_1bf2(m, X) {
   mem.write8(X(0x07), regs.res(7, mem.read8(X(0x07))));
   m.step(0x1c02, 23); // res 7,(ix+0x07)
   m.step(0x1bd8, 10); // jp 0x1bd8
-  return loc_1bd8(m, X);
+  return m.call(0x1bd8, X);
 }
 
 /** loc_1bd8 (0x1BD8-0x1BF1): landing target via 2407, gravity via 239c. */
@@ -9054,27 +9054,27 @@ export function loc_1bd8(m, X) {
   m.step(0x1bdb, 13); // ld a,(0x6220)
   regs.a = regs.dec8(regs.a);
   m.step(0x1bdc, 4); // dec a
-  if (regs.fZ) { m.step(0x1bec, 10); return loc_1bec(m, X); } // jp z
+  if (regs.fZ) { m.step(0x1bec, 10); return m.call(0x1bec, X); } // jp z
   m.step(0x1bdf, 5);
   m.push16(0x1be2);
   m.step(0x2407, 17); // call 0x2407
-  sub_2407(m); // returns HL (fixed-point)
+  m.call(0x2407); // returns HL (fixed-point)
   mem.write8(X(0x12), regs.h);
   m.step(0x1be5, 19); // ld (ix+0x12),h
   mem.write8(X(0x13), regs.l);
   m.step(0x1be8, 19); // ld (ix+0x13),l
   mem.write8(X(0x14), 0x00);
   m.step(0x1bec, 19); // ld (ix+0x14),0x00
-  return loc_1bec(m, X);
+  return m.call(0x1bec, X);
 }
 
 /** loc_1bec (0x1BEC-0x1BF1): gravity via 239c, then jp into the 1c05 dispatch. */
 export function loc_1bec(m, X) {
   m.push16(0x1bef);
   m.step(0x239c, 17); // call 0x239c
-  sub_239c(m);
+  m.call(0x239c);
   m.step(0x1c05, 10); // jp 0x1c05
-  return entry_1c05(m, X);
+  return m.call(0x1c05, X);
 }
 
 /** entry_1c05 (0x1C05-0x1C32): 2b1c dispatch + the LIVE 0x1C23 block. */
@@ -9082,22 +9082,22 @@ export function entry_1c05(m, X) {
   const { regs, mem } = m;
   m.push16(0x1c08);
   m.step(0x2b1c, 17); // call 0x2b1c
-  entry_2b1c(m); // returns A (0x1C08 always resumes here)
+  m.call(0x2b1c); // returns A (0x1C08 always resumes here)
   regs.a = regs.dec8(regs.a);
   m.step(0x1c09, 4); // dec a
-  if (regs.fZ) { m.step(0x1c3a, 10); return loc_1c3a(m); } // jp z
+  if (regs.fZ) { m.step(0x1c3a, 10); return m.call(0x1c3a); } // jp z
   m.step(0x1c0c, 10);
   regs.a = mem.read8(0x621f);
   m.step(0x1c0f, 13); // ld a,(0x621f)
   regs.a = regs.dec8(regs.a);
   m.step(0x1c10, 4); // dec a
-  if (regs.fZ) { m.step(0x1c76, 10); return entry_1c76(m); } // jp z
+  if (regs.fZ) { m.step(0x1c76, 10); return m.call(0x1c76); } // jp z
   m.step(0x1c13, 10);
   regs.a = mem.read8(0x6214);
   m.step(0x1c16, 13); // ld a,(0x6214)
   regs.sub(0x14);
   m.step(0x1c18, 7); // sub 0x14
-  if (regs.fNZ) { m.step(0x1c33, 10); return loc_1c33(m); } // jp nz
+  if (regs.fNZ) { m.step(0x1c33, 10); return m.call(0x1c33); } // jp nz
   m.step(0x1c1b, 5);
   regs.a = 0x01;
   m.step(0x1c1d, 7); // ld a,0x01
@@ -9105,11 +9105,11 @@ export function entry_1c05(m, X) {
   m.step(0x1c20, 13); // ld (0x621f),a
   m.push16(0x1c23);
   m.step(0x2853, 17); // call 0x2853 (returns normally)
-  entry_2853(m);
+  m.call(0x2853);
   // ---- 0x1C23-0x1C32: LIVE CODE hidden as `defb UNREACHED` in the listing ----
   regs.and(regs.a); // A = sub_2853's return (from the 3e88 dispatch target)
   m.step(0x1c24, 4); // and a
-  if (regs.fZ) { m.step(0x1da6, 10); return entry_1da6(m); } // jp z,0x1da6
+  if (regs.fZ) { m.step(0x1da6, 10); return m.call(0x1da6); } // jp z,0x1da6
   m.step(0x1c27, 10);
   mem.write8(0x6342, regs.a);
   m.step(0x1c2a, 13); // ld (0x6342),a
@@ -9120,7 +9120,7 @@ export function entry_1c05(m, X) {
   mem.write8(0x6225, regs.a);
   m.step(0x1c32, 13); // ld (0x6225),a
   m.step(0x1c33, 4); // nop @ 0x1C32, fall into loc_1c33
-  return loc_1c33(m);
+  return m.call(0x1c33);
 }
 
 /** loc_1c33 (0x1C33-0x1C39): inc a; if wrapped to 0 call 2954; tail-jump 0x1da6. */
@@ -9131,12 +9131,12 @@ export function loc_1c33(m) {
   if (regs.fZ) {
     m.push16(0x1c37);
     m.step(0x2954, 17); // call z,0x2954
-    entry_2954(m);
+    m.call(0x2954);
   } else {
     m.step(0x1c37, 10); // call z NOT taken
   }
   m.step(0x1da6, 10); // jp 0x1da6
-  return entry_1da6(m);
+  return m.call(0x1da6);
 }
 
 /** loc_1c3a (0x1C3A-0x1C4E): B==1 -> entry_1c4f; else advance 0x621f, clear the
@@ -9145,7 +9145,7 @@ export function loc_1c3a(m) {
   const { regs, mem } = m;
   regs.b = regs.dec8(regs.b);
   m.step(0x1c3b, 4); // dec b
-  if (regs.fZ) { m.step(0x1c4f, 10); return entry_1c4f(m); } // jp z
+  if (regs.fZ) { m.step(0x1c4f, 10); return m.call(0x1c4f); } // jp z
   m.step(0x1c3e, 10);
   regs.a = regs.inc8(regs.a);
   m.step(0x1c3f, 4); // inc a
@@ -9167,7 +9167,7 @@ export function loc_1c3a(m) {
     m.step(regs.b !== 0 ? 0x1c48 : 0x1c4c, regs.b !== 0 ? 13 : 8); // djnz 0x1c48
   } while (regs.b !== 0);
   m.step(0x1da6, 10); // jp 0x1da6
-  return entry_1da6(m);
+  return m.call(0x1da6);
 }
 
 /** entry_1c4f (0x1C4F-0x1C75): reset to state 0, arm the 0x621E lock, sound frontier. */
@@ -9206,12 +9206,12 @@ export function entry_1c4f(m) {
   if (regs.fZ) {
     m.push16(0x1c73); // call z,0x1d95 taken -- pushes return address
     m.step(0x1d95, 17);
-    sub_1d95(m);
+    m.call(0x1d95);
   } else {
     m.step(0x1c73, 10); // call z NOT taken
   }
   m.step(0x1da6, 10); // jp 0x1da6
-  return entry_1da6(m);
+  return m.call(0x1da6);
 }
 
 /** sub_1d95 -- ROM 0x1D95-0x1DA5. entry_1c4f call-z target (0x6225==1). A live-in.
@@ -9248,7 +9248,7 @@ export function entry_1c76(m) {
   m.step(0x1c7e, 7); // sub 0x0f
   regs.cp(mem.read8(regs.hl));
   m.step(0x1c7f, 7); // cp (hl)
-  if (regs.fC) { m.step(0x1da6, 10); return entry_1da6(m); } // jp c
+  if (regs.fC) { m.step(0x1da6, 10); return m.call(0x1da6); } // jp c
   m.step(0x1c82, 10);
   regs.a = 0x01;
   m.step(0x1c84, 7); // ld a,0x01
@@ -9259,7 +9259,7 @@ export function entry_1c76(m) {
   mem.write8(regs.hl, 0x03);
   m.step(0x1c8c, 10); // ld (hl),0x03
   m.step(0x1da6, 10); // jp 0x1da6
-  return entry_1da6(m);
+  return m.call(0x1da6);
 }
 
 /** loc_1c8f (0x1C8F-0x1CAA): MOVE +dir. Twin of loc_1cab: B=+1, 3009 arg=0x05,
@@ -9272,7 +9272,7 @@ export function loc_1c8f(m) {
   m.step(0x1c94, 13); // ld a,(0x620f)
   regs.and(regs.a);
   m.step(0x1c95, 4); // and a
-  if (regs.fNZ) { m.step(0x1cd2, 10); return loc_1cd2(m); } // jp nz -- already moving
+  if (regs.fNZ) { m.step(0x1cd2, 10); return m.call(0x1cd2); } // jp nz -- already moving
   m.step(0x1c98, 10);
   regs.a = mem.read8(0x6202); // facing
   m.step(0x1c9b, 13); // ld a,(0x6202)
@@ -9282,7 +9282,7 @@ export function loc_1c8f(m) {
   m.step(0x1c9e, 7); // ld a,0x05
   m.push16(0x1ca1);
   m.step(0x3009, 17); // call 0x3009
-  entry_3009(m); // returns A (new facing)
+  m.call(0x3009); // returns A (new facing)
   mem.write8(0x6202, regs.a);
   m.step(0x1ca4, 13); // ld (0x6202),a
   regs.and(0x03);
@@ -9290,7 +9290,7 @@ export function loc_1c8f(m) {
   regs.or(0x80); // <-- the extra step loc_1cab does NOT have
   m.step(0x1ca8, 7); // or 0x80
   m.step(0x1cc2, 10); // jp 0x1cc2
-  return loc_1cc2(m);
+  return m.call(0x1cc2);
 }
 
 /** loc_1cab (0x1CAB-0x1CC1): MOVE -dir. Twin of loc_1c8f: B=0xFF, 3009 arg=0x01,
@@ -9303,7 +9303,7 @@ export function loc_1cab(m) {
   m.step(0x1cb0, 13); // ld a,(0x620f)
   regs.and(regs.a);
   m.step(0x1cb1, 4); // and a
-  if (regs.fNZ) { m.step(0x1cd2, 10); return loc_1cd2(m); } // jp nz
+  if (regs.fNZ) { m.step(0x1cd2, 10); return m.call(0x1cd2); } // jp nz
   m.step(0x1cb4, 10);
   regs.a = mem.read8(0x6202);
   m.step(0x1cb7, 13); // ld a,(0x6202)
@@ -9313,12 +9313,12 @@ export function loc_1cab(m) {
   m.step(0x1cba, 7); // ld a,0x01
   m.push16(0x1cbd);
   m.step(0x3009, 17); // call 0x3009
-  entry_3009(m);
+  m.call(0x3009);
   mem.write8(0x6202, regs.a);
   m.step(0x1cc0, 13); // ld (0x6202),a
   regs.and(0x03); // NO or 0x80 -- falls into loc_1cc2
   m.step(0x1cc2, 7); // and 0x03
-  return loc_1cc2(m);
+  return m.call(0x1cc2);
 }
 
 /** loc_1cc2 (0x1CC2-0x1CD1): shared move tail. Store facing, bit0 -> sound 1d8f. */
@@ -9333,7 +9333,7 @@ export function loc_1cc2(m) {
   if (regs.fC) {
     m.push16(0x1cca);
     m.step(0x1d8f, 17); // call c,0x1d8f
-    sub_1d8f(m);
+    m.call(0x1d8f);
   } else {
     m.step(0x1cca, 10); // call c NOT taken
   }
@@ -9342,7 +9342,7 @@ export function loc_1cc2(m) {
   mem.write8(0x620f, regs.a);
   m.step(0x1ccf, 13); // ld (0x620f),a
   m.step(0x1da6, 10); // jp 0x1da6
-  return entry_1da6(m);
+  return m.call(0x1da6);
 }
 
 /** loc_1cd2 (0x1CD2-0x1CF1): apply movement (0x6203 += B, signed); 0x6227 clamp. */
@@ -9360,7 +9360,7 @@ export function loc_1cd2(m) {
   m.step(0x1cdb, 13); // ld a,(0x6227)
   regs.a = regs.dec8(regs.a);
   m.step(0x1cdc, 4); // dec a
-  if (regs.fNZ) { m.step(0x1ceb, 10); return loc_1ceb(m); } // jp nz
+  if (regs.fNZ) { m.step(0x1ceb, 10); return m.call(0x1ceb); } // jp nz
   m.step(0x1cdf, 5);
   regs.h = mem.read8(regs.hl); // ld h,(hl) -- HL=0x6203, H = (0x6203)
   m.step(0x1ce0, 7); // ld h,(hl)
@@ -9370,12 +9370,12 @@ export function loc_1cd2(m) {
   m.step(0x1ce4, 4); // ld l,a
   m.push16(0x1ce7);
   m.step(0x2333, 17); // call 0x2333
-  entry_2333(m); // clamp; returns L
+  m.call(0x2333); // clamp; returns L
   regs.a = regs.l;
   m.step(0x1ce8, 4); // ld a,l
   mem.write8(0x6205, regs.a);
   m.step(0x1ceb, 13); // ld (0x6205),a
-  return loc_1ceb(m);
+  return m.call(0x1ceb);
 }
 
 /** loc_1ceb (0x1CEB-0x1CF1): dec (0x620f) jump-phase, tail-jump 0x1da6. */
@@ -9386,7 +9386,7 @@ export function loc_1ceb(m) {
   mem.write8(regs.hl, regs.dec8(mem.read8(regs.hl)));
   m.step(0x1cef, 11); // dec (hl)
   m.step(0x1da6, 10); // jp 0x1da6
-  return entry_1da6(m);
+  return m.call(0x1da6);
 }
 
 /** loc_1cf2 (0x1CF2-0x1D02): jump-phase handler. nonzero -> 0x1d8a; else jp 0x1d11. */
@@ -9396,7 +9396,7 @@ export function loc_1cf2(m) {
   m.step(0x1cf5, 13); // ld a,(0x620f)
   regs.and(regs.a);
   m.step(0x1cf6, 4); // and a
-  if (regs.fNZ) { m.step(0x1d8a, 10); return entry_1d8a(m); } // jp nz -- external
+  if (regs.fNZ) { m.step(0x1d8a, 10); return m.call(0x1d8a); } // jp nz -- external
   m.step(0x1cf9, 5);
   regs.a = 0x03;
   m.step(0x1cfb, 7); // ld a,0x03
@@ -9405,7 +9405,7 @@ export function loc_1cf2(m) {
   regs.a = 0x02;
   m.step(0x1d00, 7); // ld a,0x02
   m.step(0x1d11, 10); // jp 0x1d11 -- external (extent boundary)
-  return loc_1d11(m);
+  return m.call(0x1d11);
 }
 
 /**
@@ -9449,7 +9449,7 @@ export function sub_1f72(m) {
   m.step(0x1f81, 10); // ld de,0x0020
   regs.b = 0x0a; // 10 slots
   m.step(0x1f83, 7); // ld b,0x0a
-  return loc_1f83(m);
+  return m.call(0x1f83);
 }
 
 /** loc_1f83 (0x1F83): per-slot state check. active (==1) -> loc_1f93; else skip
@@ -9461,7 +9461,7 @@ export function loc_1f83(m) {
   m.step(0x1f86, 19); // ld a,(ix+0x00)
   regs.a = regs.dec8(regs.a);
   m.step(0x1f87, 4); // dec a
-  if (regs.fZ) { m.step(0x1f93, 10); return loc_1f93(m); } // jp z -- active slot
+  if (regs.fZ) { m.step(0x1f93, 10); return m.call(0x1f93); } // jp z -- active slot
   m.step(0x1f8a, 10); // jp z NOT taken
   regs.l = regs.inc8(regs.l);
   m.step(0x1f8b, 4); // inc l
@@ -9469,7 +9469,7 @@ export function loc_1f83(m) {
   m.step(0x1f8c, 4); // inc l
   regs.l = regs.inc8(regs.l);
   m.step(0x1f8d, 4); // inc l (3rd; loc_1f8d is the 4th, below)
-  return loc_1f8d(m);
+  return m.call(0x1f8d);
 }
 
 /** loc_1f8d (0x1F8D-0x1F92): 4th inc l + loop advance. SHARED ENTRY from loc_21ba
@@ -9481,7 +9481,7 @@ export function loc_1f8d(m) {
   regs.addIx(regs.de);
   m.step(0x1f90, 15); // add ix,de
   regs.b = (regs.b - 1) & 0xff; // djnz -- no flags
-  if (regs.b !== 0) { m.step(0x1f83, 13); return loc_1f83(m); } // djnz 0x1f83 taken
+  if (regs.b !== 0) { m.step(0x1f83, 13); return m.call(0x1f83); } // djnz 0x1f83 taken
   m.step(0x1f92, 8); // djnz NOT taken
   m.ret(10); // 0x1F92
 }
@@ -9494,24 +9494,24 @@ export function loc_1f93(m) {
   m.step(0x1f96, 19); // ld a,(ix+0x01)
   regs.a = regs.dec8(regs.a);
   m.step(0x1f97, 4); // dec a
-  if (regs.fZ) { m.step(0x20ec, 10); return branch_20ec(m); } // jp z -- exx @0x20EC
+  if (regs.fZ) { m.step(0x20ec, 10); return m.call(0x20ec); } // jp z -- exx @0x20EC
   m.step(0x1f9a, 10);
   regs.a = mem.read8(R(0x02));
   m.step(0x1f9d, 19); // ld a,(ix+0x02)
   regs.rra(); // bit 0 -> carry
   m.step(0x1f9e, 4); // rra
-  if (regs.fC) { m.step(0x1fac, 10); return branch_1fac(m); } // jp c -- exx @0x1FAC
+  if (regs.fC) { m.step(0x1fac, 10); return m.call(0x1fac); } // jp c -- exx @0x1FAC
   m.step(0x1fa1, 10);
   regs.rra(); // bit 1
   m.step(0x1fa2, 4); // rra
-  if (regs.fC) { m.step(0x1fe5, 10); return branch_1fe5(m); } // jp c -- exx @0x1FE5
+  if (regs.fC) { m.step(0x1fe5, 10); return m.call(0x1fe5); } // jp c -- exx @0x1FE5
   m.step(0x1fa5, 10);
   regs.rra(); // bit 2
   m.step(0x1fa6, 4); // rra
-  if (regs.fC) { m.step(0x1fef, 10); return branch_1fef(m); } // jp c -- exx @0x1FEF
+  if (regs.fC) { m.step(0x1fef, 10); return m.call(0x1fef); } // jp c -- exx @0x1FEF
   m.step(0x1fa9, 10);
   m.step(0x2053, 10); // jp 0x2053 -- exx @0x2053
-  return branch_2053(m);
+  return m.call(0x2053);
 }
 
 /** branch_1fac (0x1FAC-0x1FE4): exx; animate -- advance (ix+5); on (ix+17)==(ix+5)
@@ -9527,7 +9527,7 @@ export function branch_1fac(m) {
   m.step(0x1fb3, 19); // ld a,(ix+0x17)
   regs.cp(mem.read8(R(0x05)));
   m.step(0x1fb6, 19); // cp (ix+0x05)
-  if (regs.fNZ) { m.step(0x1fce, 10); return loc_1fce(m); } // jp nz -- shared tail
+  if (regs.fNZ) { m.step(0x1fce, 10); return m.call(0x1fce); } // jp nz -- shared tail
   m.step(0x1fb9, 10);
   regs.a = mem.read8(R(0x15));
   m.step(0x1fbc, 19); // ld a,(ix+0x15)
@@ -9546,7 +9546,7 @@ export function branch_1fac(m) {
   mem.write8(R(0x02), regs.a);
   m.step(0x1fcb, 19); // ld (ix+0x02),a
   m.step(0x21ba, 10); // jp 0x21ba
-  return loc_21ba(m);
+  return m.call(0x21ba);
 }
 
 /** loc_1fce (0x1FCE-0x1FE4): the (ix+17)!=(ix+5) tail. ALSO the SHARED ENTRY tail-
@@ -9574,7 +9574,7 @@ export function loc_1fce(m) {
   mem.write8(R(0x0f), regs.a);
   m.step(0x1fe2, 19); // ld (ix+0x0f),a
   m.step(0x21ba, 10); // jp 0x21ba
-  return loc_21ba(m);
+  return m.call(0x21ba);
 }
 
 /** branch_1fe5 (0x1FE5-0x1FEC): exx; +X velocity BC=0x0100, inc (ix+3); jp shared_1ff6. */
@@ -9588,7 +9588,7 @@ export function branch_1fe5(m) {
   mem.write8(R(0x03), regs.inc8(mem.read8(R(0x03))));
   m.step(0x1fec, 23); // inc (ix+0x03)
   m.step(0x1ff6, 10); // jp 0x1ff6
-  return shared_1ff6(m);
+  return m.call(0x1ff6);
 }
 
 /** branch_1fef (0x1FEF-0x1FF5): exx; -X velocity BC=0xff04, dec (ix+3); FALLS INTO
@@ -9602,7 +9602,7 @@ export function branch_1fef(m) {
   m.step(0x1ff3, 10); // ld bc,0xff04
   mem.write8(R(0x03), regs.dec8(mem.read8(R(0x03))));
   m.step(0x1ff6, 23); // dec (ix+0x03)
-  return shared_1ff6(m);
+  return m.call(0x1ff6);
 }
 
 /** shared_1ff6 (0x1FF6-0x2052): tail of branch_1fe5/1fef. On (H&7)==3 -> loc_215f;
@@ -9620,7 +9620,7 @@ export function shared_1ff6(m) {
   m.step(0x1fff, 7); // and 0x07
   regs.cp(0x03);
   m.step(0x2001, 7); // cp 0x03
-  if (regs.fZ) { m.step(0x215f, 10); return loc_215f(m); } // jp z -- 21xx cluster
+  if (regs.fZ) { m.step(0x215f, 10); return m.call(0x215f); } // jp z -- 21xx cluster
   m.step(0x2004, 10);
   regs.l = regs.dec8(regs.l);
   m.step(0x2005, 4); // dec l
@@ -9630,7 +9630,7 @@ export function shared_1ff6(m) {
   m.step(0x2007, 4); // dec l
   m.push16(0x200a);
   m.step(0x2333, 17); // call 0x2333
-  entry_2333(m); // clamp; returns L
+  m.call(0x2333); // clamp; returns L
   regs.l = regs.inc8(regs.l);
   m.step(0x200b, 4); // inc l
   regs.l = regs.inc8(regs.l);
@@ -9643,19 +9643,19 @@ export function shared_1ff6(m) {
   m.step(0x2011, 19); // ld (ix+0x05),a
   m.push16(0x2014);
   m.step(0x23de, 17); // call 0x23de
-  sub_23de(m);
+  m.call(0x23de);
   m.push16(0x2017);
   m.step(0x24b4, 17); // call 0x24b4
-  if (!entry_24b4(m)) return; // skip-capable: spliced to 21ba/loop -> do NOT continue inline
+  if (!m.call(0x24b4)) return; // skip-capable: spliced to 21ba/loop -> do NOT continue inline
   regs.a = mem.read8(R(0x03));
   m.step(0x201a, 19); // ld a,(ix+0x03)
   regs.cp(0x1c);
   m.step(0x201c, 7); // cp 0x1c
-  if (regs.fC) { m.step(0x202f, 10); return shared_202f(m); } // jp c -- low X
+  if (regs.fC) { m.step(0x202f, 10); return m.call(0x202f); } // jp c -- low X
   m.step(0x201f, 10);
   regs.cp(0xe4);
   m.step(0x2021, 7); // cp 0xe4
-  if (regs.fC) { m.step(0x21ba, 10); return loc_21ba(m); } // jp c -- mid X, done
+  if (regs.fC) { m.step(0x21ba, 10); return m.call(0x21ba); } // jp c -- mid X, done
   m.step(0x2024, 10);
   regs.xor(regs.a); // A = 0
   m.step(0x2025, 4); // xor a
@@ -9664,7 +9664,7 @@ export function shared_1ff6(m) {
   mem.write8(R(0x11), 0x60);
   m.step(0x202c, 19); // ld (ix+0x11),0x60
   m.step(0x2038, 10); // jp 0x2038
-  return shared_2038(m);
+  return m.call(0x2038);
 }
 
 /** shared_202f (0x202F-0x2037): the low-X (jp c) velocity variant. */
@@ -9677,7 +9677,7 @@ export function shared_202f(m) {
   m.step(0x2034, 19); // ld (ix+0x10),0xff
   mem.write8(R(0x11), 0xa0);
   m.step(0x2038, 19); // ld (ix+0x11),0xa0
-  return shared_2038(m);
+  return m.call(0x2038);
 }
 
 /** shared_2038 (0x2038-0x2052): the common velocity/sprite record write. A=0. */
@@ -9699,7 +9699,7 @@ export function shared_2038(m) {
   mem.write8(R(0x02), 0x08);
   m.step(0x2050, 19); // ld (ix+0x02),0x08
   m.step(0x21ba, 10); // jp 0x21ba
-  return loc_21ba(m);
+  return m.call(0x21ba);
 }
 
 /** branch_2053 (0x2053-0x20E9): exx; ACTIVE-MOVEMENT. 239c gravity, 2a2f collision,
@@ -9711,13 +9711,13 @@ export function branch_2053(m) {
   m.step(0x2054, 4); // exx
   m.push16(0x2057);
   m.step(0x239c, 17); // call 0x239c
-  sub_239c(m);
+  m.call(0x239c);
   m.push16(0x205a);
   m.step(0x2a2f, 17); // call 0x2a2f
-  sub_2a2f(m); // returns A
+  m.call(0x2a2f); // returns A
   regs.and(regs.a);
   m.step(0x205b, 4); // and a
-  if (regs.fNZ) { m.step(0x2083, 10); return sub_2083(m); } // jp nz -- sub-state
+  if (regs.fNZ) { m.step(0x2083, 10); return m.call(0x2083); } // jp nz -- sub-state
   m.step(0x205e, 10);
   regs.a = mem.read8(R(0x03));
   m.step(0x2061, 19); // ld a,(ix+0x03)
@@ -9725,11 +9725,11 @@ export function branch_2053(m) {
   m.step(0x2063, 7); // add a,0x08
   regs.cp(0x10);
   m.step(0x2065, 7); // cp 0x10
-  if (regs.fC) { m.step(0x2079, 10); return sub_2079(m); } // jp c
+  if (regs.fC) { m.step(0x2079, 10); return m.call(0x2079); } // jp c
   m.step(0x2068, 10);
   m.push16(0x206b);
   m.step(0x24b4, 17); // call 0x24b4
-  if (!entry_24b4(m)) return; // skip-capable: spliced to 21ba/loop -> do NOT continue inline
+  if (!m.call(0x24b4)) return; // skip-capable: spliced to 21ba/loop -> do NOT continue inline
   regs.a = mem.read8(R(0x10));
   m.step(0x206e, 19); // ld a,(ix+0x10)
   regs.and(0x01);
@@ -9742,11 +9742,11 @@ export function branch_2053(m) {
   m.step(0x2073, 4); // ld c,a
   m.push16(0x2076);
   m.step(0x23de, 17); // call 0x23de
-  sub_23de(m);
+  m.call(0x23de);
   regs.hl = (regs.hl + 1) & 0xffff;
   m.step(0x2076, 6); // inc hl
   m.step(0x21ba, 10); // jp 0x21ba
-  return loc_21ba(m);
+  return m.call(0x21ba);
 }
 
 /** sub_2079 (0x2079-0x2082): (ix+3)+8 < 0x10 -- deactivate the slot. */
@@ -9760,7 +9760,7 @@ export function sub_2079(m) {
   mem.write8(R(0x03), regs.a);
   m.step(0x2080, 19); // ld (ix+0x03),a
   m.step(0x21ba, 10); // jp 0x21ba
-  return loc_21ba(m);
+  return m.call(0x21ba);
 }
 
 /** sub_2083 (0x2083-0x20E9): the 2a2f-nonzero sub-state machine on (ix+0e). */
@@ -9773,11 +9773,11 @@ export function sub_2083(m) {
   m.step(0x2089, 19); // ld a,(ix+0x0e)
   regs.a = regs.dec8(regs.a);
   m.step(0x208a, 4); // dec a
-  if (regs.fZ) { m.step(0x20a2, 10); return sub_20a2(m); } // jp z -- state 1
+  if (regs.fZ) { m.step(0x20a2, 10); return m.call(0x20a2); } // jp z -- state 1
   m.step(0x208d, 10);
   regs.a = regs.dec8(regs.a);
   m.step(0x208e, 4); // dec a
-  if (regs.fZ) { m.step(0x20c3, 10); return sub_20c3(m); } // jp z -- state 2
+  if (regs.fZ) { m.step(0x20c3, 10); return m.call(0x20c3); } // jp z -- state 2
   m.step(0x2091, 10);
   regs.a = mem.read8(R(0x10));
   m.step(0x2094, 19); // ld a,(ix+0x10)
@@ -9795,7 +9795,7 @@ export function sub_2083(m) {
   mem.write8(R(0x02), regs.a);
   m.step(0x209f, 19); // ld (ix+0x02),a
   m.step(0x21ba, 10); // jp 0x21ba
-  return loc_21ba(m);
+  return m.call(0x21ba);
 }
 
 /** sub_20a2 (0x20A2-0x20C2): state-1 -- proximity check (ix+15)/(0x6205). */
@@ -9806,7 +9806,7 @@ export function sub_20a2(m) {
   m.step(0x20a5, 19); // ld a,(ix+0x15)
   regs.and(regs.a);
   m.step(0x20a6, 4); // and a
-  if (regs.fNZ) { m.step(0x20b5, 10); return sub_20b5(m); } // jp nz
+  if (regs.fNZ) { m.step(0x20b5, 10); return m.call(0x20b5); } // jp nz
   m.step(0x20a9, 10);
   regs.hl = 0x6205;
   m.step(0x20ac, 10); // ld hl,0x6205
@@ -9816,9 +9816,9 @@ export function sub_20a2(m) {
   m.step(0x20b1, 7); // sub 0x16
   regs.cp(mem.read8(regs.hl));
   m.step(0x20b2, 7); // cp (hl)
-  if (regs.fNC) { m.step(0x20c3, 10); return sub_20c3(m); } // jp nc
+  if (regs.fNC) { m.step(0x20c3, 10); return m.call(0x20c3); } // jp nc
   m.step(0x20b5, 5);
-  return sub_20b5(m);
+  return m.call(0x20b5);
 }
 
 /** sub_20b5 (0x20B5-0x20C2): sets the horizontal velocity sign into (ix+10/11). */
@@ -9829,13 +9829,13 @@ export function sub_20b5(m) {
   m.step(0x20b8, 19); // ld a,(ix+0x10)
   regs.and(regs.a);
   m.step(0x20b9, 4); // and a
-  if (regs.fNZ) { m.step(0x20e1, 10); return sub_20e1(m); } // jp nz
+  if (regs.fNZ) { m.step(0x20e1, 10); return m.call(0x20e1); } // jp nz
   m.step(0x20bc, 10);
   mem.write8(R(0x11), regs.a); // A = 0
   m.step(0x20bf, 19); // ld (ix+0x11),a
   mem.write8(R(0x10), 0xff);
   m.step(0x20c3, 19); // ld (ix+0x10),0xff
-  return sub_20c3(m);
+  return m.call(0x20c3);
 }
 
 /** sub_20c3 (0x20C3-0x20E0): 2407 (fixed-point), HL >>= 2 (srl h/rr l x2), store
@@ -9845,7 +9845,7 @@ export function sub_20c3(m) {
   const R = (d) => (regs.ix + d) & 0xffff;
   m.push16(0x20c6);
   m.step(0x2407, 17); // call 0x2407
-  sub_2407(m); // returns HL
+  m.call(0x2407); // returns HL
   regs.h = regs.srl(regs.h);
   m.step(0x20c8, 8); // srl h
   regs.l = regs.rr(regs.l);
@@ -9867,7 +9867,7 @@ export function sub_20c3(m) {
   mem.write8(R(0x06), regs.a);
   m.step(0x20de, 19); // ld (ix+0x06),a
   m.step(0x21ba, 10); // jp 0x21ba
-  return loc_21ba(m);
+  return m.call(0x21ba);
 }
 
 /** sub_20e1 (0x20E1-0x20EB): the (ix+10)!=0 velocity variant, then jp 0x20c3. */
@@ -9879,7 +9879,7 @@ export function sub_20e1(m) {
   mem.write8(R(0x11), 0x00);
   m.step(0x20e9, 19); // ld (ix+0x11),0x00
   m.step(0x20c3, 10); // jp 0x20c3
-  return sub_20c3(m);
+  return m.call(0x20c3);
 }
 
 /** branch_20ec (0x20EC-0x2100): exx; 239c gravity; a proximity gate -> loc_2104;
@@ -9891,7 +9891,7 @@ export function branch_20ec(m) {
   m.step(0x20ed, 4); // exx
   m.push16(0x20f0);
   m.step(0x239c, 17); // call 0x239c
-  sub_239c(m);
+  m.call(0x239c);
   regs.a = regs.h; // shadow H (post-exx)
   m.step(0x20f1, 4); // ld a,h
   regs.sub(0x1a);
@@ -9900,16 +9900,16 @@ export function branch_20ec(m) {
   m.step(0x20f6, 19); // ld b,(ix+0x19)
   regs.cp(regs.b);
   m.step(0x20f7, 4); // cp b
-  if (regs.fC) { m.step(0x2104, 10); return loc_2104(m); } // jp c -- INTERNAL
+  if (regs.fC) { m.step(0x2104, 10); return m.call(0x2104); } // jp c -- INTERNAL
   m.step(0x20fa, 10);
   m.push16(0x20fd);
   m.step(0x2a2f, 17); // call 0x2a2f
-  sub_2a2f(m); // returns A
+  m.call(0x2a2f); // returns A
   regs.and(regs.a);
   m.step(0x20fe, 4); // and a
-  if (regs.fNZ) { m.step(0x2118, 10); return entry_2118(m); } // jp nz -- 21xx cluster
+  if (regs.fNZ) { m.step(0x2118, 10); return m.call(0x2118); } // jp nz -- 21xx cluster
   m.step(0x2101, 5); // NOT taken -- falls into loc_2101 (was defb-hidden)
-  return loc_2101(m);
+  return m.call(0x2101);
 }
 
 /** loc_2101 (0x2101-0x2103): the 20ec branch tail (was `defb`-hidden). call 24b4,
@@ -9917,8 +9917,8 @@ export function branch_20ec(m) {
 export function loc_2101(m) {
   m.push16(0x2104);
   m.step(0x24b4, 17); // call 0x24b4
-  if (!entry_24b4(m)) return; // skip-capable: spliced to 21ba/loop -> do NOT continue inline
-  return loc_2104(m);
+  if (!m.call(0x24b4)) return; // skip-capable: spliced to 21ba/loop -> do NOT continue inline
+  return m.call(0x2104);
 }
 
 /** loc_2104 (0x2104-0x2117): reached from loc_2101 AND from 0x20F7 (jp c). BOTH
@@ -9932,7 +9932,7 @@ export function loc_2104(m) {
   m.step(0x2109, 7); // add a,0x08
   regs.cp(0x10);
   m.step(0x210b, 7); // cp 0x10
-  if (regs.fNC) { m.step(0x1fce, 10); return loc_1fce(m); } // jp nc,0x1fce -- INTERNAL
+  if (regs.fNC) { m.step(0x1fce, 10); return m.call(0x1fce); } // jp nc,0x1fce -- INTERNAL
   m.step(0x210e, 10);
   regs.xor(regs.a); // A = 0
   m.step(0x210f, 4); // xor a
@@ -9941,7 +9941,7 @@ export function loc_2104(m) {
   mem.write8(R(0x03), regs.a);
   m.step(0x2115, 19); // ld (ix+0x03),a
   m.step(0x21ba, 10); // jp 0x21ba
-  return loc_21ba(m);
+  return m.call(0x21ba);
 }
 
 /**
@@ -9982,7 +9982,7 @@ export function loc_21ba(m) {
   mem.write8(regs.hl, regs.a);
   m.step(0x21ce, 7); // ld (hl),a -- (no inc l after the 4th)
   m.step(0x1f8d, 10); // jp 0x1f8d -- 1f72's loop continuation (SCC)
-  return loc_1f8d(m);
+  return m.call(0x1f8d);
 }
 
 /** loc_215f (0x215F-0x216A): set up (D=L+5, A=H, BC=0x15), call sub_216d, tail. */
@@ -10000,9 +10000,9 @@ export function loc_215f(m) {
   m.step(0x2167, 10); // ld bc,0x0015
   m.push16(0x216a);
   m.step(0x216d, 17); // call 0x216d
-  sub_216d(m); // may abort (216d hidden-exit); jp below runs on normal return
+  m.call(0x216d); // may abort (216d hidden-exit); jp below runs on normal return
   m.step(0x21ba, 10); // jp 0x21ba -- NON-exx'd entry
-  return loc_21ba(m);
+  return m.call(0x21ba);
 }
 
 /** entry_2118 (0x2118-0x215C): object velocity/sprite state setup -> shared tail. */
@@ -10013,7 +10013,7 @@ export function entry_2118(m) {
   m.step(0x211b, 19); // ld a,(ix+0x05)
   regs.cp(0xe0);
   m.step(0x211d, 7); // cp 0xe0
-  if (regs.fC) { m.step(0x2146, 10); return loc_2146(m); } // jp c
+  if (regs.fC) { m.step(0x2146, 10); return m.call(0x2146); } // jp c
   m.step(0x2120, 10);
   regs.a = mem.read8(R(0x07));
   m.step(0x2123, 19); // ld a,(ix+0x07)
@@ -10040,7 +10040,7 @@ export function entry_2118(m) {
   mem.write8(R(0x0e), 0x01);
   m.step(0x2143, 19); // ld (ix+0x0e),0x01
   m.step(0x2153, 10); // jp 0x2153
-  return loc_2153(m);
+  return m.call(0x2153);
 }
 
 /** loc_2146 (0x2146-0x2152): the (ix+5) < 0xE0 path -- 2407 + 22cb, snapshot (ix+5). */
@@ -10049,17 +10049,17 @@ export function loc_2146(m) {
   const R = (d) => (regs.ix + d) & 0xffff;
   m.push16(0x2149);
   m.step(0x2407, 17); // call 0x2407
-  sub_2407(m);
+  m.call(0x2407);
   m.push16(0x214c);
   m.step(0x22cb, 17); // call 0x22cb
-  sub_22cb(m);
+  m.call(0x22cb);
   regs.a = mem.read8(R(0x05));
   m.step(0x214f, 19); // ld a,(ix+0x05)
   mem.write8(R(0x19), regs.a);
   m.step(0x2152, 19); // ld (ix+0x19),a
   regs.xor(regs.a); // A = 0
   m.step(0x2153, 4); // xor a
-  return loc_2153(m);
+  return m.call(0x2153);
 }
 
 /** loc_2153 (0x2153-0x215C): clear (ix+14/04/06), tail. A = 0 on entry. */
@@ -10073,7 +10073,7 @@ export function loc_2153(m) {
   mem.write8(R(0x06), regs.a);
   m.step(0x215c, 19); // ld (ix+0x06),a
   m.step(0x21ba, 10); // jp 0x21ba
-  return loc_21ba(m);
+  return m.call(0x21ba);
 }
 
 /**
@@ -10129,7 +10129,7 @@ export function entry_2853(m) {
 
   m.push16(0x286e); // `call` pushes; 3e88's dispatch returns here
   m.step(0x3e88, 17); // call 0x3e88
-  entry_3e88(m); // BALANCED dispatch -- returns normally (NOT a caller-skip)
+  m.call(0x3e88); // BALANCED dispatch -- returns normally (NOT a caller-skip)
   m.ret(10); // 0x286E -- the ret the listing hid as `defb 0xc9`
 }
 
@@ -10149,8 +10149,8 @@ export function entry_2853(m) {
 export function handler_1977(m) {
   m.push16(0x197a);
   m.step(0x21ee, 17); // call 0x21ee
-  sub_21ee(m); // PLAIN call -- returns to 0x197A, NO guard
-  return loc_197a(m); // fall through into the shared cascade
+  m.call(0x21ee); // PLAIN call -- returns to 0x197A, NO guard
+  return m.call(0x197a); // fall through into the shared cascade
 }
 
 /**
@@ -10165,39 +10165,39 @@ export function loc_197a(m) {
   const { regs, mem } = m;
 
   // ---- head cascade (0x197A-0x198E) ----
-  m.push16(0x197d); m.step(0x1dbd, 17); sub_1dbd(m);
+  m.push16(0x197d); m.step(0x1dbd, 17); m.call(0x1dbd);
   m.push16(0x1980); m.step(0x1e8c, 17);
-  if (!entry_1e8c(m)) return; // 0x1E96 non-zero path fell into entry_1e94 skip-tail & RETed
-  m.push16(0x1983); m.step(0x1ac3, 17); entry_1ac3(m);
-  m.push16(0x1986); m.step(0x1f72, 17); sub_1f72(m);
-  m.push16(0x1989); m.step(0x2c8f, 17); entry_2c8f(m);
-  m.push16(0x198c); m.step(0x2c03, 17); entry_2c03(m);
-  m.push16(0x198f); m.step(0x30ed, 17); entry_30ed(m);
+  if (!m.call(0x1e8c)) return; // 0x1E96 non-zero path fell into entry_1e94 skip-tail & RETed
+  m.push16(0x1983); m.step(0x1ac3, 17); m.call(0x1ac3);
+  m.push16(0x1986); m.step(0x1f72, 17); m.call(0x1f72);
+  m.push16(0x1989); m.step(0x2c8f, 17); m.call(0x2c8f);
+  m.push16(0x198c); m.step(0x2c03, 17); m.call(0x2c03);
+  m.push16(0x198f); m.step(0x30ed, 17); m.call(0x30ed);
 
   // ---- the cascade the listing hides as `defb` -- LIVE code ----
-  m.push16(0x1992); m.step(0x2e04, 17); entry_2e04(m);
-  m.push16(0x1995); m.step(0x24ea, 17); sub_24ea(m);
-  m.push16(0x1998); m.step(0x2ddb, 17); entry_2ddb(m);
-  m.push16(0x199b); m.step(0x2ed4, 17); entry_2ed4(m);
-  m.push16(0x199e); m.step(0x2207, 17); sub_2207(m);
-  m.push16(0x19a1); m.step(0x1a33, 17); sub_1a33(m);
-  m.push16(0x19a4); m.step(0x2a85, 17); sub_2a85(m);
-  m.push16(0x19a7); m.step(0x1f46, 17); sub_1f46(m);
-  m.push16(0x19aa); m.step(0x26fa, 17); sub_26fa(m);
-  m.push16(0x19ad); m.step(0x25f2, 17); sub_25f2(m);
-  m.push16(0x19b0); m.step(0x19da, 17); sub_19da(m);
-  m.push16(0x19b3); m.step(0x03fb, 17); entry_03fb(m);
-  m.push16(0x19b6); m.step(0x2808, 17); sub_2808(m);
-  m.push16(0x19b9); m.step(0x281d, 17); loc_281d(m);
+  m.push16(0x1992); m.step(0x2e04, 17); m.call(0x2e04);
+  m.push16(0x1995); m.step(0x24ea, 17); m.call(0x24ea);
+  m.push16(0x1998); m.step(0x2ddb, 17); m.call(0x2ddb);
+  m.push16(0x199b); m.step(0x2ed4, 17); m.call(0x2ed4);
+  m.push16(0x199e); m.step(0x2207, 17); m.call(0x2207);
+  m.push16(0x19a1); m.step(0x1a33, 17); m.call(0x1a33);
+  m.push16(0x19a4); m.step(0x2a85, 17); m.call(0x2a85);
+  m.push16(0x19a7); m.step(0x1f46, 17); m.call(0x1f46);
+  m.push16(0x19aa); m.step(0x26fa, 17); m.call(0x26fa);
+  m.push16(0x19ad); m.step(0x25f2, 17); m.call(0x25f2);
+  m.push16(0x19b0); m.step(0x19da, 17); m.call(0x19da);
+  m.push16(0x19b3); m.step(0x03fb, 17); m.call(0x03fb);
+  m.push16(0x19b6); m.step(0x2808, 17); m.call(0x2808);
+  m.push16(0x19b9); m.step(0x281d, 17); m.call(0x281d);
 
   // @0x19B9 HIDDEN EXIT -- sub_1e57's pop-hl unwind aborts us
   m.push16(0x19bc);
   m.step(0x1e57, 17); // call 0x1e57
-  if (!sub_1e57(m)) return; // NOT a plain call -- returned to OUR caller
+  if (!m.call(0x1e57)) return; // NOT a plain call -- returned to OUR caller
 
   m.push16(0x19bf); m.step(0x1a07, 17);
-  if (!entry_1a07(m)) return; // idx3 caller-skip jumped to the tail & RETed
-  m.push16(0x19c2); m.step(0x2fcb, 17); sub_2fcb(m);
+  if (!m.call(0x1a07)) return; // idx3 caller-skip jumped to the tail & RETed
+  m.push16(0x19c2); m.step(0x2fcb, 17); m.call(0x2fcb);
 
   // ---- 0x19C2: three nops -- a REMOVED call, keep the 12 T ----
   m.step(0x19c3, 4); // nop
@@ -10214,12 +10214,12 @@ export function loc_197a(m) {
   }
   m.step(0x19ca, 5); // ret nz NOT taken -- (0x6200) == 0
 
-  m.push16(0x19cd); m.step(0x011c, 17); sub_011c(m);
+  m.push16(0x19cd); m.step(0x011c, 17); m.call(0x011c);
   regs.hl = 0x6082;
   m.step(0x19d0, 10); // ld hl,0x6082
   mem.write8(regs.hl, 0x03);
   m.step(0x19d2, 10); // ld (hl),0x03
-  return tail_19d2(m);
+  return m.call(0x19d2);
 }
 
 /** tail_19d2 -- shared tail (also `jp 0x19d2` from 0x1A30). Re-arms the rst-18 counter. */
@@ -10376,20 +10376,20 @@ export function loc_07cb(m) {
   m.step(0x080f, 10); // ld de,0x031e
   m.push16(0x0812);
   m.step(0x309f, 17); // call 0x309f -- queue task 0x031E
-  sub_309f(m);
+  m.call(0x309f);
   regs.de = (regs.de + 1) & 0xffff;
   m.step(0x0813, 6); // inc de
   m.push16(0x0816);
   m.step(0x309f, 17); // call 0x309f -- queue task 0x031F
-  sub_309f(m);
+  m.call(0x309f);
   regs.hl = 0x39cf;
   m.step(0x0819, 10); // ld hl,0x39cf
   m.push16(0x081c);
   m.step(0x004e, 17); // call 0x004e -- repaint
-  sub_004e(m);
+  m.call(0x004e);
   m.push16(0x081f);
   m.step(0x3f24, 17); // call 0x3f24
-  sub_3f24(m);
+  m.call(0x3f24);
   m.step(0x0820, 4); // nop
   regs.hl = 0x6908;
   m.step(0x0823, 10); // ld hl,0x6908
@@ -10397,14 +10397,14 @@ export function loc_07cb(m) {
   m.step(0x0825, 7); // ld c,0x44
   m.push16(0x0826);
   m.step(0x0038, 11); // rst 0x38
-  loc_0038(m);
+  m.call(0x0038);
   regs.hl = 0x690b;
   m.step(0x0829, 10); // ld hl,0x690b
   regs.c = 0x78;
   m.step(0x082b, 7); // ld c,0x78
   m.push16(0x082c);
   m.step(0x0038, 11); // rst 0x38
-  loc_0038(m);
+  m.call(0x0038);
   m.ret(); // 0x082c
 }
 
@@ -10422,7 +10422,7 @@ export function loc_0ee8(m) {
   m.step(0x0eed, 7); // cp 0x03
   if (regs.fNZ) {
     m.step(0x0f1b, 10); // jp nz,0x0f1b -- kind 4+
-    return entry_0f1b(m);
+    return m.call(0x0f1b);
   }
   m.step(0x0ef0, 10); // jp nz NOT taken -- kind 3
 
@@ -10624,7 +10624,7 @@ export function entry_1d03(m) {
   m.step(0x1d06, 13); // ld a,(0x620f)
   regs.and(regs.a);
   m.step(0x1d07, 4); // and a
-  if (regs.fNZ) { m.step(0x1d76, 10); return loc_1d76(m); } // jp nz,0x1d76 (timer running)
+  if (regs.fNZ) { m.step(0x1d76, 10); return m.call(0x1d76); } // jp nz,0x1d76 (timer running)
   m.step(0x1d0a, 10); // timer expired (jp nz not taken)
   regs.a = 0x04;
   m.step(0x1d0c, 7); // ld a,0x04
@@ -10632,7 +10632,7 @@ export function entry_1d03(m) {
   m.step(0x1d0f, 13); // ld (0x620f),a -- reset timer := 4
   regs.a = 0xfe; // delta = -2  (** twin loc_1cf2 sets 0x02 here **)
   m.step(0x1d11, 7); // ld a,0xfe -- falls into the shared body loc_1d11
-  return loc_1d11(m);
+  return m.call(0x1d11);
 }
 
 /**
@@ -10655,7 +10655,7 @@ export function loc_1d11(m) {
   m.step(0x1d1c, 7); // xor 0x01 -- toggle phase
   mem.write8(0x6222, regs.a);
   m.step(0x1d1f, 13); // ld (0x6222),a
-  if (regs.fNZ) { m.step(0x1d51, 10); return loc_1d51(m); } // jp nz,0x1d51
+  if (regs.fNZ) { m.step(0x1d51, 10); return m.call(0x1d51); } // jp nz,0x1d51
   m.step(0x1d22, 10); // phase -> 0
   regs.a = regs.b;
   m.step(0x1d23, 4); // ld a,b
@@ -10665,29 +10665,29 @@ export function loc_1d11(m) {
   m.step(0x1d28, 10); // ld hl,0x621c
   regs.cp(mem.read8(regs.hl));
   m.step(0x1d29, 7); // cp (hl)
-  if (regs.fZ) { m.step(0x1d67, 10); return loc_1d67(m); } // jp z,0x1d67
+  if (regs.fZ) { m.step(0x1d67, 10); return m.call(0x1d67); } // jp z,0x1d67
   m.step(0x1d2c, 10);
   regs.l = (regs.l - 1) & 0xff;
   m.step(0x1d2d, 4); // dec l -> 0x621b
   regs.sub(mem.read8(regs.hl));
   m.step(0x1d2e, 7); // sub (hl)
-  if (regs.fZ) { m.step(0x1d67, 10); return loc_1d67(m); } // jp z,0x1d67
+  if (regs.fZ) { m.step(0x1d67, 10); return m.call(0x1d67); } // jp z,0x1d67
   m.step(0x1d31, 10);
   regs.b = 0x05;
   m.step(0x1d33, 7); // ld b,0x05
   regs.sub(0x08);
   m.step(0x1d35, 7); // sub 0x08
-  if (regs.fZ) { m.step(0x1d3f, 10); return loc_1d3f(m); } // jp z,0x1d3f (frame 5)
+  if (regs.fZ) { m.step(0x1d3f, 10); return m.call(0x1d3f); } // jp z,0x1d3f (frame 5)
   m.step(0x1d38, 10);
   regs.b = regs.dec8(regs.b);
   m.step(0x1d39, 4); // dec b (=4)
   regs.sub(0x04);
   m.step(0x1d3b, 7); // sub 0x04
-  if (regs.fZ) { m.step(0x1d3f, 10); return loc_1d3f(m); } // jp z,0x1d3f (frame 4)
+  if (regs.fZ) { m.step(0x1d3f, 10); return m.call(0x1d3f); } // jp z,0x1d3f (frame 4)
   m.step(0x1d3e, 10);
   regs.b = regs.dec8(regs.b);
   m.step(0x1d3f, 4); // dec b (=3) -- falls into loc_1d3f
-  return loc_1d3f(m);
+  return m.call(0x1d3f);
 }
 
 /** loc_1d3f -- write sprite-control (0x6207): flip direction bit (xor 0x80), OR in frame B. */
@@ -10705,7 +10705,7 @@ export function loc_1d3f(m) {
   m.step(0x1d48, 4); // or b -- | frame
   mem.write8(regs.hl, regs.a);
   m.step(0x1d49, 7); // ld (hl),a -- falls into loc_1d49
-  return loc_1d49(m);
+  return m.call(0x1d49);
 }
 
 /** loc_1d49 -- mark the sprite dirty (0x6215:=1), tail-jump entry_1da6. */
@@ -10716,7 +10716,7 @@ export function loc_1d49(m) {
   mem.write8(0x6215, regs.a);
   m.step(0x1d4e, 13); // ld (0x6215),a := 1
   m.step(0x1da6, 10); // jp 0x1da6 (TAIL JUMP)
-  return entry_1da6(m); // 1da6's ret returns to entry_1d03's caller
+  return m.call(0x1da6); // 1da6's ret returns to entry_1d03's caller
 }
 
 /** loc_1d51 -- phase-1 arm: adjust (0x6203), toggle 0x6224, conditionally trigger sound. */
@@ -10743,12 +10743,12 @@ export function loc_1d51(m) {
   if (regs.fZ) {
     m.push16(0x1d64); // call z,0x1d8f taken -- pushes return
     m.step(0x1d8f, 17);
-    sub_1d8f(m); // sound trigger (rets to 0x1d64)
+    m.call(0x1d8f); // sound trigger (rets to 0x1d64)
   } else {
     m.step(0x1d64, 10); // call z NOT taken
   }
   m.step(0x1d49, 10); // jp 0x1d49
-  return loc_1d49(m);
+  return m.call(0x1d49);
 }
 
 /** loc_1d67 -- limit-reached: sprite-control := 6, clear 0x6219/0x6215, tail-jump entry_1da6. */
@@ -10765,7 +10765,7 @@ export function loc_1d67(m) {
   mem.write8(0x6215, regs.a);
   m.step(0x1d73, 13); // ld (0x6215),a := 0  (NOTE: 0, vs 1 at loc_1d49)
   m.step(0x1da6, 10); // jp 0x1da6 (TAIL JUMP)
-  return entry_1da6(m);
+  return m.call(0x1da6);
 }
 
 /** loc_1d76 -- timer-running branch: 0x621A gates; falls into the shared tail entry_1d8a. */
@@ -10775,7 +10775,7 @@ export function loc_1d76(m) {
   m.step(0x1d79, 13); // ld a,(0x621a)
   regs.and(regs.a);
   m.step(0x1d7a, 4); // and a
-  if (regs.fZ) { m.step(0x1d8a, 10); return entry_1d8a(m); } // jp z,0x1d8a -> shared tail
+  if (regs.fZ) { m.step(0x1d8a, 10); return m.call(0x1d8a); } // jp z,0x1d8a -> shared tail
   m.step(0x1d7d, 10); // (0x621A) != 0  [COLD arm on tape]
   mem.write8(0x6219, regs.a);
   m.step(0x1d80, 13); // ld (0x6219),a := (0x621A)
@@ -10789,7 +10789,7 @@ export function loc_1d76(m) {
   m.step(0x1d89, 7); // cp (hl)
   if (regs.fNC) { m.ret(11); return; } // ret nc
   m.step(0x1d8a, 5); // ret nc NOT taken -> FALL INTO entry_1d8a
-  return entry_1d8a(m);
+  return m.call(0x1d8a);
 }
 
 /**
@@ -10836,7 +10836,7 @@ export function loc_1dc9(m) {
   m.step(0x1dd7, 4); // rra
   if (regs.fC) {
     m.step(0x3e70, 10); // jp c,0x3e70 taken (tail)
-    return loc_3e70(m);
+    return m.call(0x3e70);
   }
   m.step(0x1dda, 10); // jp c,0x3e70 not taken
 
@@ -10844,7 +10844,7 @@ export function loc_1dc9(m) {
   m.step(0x1ddb, 4); // rra
   if (regs.fC) {
     m.step(0x1e00, 10); // jp c,0x1e00 taken (tail)
-    return loc_1e00(m);
+    return m.call(0x1e00);
   }
   m.step(0x1dde, 10); // jp c,0x1e00 not taken
 
@@ -10852,7 +10852,7 @@ export function loc_1dc9(m) {
   m.step(0x1ddf, 4); // rra
   if (regs.fC) {
     m.step(0x1df5, 10); // jp c,0x1df5 taken (tail)
-    return loc_1df5(m);
+    return m.call(0x1df5);
   }
   m.step(0x1de2, 10); // jp c,0x1df5 not taken
 
@@ -10867,7 +10867,7 @@ export function loc_1dc9(m) {
   m.step(0x1deb, 4); // dec a
   if (regs.fZ) {
     m.step(0x1e00, 10); // jp z,0x1e00 taken (tail) -- 0x6229 == 1
-    return loc_1e00(m);
+    return m.call(0x1e00);
   }
   m.step(0x1dee, 10); // jp z,0x1e00 not taken
 
@@ -10875,12 +10875,12 @@ export function loc_1dc9(m) {
   m.step(0x1def, 4); // dec a
   if (regs.fZ) {
     m.step(0x1e08, 10); // jp z,0x1e08 taken (tail)  -- 0x6229 == 2 (level 2) -- wired
-    return loc_1e08(m);
+    return m.call(0x1e08);
   }
   m.step(0x1df2, 10); // jp z,0x1e08 not taken
 
   m.step(0x1e10, 10); // jp 0x1e10 (unconditional tail) -- 0x6229 not in {1,2} (level >=3)
-  return loc_1e10(m); // loc_1e10 already translated (0x1E10-0x1E14 -> loc_1e15); wire the level>=3 tail
+  return m.call(0x1e10); // loc_1e10 already translated (0x1E10-0x1E14 -> loc_1e15); wire the level>=3 tail
 }
 
 /**
@@ -10932,9 +10932,9 @@ export function sub_1dbd(m) {
   m.step(0x0037, 4); // ex de,hl
   m.step(target, 4); // jp (hl)
 
-  if (target === 0x1dc9) return loc_1dc9(m); // entry 1: 0x6340 == 1
-  if (target === 0x1e49) return loc_1e49(m); // entry 0: 0x6340 == 0 (idle ret; tape-hot)
-  if (target === 0x1e4a) return loc_1e4a(m); // entry 2: 0x6340 == 2 (state-2 countdown; finale-latent)
+  if (target === 0x1dc9) return m.call(0x1dc9); // entry 1: 0x6340 == 1
+  if (target === 0x1e49) return m.call(0x1e49); // entry 0: 0x6340 == 0 (idle ret; tape-hot)
+  if (target === 0x1e4a) return m.call(0x1e4a); // entry 2: 0x6340 == 2 (state-2 countdown; finale-latent)
   throw new NotImplemented(
     `sub_1dbd dispatches via rst 0x28 to ROM 0x${target.toString(16).padStart(4, "0")} ` +
       `(table at 0x1DC1, index A=mem[0x6340]=${idx}), which is not translated.`,
@@ -10992,7 +10992,7 @@ export function loc_3e70(m) {
   m.step(0x3e75, 7); // ld b,0x7b
   regs.rra();
   m.step(0x3e76, 4); // rra -- bit0 -> carry
-  if (regs.fNC) { m.step(0x1e28, 10); return loc_1e28(m); } // jp nc -- DE=1,B=0x7B
+  if (regs.fNC) { m.step(0x1e28, 10); return m.call(0x1e28); } // jp nc -- DE=1,B=0x7B
   m.step(0x3e79, 10);
   regs.e = 0x03;
   m.step(0x3e7b, 7); // ld e,0x03 (DE=0x0003)
@@ -11000,14 +11000,14 @@ export function loc_3e70(m) {
   m.step(0x3e7d, 7); // ld b,0x7d
   regs.rra();
   m.step(0x3e7e, 4); // rra -- bit1 -> carry
-  if (regs.fNC) { m.step(0x1e28, 10); return loc_1e28(m); } // jp nc -- DE=3,B=0x7D
+  if (regs.fNC) { m.step(0x1e28, 10); return m.call(0x1e28); } // jp nc -- DE=3,B=0x7D
   m.step(0x3e81, 10);
   regs.e = 0x05;
   m.step(0x3e83, 7); // ld e,0x05 (DE=0x0005)
   regs.b = 0x7f;
   m.step(0x3e85, 7); // ld b,0x7f
   m.step(0x1e28, 10); // jp 0x1e28
-  return loc_1e28(m); // DE=5,B=0x7F
+  return m.call(0x1e28); // DE=5,B=0x7F
 }
 
 /**
@@ -11020,7 +11020,7 @@ export function loc_1e28(m) {
   const { regs, mem } = m;
   m.push16(0x1e2b);
   m.step(0x309f, 17); // call 0x309f -- queue task
-  sub_309f(m);
+  m.call(0x309f);
   regs.a = mem.read8(0x6205);
   m.step(0x1e2e, 13); // ld a,(0x6205)
   regs.add(0x14);
@@ -11051,7 +11051,7 @@ export function loc_1e28(m) {
   m.step(0x1e43, 7); // ld a,0x05
   m.push16(0x1e44);
   m.step(0x0030, 11); // rst 0x30
-  if (!sub_0030(m)) return; // rst-0x30 CALLER-SKIP -- gate fired, back to our caller
+  if (!m.call(0x0030)) return; // rst-0x30 CALLER-SKIP -- gate fired, back to our caller
   regs.hl = 0x6085;
   m.step(0x1e47, 10); // ld hl,0x6085
   mem.write8(regs.hl, 0x03);
@@ -11080,7 +11080,7 @@ export function loc_1e15(m) {
 
   m.push16(0x1e18); // call 0x309f pushes the return address 0x1E18
   m.step(0x309f, 17);
-  sub_309f(m); // consumes B, DE; preserves HL (push/pop)
+  m.call(0x309f); // consumes B, DE; preserves HL (push/pop)
 
   // INDIRECT load: HL from the WORD at 0x6343, not the literal 0x6343 (2A vs 21).
   regs.hl = mem.read16(0x6343);
@@ -11104,7 +11104,7 @@ export function loc_1e15(m) {
   m.step(0x1e22, 7); // ld c,(hl) -- byte 3
 
   m.step(0x1e36, 10); // jp 0x1e36 (tail jump, no push)
-  return loc_1e36(m);
+  return m.call(0x1e36);
 }
 
 /**
@@ -11125,7 +11125,7 @@ export function loc_1e00(m) {
   regs.de = 0x0003;
   m.step(0x1e05, 10); // ld de,0x0003
   m.step(0x1e15, 10); // jp 0x1e15 (tail jump, no push16)
-  return loc_1e15(m);
+  return m.call(0x1e15);
 }
 
 export function sub_1e57(m) {
@@ -11137,7 +11137,7 @@ export function sub_1e57(m) {
   m.step(0x1e5c, 8); // bit 2,a
   if (regs.fNZ) {
     m.step(0x1e80, 10); // jp nz,0x1e80
-    return loc_1e80(m);
+    return m.call(0x1e80);
   }
   m.step(0x1e5f, 10); // jp nz not taken
   regs.rra(); // bit 1 -> carry
@@ -11146,7 +11146,7 @@ export function sub_1e57(m) {
   m.step(0x1e63, 13);
   if (regs.fC) {
     m.step(0x1e7a, 10); // jp c,0x1e7a
-    return loc_1e7a(m);
+    return m.call(0x1e7a);
   }
   m.step(0x1e66, 10); // jp c not taken
   regs.cp(0x51);
@@ -11160,7 +11160,7 @@ export function sub_1e57(m) {
   m.step(0x1e6c, 13);
   regs.rla(); // X bit 7 -> carry
   m.step(0x1e6d, 4);
-  return loc_1e6d(m);
+  return m.call(0x1e6d);
 }
 
 /** loc_1e6d -- 1E57 interior: set 0x694D mirror flag by carry, then unwind. */
@@ -11178,7 +11178,7 @@ export function loc_1e6d(m) {
   mem.write8(0x694d, regs.a); // sprite mirror flag
   m.step(0x1e77, 13);
   m.step(0x1e85, 10); // jp 0x1e85 -- the unwind
-  return loc_1e85(m);
+  return m.call(0x1e85);
 }
 
 /** loc_1e7a -- 1E57 interior: cp 0x31 -> normal ret, or into loc_1e6d. */
@@ -11192,7 +11192,7 @@ export function loc_1e7a(m) {
   }
   m.step(0x1e7d, 5); // ret nc not taken
   m.step(0x1e6d, 10); // jp 0x1e6d
-  return loc_1e6d(m);
+  return m.call(0x1e6d);
 }
 
 /** loc_1e80 -- 1E57 interior: 0x6290 test -> normal ret, or unwind. */
@@ -11207,7 +11207,7 @@ export function loc_1e80(m) {
     return true;
   }
   m.step(0x1e85, 5); // ret nz not taken
-  return loc_1e85(m);
+  return m.call(0x1e85);
 }
 
 /** loc_1e85 -- 1E57 interior: 0x600A=0x16, then UNWIND (pop own return, ret to caller's caller). */
@@ -11248,8 +11248,8 @@ export function entry_1e8c(m) {
 
   m.push16(0x1e94); // call 0x1e96 pushes the return address 0x1E94
   m.step(0x1e96, 17);
-  sub_1e96(m);
-  entry_1e94(m); // skip tail: pop hl (discard loc_197a's 0x1980) + ret to loc_197a's caller
+  m.call(0x1e96);
+  m.call(0x1e94); // skip tail: pop hl (discard loc_197a's 0x1980) + ret to loc_197a's caller
   return false; // CALLER-SKIP: loc_197a must NOT continue past 0x1980
 }
 
@@ -11317,9 +11317,9 @@ export function sub_1e96(m) {
   m.step(0x0037, 4); // ex de,hl
   m.step(target, 4); // jp (hl)
 
-  if (target === 0x1ea0) return entry_1ea0(m); // idx 0
-  if (target === 0x1f09) return loc_1f09(m); // idx 1
-  if (target === 0x1f23) return loc_1f23(m); // idx 2
+  if (target === 0x1ea0) return m.call(0x1ea0); // idx 0
+  if (target === 0x1f09) return m.call(0x1f09); // idx 1
+  if (target === 0x1f23) return m.call(0x1f23); // idx 2
   throw new NotImplemented(
     `sub_1e96 dispatches via rst 0x28 to ROM 0x${target.toString(16).padStart(4, "0")} ` +
       `(3-entry table at 0x1E9A, index A=mem[0x6345]=${idx}), which is not translated.`,
@@ -11865,7 +11865,7 @@ export function sub_2a22(m) {
 
   m.push16(0x2a2e); // call 0x2913 pushes the return address 0x2A2E
   m.step(0x2913, 17);
-  if (!entry_2913(m)) {
+  if (!m.call(0x2913)) {
     // A=1: entry_2913 discarded 0x2A2E and already returned to OUR caller
     // (0x29C0). Executing the ret below would double-return.
     return;
@@ -11892,7 +11892,7 @@ export function sub_2a2f(m) {
   m.step(0x2a3a, 11);
   m.push16(0x2a3d);
   m.step(0x2ff0, 17);
-  sub_2ff0(m); // HL = pos -> HL = tilemap cell ptr
+  m.call(0x2ff0); // HL = pos -> HL = tilemap cell ptr
   regs.de = m.pop16(); // pop de -- DE = the saved position (E = X+4)
   m.step(0x2a3e, 10);
 
@@ -12043,7 +12043,7 @@ export function sub_2a85(m) {
   m.step(0x2aa2, 11);
   m.push16(0x2aa5);
   m.step(0x2ff0, 17);
-  sub_2ff0(m); // HL = pos -> HL = tilemap cell ptr
+  m.call(0x2ff0); // HL = pos -> HL = tilemap cell ptr
   regs.de = m.pop16(); // pop de -- saved position
   m.step(0x2aa6, 10);
 
@@ -12054,7 +12054,7 @@ export function sub_2a85(m) {
   if (regs.fC) {
     // -- jp c,0x2ab4 -- tile < 0xB0: slope cascade (Mario on angled girder) --
     m.step(0x2ab4, 10);
-    return loc_2ab4(m);
+    return m.call(0x2ab4);
   }
   m.step(0x2aac, 10); // jp c not taken
   regs.and(0x0f);
@@ -12064,7 +12064,7 @@ export function sub_2a85(m) {
   if (regs.fNC) {
     // -- jp nc,0x2ab4 -- low nibble >= 8: slope cascade (Mario on angled girder) --
     m.step(0x2ab4, 10);
-    return loc_2ab4(m);
+    return m.call(0x2ab4);
   }
   m.step(0x2ab3, 10); // jp nc not taken -> the executing path
   m.ret(); // 0x2AB3
@@ -12089,7 +12089,7 @@ export function loc_2ab4(m) {
   m.step(0x2ab5, 4); // ld a,d
   regs.and(0x07);
   m.step(0x2ab7, 7); // and 0x07 (also clears carry for the sbc below)
-  if (regs.fZ) { m.step(0x2acd, 10); return entry_2acd(m); } // jp z,0x2acd
+  if (regs.fZ) { m.step(0x2acd, 10); return m.call(0x2acd); } // jp z,0x2acd
   m.step(0x2aba, 10); // jp z not taken
   regs.bc = 0x0020;
   m.step(0x2abd, 10); // ld bc,0x0020
@@ -12099,13 +12099,13 @@ export function loc_2ab4(m) {
   m.step(0x2ac0, 7); // ld a,(hl)
   regs.cp(0xb0);
   m.step(0x2ac2, 7); // cp 0xb0
-  if (regs.fC) { m.step(0x2acd, 10); return entry_2acd(m); } // jp c,0x2acd
+  if (regs.fC) { m.step(0x2acd, 10); return m.call(0x2acd); } // jp c,0x2acd
   m.step(0x2ac5, 10); // jp c not taken
   regs.and(0x0f);
   m.step(0x2ac7, 7); // and 0x0f
   regs.cp(0x08);
   m.step(0x2ac9, 7); // cp 0x08
-  if (regs.fNC) { m.step(0x2acd, 10); return entry_2acd(m); } // jp nc,0x2acd
+  if (regs.fNC) { m.step(0x2acd, 10); return m.call(0x2acd); } // jp nc,0x2acd
   m.step(0x2acc, 10); // jp nc not taken
   m.ret(); // 0x2ACC c9 ret
 }
@@ -12198,7 +12198,7 @@ export function sub_29af(m) {
   m.step(0x29b1, 7); // ld a,0x04 -- the value sub_0030 rotates; NOT preserved
   m.push16(0x29b2); // rst 0x30 pushes its continuation
   m.step(0x0030, 11);
-  if (!sub_0030(m)) return true; // skipped OUR body; our caller still resumes
+  if (!m.call(0x0030)) return true; // skipped OUR body; our caller still resumes
 
   regs.iy = 0x6200;
   m.step(0x29b6, 14); // ld iy,0x6200
@@ -12211,7 +12211,7 @@ export function sub_29af(m) {
 
   m.push16(0x29c0); // call 0x2a22
   m.step(0x2a22, 17);
-  sub_2a22(m); // both of its arms land us at 0x29C0; A carries hit/miss
+  m.call(0x2a22); // both of its arms land us at 0x29C0; A carries hit/miss
 
   regs.and(regs.a);
   m.step(0x29c1, 4); // and a
@@ -12339,7 +12339,7 @@ export function sub_29af(m) {
 /**
  * entry_2b1c -- ROM 0x2B1C-0x2B28  (calls entry_2b29 then sub_29af; IX = 0x6200).
  * entry_2b29 is a CALLER-SKIP: on every exit but 0x2B70 (ret z) it does pop hl / ret,
- * unwinding PAST entry_2b1c. So `if (!entry_2b29(m)) return;` -- the skip already
+ * unwinding PAST entry_2b1c. So `if (!m.call(0x2b29)) return;` -- the skip already
  * unwound to entry_2b1c's caller. Only the normal (true) return reaches sub_29af.
  * Translated for completeness; not yet wired into the live dispatcher.
  */
@@ -12348,8 +12348,8 @@ export function entry_2b1c(m) {
   regs.ix = 0x6200;
   m.step(0x2b20, 14); // ld ix,0x6200
   m.push16(0x2b23); m.step(0x2b29, 17); // call 0x2b29
-  if (!entry_2b29(m)) return; // caller-skip: 2b29 (or its 2b9b double-skip) unwound past 2b1c
-  m.push16(0x2b26); m.step(0x29af, 17); sub_29af(m); // call 0x29af
+  if (!m.call(0x2b29)) return; // caller-skip: 2b29 (or its 2b9b double-skip) unwound past 2b1c
+  m.push16(0x2b26); m.step(0x29af, 17); m.call(0x29af); // call 0x29af
   regs.xor(regs.a);
   m.step(0x2b27, 4); // xor a
   regs.b = regs.a;
@@ -12376,7 +12376,7 @@ export function entry_2b29(m) {
   m.step(0x2b2c, 13); // ld a,(0x6227)
   regs.a = regs.dec8(regs.a);
   m.step(0x2b2d, 4); // dec a
-  if (regs.fNZ) { m.step(0x2b53, 10); return loc_2b53(m); } // jp nz,0x2b53
+  if (regs.fNZ) { m.step(0x2b53, 10); return m.call(0x2b53); } // jp nz,0x2b53
   m.step(0x2b30, 10);
 
   // -- (0x6227)==1 arm: probe (X, Y+7) --
@@ -12391,10 +12391,10 @@ export function entry_2b29(m) {
   regs.l = regs.a;
   m.step(0x2b3a, 4); // ld l,a
   m.push16(0x2b3d); m.step(0x2b9b, 17); // call 0x2b9b
-  if (entry_2b9b(m) === false) return false; // entry_2be1 DOUBLE-skip -> unwound past 2b29+2b1c
+  if (m.call(0x2b9b) === false) return false; // entry_2be1 DOUBLE-skip -> unwound past 2b29+2b1c
   regs.and(regs.a);
   m.step(0x2b3e, 4); // and a
-  if (regs.fZ) { m.step(0x2b51, 10); return skip_2b51(m); } // jp z,0x2b51 (reject A==0)
+  if (regs.fZ) { m.step(0x2b51, 10); return m.call(0x2b51); } // jp z,0x2b51 (reject A==0)
   m.step(0x2b41, 10);
   regs.a = regs.e; // E = original L (Y+7)
   m.step(0x2b42, 4); // ld a,e
@@ -12402,7 +12402,7 @@ export function entry_2b29(m) {
   m.step(0x2b43, 7); // sub c
   regs.cp(0x04);
   m.step(0x2b45, 7); // cp 0x04
-  if (regs.fNC) { m.step(0x2b74, 10); return skip_2b74(m); } // jp nc,0x2b74
+  if (regs.fNC) { m.step(0x2b74, 10); return m.call(0x2b74); } // jp nc,0x2b74
   m.step(0x2b48, 10);
   regs.a = regs.c;
   m.step(0x2b49, 4); // ld a,c
@@ -12414,7 +12414,7 @@ export function entry_2b29(m) {
   m.step(0x2b50, 7); // ld a,0x01
   regs.b = regs.a; // B = 1
   m.step(0x2b51, 4); // ld b,a -- falls into loc_2b51
-  return skip_2b51(m);
+  return m.call(0x2b51);
 }
 
 /** loc_2b51 -- pop hl / ret: SKIP past entry_2b1c (discard 2b29's return, ret to 2b1c's caller). */
@@ -12455,10 +12455,10 @@ export function loc_2b53(m) {
   regs.l = regs.a;
   m.step(0x2b5f, 4); // ld l,a
   m.push16(0x2b62); m.step(0x2b9b, 17); // call 0x2b9b
-  if (entry_2b9b(m) === false) return false; // double-skip
+  if (m.call(0x2b9b) === false) return false; // double-skip
   regs.cp(0x02);
   m.step(0x2b64, 7); // cp 0x02
-  if (regs.fZ) { m.step(0x2b7a, 10); return loc_2b7a(m); } // jp z,0x2b7a (success-2, A==2)
+  if (regs.fZ) { m.step(0x2b7a, 10); return m.call(0x2b7a); } // jp z,0x2b7a (success-2, A==2)
   m.step(0x2b67, 10);
   regs.a = regs.d; // D = original H (X-3)
   m.step(0x2b68, 4); // ld a,d
@@ -12469,13 +12469,13 @@ export function loc_2b53(m) {
   regs.l = regs.e; // L = E
   m.step(0x2b6c, 4); // ld l,e
   m.push16(0x2b6f); m.step(0x2b9b, 17); // call 0x2b9b
-  if (entry_2b9b(m) === false) return false; // double-skip
+  if (m.call(0x2b9b) === false) return false; // double-skip
   regs.and(regs.a);
   m.step(0x2b70, 4); // and a
   if (regs.fZ) { m.ret(11); return true; } // ret z -- NORMAL return (entry_2b1c continues)
   m.step(0x2b71, 5); // ret z not taken
   m.step(0x2b7a, 10); // jp 0x2b7a
-  return loc_2b7a(m);
+  return m.call(0x2b7a);
 }
 
 /** loc_2b7a -- shared tail: adjust X by (0x6210) parity, store to (0x6203)/(0x694c); pop hl/ret SKIP. */
@@ -12487,14 +12487,14 @@ export function loc_2b7a(m) {
   m.step(0x2b7e, 4); // and a
   regs.a = mem.read8(0x6203); // ld a,(0x6203) -- does NOT touch flags
   m.step(0x2b81, 13);
-  if (regs.fZ) { m.step(0x2b8b, 10); return loc_2b8b(m); } // jp z,0x2b8b ((0x6210)==0)
+  if (regs.fZ) { m.step(0x2b8b, 10); return m.call(0x2b8b); } // jp z,0x2b8b ((0x6210)==0)
   m.step(0x2b84, 10);
   regs.or(0x07);
   m.step(0x2b86, 7); // or 0x07
   regs.sub(0x04);
   m.step(0x2b88, 7); // sub 0x04
   m.step(0x2b91, 10); // jp 0x2b91
-  return loc_2b91(m);
+  return m.call(0x2b91);
 }
 
 /** loc_2b8b -- (0x6210)==0 variant of the X adjust. */
@@ -12506,7 +12506,7 @@ export function loc_2b8b(m) {
   m.step(0x2b8f, 7); // or 0x07
   regs.add(0x04);
   m.step(0x2b91, 7); // add a,0x04 -- falls into loc_2b91
-  return loc_2b91(m);
+  return m.call(0x2b91);
 }
 
 /** loc_2b91 -- store the adjusted X to (0x6203) and (0x694c), A=1, then pop hl/ret SKIP. */
@@ -12573,7 +12573,7 @@ export function entry_2b9b(m) {
   m.step(0x2b9c, 11);
   m.push16(0x2b9f); // call 0x2ff0
   m.step(0x2ff0, 17);
-  sub_2ff0(m);
+  m.call(0x2ff0);
   regs.de = m.pop16(); // pop de -- recovers the ORIGINAL HL, not a return value
   m.step(0x2ba0, 10);
 
@@ -12617,7 +12617,7 @@ export function entry_2b9b(m) {
     m.step(0x2be0, 4); // dec a
     regs.c = regs.a;
     m.step(0x2be1, 4); // ld c,a -- and then FALLS THROUGH into 0x2BE1
-    return entry_2be1(m); // now translated: 2b9b's success exit -> entry_2be1
+    return m.call(0x2be1); // now translated: 2b9b's success exit -> entry_2be1
   }
   m.step(0x2bb6, 10);
 
@@ -12678,7 +12678,7 @@ export function entry_2b9b(m) {
   m.step(0x2bd6, 4);
   if (regs.fC) {
     m.step(0x2be1, 10); // jp c,0x2be1 -- SUCCESS 1
-    return entry_2be1(m); // now translated
+    return m.call(0x2be1); // now translated
   }
   m.step(0x2bd9, 10); // jp c not taken -- falls into the reject
 
@@ -13103,7 +13103,7 @@ export function sub_23de(m) {
   m.step(0x23f4, 4); // or c
   m.push16(0x23f7);
   m.step(0x3009, 17); // call 0x3009
-  entry_3009(m); // returns A
+  m.call(0x3009); // returns A
   regs.rra(); // A bit 0 -> carry
   m.step(0x23f8, 4);
   mem.write8(R(0x08), regs.rr(mem.read8(R(0x08)))); // rr (ix+8); carry in
@@ -13176,7 +13176,7 @@ export function sub_298c(m) {
 
   m.push16(0x299d); // call 0x2ff0
   m.step(0x2ff0, 17);
-  sub_2ff0(m); // translated, stack-balanced -> HL = VRAM address
+  m.call(0x2ff0); // translated, stack-balanced -> HL = VRAM address
 
   regs.a = mem.read8(regs.hl);
   m.step(0x299e, 7); // ld a,(hl) -- tile
@@ -13229,7 +13229,7 @@ export function entry_2974(m) {
 
   m.push16(0x298b); // call 0x2913 -- entry_2913's skip path consumes this
   m.step(0x2913, 17);
-  if (!entry_2913(m)) return; // HIT (A=1): 2913 already returned past us
+  if (!m.call(0x2913)) return; // HIT (A=1): 2913 already returned past us
   m.ret(10); // ret (0x298B)
 }
 
@@ -13240,11 +13240,11 @@ export function entry_2954(m) {
   m.step(0x2956, 7); // ld a,0x0b -- the bit sub_0030 tests
   m.push16(0x2957);
   m.step(0x0030, 11); // rst 0x30
-  if (!sub_0030(m)) return; // gate: selected bit clear -> skipped
+  if (!m.call(0x0030)) return; // gate: selected bit clear -> skipped
 
   m.push16(0x295a);
   m.step(0x2974, 17); // call 0x2974
-  entry_2974(m); // both arms land at 0x295A; A/B = the 2913 result
+  m.call(0x2974); // both arms land at 0x295A; A/B = the 2913 result
 
   mem.write8(0x6218, regs.a);
   m.step(0x295d, 13); // ld (0x6218),a
@@ -13316,7 +13316,7 @@ export function sub_28b0(m) {
   m.step(0x28be, 14); // ld ix,0x6400
   m.push16(0x28c1); // call 0x2913
   m.step(0x2913, 17);
-  if (!entry_2913(m)) return true; // 2913 HIT skipped us -> our caller resumes
+  if (!m.call(0x2913)) return true; // 2913 HIT skipped us -> our caller resumes
 
   // group 2: B=6, E=0x10 (D preserved = 0x00), IX=0x65a0
   regs.b = 0x06;
@@ -13331,7 +13331,7 @@ export function sub_28b0(m) {
   m.step(0x28cd, 14); // ld ix,0x65a0
   m.push16(0x28d0); // call 0x2913
   m.step(0x2913, 17);
-  if (!entry_2913(m)) return true;
+  if (!m.call(0x2913)) return true;
 
   // group 3: B=1, E=0x00 (stride 0x0000), IX=0x66a0
   regs.b = 0x01;
@@ -13346,7 +13346,7 @@ export function sub_28b0(m) {
   m.step(0x28dc, 14); // ld ix,0x66a0
   m.push16(0x28df); // call 0x2913
   m.step(0x2913, 17);
-  if (!entry_2913(m)) return true;
+  if (!m.call(0x2913)) return true;
 
   m.ret(); // ret (0x28DF)
   return true; // all sweeps completed normally -> caller continues
@@ -13362,7 +13362,7 @@ export function sub_286f(m) {
 
   m.push16(0x2874); // rst 0x28 pushes its return address = the TABLE BASE (0x2874)
   m.step(0x0028, 11);
-  sub_0028(m, "0x2874 (0x6227 collision dispatch)"); // reads the table from ROM; ends in jp (hl)
+  m.call(0x0028, "0x2874 (0x6227 collision dispatch)"); // reads the table from ROM; ends in jp (hl)
 }
 
 export function sub_2880(m) {
@@ -13384,7 +13384,7 @@ export function sub_2880(m) {
   m.step(0x288e, 14); // ld ix,0x6700
   m.push16(0x2891);
   m.step(0x2913, 17);
-  if (!entry_2913(m)) return false; // HIT: 2913 unwound to sub_2808 w/ A=1 -- STOP (preserves D)
+  if (!m.call(0x2913)) return false; // HIT: 2913 unwound to sub_2808 w/ A=1 -- STOP (preserves D)
 
   // -- sweep 2: 0x6400, count 0x05 (only E reloaded; D stays 0x00) --
   regs.b = 0x05;
@@ -13399,7 +13399,7 @@ export function sub_2880(m) {
   m.step(0x289d, 14); // ld ix,0x6400
   m.push16(0x28a0);
   m.step(0x2913, 17);
-  if (!entry_2913(m)) return false; // HIT: caller-skip already unwound to sub_2808 -- STOP
+  if (!m.call(0x2913)) return false; // HIT: caller-skip already unwound to sub_2808 -- STOP
 
   // -- sweep 3: 0x66A0, count 0x01, stride 0x0000 (E=0, D stays 0x00) --
   regs.b = 0x01;
@@ -13414,7 +13414,7 @@ export function sub_2880(m) {
   m.step(0x28ac, 14); // ld ix,0x66a0
   m.push16(0x28af);
   m.step(0x2913, 17);
-  if (!entry_2913(m)) return false; // HIT: caller-skip already unwound to sub_2808 -- STOP
+  if (!m.call(0x2913)) return false; // HIT: caller-skip already unwound to sub_2808 -- STOP
 
   m.ret(); // ret (0x28AF) -- all sweeps missed
 }
@@ -13432,7 +13432,7 @@ export function sub_2808(m) {
   m.step(0x2813, 10); // ld hl,0x0407
   m.push16(0x2816);
   m.step(0x286f, 17); // call 0x286f -- returns A
-  sub_286f(m);
+  m.call(0x286f);
 
   regs.and(regs.a);
   m.step(0x2817, 4); // and a
@@ -13488,7 +13488,7 @@ export function loc_281d(m) {
 
   m.push16(0x283e);
   m.step(0x286f, 17); // call 0x286f -- in HL/C; out A, IX
-  sub_286f(m);
+  m.call(0x286f);
 
   regs.and(regs.a);
   m.step(0x283f, 4); // and a
@@ -13537,7 +13537,7 @@ export function sub_28e0(m) {
   m.step(0x28ee, 14); // ld ix,0x6400
   m.push16(0x28f1); // call 0x2913
   m.step(0x2913, 17);
-  if (!entry_2913(m)) return true;
+  if (!m.call(0x2913)) return true;
 
   regs.b = 0x0a;
   m.step(0x28f3, 7); // ld b,0x0a
@@ -13551,7 +13551,7 @@ export function sub_28e0(m) {
   m.step(0x28fd, 14); // ld ix,0x6500
   m.push16(0x2900); // call 0x2913
   m.step(0x2913, 17);
-  if (!entry_2913(m)) return true;
+  if (!m.call(0x2913)) return true;
 
   m.ret(); // ret (0x2900)
   return true;
@@ -13579,7 +13579,7 @@ export function sub_2901(m) {
   m.step(0x290f, 14); // ld ix,0x6400
   m.push16(0x2912); // call 0x2913
   m.step(0x2913, 17);
-  if (!entry_2913(m)) return true;
+  if (!m.call(0x2913)) return true;
 
   m.ret(); // ret (0x2912)
   return true;
@@ -13605,7 +13605,7 @@ export function sub_2207(m) {
   m.step(0x2209, 7); // ld a,0x02
   m.push16(0x220a); // rst 0x30 pushes the body address
   m.step(0x0030, 11); // rst 0x30
-  if (!sub_0030(m)) return; // gate SKIPPED (coin_start) -> returned to caller
+  if (!m.call(0x0030)) return; // gate SKIPPED (coin_start) -> returned to caller
 
   return sub_2207_body(m); // 0x220A: the object-update body (now translated)
 }
@@ -13665,7 +13665,7 @@ export function sub_22cb(m) {
   m.step(0x22cf, 4); // and a
   if (regs.fZ) {
     m.step(0x22e1, 10); // jp z,0x22e1 -- mode 0
-    return loc_22e1(m);
+    return m.call(0x22e1);
   }
   m.step(0x22d2, 10); // jp z NOT taken
 
@@ -13700,9 +13700,9 @@ export function sub_22cb(m) {
   m.step(0x0037, 4); // ex de,hl
   m.step(target, 4); // jp (hl)
 
-  if (target === 0x22f6) return loc_22f6(m); // diff 1/2 -> RNG (internal)
-  if (target === 0x2303) return loc_2303(m); // diff 3/4
-  if (target === 0x231a) return loc_231a(m); // diff 5
+  if (target === 0x22f6) return m.call(0x22f6); // diff 1/2 -> RNG (internal)
+  if (target === 0x2303) return m.call(0x2303); // diff 3/4
+  if (target === 0x231a) return m.call(0x231a); // diff 5
   throw new NotImplemented(
     `sub_22cb rst 0x28 dispatches to unexpected ROM 0x${target.toString(16).padStart(4, "0")}`,
   );
@@ -13719,18 +13719,18 @@ export function loc_22e1(m) {
   m.step(0x22e6, 4);
   regs.a = 0x01;
   m.step(0x22e8, 7); // ld a,0x01
-  if (regs.fZ) { m.step(0x22f9, 10); return loc_22f9(m); } // (0x6229)==1
+  if (regs.fZ) { m.step(0x22f9, 10); return m.call(0x22f9); } // (0x6229)==1
   m.step(0x22eb, 10);
   regs.b = regs.dec8(regs.b);
   m.step(0x22ec, 4); // dec b
   regs.a = 0xb1;
   m.step(0x22ee, 7); // ld a,0xb1
-  if (regs.fZ) { m.step(0x22f9, 10); return loc_22f9(m); } // (0x6229)==2
+  if (regs.fZ) { m.step(0x22f9, 10); return m.call(0x22f9); } // (0x6229)==2
   m.step(0x22f1, 10);
   regs.a = 0xe9;
   m.step(0x22f3, 7); // ld a,0xe9
   m.step(0x22f9, 10); // jp 0x22f9
-  return loc_22f9(m);
+  return m.call(0x22f9);
 }
 
 /** loc_22f6 -- the RNG velocity (difficulty 1/2): A = (0x6018); falls into loc_22f9. */
@@ -13738,7 +13738,7 @@ export function loc_22f6(m) {
   const { regs, mem } = m;
   regs.a = mem.read8(0x6018); // RNG
   m.step(0x22f9, 13); // ld a,(0x6018)
-  return loc_22f9(m);
+  return m.call(0x22f9);
 }
 
 /** loc_22f9 -- store the velocity pair: (ix+0x11)=A; (ix+0x10)=(A&1)-1 (0x00 odd/0xFF even). */
@@ -13810,7 +13810,7 @@ export function sub_216d(m) {
 
   m.push16(0x2170); // `call` PUSHES -- 236e's pop/ret consume it on the miss
   m.step(0x216d, 17); // call 0x236e
-  if (!sub_236e(m)) return; // cpir miss: 236e already ret'd to 0x216A
+  if (!m.call(0x236e)) return; // cpir miss: 236e already ret'd to 0x216A
 
   regs.a = regs.dec8(regs.a);
   m.step(0x2171, 4); // dec a
@@ -14033,7 +14033,7 @@ export function entry_24b4(m) {
   m.step(0x24e0, 4); // and a
   if (regs.fNZ) {
     m.step(0x21ba, 10); // jp nz,0x21ba taken -- 0x6348 already non-zero
-    loc_21ba(m); // SPLICE -> 21ba's exx + the loop (forwards the popped caller-return in HL)
+    m.call(0x21ba); // SPLICE -> 21ba's exx + the loop (forwards the popped caller-return in HL)
     return false; // skip-capable: signal caller NOT to continue inline (exx-parity fix)
   }
   m.step(0x24e3, 10); // jp nz not taken
@@ -14042,7 +14042,7 @@ export function entry_24b4(m) {
   mem.write8(0x6348, regs.a);
   m.step(0x24e7, 13); // ld (0x6348),a -- one-shot latch := 1
   m.step(0x21ba, 10); // jp 0x21ba
-  loc_21ba(m); // SPLICE -> 21ba's exx + the loop (forwards the popped caller-return in HL)
+  m.call(0x21ba); // SPLICE -> 21ba's exx + the loop (forwards the popped caller-return in HL)
   return false; // skip-capable: signal caller NOT to continue inline (exx-parity fix)
 }
 
@@ -14182,14 +14182,14 @@ export function sub_24ea(m) {
   m.step(0x24ec, 7); // ld a,0x02
   m.push16(0x24ed);
   m.step(0x0030, 11); // rst 0x30
-  if (!sub_0030(m)) return; // caller-skip: (0x6227)-bit test -> abort
+  if (!m.call(0x0030)) return; // caller-skip: (0x6227)-bit test -> abort
 
   m.push16(0x24f0);
   m.step(0x2523, 17); // call 0x2523
-  sub_2523(m);
+  m.call(0x2523);
   m.push16(0x24f3);
   m.step(0x2591, 17); // call 0x2591 -- leaves DE=0x10
-  sub_2591(m);
+  m.call(0x2591);
 
   regs.ix = 0x65a0;
   m.step(0x24f7, 14); // ld ix,0x65a0
@@ -14305,18 +14305,18 @@ export function entry_2cb8(m) {
   m.step(0x2cd4, 13); // ld (0x6393),a
   regs.de = 0x0501;
   m.step(0x2cd7, 10); // ld de,0x0501
-  m.push16(0x2cda); m.step(0x309f, 17); sub_309f(m); // call 0x309f
+  m.push16(0x2cda); m.step(0x309f, 17); m.call(0x309f); // call 0x309f
   regs.hl = 0x62b1;
   m.step(0x2cdd, 10); // ld hl,0x62b1
   mem.write8(regs.hl, regs.dec8(mem.read8(regs.hl)));
   m.step(0x2cde, 11); // dec (0x62b1)
-  if (regs.fNZ) { m.step(0x2ce6, 10); return entry_2ce6(m); } // jp nz,0x2ce6
+  if (regs.fNZ) { m.step(0x2ce6, 10); return m.call(0x2ce6); } // jp nz,0x2ce6
   m.step(0x2ce1, 10);
   regs.a = 0x01;
   m.step(0x2ce3, 7); // ld a,0x01
   mem.write8(0x6386, regs.a);
   m.step(0x2ce6, 13); // ld (0x6386),a -- falls into entry_2ce6
-  return entry_2ce6(m);
+  return m.call(0x2ce6);
 }
 
 /**
@@ -14331,7 +14331,7 @@ export function entry_2ce6(m) {
   m.step(0x2ce7, 7); // ld a,(hl)
   regs.cp(0x04);
   m.step(0x2ce9, 7); // cp 0x04
-  if (regs.fNC) { m.step(0x2cf6, 10); return entry_2cf6(m); } // jp nc,0x2cf6
+  if (regs.fNC) { m.step(0x2cf6, 10); return m.call(0x2cf6); } // jp nc,0x2cf6
   m.step(0x2cec, 10);
   regs.hl = 0x69a8;
   m.step(0x2cef, 10); // ld hl,0x69a8
@@ -14347,7 +14347,7 @@ export function entry_2ce6(m) {
   m.step(0x2cf5, 11); // add hl,de -- HL = 0x69A8 + (hl)*4
   mem.write8(regs.hl, regs.d);
   m.step(0x2cf6, 7); // ld (hl),d -- (hl) = 0 (D == 0)
-  return entry_2cf6(m);
+  return m.call(0x2cf6);
 }
 
 export function entry_2cf6(m) {
@@ -14363,7 +14363,7 @@ export function entry_2cf6(m) {
   m.step(0x2d05, 13); // ld a,(0x6382)
   regs.rlca();
   m.step(0x2d06, 4); // rlca -- bit 7 -> carry
-  if (regs.fNC) { m.step(0x2d15, 10); return loc_2d15(m); } // jp nc,0x2d15 (bit7 clear -> keep defaults)
+  if (regs.fNC) { m.step(0x2d15, 10); return m.call(0x2d15); } // jp nc,0x2d15 (bit7 clear -> keep defaults)
   m.step(0x2d09, 10);
   mem.write8(ixb(0x07), 0x19);
   m.step(0x2d0d, 19); // ld (ix+0x07),0x19 -- overwrite (bit7 set)
@@ -14371,7 +14371,7 @@ export function entry_2cf6(m) {
   m.step(0x2d11, 19); // ld (ix+0x08),0x0c
   mem.write8(ixb(0x15), 0x01);
   m.step(0x2d15, 19); // ld (ix+0x15),0x01 -- falls into loc_2d15
-  return loc_2d15(m);
+  return m.call(0x2d15);
 }
 /**
  * loc_2d15 -- frame-gated string/sprite renderer (the 2c-cluster convergence).
@@ -14399,7 +14399,7 @@ export function loc_2d15(m) {
   m.step(0x2d1f, 13); // ld a,(0x638f)
   regs.and(regs.a);
   m.step(0x2d20, 4); // and a
-  if (regs.fZ) { m.step(0x2d51, 10); return loc_2d51(m); } // jp z,0x2d51
+  if (regs.fZ) { m.step(0x2d51, 10); return m.call(0x2d51); } // jp z,0x2d51
   m.step(0x2d23, 10);
   regs.c = regs.a;
   m.step(0x2d24, 4); // ld c,a
@@ -14439,12 +14439,12 @@ export function loc_2d15(m) {
   m.step(0x2d3a, 7); // ld d,0x00 (DE = c*40)
   regs.addHl(regs.de);
   m.step(0x2d3b, 11); // add hl,de (HL = 0x3932 + c*40)
-  m.push16(0x2d3e); m.step(0x004e, 17); sub_004e(m); // call 0x004e
+  m.push16(0x2d3e); m.step(0x004e, 17); m.call(0x004e); // call 0x004e
   regs.hl = 0x638f;
   m.step(0x2d41, 10); // ld hl,0x638f
   regs.decMem8(mem, regs.hl);
   m.step(0x2d42, 11); // dec (hl) -- (0x638f)--
-  if (regs.fNZ) { m.step(0x2d51, 10); return loc_2d51(m); } // jp nz,0x2d51
+  if (regs.fNZ) { m.step(0x2d51, 10); return m.call(0x2d51); } // jp nz,0x2d51
   m.step(0x2d45, 10);
   regs.a = 0x01;
   m.step(0x2d47, 7); // ld a,0x01
@@ -14454,9 +14454,9 @@ export function loc_2d15(m) {
   m.step(0x2d4d, 13); // ld a,(0x6382)
   regs.rrca();
   m.step(0x2d4e, 4); // rrca
-  if (regs.fC) { m.step(0x2d83, 10); return loc_2d83(m); } // jp c,0x2d83
+  if (regs.fC) { m.step(0x2d83, 10); return m.call(0x2d83); } // jp c,0x2d83
   m.step(0x2d51, 10); // jp c NOT taken -> fall into loc_2d51
-  return loc_2d51(m);
+  return m.call(0x2d51);
 }
 
 /** loc_2d51 -- load the string pointer (0x62A8), fall into loc_2d54. */
@@ -14464,7 +14464,7 @@ export function loc_2d51(m) {
   const { regs, mem } = m;
   regs.hl = mem.read16(0x62a8);
   m.step(0x2d54, 16); // ld hl,(0x62a8)
-  return loc_2d54(m);
+  return m.call(0x2d54);
 }
 
 /** loc_2d54 -- char loop body: write a 4-byte record via DE=(0x62AC), IX=(0x62AA); 0x7F -> loc_2d8c. */
@@ -14478,7 +14478,7 @@ export function loc_2d54(m) {
   m.step(0x2d5d, 20); // ld de,(0x62ac)
   regs.cp(0x7f);
   m.step(0x2d5f, 7); // cp 0x7f
-  if (regs.fZ) { m.step(0x2d8c, 10); return loc_2d8c(m); } // jp z,0x2d8c (terminator)
+  if (regs.fZ) { m.step(0x2d8c, 10); return m.call(0x2d8c); } // jp z,0x2d8c (terminator)
   m.step(0x2d62, 10);
   regs.c = regs.a;
   m.step(0x2d63, 4); // ld c,a -- C = char (bit7 = attribute)
@@ -14533,7 +14533,7 @@ export function loc_2d83(m) {
   mem.write16(0x62a8, regs.hl);
   m.step(0x2d89, 16); // ld (0x62a8),hl
   m.step(0x2d54, 10); // jp 0x2d54
-  return loc_2d54(m);
+  return m.call(0x2d54);
 }
 
 /** loc_2d8c -- 0x7F terminator: reinit the object record (IX+0..+14) + call 0x004E + rst 0x38. */
@@ -14595,12 +14595,12 @@ export function loc_2d8c(m) {
   m.step(0x2dce, 19); // ld (ix+0x05),a
   regs.hl = 0x385c;
   m.step(0x2dd1, 10); // ld hl,0x385c
-  m.push16(0x2dd4); m.step(0x004e, 17); sub_004e(m); // call 0x004e
+  m.push16(0x2dd4); m.step(0x004e, 17); m.call(0x004e); // call 0x004e
   regs.hl = 0x690b;
   m.step(0x2dd7, 10); // ld hl,0x690b
   regs.c = 0xfc;
   m.step(0x2dd9, 7); // ld c,0xfc
-  m.push16(0x2dda); m.step(0x0038, 11); loc_0038(m); // rst 0x38 = CALL loc_0038
+  m.push16(0x2dda); m.step(0x0038, 11); m.call(0x0038); // rst 0x38 = CALL loc_0038
   m.ret(); // ret (EXIT: reinit, 0x2DDA)
 }
 
@@ -14610,10 +14610,10 @@ export function entry_2ddb(m) {
   regs.a = 0x0a;
   m.push16(0x2dde);
   m.step(0x0030, 11); // rst 0x30
-  if (!sub_0030(m)) return; // skip gate
+  if (!m.call(0x0030)) return; // skip gate
   m.push16(0x2ddf);
   m.step(0x0010, 11); // rst 0x10
-  if (!sub_0010(m)) return; // skip gate
+  if (!m.call(0x0010)) return; // skip gate
 
   regs.a = mem.read8(0x6380);
   m.step(0x2de2, 13); // ld a,(0x6380)
@@ -14685,9 +14685,9 @@ export function entry_2e04(m) {
   regs.a = 0x04;
   m.step(0x2e06, 7); // ld a,0x04
   m.push16(0x2e07); m.step(0x0030, 11); // rst 0x30
-  if (!sub_0030(m)) return; // skip gate
+  if (!m.call(0x0030)) return; // skip gate
   m.push16(0x2e08); m.step(0x0010, 11); // rst 0x10
-  if (!sub_0010(m)) return; // skip gate
+  if (!m.call(0x0010)) return; // skip gate
   regs.ix = 0x6500;
   m.step(0x2e0c, 14); // ld ix,0x6500
   regs.iy = 0x6980;
@@ -14695,7 +14695,7 @@ export function entry_2e04(m) {
   regs.b = 0x0a;
   m.step(0x2e12, 7); // ld b,0x0a
   do {
-    obj_2e12(m); // one object -- ends at loc_2e78's add iy,de (0x2E81 = the djnz)
+    m.call(0x2e12); // one object -- ends at loc_2e78's add iy,de (0x2E81 = the djnz)
     regs.djnz();
     m.step(regs.b !== 0 ? 0x2e12 : 0x2e83, regs.b !== 0 ? 13 : 8); // djnz 0x2e12
   } while (regs.b !== 0);
@@ -14711,7 +14711,7 @@ export function obj_2e12(m) {
   m.step(0x2e15, 19); // ld a,(ix+0x00)
   regs.rrca();
   m.step(0x2e16, 4); // rrca -- bit0 = active?
-  if (regs.fNC) { m.step(0x2ea7, 10); return loc_2ea7(m); } // jp nc,0x2ea7 (inactive)
+  if (regs.fNC) { m.step(0x2ea7, 10); return m.call(0x2ea7); } // jp nc,0x2ea7 (inactive)
   m.step(0x2e19, 10);
   regs.a = mem.read8(0x601a);
   m.step(0x2e1c, 13); // ld a,(0x601a)
@@ -14733,7 +14733,7 @@ export function obj_2e12(m) {
   m.step(0x2e2c, 19); // ld a,(ix+0x0d)
   regs.cp(0x04);
   m.step(0x2e2e, 7); // cp 0x04
-  if (regs.fZ) { m.step(0x2e84, 10); return loc_2e84(m); } // jp z,0x2e84 (state 4)
+  if (regs.fZ) { m.step(0x2e84, 10); return m.call(0x2e84); } // jp z,0x2e84 (state 4)
   m.step(0x2e31, 10);
   regs.incMem8(mem, R(0x03));
   m.step(0x2e34, 23); // inc (ix+0x03)
@@ -14749,7 +14749,7 @@ export function obj_2e12(m) {
   m.step(0x2e3f, 4); // ld c,a
   regs.cp(0x7f);
   m.step(0x2e41, 7); // cp 0x7f
-  if (regs.fZ) { m.step(0x2e9c, 10); return loc_2e9c(m); } // jp z,0x2e9c (terminator)
+  if (regs.fZ) { m.step(0x2e9c, 10); return m.call(0x2e9c); } // jp z,0x2e9c (terminator)
   m.step(0x2e44, 10);
   regs.hl = (regs.hl + 1) & 0xffff;
   m.step(0x2e45, 6); // inc hl
@@ -14757,7 +14757,7 @@ export function obj_2e12(m) {
   m.step(0x2e48, 19); // add a,(ix+0x05)
   mem.write8(R(0x05), regs.a);
   m.step(0x2e4b, 19); // ld (ix+0x05),a -- falls into loc_2e4b
-  return loc_2e4b(m);
+  return m.call(0x2e4b);
 }
 
 /** loc_2e4b -- store the string pointer; at the 0xB7 boundary + terminator, set state 4 + sound. */
@@ -14772,13 +14772,13 @@ export function loc_2e4b(m) {
   m.step(0x2e54, 19); // ld a,(ix+0x03)
   regs.cp(0xb7);
   m.step(0x2e56, 7); // cp 0xb7
-  if (regs.fC) { m.step(0x2e6c, 10); return loc_2e6c(m); } // jp c,0x2e6c (< 0xB7)
+  if (regs.fC) { m.step(0x2e6c, 10); return m.call(0x2e6c); } // jp c,0x2e6c (< 0xB7)
   m.step(0x2e59, 10);
   regs.a = regs.c;
   m.step(0x2e5a, 4); // ld a,c
   regs.cp(0x7f);
   m.step(0x2e5c, 7); // cp 0x7f
-  if (regs.fNZ) { m.step(0x2e6c, 10); return loc_2e6c(m); } // jp nz,0x2e6c
+  if (regs.fNZ) { m.step(0x2e6c, 10); return m.call(0x2e6c); } // jp nz,0x2e6c
   m.step(0x2e5f, 10);
   mem.write8(R(0x0d), 0x04);
   m.step(0x2e63, 19); // ld (ix+0x0d),0x04 -- state = 4
@@ -14790,7 +14790,7 @@ export function loc_2e4b(m) {
   m.step(0x2e69, 7); // ld a,0x03
   mem.write8(0x6084, regs.a);
   m.step(0x2e6c, 13); // ld (0x6084),a -- sound; falls into loc_2e6c
-  return loc_2e6c(m);
+  return m.call(0x2e6c);
 }
 
 /** loc_2e6c -- mirror (ix+3)/(ix+5) to (iy+0)/(iy+3); falls into loc_2e78. */
@@ -14806,7 +14806,7 @@ export function loc_2e6c(m) {
   m.step(0x2e75, 19); // ld a,(ix+0x05)
   mem.write8(RY(0x03), regs.a);
   m.step(0x2e78, 19); // ld (iy+0x03),a -- falls into loc_2e78
-  return loc_2e78(m);
+  return m.call(0x2e78);
 }
 
 /** loc_2e78 -- advance IX by 0x10 and IY by 0x04; returns to the djnz in entry_2e04. */
@@ -14834,14 +14834,14 @@ export function loc_2e84(m) {
   m.step(0x2e8c, 19); // ld (ix+0x05),a
   regs.cp(0xf8);
   m.step(0x2e8e, 7); // cp 0xf8
-  if (regs.fC) { m.step(0x2e6c, 10); return loc_2e6c(m); } // jp c,0x2e6c (< 0xF8)
+  if (regs.fC) { m.step(0x2e6c, 10); return m.call(0x2e6c); } // jp c,0x2e6c (< 0xF8)
   m.step(0x2e91, 10);
   mem.write8(R(0x03), 0x00);
   m.step(0x2e95, 19); // ld (ix+0x03),0x00
   mem.write8(R(0x00), 0x00);
   m.step(0x2e99, 19); // ld (ix+0x00),0x00 -- deactivate
   m.step(0x2e6c, 10); // jp 0x2e6c
-  return loc_2e6c(m);
+  return m.call(0x2e6c);
 }
 
 /** loc_2e9c -- 0x7F terminator: reset the string pointer to 0x39AA + sound; -> loc_2e4b. */
@@ -14854,7 +14854,7 @@ export function loc_2e9c(m) {
   mem.write8(0x6083, regs.a);
   m.step(0x2ea4, 13); // ld (0x6083),a
   m.step(0x2e4b, 10); // jp 0x2e4b
-  return loc_2e4b(m);
+  return m.call(0x2e4b);
 }
 
 /** loc_2ea7 -- inactive object: spawn on (0x6396) bit0 (via sub_0057), else just advance. */
@@ -14865,7 +14865,7 @@ export function loc_2ea7(m) {
   m.step(0x2eaa, 13); // ld a,(0x6396)
   regs.rrca();
   m.step(0x2eab, 4); // rrca
-  if (regs.fNC) { m.step(0x2e78, 10); return loc_2e78(m); } // jp nc,0x2e78 (no spawn)
+  if (regs.fNC) { m.step(0x2e78, 10); return m.call(0x2e78); } // jp nc,0x2e78 (no spawn)
   m.step(0x2eae, 10);
   regs.xor(regs.a);
   m.step(0x2eaf, 4); // xor a
@@ -14875,7 +14875,7 @@ export function loc_2ea7(m) {
   m.step(0x2eb6, 19); // ld (ix+0x05),0x50
   mem.write8(R(0x0d), 0x01);
   m.step(0x2eba, 19); // ld (ix+0x0d),0x01
-  m.push16(0x2ebd); m.step(0x0057, 17); sub_0057(m); // call 0x0057
+  m.push16(0x2ebd); m.step(0x0057, 17); m.call(0x0057); // call 0x0057
   regs.and(0x0f);
   m.step(0x2ebf, 7); // and 0x0f
   regs.add(0xf8);
@@ -14891,7 +14891,7 @@ export function loc_2ea7(m) {
   mem.write8(R(0x0f), regs.h);
   m.step(0x2ed1, 19); // ld (ix+0x0f),h
   m.step(0x2e78, 10); // jp 0x2e78
-  return loc_2e78(m);
+  return m.call(0x2e78);
 }
 /**
  * entry_2ed4 -- two-object sprite-state updater.  ROM 0x2ED4-0x2FCA.
@@ -14906,9 +14906,9 @@ export function entry_2ed4(m) {
   regs.a = 0x0b;
   m.step(0x2ed6, 7); // ld a,0x0b
   m.push16(0x2ed7); m.step(0x0030, 11); // rst 0x30
-  if (!sub_0030(m)) return; // skip gate
+  if (!m.call(0x0030)) return; // skip gate
   m.push16(0x2ed8); m.step(0x0010, 11); // rst 0x10
-  if (!sub_0010(m)) return; // skip gate
+  if (!m.call(0x0010)) return; // skip gate
   regs.de = 0x6a18;
   m.step(0x2edb, 10); // ld de,0x6a18
   regs.ix = 0x6680;
@@ -14936,7 +14936,7 @@ export function entry_2ed4(m) {
   m.step(0x2ef8, 13); // ld a,(0x6217)
   regs.rrca();
   m.step(0x2ef9, 4); // rrca
-  if (regs.fNC) { m.step(0x2f97, 10); return loc_2f97(m); } // jp nc,0x2f97
+  if (regs.fNC) { m.step(0x2f97, 10); return m.call(0x2f97); } // jp nc,0x2f97
   m.step(0x2efc, 10);
 
   // -- (0x6217) bit0 set: build sprite attributes B/C --
@@ -14976,7 +14976,7 @@ export function entry_2ed4(m) {
   m.step(0x2f21, 13); // ld a,(0x6394)
   regs.bit(3, regs.a);
   m.step(0x2f23, 8); // bit 3,a
-  if (regs.fZ) { m.step(0x2f43, 10); return loc_2f43(m); } // jp z,0x2f43
+  if (regs.fZ) { m.step(0x2f43, 10); return m.call(0x2f43); } // jp z,0x2f43
   m.step(0x2f26, 10);
   regs.b = regs.set(0, regs.b);
   m.step(0x2f28, 8); // set 0,b
@@ -14992,11 +14992,11 @@ export function entry_2ed4(m) {
   m.step(0x2f3a, 19); // ld (ix+0x0e),0xf0
   regs.bit(7, regs.c);
   m.step(0x2f3c, 8); // bit 7,c
-  if (regs.fZ) { m.step(0x2f43, 10); return loc_2f43(m); } // jp z,0x2f43
+  if (regs.fZ) { m.step(0x2f43, 10); return m.call(0x2f43); } // jp z,0x2f43
   m.step(0x2f3f, 10);
   mem.write8(R(0x0e), 0x10);
   m.step(0x2f43, 19); // ld (ix+0x0e),0x10 -- falls into loc_2f43
-  return loc_2f43(m);
+  return m.call(0x2f43);
 }
 
 /** loc_2f43 -- advance the 0x6394/0x6395 counter chain; on wrap, flip (0x6217) + neg X into (ix+0e). */
@@ -15013,7 +15013,7 @@ export function loc_2f43(m) {
   m.step(0x2f4c, 10); // ld hl,0x6394
   regs.incMem8(mem, regs.hl);
   m.step(0x2f4d, 11); // inc (hl)
-  if (regs.fNZ) { m.step(0x2fb7, 10); return loc_2fb7(m); } // jp nz,0x2fb7
+  if (regs.fNZ) { m.step(0x2fb7, 10); return m.call(0x2fb7); } // jp nz,0x2fb7
   m.step(0x2f50, 10);
   regs.hl = 0x6395;
   m.step(0x2f53, 10); // ld hl,0x6395
@@ -15023,7 +15023,7 @@ export function loc_2f43(m) {
   m.step(0x2f55, 7); // ld a,(hl)
   regs.cp(0x02);
   m.step(0x2f57, 7); // cp 0x02
-  if (regs.fNZ) { m.step(0x2fbe, 10); return loc_2fbe(m); } // jp nz,0x2fbe
+  if (regs.fNZ) { m.step(0x2fbe, 10); return m.call(0x2fbe); } // jp nz,0x2fbe
   m.step(0x2f5a, 10);
   regs.xor(regs.a);
   m.step(0x2f5b, 4); // xor a
@@ -15049,7 +15049,7 @@ export function loc_2f43(m) {
   m.step(0x2f79, 13); // ld a,(0x6389)
   mem.write8(0x6089, regs.a);
   m.step(0x2f7c, 13); // ld (0x6089),a -- falls into loc_2f7c
-  return loc_2f7c(m);
+  return m.call(0x2f7c);
 }
 
 /** loc_2f7c -- THE RECORD WRITE (convergence): DE->HL, write x/B/C/y, mirror x/y to (ix+3)/(ix+5). */
@@ -15118,7 +15118,7 @@ export function loc_2f97(m) {
   mem.write8(0x6389, regs.a);
   m.step(0x2fb4, 13); // ld (0x6389),a
   m.step(0x2f7c, 10); // jp 0x2f7c
-  return loc_2f7c(m);
+  return m.call(0x2f7c);
 }
 
 /** loc_2fb7 -- (0x6394) counter did not wrap: (0x6395)==0 -> loc_2f7c, else loc_2fbe. */
@@ -15128,9 +15128,9 @@ export function loc_2fb7(m) {
   m.step(0x2fba, 13); // ld a,(0x6395)
   regs.and(regs.a);
   m.step(0x2fbb, 4); // and a
-  if (regs.fZ) { m.step(0x2f7c, 10); return loc_2f7c(m); } // jp z,0x2f7c
+  if (regs.fZ) { m.step(0x2f7c, 10); return m.call(0x2f7c); } // jp z,0x2f7c
   m.step(0x2fbe, 10); // fall into loc_2fbe
-  return loc_2fbe(m);
+  return m.call(0x2fbe);
 }
 
 /** loc_2fbe -- (0x601A) bit3 gate: clear -> loc_2f7c; set -> C=0x01 -> loc_2f7c. */
@@ -15140,12 +15140,12 @@ export function loc_2fbe(m) {
   m.step(0x2fc1, 13); // ld a,(0x601a)
   regs.bit(3, regs.a);
   m.step(0x2fc3, 8); // bit 3,a
-  if (regs.fZ) { m.step(0x2f7c, 10); return loc_2f7c(m); } // jp z,0x2f7c
+  if (regs.fZ) { m.step(0x2f7c, 10); return m.call(0x2f7c); } // jp z,0x2f7c
   m.step(0x2fc6, 10);
   regs.c = 0x01;
   m.step(0x2fc8, 7); // ld c,0x01
   m.step(0x2f7c, 10); // jp 0x2f7c
-  return loc_2f7c(m);
+  return m.call(0x2f7c);
 }
 
 /**
@@ -15281,11 +15281,11 @@ export function entry_2c8f(m) {
 
   m.push16(0x2c92);
   m.step(0x0030, 11); // rst 0x30
-  if (!sub_0030(m)) return; // rst 0x30 skipped OUR body -> back to our caller
+  if (!m.call(0x0030)) return; // rst 0x30 skipped OUR body -> back to our caller
 
   m.push16(0x2c93);
   m.step(0x0010, 11); // rst 0x10
-  if (!sub_0010(m)) return; // rst 0x10 skipped OUR body -> back to our caller
+  if (!m.call(0x0010)) return; // rst 0x10 skipped OUR body -> back to our caller
 
   regs.a = mem.read8(0x6393);
   m.step(0x2c96, 13); // ld a,(0x6393)
@@ -15293,7 +15293,7 @@ export function entry_2c8f(m) {
   m.step(0x2c97, 4); // rrca -- carry = bit 0 of (0x6393)
   if (regs.fC) {
     m.step(0x2d15, 10); // jp c,0x2d15 taken (tail)
-    return loc_2d15(m);
+    return m.call(0x2d15);
   }
   m.step(0x2c9a, 10); // jp c,0x2d15 not taken
 
@@ -15328,7 +15328,7 @@ export function entry_2c8f(m) {
       m.step(0x2cb0, 4); // rrca -- carry = bit 1 of (ix+0)
       if (regs.fNC) {
         m.step(0x2cb8, 10); // jp nc,0x2cb8 taken (tail) -- bit 1 clear, free slot
-        return entry_2cb8(m);
+        return m.call(0x2cb8);
       }
       m.step(0x2cb3, 10); // jp nc,0x2cb8 not taken -> fall to loc_2cb3
     }
@@ -15358,15 +15358,15 @@ export function sub_25f2(m) {
   m.step(0x25f4, 7); // ld a,0x02
   m.push16(0x25f5); // rst 0x30 pushes the body address
   m.step(0x0030, 11); // rst 0x30
-  if (!sub_0030(m)) return; // gate SKIPPED (coin_start) -> returned to caller
+  if (!m.call(0x0030)) return; // gate SKIPPED (coin_start) -> returned to caller
   return sub_25f2_body(m); // 0x25F5: the object sub-cascade (now translated)
 }
 /** sub_25f2_body -- sub_25f2's object update: call 2602/262f/2679/2ad3 in sequence. ROM 0x25F5-0x2601. */
 export function sub_25f2_body(m) {
-  m.push16(0x25f8); m.step(0x2602, 17); sub_2602(m); // call 0x2602
-  m.push16(0x25fb); m.step(0x262f, 17); sub_262f(m); // call 0x262f
-  m.push16(0x25fe); m.step(0x2679, 17); sub_2679(m); // call 0x2679
-  m.push16(0x2601); m.step(0x2ad3, 17); sub_2ad3(m); // call 0x2ad3
+  m.push16(0x25f8); m.step(0x2602, 17); m.call(0x2602); // call 0x2602
+  m.push16(0x25fb); m.step(0x262f, 17); m.call(0x262f); // call 0x262f
+  m.push16(0x25fe); m.step(0x2679, 17); m.call(0x2679); // call 0x2679
+  m.push16(0x2601); m.step(0x2ad3, 17); m.call(0x2ad3); // call 0x2ad3
   m.ret(10); // 0x2601
 }
 /**
@@ -15390,14 +15390,14 @@ export function sub_26fa(m) {
   m.step(0x26fc, 7); // ld a,0x04
   m.push16(0x26fd); // rst 0x30 pushes the body address
   m.step(0x0030, 11); // rst 0x30
-  if (!sub_0030(m)) return; // gate SKIPPED (coin_start) -> returned to caller
+  if (!m.call(0x0030)) return; // gate SKIPPED (coin_start) -> returned to caller
 
   // -- body @0x26FD: tile/position dispatch --
   regs.a = mem.read8(0x6205);
   m.step(0x2700, 13); // ld a,(0x6205)
   regs.cp(0xf0);
   m.step(0x2702, 7); // cp 0xf0
-  if (regs.fNC) { m.step(0x277f, 10); return loc_277f(m); } // jp nc,0x277f -- edge reset
+  if (regs.fNC) { m.step(0x277f, 10); return m.call(0x277f); } // jp nc,0x277f -- edge reset
   m.step(0x2705, 10); // jp nc NOT taken
   regs.a = mem.read8(0x6229);
   m.step(0x2708, 13); // ld a,(0x6229)
@@ -15409,18 +15409,18 @@ export function sub_26fa(m) {
     m.step(0x271a, 10); // jp nz,0x271a -- (0x6229) != 1
     regs.rrca();
     m.step(0x271b, 4); // rrca (loc_271a)
-    if (regs.fC) { m.step(0x2722, 10); return sub_2722(m); } // jp c,0x2722 -- animate+spawn
+    if (regs.fC) { m.step(0x2722, 10); return m.call(0x2722); } // jp c,0x2722 -- animate+spawn
     m.step(0x271e, 10); // jp c NOT taken -> fall into 0x271e
-    return sub_271e(m); // 0x271E: call 0x2745; ret
+    return m.call(0x271e); // 0x271E: call 0x2745; ret
   }
   m.step(0x270f, 10); // jp nz NOT taken -- (0x6229) == 1
   regs.and(0x03);
   m.step(0x2711, 7); // and 0x03
   regs.cp(0x01);
   m.step(0x2713, 7); // cp 0x01
-  if (regs.fZ) { m.step(0x271e, 10); return sub_271e(m); } // jp z,0x271e
+  if (regs.fZ) { m.step(0x271e, 10); return m.call(0x271e); } // jp z,0x271e
   m.step(0x2716, 10); // jp z NOT taken
-  if (regs.fC) { m.step(0x2722, 10); return sub_2722(m); } // jp c,0x2722
+  if (regs.fC) { m.step(0x2722, 10); return m.call(0x2722); } // jp c,0x2722
   m.step(0x2719, 10); // jp c NOT taken -> fall into 0x2719
   m.ret(10); // ret @0x2719
 }
@@ -15439,7 +15439,7 @@ export function sub_2fcb(m) {
   m.step(0x2fcd, 7); // ld a,0x0e
   m.push16(0x2fce); // rst 0x30 pushes the body address
   m.step(0x0030, 11); // rst 0x30
-  if (!sub_0030(m)) return; // gate SKIPPED (coin_start) -> returned to caller
+  if (!m.call(0x0030)) return; // gate SKIPPED (coin_start) -> returned to caller
 
   // -- body @0x2FCE: two-level countdown -> periodic task 0x0501 + 0x6386 advance --
   regs.hl = 0x62b4;
@@ -15458,7 +15458,7 @@ export function sub_2fcb(m) {
   m.step(0x2fde, 10); // ld de,0x0501
   m.push16(0x2fe1);
   m.step(0x309f, 17); // call 0x309f -- enqueue task 0x0501 (PRESERVES HL=0x62B4)
-  sub_309f(m);
+  m.call(0x309f);
   regs.a = mem.read8(0x62b3);
   m.step(0x2fe4, 13); // ld a,(0x62b3)
   mem.write8(regs.hl, regs.a); // ld (hl),a -- (0x62B4):=(0x62B3); HL survived sub_309f
@@ -15643,7 +15643,7 @@ export function loc_1644(m) {
   m.step(0x1647, 13); // ld a,(0x6388)
   m.push16(0x1648); // rst 0x28 pushes the table base
   m.step(0x0028, 11);
-  sub_0028(m, "0x1648 (0x6388 sequence)"); // reads the ROM table; ends in jp (hl)
+  m.call(0x0028, "0x1648 (0x6388 sequence)"); // reads the ROM table; ends in jp (hl)
 }
 /** loc_13aa -- idx 18 small state reset: 0x7D82=(0x6026), 0x600A=0, 0x600D/E=1. ROM 0x13AA-0x13BA. */
 export function loc_13aa(m) {
@@ -15688,7 +15688,7 @@ export function sub_1186(m) {
   m.step(0x118c, 10); // ld de,0x6507
   regs.bc = 0x0a0c;
   m.step(0x118f, 10); // ld bc,0x0a0c
-  m.push16(0x1192); m.step(0x122a, 17); sub_122a(m); // call 0x122a
+  m.push16(0x1192); m.step(0x122a, 17); m.call(0x122a); // call 0x122a
   regs.ix = 0x6500;
   m.step(0x1196, 14); // ld ix,0x6500
   regs.hl = 0x6980;
@@ -15697,7 +15697,7 @@ export function sub_1186(m) {
   m.step(0x119b, 7); // ld b,0x0a
   regs.de = 0x0010; // stride
   m.step(0x119e, 10); // ld de,0x0010
-  m.push16(0x11a1); m.step(0x11d3, 17); sub_11d3(m); // call 0x11d3
+  m.push16(0x11a1); m.step(0x11d3, 17); m.call(0x11d3); // call 0x11d3
   m.ret();
 }
 /** loc_1131 -- arm C=4 of the 0x0FCD inline table: 4 table copies + two (ix+d) init (stride 0x20). */
@@ -15709,10 +15709,10 @@ export function loc_1131(m) {
   m.step(0x1137, 10); // ld de,0x6407
   regs.bc = 0x051c;
   m.step(0x113a, 10); // ld bc,0x051c
-  m.push16(0x113d); m.step(0x122a, 17); sub_122a(m); // call 0x122a
+  m.push16(0x113d); m.step(0x122a, 17); m.call(0x122a); // call 0x122a
   regs.hl = 0x3e14;
   m.step(0x1140, 10); // ld hl,0x3e14 (live-in to sub_11a6)
-  m.push16(0x1143); m.step(0x11a6, 17); sub_11a6(m); // call 0x11a6
+  m.push16(0x1143); m.step(0x11a6, 17); m.call(0x11a6); // call 0x11a6
   regs.hl = 0x3e54;
   m.step(0x1146, 10); // ld hl,0x3e54
   regs.de = 0x6a0c;
@@ -15726,14 +15726,14 @@ export function loc_1131(m) {
   m.step(0x1154, 10); // ld de,0x64a3
   regs.bc = 0x021e;
   m.step(0x1157, 10); // ld bc,0x021e
-  m.push16(0x115a); m.step(0x11ec, 17); sub_11ec(m); // call 0x11ec
+  m.push16(0x115a); m.step(0x11ec, 17); m.call(0x11ec); // call 0x11ec
   regs.hl = 0x117e; // 1st data unit, used second
   m.step(0x115d, 10); // ld hl,0x117e
   regs.de = 0x64a7;
   m.step(0x1160, 10); // ld de,0x64a7
   regs.bc = 0x021c;
   m.step(0x1163, 10); // ld bc,0x021c
-  m.push16(0x1166); m.step(0x122a, 17); sub_122a(m); // call 0x122a
+  m.push16(0x1166); m.step(0x122a, 17); m.call(0x122a); // call 0x122a
   regs.ix = 0x64a0;
   m.step(0x116a, 14); // ld ix,0x64a0
   mem.write8((regs.ix + 0x00) & 0xffff, 0x01);
@@ -15746,7 +15746,7 @@ export function loc_1131(m) {
   m.step(0x1177, 7); // ld b,0x02
   regs.de = 0x0020; // stride
   m.step(0x117a, 10); // ld de,0x0020
-  m.push16(0x117d); m.step(0x11d3, 17); sub_11d3(m); // call 0x11d3
+  m.push16(0x117d); m.step(0x11d3, 17); m.call(0x11d3); // call 0x11d3
   m.ret();
 }
 /** sub_26de -- sign-REVERSING write: (HL)=+2 if bit7 set, else -2. HL live-in. ROM 0x26DE-0x26E8. */
@@ -15793,10 +15793,10 @@ export function sub_26e9(m) {
 /** loc_186f -- 0x1644 idx 3: rst-0x18-gated table copy (0x3A1F->0x6908) + selector advance. ROM 0x186F-0x187F. */
 export function loc_186f(m) {
   const { regs, mem } = m;
-  m.push16(0x1870); m.step(0x0018, 11); if (!sub_0018(m)) return; // rst 0x18 gate
+  m.push16(0x1870); m.step(0x0018, 11); if (!m.call(0x0018)) return; // rst 0x18 gate
   regs.hl = 0x3a1f;
   m.step(0x1873, 10); // ld hl,0x3a1f
-  m.push16(0x1876); m.step(0x004e, 17); sub_004e(m); // copy 0x28 bytes -> 0x6908
+  m.push16(0x1876); m.step(0x004e, 17); m.call(0x004e); // copy 0x28 bytes -> 0x6908
   regs.a = 0x03;
   m.step(0x1878, 7); // ld a,0x03
   mem.write8(0x6084, regs.a);
@@ -15818,12 +15818,12 @@ export function loc_1839(m) {
     m.step(0x1859, 10); // jp z,0x1859 (wrap path)
     regs.hl = 0x385c;
     m.step(0x185c, 10); // ld hl,0x385c
-    m.push16(0x185f); m.step(0x004e, 17); sub_004e(m);
+    m.push16(0x185f); m.step(0x004e, 17); m.call(0x004e);
     regs.hl = 0x6908;
     m.step(0x1862, 10); // ld hl,0x6908
     regs.c = 0x44;
     m.step(0x1864, 7); // ld c,0x44
-    m.push16(0x1865); m.step(0x0038, 11); loc_0038(m); // rst 0x38
+    m.push16(0x1865); m.step(0x0038, 11); m.call(0x0038); // rst 0x38
     regs.a = 0x20;
     m.step(0x1867, 7); // ld a,0x20
     mem.write8(0x6009, regs.a); // arm countdown
@@ -15855,18 +15855,18 @@ export function loc_1839(m) {
   }
   regs.exDeHl();
   m.step(0x184f, 4); // ex de,hl
-  m.push16(0x1852); m.step(0x004e, 17); sub_004e(m);
+  m.push16(0x1852); m.step(0x004e, 17); m.call(0x004e);
   regs.hl = 0x6908;
   m.step(0x1855, 10); // ld hl,0x6908
   regs.c = 0x44;
   m.step(0x1857, 7); // ld c,0x44
-  m.push16(0x1858); m.step(0x0038, 11); loc_0038(m); // rst 0x38
+  m.push16(0x1858); m.step(0x0038, 11); m.call(0x0038); // rst 0x38
   m.ret();
 }
 /** loc_1344 -- idx 15 counter-gated state setup (TWIN of loc_12f2, different constants). ROM 0x1344-0x138E. */
 export function loc_1344(m) {
   const { regs, mem } = m;
-  m.push16(0x1347); m.step(0x011c, 17); sub_011c(m);
+  m.push16(0x1347); m.step(0x011c, 17); m.call(0x011c);
   regs.xor(regs.a);
   m.step(0x1348, 4); // xor a
   mem.write8(0x622c, regs.a);
@@ -15911,16 +15911,16 @@ export function loc_1344(m) {
   m.step(0x135e, 7); // ld a,0x03
   regs.hl = 0x60b5;
   m.step(0x1361, 10); // ld hl,0x60b5
-  m.push16(0x1364); m.step(0x13ca, 17); sub_13ca(m); // call 0x13ca (no guard)
+  m.push16(0x1364); m.step(0x13ca, 17); m.call(0x13ca); // call 0x13ca (no guard)
   regs.de = 0x0303;
   m.step(0x1367, 10); // ld de,0x0303
-  m.push16(0x136a); m.step(0x309f, 17); sub_309f(m);
+  m.push16(0x136a); m.step(0x309f, 17); m.call(0x309f);
   regs.de = 0x0300;
   m.step(0x136d, 10); // ld de,0x0300
-  m.push16(0x1370); m.step(0x309f, 17); sub_309f(m);
+  m.push16(0x1370); m.step(0x309f, 17); m.call(0x309f);
   regs.hl = 0x76d3;
   m.step(0x1373, 10); // ld hl,0x76d3
-  m.push16(0x1376); m.step(0x1826, 17); sub_1826(m); // fill helper
+  m.push16(0x1376); m.step(0x1826, 17); m.call(0x1826); // fill helper
   regs.hl = 0x6009;
   m.step(0x1379, 10); // ld hl,0x6009
   mem.write8(regs.hl, 0xc0);
@@ -15935,7 +15935,7 @@ export function loc_1344(m) {
 export function loc_17b6(m) {
   const { regs, mem } = m;
   m.step(0x17b7, 4); // nop
-  m.push16(0x17ba); m.step(0x011c, 17); sub_011c(m);
+  m.push16(0x17ba); m.step(0x011c, 17); m.call(0x011c);
   regs.hl = 0x608a;
   m.step(0x17bd, 10); // ld hl,0x608a
   mem.write8(regs.hl, 0x0e);
@@ -15950,10 +15950,10 @@ export function loc_17b6(m) {
   m.step(0x17c7, 10); // ld de,0x0020
   regs.hl = 0x7623;
   m.step(0x17ca, 10); // ld hl,0x7623
-  m.push16(0x17cd); m.step(0x0514, 17); sub_0514(m); // A/DE live-in
+  m.push16(0x17cd); m.step(0x0514, 17); m.call(0x0514); // A/DE live-in
   regs.hl = 0x7583;
   m.step(0x17d0, 10); // ld hl,0x7583
-  m.push16(0x17d3); m.step(0x0514, 17); sub_0514(m);
+  m.push16(0x17d3); m.step(0x0514, 17); m.call(0x0514);
   // four render pairs: ld hl,vhl / call 0x1826 / ld de,rde / call 0x0da7 (straight-line)
   for (const [vhl, rde, retA, retB] of [
     [0x76da, 0x3a47, 0x17d9, 0x17df],
@@ -15963,19 +15963,19 @@ export function loc_17b6(m) {
   ]) {
     regs.hl = vhl;
     m.step(retA - 3, 10); // ld hl,vhl -> the call at retA-3
-    m.push16(retA); m.step(0x1826, 17); sub_1826(m);
+    m.push16(retA); m.step(0x1826, 17); m.call(0x1826);
     regs.de = rde;
     m.step(retB - 3, 10); // ld de,rde -> the call at retB-3
-    m.push16(retB); m.step(0x0da7, 17); sub_0da7(m);
+    m.push16(retB); m.step(0x0da7, 17); m.call(0x0da7);
   }
   regs.hl = 0x385c;
   m.step(0x1806, 10); // ld hl,0x385c
-  m.push16(0x1809); m.step(0x004e, 17); sub_004e(m);
+  m.push16(0x1809); m.step(0x004e, 17); m.call(0x004e);
   regs.hl = 0x6908;
   m.step(0x180c, 10); // ld hl,0x6908
   regs.c = 0x44;
   m.step(0x180e, 7); // ld c,0x44
-  m.push16(0x180f); m.step(0x0038, 11); loc_0038(m); // rst 0x38
+  m.push16(0x180f); m.step(0x0038, 11); m.call(0x0038); // rst 0x38
   regs.hl = 0x6905;
   m.step(0x1812, 10); // ld hl,0x6905
   mem.write8(regs.hl, 0x13);
@@ -16003,7 +16003,7 @@ export function loc_1880(m) {
   m.step(0x1883, 10); // ld hl,0x690b
   regs.c = 0x01;
   m.step(0x1885, 7); // ld c,0x01
-  m.push16(0x1886); m.step(0x0038, 11); loc_0038(m); // rst 0x38 add-loop
+  m.push16(0x1886); m.step(0x0038, 11); m.call(0x0038); // rst 0x38 add-loop
   regs.a = mem.read8(0x691b);
   m.step(0x1889, 13); // ld a,(0x691b)
   regs.cp(0xd0);
@@ -16032,17 +16032,17 @@ export function loc_1880(m) {
   m.step(0x189f, 10); // ld (hl),0xd8 -- record 7F 39 01 D8
   regs.hl = 0x76c6;
   m.step(0x18a2, 10); // ld hl,0x76c6
-  m.push16(0x18a5); m.step(0x1826, 17); sub_1826(m);
+  m.push16(0x18a5); m.step(0x1826, 17); m.call(0x1826);
   regs.de = 0x3a5f;
   m.step(0x18a8, 10); // ld de,0x3a5f
-  m.push16(0x18ab); m.step(0x0da7, 17); sub_0da7(m);
+  m.push16(0x18ab); m.step(0x0da7, 17); m.call(0x0da7);
   regs.de = 0x0004;
   m.step(0x18ae, 10); // ld de,0x0004
   regs.bc = 0x0228;
   m.step(0x18b1, 10); // ld bc,0x0228 (B=2 loop count, C=0x28 addend)
   regs.hl = 0x6903;
   m.step(0x18b4, 10); // ld hl,0x6903
-  m.push16(0x18b7); m.step(0x003d, 17); sub_003d(m); // DIRECT add-loop body (B=2)
+  m.push16(0x18b7); m.step(0x003d, 17); m.call(0x003d); // DIRECT add-loop body (B=2)
   regs.a = 0x00;
   m.step(0x18b9, 7); // ld a,0x00
   mem.write8(0x62af, regs.a);
@@ -16066,15 +16066,15 @@ export function loc_101f(m) {
   m.step(0x1025, 10); // ld de,0x6407
   regs.bc = 0x051c;
   m.step(0x1028, 10); // ld bc,0x051c
-  m.push16(0x102b); m.step(0x122a, 17); sub_122a(m);
-  m.push16(0x102e); m.step(0x1186, 17); sub_1186(m);
+  m.push16(0x102b); m.step(0x122a, 17); m.call(0x122a);
+  m.push16(0x102e); m.step(0x1186, 17); m.call(0x1186);
   regs.hl = 0x3e18;
   m.step(0x1031, 10); // ld hl,0x3e18
   regs.de = 0x65a7;
   m.step(0x1034, 10); // ld de,0x65a7
   regs.bc = 0x060c;
   m.step(0x1037, 10); // ld bc,0x060c
-  m.push16(0x103a); m.step(0x122a, 17); sub_122a(m);
+  m.push16(0x103a); m.step(0x122a, 17); m.call(0x122a);
   regs.ix = 0x65a0;
   m.step(0x103e, 14); // ld ix,0x65a0
   regs.hl = 0x69b8;
@@ -16083,10 +16083,10 @@ export function loc_101f(m) {
   m.step(0x1044, 10); // ld de,0x0010 (stride)
   regs.b = 0x06;
   m.step(0x1046, 7); // ld b,0x06
-  m.push16(0x1049); m.step(0x11d3, 17); sub_11d3(m);
+  m.push16(0x1049); m.step(0x11d3, 17); m.call(0x11d3);
   regs.hl = 0x3dfa;
   m.step(0x104c, 10); // ld hl,0x3dfa (live-in to sub_11fa)
-  m.push16(0x104f); m.step(0x11fa, 17); sub_11fa(m);
+  m.push16(0x104f); m.step(0x11fa, 17); m.call(0x11fa);
   regs.hl = 0x3e04;
   m.step(0x1052, 10); // ld hl,0x3e04
   regs.de = 0x69fc;
@@ -16110,7 +16110,7 @@ export function loc_101f(m) {
   m.ldir(0x1070);
   regs.hl = 0x3e10;
   m.step(0x1073, 10); // ld hl,0x3e10 (live-in to sub_11a6)
-  m.push16(0x1076); m.step(0x11a6, 17); sub_11a6(m);
+  m.push16(0x1076); m.step(0x11a6, 17); m.call(0x11a6);
   regs.hl = 0x3e3c;
   m.step(0x1079, 10); // ld hl,0x3e3c
   regs.de = 0x6a0c;
@@ -16155,7 +16155,7 @@ export function loc_18c6(m) {
   m.step(0x18de, 8);
   regs.xor(regs.a); // A = 0
   m.step(0x18df, 4);
-  m.push16(0x18e2); m.step(0x3009, 17); entry_3009(m);
+  m.push16(0x18e2); m.step(0x3009, 17); m.call(0x3009);
   regs.or(0x20);
   m.step(0x18e4, 7); // or 0x20
   mem.write8(regs.hl, regs.a); // 0x6919 = A | 0x20
@@ -16259,7 +16259,7 @@ export function loc_18c6_wrap(m) {
   m.step(0x1955, 11);
   regs.de = 0x0500;
   m.step(0x1958, 10); // ld de,0x0500
-  m.push16(0x195b); m.step(0x309f, 17); sub_309f(m);
+  m.push16(0x195b); m.step(0x309f, 17); m.call(0x309f);
   regs.xor(regs.a);
   m.step(0x195c, 4); // xor a
   mem.write8(0x622e, regs.a); // 0x622E = 0
@@ -16284,7 +16284,7 @@ export function loc_18c6_wrap(m) {
  */
 export function entry_0400(m) {
   const { regs, mem } = m;
-  if (regs.fNZ) { m.step(0x0413, 10); return loc_0413(m); } // jp nz,0x0413 (Z live-in)
+  if (regs.fNZ) { m.step(0x0413, 10); return m.call(0x0413); } // jp nz,0x0413 (Z live-in)
   m.step(0x0403, 10);
   // -- 0x0403: the (0x6227)==2 preamble (identical to entry_03fb's) -> loc_0413 --
   regs.hl = 0x6908;
@@ -16293,14 +16293,14 @@ export function entry_0400(m) {
   m.step(0x0409, 13); // ld a,(0x63a3)
   regs.c = regs.a;
   m.step(0x040a, 4); // ld c,a
-  m.push16(0x040b); m.step(0x0038, 11); loc_0038(m); // rst 0x38
+  m.push16(0x040b); m.step(0x0038, 11); m.call(0x0038); // rst 0x38
   regs.a = mem.read8(0x6910);
   m.step(0x040e, 13); // ld a,(0x6910)
   regs.sub(0x3b);
   m.step(0x0410, 7); // sub 0x3b
   mem.write8(0x63b7, regs.a);
   m.step(0x0413, 13); // ld (0x63b7),a -- falls into loc_0413
-  return loc_0413(m);
+  return m.call(0x0413);
 }
 /** loc_1df5 -- loc_1dc9 0x6342-bit2 tail: reads 0x6018, dispatches bits 0/1 to setter arms. ROM 0x1DF5-0x1DFF. */
 export function loc_1df5(m) {
@@ -16309,13 +16309,13 @@ export function loc_1df5(m) {
   m.step(0x1df8, 13); // ld a,(0x6018)
   regs.rra();
   m.step(0x1df9, 4); // rra -- bit0
-  if (regs.fC) { m.step(0x1e08, 10); return loc_1e08(m); } // jp c,0x1e08
+  if (regs.fC) { m.step(0x1e08, 10); return m.call(0x1e08); } // jp c,0x1e08
   m.step(0x1dfc, 10);
   regs.rra();
   m.step(0x1dfd, 4); // rra -- bit1
-  if (regs.fC) { m.step(0x1e10, 10); return loc_1e10(m); } // jp c,0x1e10
+  if (regs.fC) { m.step(0x1e10, 10); return m.call(0x1e10); } // jp c,0x1e10
   m.step(0x1e00, 10); // -> loc_1e00
-  return loc_1e00(m);
+  return m.call(0x1e00);
 }
 /** loc_1e08 -- setter B=0x7E, DE=0x0005; jp loc_1e15. ROM 0x1E08-0x1E0F. */
 export function loc_1e08(m) {
@@ -16325,7 +16325,7 @@ export function loc_1e08(m) {
   regs.de = 0x0005;
   m.step(0x1e0d, 10); // ld de,0x0005
   m.step(0x1e15, 10); // jp 0x1e15
-  return loc_1e15(m);
+  return m.call(0x1e15);
 }
 /** loc_1e10 -- setter B=0x7F, DE=0x0008; falls into loc_1e15. ROM 0x1E10-0x1E14. */
 export function loc_1e10(m) {
@@ -16334,7 +16334,7 @@ export function loc_1e10(m) {
   m.step(0x1e12, 7); // ld b,0x7f
   regs.de = 0x0008;
   m.step(0x1e15, 10); // ld de,0x0008
-  return loc_1e15(m);
+  return m.call(0x1e15);
 }
 /** loc_1e36 -- writes 0x6A30 block {A,B,0x07,C}, rst-0x30 gate, 0x6085=3, ret. A/B/C live-in. ROM 0x1E36-0x1E49. */
 export function loc_1e36(m) {
@@ -16358,7 +16358,7 @@ export function loc_1e36(m) {
   regs.a = 0x05;
   m.step(0x1e43, 7); // ld a,0x05
   m.push16(0x1e44); m.step(0x0030, 11); // rst 0x30
-  if (!sub_0030(m)) return; // caller-skip gate
+  if (!m.call(0x0030)) return; // caller-skip gate
   regs.hl = 0x6085;
   m.step(0x1e47, 10); // ld hl,0x6085
   mem.write8(regs.hl, 0x03);
@@ -16374,8 +16374,8 @@ export function loc_1087(m) {
   m.step(0x108d, 10); // ld de,0x6407
   regs.bc = 0x051c;
   m.step(0x1090, 10); // ld bc,0x051c
-  m.push16(0x1093); m.step(0x122a, 17); sub_122a(m);
-  m.push16(0x1096); m.step(0x1186, 17); sub_1186(m);
+  m.push16(0x1093); m.step(0x122a, 17); m.call(0x122a);
+  m.push16(0x1096); m.step(0x1186, 17); m.call(0x1186);
   regs.hl = 0x6600;
   m.step(0x1099, 10); // ld hl,0x6600
   regs.de = 0x0010;
@@ -16423,14 +16423,14 @@ export function loc_1087(m) {
   m.step(0x10bd, 10); // ld de,0x6603
   regs.bc = 0x060e;
   m.step(0x10c0, 10); // ld bc,0x060e
-  m.push16(0x10c3); m.step(0x11ec, 17); sub_11ec(m);
+  m.push16(0x10c3); m.step(0x11ec, 17); m.call(0x11ec);
   regs.hl = 0x3e60;
   m.step(0x10c6, 10); // ld hl,0x3e60
   regs.de = 0x6607;
   m.step(0x10c9, 10); // ld de,0x6607
   regs.bc = 0x060c;
   m.step(0x10cc, 10); // ld bc,0x060c
-  m.push16(0x10cf); m.step(0x122a, 17); sub_122a(m);
+  m.push16(0x10cf); m.step(0x122a, 17); m.call(0x122a);
   regs.ix = 0x6600;
   m.step(0x10d3, 14); // ld ix,0x6600
   regs.hl = 0x6958;
@@ -16439,7 +16439,7 @@ export function loc_1087(m) {
   m.step(0x10d8, 7); // ld b,0x06
   regs.de = 0x0010;
   m.step(0x10db, 10); // ld de,0x0010
-  m.push16(0x10de); m.step(0x11d3, 17); sub_11d3(m);
+  m.push16(0x10de); m.step(0x11d3, 17); m.call(0x11d3);
   regs.hl = 0x3e48;
   m.step(0x10e1, 10); // ld hl,0x3e48
   regs.de = 0x6a0c;
@@ -16482,19 +16482,19 @@ export function loc_1087(m) {
 /** sub_1641 -- call sub_1dbd, then rst-0x28 dispatch on (0x6388) via the 0x1648 table. ROM 0x1641-0x1647. */
 export function sub_1641(m) {
   const { regs, mem } = m;
-  m.push16(0x1644); m.step(0x1dbd, 17); sub_1dbd(m); // call 0x1dbd
+  m.push16(0x1644); m.step(0x1dbd, 17); m.call(0x1dbd); // call 0x1dbd
   regs.a = mem.read8(0x6388);
   m.step(0x1647, 13); // ld a,(0x6388)
   m.push16(0x1648); m.step(0x0028, 11); // rst 0x28
-  return sub_0028(m, "0x1648 (0x6388 sequence)"); // ROM table dispatch; jp (hl)
+  return m.call(0x0028, "0x1648 (0x6388 sequence)"); // ROM table dispatch; jp (hl)
 }
 /** sub_1670 -- rst-0x18 gate, copy 0x3932->0x6908, arm 0x6009=0x20, advance 0x6388, rst-0x30 gate, rst 0x38. ROM 0x1670-0x1689. */
 export function sub_1670(m) {
   const { regs, mem } = m;
-  m.push16(0x1671); m.step(0x0018, 11); if (!sub_0018(m)) return; // rst 0x18
+  m.push16(0x1671); m.step(0x0018, 11); if (!m.call(0x0018)) return; // rst 0x18
   regs.hl = 0x3932;
   m.step(0x1674, 10); // ld hl,0x3932
-  m.push16(0x1677); m.step(0x004e, 17); sub_004e(m); // call 0x004e
+  m.push16(0x1677); m.step(0x004e, 17); m.call(0x004e); // call 0x004e
   regs.a = 0x20;
   m.step(0x1679, 7); // ld a,0x20
   mem.write8(0x6009, regs.a);
@@ -16505,12 +16505,12 @@ export function sub_1670(m) {
   m.step(0x1680, 11); // inc (0x6388)
   regs.a = 0x04;
   m.step(0x1682, 7); // ld a,0x04
-  m.push16(0x1683); m.step(0x0030, 11); if (!sub_0030(m)) return; // rst 0x30 caller-skip
+  m.push16(0x1683); m.step(0x0030, 11); if (!m.call(0x0030)) return; // rst 0x30 caller-skip
   regs.hl = 0x690b;
   m.step(0x1686, 10); // ld hl,0x690b
   regs.c = 0x04;
   m.step(0x1688, 7); // ld c,0x04
-  m.push16(0x1689); m.step(0x0038, 11); loc_0038(m); // rst 0x38
+  m.push16(0x1689); m.step(0x0038, 11); m.call(0x0038); // rst 0x38
   m.ret(10);
 }
 /** sub_176c -- clamp scan: over 10 cells at 0x692F, HL-=3 via sbc hl,de; if (HL low)<0x19 zero (HL). ROM 0x176C-0x1782. */
@@ -16659,12 +16659,12 @@ export function sub_057c(m) {
     m.step(0x0588, 4); // rrca -- A := high nibble (rotated into low 4 bits)
     m.push16(0x058b);
     m.step(0x0593, 17); // call 0x0593 -- write HIGH nibble, IX -= 0x20
-    sub_0593(m);
+    m.call(0x0593);
     regs.a = mem.read8(regs.hl);
     m.step(0x058c, 7); // ld a,(hl) -- same byte again
     m.push16(0x058f);
     m.step(0x0593, 17); // call 0x0593 -- write LOW nibble, IX -= 0x20
-    sub_0593(m);
+    m.call(0x0593);
     regs.hl = (regs.hl - 1) & 0xffff;
     m.step(0x0590, 6); // dec hl -- next source byte (descending)
     regs.djnz();
@@ -16721,7 +16721,7 @@ export function sub_1486(m) {
       case 0x1486:
         m.push16(0x1489);
         m.step(0x0616, 17); // call 0x0616 (INT)
-        sub_0616(m);
+        m.call(0x0616);
         regs.hl = 0x6009;
         m.step(0x148c, 10); // ld hl,0x6009
         regs.a = mem.read8(regs.hl);
@@ -16810,7 +16810,7 @@ export function sub_1486(m) {
         m.step(0x14d9, 4); // ld c,a
         m.push16(0x14dc);
         m.step(0x15fa, 17); // call 0x15fa -- render (INT)
-        sub_15fa(m);
+        m.call(0x15fa);
       // fall into 0x14dc
       case 0x14dc:
         regs.hl = 0x6034;
@@ -16907,7 +16907,7 @@ export function sub_1486(m) {
         m.step(0x1533, 7); // ld b,0x00
         m.push16(0x1536);
         m.step(0x15fa, 17); // call 0x15fa -- render (INT)
-        sub_15fa(m);
+        m.call(0x15fa);
         label = 0x158a;
         continue; // jp 0x158a
       case 0x1539:
@@ -17021,7 +17021,7 @@ export function sub_1486(m) {
         m.step(0x15ad, 14); // pop ix -- IX := sprite ptr (iy+4/5)
         m.push16(0x15b0);
         m.step(0x057c, 17); // call 0x057c -- render digits
-        sub_057c(m);
+        m.call(0x057c);
         regs.a = 0x10;
         m.step(0x15b2, 7); // ld a,0x10
         mem.write8(0x6032, regs.a);
@@ -17087,7 +17087,7 @@ export function sub_1486(m) {
       case 0x15ed:
         m.push16(0x15f0);
         m.step(0x309f, 17); // call 0x309f
-        sub_309f(m);
+        m.call(0x309f);
         regs.de = (regs.de + 1) & 0xffff;
         m.step(0x15f1, 6); // inc de
         regs.djnz();
@@ -17097,7 +17097,7 @@ export function sub_1486(m) {
         m.step(0x15f6, 10); // ld de,0x031a -- enqueue task 0x031A
         m.push16(0x15f9);
         m.step(0x309f, 17); // call 0x309f
-        sub_309f(m);
+        m.call(0x309f);
       // fall into 0x15f9
       case 0x15f9:
         m.ret(10); // ret @0x15F9 (the single ret; all paths converge here)
@@ -17119,7 +17119,7 @@ export function loc_196b(m) {
   const { regs, mem } = m;
   m.push16(0x196e);
   m.step(0x0852, 17); // call 0x0852 (INTEGRATED)
-  sub_0852(m);
+  m.call(0x0852);
   regs.a = mem.read8(0x600e);
   m.step(0x1971, 13); // ld a,(0x600e) -- level/screen selector
   regs.add(0x12);
@@ -17132,7 +17132,7 @@ export function loc_196b(m) {
 /** sub_1708 -- init: record 80 76 09 20 at 0x6A20, 0x6905=0x13, colour column (0x0514), 0x608A/B=07/03. ROM 0x1708-0x1731. */
 export function sub_1708(m) {
   const { regs, mem } = m;
-  m.push16(0x170b); m.step(0x011c, 17); sub_011c(m); // call 0x011c
+  m.push16(0x170b); m.step(0x011c, 17); m.call(0x011c); // call 0x011c
   regs.hl = 0x6a20;
   m.step(0x170e, 10);
   mem.write8(regs.hl, 0x80);
@@ -17159,7 +17159,7 @@ export function sub_1708(m) {
   m.step(0x1724, 10);
   regs.a = 0x10;
   m.step(0x1726, 7);
-  m.push16(0x1729); m.step(0x0514, 17); sub_0514(m); // colour column
+  m.push16(0x1729); m.step(0x0514, 17); m.call(0x0514); // colour column
   regs.hl = 0x608a;
   m.step(0x172c, 10);
   mem.write8(regs.hl, 0x07);
@@ -17173,7 +17173,7 @@ export function sub_1708(m) {
 /** sub_1732 -- call 0x306f; if (0x6913)>=0x2C hold; else reset object block, seed 0x6924/2C, advance 0x6388. ROM 0x1732-0x1757. */
 export function sub_1732(m) {
   const { regs, mem } = m;
-  m.push16(0x1735); m.step(0x306f, 17); sub_306f(m); // call 0x306f
+  m.push16(0x1735); m.step(0x306f, 17); m.call(0x306f); // call 0x306f
   regs.a = mem.read8(0x6913);
   m.step(0x1738, 13);
   regs.cp(0x2c);
@@ -17235,7 +17235,7 @@ export function sub_1783(m) {
 /** sub_178e -- rst-0x18 gate; walk 0x622A record ptr (0x7F sentinel -> 0x3A73), store 0x6227, enqueue 0x0500, reset 0x6388=0, hand 0x600A=8. ROM 0x178E-0x17B5. */
 export function sub_178e(m) {
   const { regs, mem } = m;
-  m.push16(0x178f); m.step(0x0018, 11); if (!sub_0018(m)) return; // rst 0x18
+  m.push16(0x178f); m.step(0x0018, 11); if (!m.call(0x0018)) return; // rst 0x18
   regs.hl = mem.read16(0x622a);
   m.step(0x1792, 16); // ld hl,(0x622a)
   regs.hl = (regs.hl + 1) & 0xffff;
@@ -17259,7 +17259,7 @@ export function sub_178e(m) {
   m.step(0x17a3, 13);
   regs.de = 0x0500;
   m.step(0x17a6, 10);
-  m.push16(0x17a9); m.step(0x309f, 17); sub_309f(m); // enqueue
+  m.push16(0x17a9); m.step(0x309f, 17); m.call(0x309f); // enqueue
   regs.xor(regs.a);
   m.step(0x17aa, 4);
   mem.write8(0x6388, regs.a);
@@ -17281,13 +17281,13 @@ export function sub_2243(m) {
   m.step(0x2246, 13);
   regs.cp(0x7a);
   m.step(0x2248, 7);
-  if (regs.fNC) { return skip_2257(m); } // jp nc -- no hit
+  if (regs.fNC) { return m.call(0x2257); } // jp nc -- no hit
   m.step(0x224b, 10);
   regs.a = mem.read8(0x6216);
   m.step(0x224e, 13);
   regs.and(regs.a);
   m.step(0x224f, 4);
-  if (regs.fNZ) { return skip_2257(m); } // jp nz -- no hit
+  if (regs.fNZ) { return m.call(0x2257); } // jp nz -- no hit
   m.step(0x2252, 10);
   regs.a = mem.read8(0x6203);
   m.step(0x2255, 13);
@@ -17295,7 +17295,7 @@ export function sub_2243(m) {
   m.step(0x2256, 7);
   if (regs.fZ) { m.ret(11); return true; } // ret z -- HIT (caller continues)
   m.step(0x2257, 5);
-  return skip_2257(m);
+  return m.call(0x2257);
 }
 /** loc_2257 -- pop hl / ret: caller-skip to the grandparent. Returns false so the
  *  caller (loc_2227/loc_2259) PROPAGATES the skip and does NOT run its own tail/ret
@@ -17330,12 +17330,12 @@ export function sub_2602(m) {
       m.step(0x2612, 10); // ld (hl),0x80
       regs.l = (regs.l + 1) & 0xff;
       m.step(0x2613, 4); // inc l
-      m.push16(0x2616); m.step(0x26de, 17); sub_26de(m); // call 0x26de
+      m.push16(0x2616); m.step(0x26de, 17); m.call(0x26de); // call 0x26de
     }
   }
   regs.hl = 0x62a1;
   m.step(0x2619, 10); // ld hl,0x62a1
-  m.push16(0x261c); m.step(0x26e9, 17); sub_26e9(m); // call 0x26e9 -> A
+  m.push16(0x261c); m.step(0x26e9, 17); m.call(0x26e9); // call 0x26e9 -> A
   mem.write8(0x63a3, regs.a);
   m.step(0x261f, 13); // ld (0x63a3),a
   regs.a = mem.read8(0x601a);
@@ -17350,7 +17350,7 @@ export function sub_2602(m) {
   m.step(0x262a, 10); // ld de,0x69e4
   regs.exDeHl();
   m.step(0x262b, 4); // ex de,hl -- HL = 0x69E4
-  m.push16(0x262e); m.step(0x26a6, 17); sub_26a6(m); // call 0x26a6
+  m.push16(0x262e); m.step(0x26a6, 17); m.call(0x26a6); // call 0x26a6
   m.ret(10);
 }
 /** sub_2797 -- animate 6 objects (IX=0x6600 stride 0x10): active + (ix+0d) bit3 -> dec (ix+5) to 0x60 (land), else inc to 0xF8 (deactivate). ROM 0x2797-0x27C5. */
@@ -17417,7 +17417,7 @@ export function sub_27da(m) {
   m.step(0x27de, 7);
   regs.and(regs.a);
   m.step(0x27df, 4);
-  if (regs.fNZ) { m.step(0x2806, 10); return dec_2806(m); } // jp nz -> just decrement
+  if (regs.fNZ) { m.step(0x2806, 10); return m.call(0x2806); } // jp nz -> just decrement
   m.step(0x27e2, 10);
   regs.b = 0x06;
   m.step(0x27e4, 7);
@@ -17442,7 +17442,7 @@ export function sub_27da(m) {
   m.step(0x2804, 19);
   mem.write8(regs.hl, 0x34);
   m.step(0x2806, 10); // (0x62A7) = 0x34
-  return dec_2806(m);
+  return m.call(0x2806);
 }
 export function dec_2806(m) {
   const { regs, mem } = m;
@@ -17453,8 +17453,8 @@ export function dec_2806(m) {
 /** sub_2722 -- animate (2797) + spawn (27da), then mirror (ix+3)/(ix+5) of 6 objects to 0x6958. ROM 0x2722-0x2744. */
 export function sub_2722(m) {
   const { regs, mem } = m;
-  m.push16(0x2725); m.step(0x2797, 17); sub_2797(m); // leaves DE=0x10
-  m.push16(0x2728); m.step(0x27da, 17); sub_27da(m); // uses DE=0x10
+  m.push16(0x2725); m.step(0x2797, 17); m.call(0x2797); // leaves DE=0x10
+  m.push16(0x2728); m.step(0x27da, 17); m.call(0x27da); // uses DE=0x10
   regs.b = 0x06;
   m.step(0x272a, 7);
   regs.de = 0x0010;
@@ -17490,15 +17490,15 @@ export function sub_2722(m) {
 /** sub_1654 -- 0x1644 idx: spawn (0x1708) + copy 0x385C + arm 0x6009=0x20, then the shared tail_1662. ROM 0x1654-0x1663. */
 export function sub_1654(m) {
   const { regs, mem } = m;
-  m.push16(0x1657); m.step(0x1708, 17); sub_1708(m); // call 0x1708
+  m.push16(0x1657); m.step(0x1708, 17); m.call(0x1708); // call 0x1708
   regs.hl = 0x385c;
   m.step(0x165a, 10);
-  m.push16(0x165d); m.step(0x004e, 17); sub_004e(m); // call 0x004e
+  m.push16(0x165d); m.step(0x004e, 17); m.call(0x004e); // call 0x004e
   regs.a = 0x20;
   m.step(0x165f, 7);
   mem.write8(0x6009, regs.a);
   m.step(0x1662, 13); // 0x6009 = 0x20 -> tail_1662
-  return tail_1662(m);
+  return m.call(0x1662);
 }
 /**
  * loc_1615 -- L2 board-advance dispatcher (game sub-state 0x600A=0x16).  ROM 0x1615-0x1653.
@@ -17508,7 +17508,7 @@ export function sub_1654(m) {
  */
 export function loc_1615(m) {
   const { regs, mem } = m;
-  m.push16(0x1618); m.step(0x30bd, 17); sub_30bd(m); // call 0x30bd
+  m.push16(0x1618); m.step(0x30bd, 17); m.call(0x30bd); // call 0x30bd
   regs.a = mem.read8(0x6227);
   m.step(0x161b, 13); // ld a,(0x6227)
   regs.rrca();
@@ -17518,7 +17518,7 @@ export function loc_1615(m) {
     regs.a = mem.read8(0x6388);
     m.step(0x1622, 13); // ld a,(0x6388)
     m.push16(0x1623); m.step(0x0028, 11); // rst 0x28 (table @0x1623)
-    return sub_0028(m, "0x1623 (0x6388 board sub-dispatch)");
+    return m.call(0x0028, "0x1623 (0x6388 board sub-dispatch)");
   }
   m.step(0x162f, 10); // jp nc,0x162f
   regs.rrca();
@@ -17528,27 +17528,27 @@ export function loc_1615(m) {
     regs.a = mem.read8(0x6388);
     m.step(0x1636, 13); // ld a,(0x6388)
     m.push16(0x1637); m.step(0x0028, 11); // rst 0x28 (table @0x1637)
-    return sub_0028(m, "0x1637 (0x6388 board sub-dispatch)");
+    return m.call(0x0028, "0x1637 (0x6388 board sub-dispatch)");
   }
   m.step(0x1641, 10); // jp nc,0x1641 -> sub_1641 (call 0x1dbd + rst 0x28 @0x1648)
-  return sub_1641(m);
+  return m.call(0x1641);
 }
 /** loc_16a3 -- board load: spawn (0x1708), copy 0x385C, rst 0x38, advance 0x6388. ROM 0x16A3-0x16BA. */
 export function loc_16a3(m) {
   const { regs, mem } = m;
-  m.push16(0x16a6); m.step(0x1708, 17); sub_1708(m); // call 0x1708
+  m.push16(0x16a6); m.step(0x1708, 17); m.call(0x1708); // call 0x1708
   regs.a = mem.read8(0x6910);
   m.step(0x16a9, 13);
   regs.sub(0x3b);
   m.step(0x16ab, 7);
   regs.hl = 0x385c;
   m.step(0x16ae, 10);
-  m.push16(0x16b1); m.step(0x004e, 17); sub_004e(m); // call 0x004e
+  m.push16(0x16b1); m.step(0x004e, 17); m.call(0x004e); // call 0x004e
   regs.hl = 0x6908;
   m.step(0x16b4, 10);
   regs.c = regs.a;
   m.step(0x16b5, 4); // ld c,a
-  m.push16(0x16b6); m.step(0x0038, 11); loc_0038(m); // rst 0x38
+  m.push16(0x16b6); m.step(0x0038, 11); m.call(0x0038); // rst 0x38
   regs.hl = 0x6388;
   m.step(0x16b9, 10);
   regs.incMem8(mem, regs.hl);
@@ -17570,13 +17570,13 @@ export function loc_16bb(m) {
   m.step(0x16c6, 13);
   regs.cp(0x5a);
   m.step(0x16c8, 7);
-  if (regs.fNC) { m.step(0x16e1, 10); return loc_16e1(m); } // jp nc,0x16e1
+  if (regs.fNC) { m.step(0x16e1, 10); return m.call(0x16e1); } // jp nc,0x16e1
   m.step(0x16cb, 10);
   regs.bit(7, regs.c);
   m.step(0x16cd, 8);
-  if (regs.fZ) { m.step(0x16d5, 10); return loc_16d5(m); } // jp z,0x16d5
+  if (regs.fZ) { m.step(0x16d5, 10); return m.call(0x16d5); } // jp z,0x16d5
   m.step(0x16d0, 10);
-  return loc_16d0(m);
+  return m.call(0x16d0);
 }
 /** loc_16d0 -- 0x62A0 = 1, then loc_16d5. */
 export function loc_16d0(m) {
@@ -17585,19 +17585,19 @@ export function loc_16d0(m) {
   m.step(0x16d2, 7);
   mem.write8(0x62a0, regs.a);
   m.step(0x16d5, 13); // 0x62A0 = 1 -> loc_16d5
-  return loc_16d5(m);
+  return m.call(0x16d5);
 }
 /** loc_16d5 -- call 0x2602, rst 0x38, ret. */
 export function loc_16d5(m) {
   const { regs, mem } = m;
-  m.push16(0x16d8); m.step(0x2602, 17); sub_2602(m); // call 0x2602
+  m.push16(0x16d8); m.step(0x2602, 17); m.call(0x2602); // call 0x2602
   regs.a = mem.read8(0x63a3);
   m.step(0x16db, 13);
   regs.c = regs.a;
   m.step(0x16dc, 4);
   regs.hl = 0x6908;
   m.step(0x16df, 10);
-  m.push16(0x16e0); m.step(0x0038, 11); loc_0038(m); // rst 0x38
+  m.push16(0x16e0); m.step(0x0038, 11); m.call(0x0038); // rst 0x38
   m.ret(10);
 }
 /** loc_16e1 -- (0x6910) >= 0x5A: vs 0x5D + bit7(C) -> loc_16d0/16d5, else reinit + advance 0x6388. */
@@ -17605,21 +17605,21 @@ export function loc_16e1(m) {
   const { regs, mem } = m;
   regs.cp(0x5d);
   m.step(0x16e3, 7);
-  if (regs.fC) { m.step(0x16ee, 10); return loc_16ee(m); } // jp c,0x16ee
+  if (regs.fC) { m.step(0x16ee, 10); return m.call(0x16ee); } // jp c,0x16ee
   m.step(0x16e6, 10);
   regs.bit(7, regs.c);
   m.step(0x16e8, 8);
-  if (regs.fZ) { m.step(0x16d0, 10); return loc_16d0(m); } // jp z,0x16d0
+  if (regs.fZ) { m.step(0x16d0, 10); return m.call(0x16d0); } // jp z,0x16d0
   m.step(0x16eb, 10);
   m.step(0x16d5, 10); // jp 0x16d5
-  return loc_16d5(m);
+  return m.call(0x16d5);
 }
 /** loc_16ee -- reinit board object block (0x690C=0x66, clear 0x6924/2C/62AF), advance 0x6388. */
 export function loc_16ee(m) {
   const { regs, mem } = m;
   regs.hl = 0x388c;
   m.step(0x16f1, 10);
-  m.push16(0x16f4); m.step(0x004e, 17); sub_004e(m); // call 0x004e
+  m.push16(0x16f4); m.step(0x004e, 17); m.call(0x004e); // call 0x004e
   regs.a = 0x66;
   m.step(0x16f6, 7);
   mem.write8(0x690c, regs.a);
@@ -17647,21 +17647,21 @@ export function tail_1662(m) {
   m.step(0x1666, 11); // inc (0x6388)
   regs.a = 0x01;
   m.step(0x1668, 7);
-  m.push16(0x1669); m.step(0x0030, 11); if (!sub_0030(m)) return; // rst 0x30 caller-skip
+  m.push16(0x1669); m.step(0x0030, 11); if (!m.call(0x0030)) return; // rst 0x30 caller-skip
   regs.hl = 0x690b;
   m.step(0x166c, 10);
   regs.c = 0xfc;
   m.step(0x166e, 7);
-  m.push16(0x166f); m.step(0x0038, 11); loc_0038(m); // rst 0x38
+  m.push16(0x166f); m.step(0x0038, 11); m.call(0x0038); // rst 0x38
   m.ret(10);
 }
 /** sub_168a -- 0x1644 idx: rst-0x18 gate, copy 0x388C, 0x690C=0x66, clear 0x6924/2C/62AF, then tail_1662. ROM 0x168A-0x16A0. */
 export function sub_168a(m) {
   const { regs, mem } = m;
-  m.push16(0x168b); m.step(0x0018, 11); if (!sub_0018(m)) return; // rst 0x18
+  m.push16(0x168b); m.step(0x0018, 11); if (!m.call(0x0018)) return; // rst 0x18
   regs.hl = 0x388c;
   m.step(0x168e, 10);
-  m.push16(0x1691); m.step(0x004e, 17); sub_004e(m); // call 0x004e
+  m.push16(0x1691); m.step(0x004e, 17); m.call(0x004e); // call 0x004e
   regs.a = 0x66;
   m.step(0x1693, 7);
   mem.write8(0x690c, regs.a);
@@ -17675,19 +17675,19 @@ export function sub_168a(m) {
   mem.write8(0x62af, regs.a);
   m.step(0x16a0, 13);
   m.step(0x1662, 10); // jp 0x1662
-  return tail_1662(m);
+  return m.call(0x1662);
 }
 /** sub_1757 -- call 0x306f + 0x176c (cull), then 0x1783 sprite-clear caller-skip; if clear, arm 0x6009=0x40 + advance 0x6388. ROM 0x1757-0x176B. */
 export function sub_1757(m) {
   const { regs, mem } = m;
-  m.push16(0x175a); m.step(0x306f, 17); sub_306f(m); // call 0x306f
-  m.push16(0x175d); m.step(0x176c, 17); sub_176c(m); // call 0x176c
+  m.push16(0x175a); m.step(0x306f, 17); m.call(0x306f); // call 0x306f
+  m.push16(0x175d); m.step(0x176c, 17); m.call(0x176c); // call 0x176c
   regs.hl = (regs.hl + 1) & 0xffff;
   m.step(0x175e, 6); // inc hl
   regs.de = (regs.de + 1) & 0xffff;
   m.step(0x175f, 6); // inc de
   m.push16(0x1762); m.step(0x1783, 17);
-  if (!sub_1783(m)) return; // sub_1783 caller-skip: sprites not clear -> abort
+  if (!m.call(0x1783)) return; // sub_1783 caller-skip: sprites not clear -> abort
   regs.a = 0x40;
   m.step(0x1764, 7);
   mem.write8(0x6009, regs.a);
@@ -17703,10 +17703,10 @@ export function sub_0d27(m) {
   const { regs } = m;
   regs.hl = 0x770d;
   m.step(0x0d2a, 10); // ld hl,0x770d
-  m.push16(0x0d2d); m.step(0x0d30, 17); sub_0d30(m); // call 0x0d30
+  m.push16(0x0d2d); m.step(0x0d30, 17); m.call(0x0d30); // call 0x0d30
   regs.hl = 0x760d;
   m.step(0x0d30, 10); // ld hl,0x760d -- falls into sub_0d30
-  return sub_0d30(m);
+  return m.call(0x0d30);
 }
 /** sub_0d30 -- fill 0x11 cells 0xFD, +0x0F, fill 0x11 cells 0xFC. HL live-in. ROM 0x0D30-0x0D42. */
 export function sub_0d30(m) {
@@ -17742,10 +17742,10 @@ export function sub_0d43(m) {
   const { regs } = m;
   regs.hl = 0x7687;
   m.step(0x0d46, 10); // ld hl,0x7687
-  m.push16(0x0d49); m.step(0x0d4c, 17); sub_0d4c(m); // call 0x0d4c
+  m.push16(0x0d49); m.step(0x0d4c, 17); m.call(0x0d4c); // call 0x0d4c
   regs.hl = 0x7547;
   m.step(0x0d4c, 10); // ld hl,0x7547 -- falls into sub_0d4c
-  return sub_0d4c(m);
+  return m.call(0x0d4c);
 }
 /** sub_0d4c -- fill 0x04 cells 0xFD, +0x1C, fill 0x04 cells 0xFC. HL live-in. ROM 0x0D4C-0x0D5E. */
 export function sub_0d4c(m) {
@@ -17795,21 +17795,21 @@ export function sub_2745(m) {
   m.step(0x2752, 13);
   regs.cp(0x2c);
   m.step(0x2754, 7);
-  if (regs.fC) { m.step(0x2766, 10); return loc_2766(m); }
+  if (regs.fC) { m.step(0x2766, 10); return m.call(0x2766); }
   m.step(0x2757, 10);
   regs.cp(0x43);
   m.step(0x2759, 7);
-  if (regs.fC) { m.step(0x276f, 10); return loc_276f(m); }
+  if (regs.fC) { m.step(0x276f, 10); return m.call(0x276f); }
   m.step(0x275c, 10);
   regs.cp(0x6c);
   m.step(0x275e, 7);
-  if (regs.fC) { m.step(0x2766, 10); return loc_2766(m); }
+  if (regs.fC) { m.step(0x2766, 10); return m.call(0x2766); }
   m.step(0x2761, 10);
   regs.cp(0x83);
   m.step(0x2763, 7);
-  if (regs.fC) { m.step(0x2787, 10); return loc_2787(m); }
+  if (regs.fC) { m.step(0x2787, 10); return m.call(0x2787); }
   m.step(0x2766, 10);
-  return loc_2766(m);
+  return m.call(0x2766);
 }
 /** loc_2766 -- reset: 0x6398=0, 0x6221=1. */
 export function loc_2766(m) {
@@ -17831,7 +17831,7 @@ export function loc_276f(m) {
   m.step(0x2772, 13);
   regs.cp(0x71);
   m.step(0x2774, 7);
-  if (regs.fC) { m.step(0x277f, 10); return loc_277f(m); }
+  if (regs.fC) { m.step(0x277f, 10); return m.call(0x277f); }
   m.step(0x2777, 10);
   regs.a = regs.dec8(regs.a);
   m.step(0x2778, 4);
@@ -17848,7 +17848,7 @@ export function loc_2787(m) {
   m.step(0x278a, 13);
   regs.cp(0xe8);
   m.step(0x278c, 7);
-  if (regs.fNC) { m.step(0x277f, 10); return loc_277f(m); }
+  if (regs.fNC) { m.step(0x277f, 10); return m.call(0x277f); }
   m.step(0x278f, 10);
   regs.a = regs.inc8(regs.a);
   m.step(0x2790, 4);
@@ -17871,7 +17871,7 @@ export function loc_277f(m) {
 }
 /** sub_271e -- thin wrapper: call sub_2745, ret. ROM 0x271E-0x2721. */
 export function sub_271e(m) {
-  m.push16(0x2721); m.step(0x2745, 17); sub_2745(m);
+  m.push16(0x2721); m.step(0x2745, 17); m.call(0x2745);
   m.ret(10);
 }
 /** sub_2679 -- sub_25f2's 3rd callee: even-frame 0x62A5 countdown (call 0x26de), publish 0x62A6->0x63A6 (0x26e9), every 32nd frame call 0x26a6. ROM 0x2679-0x26A6. */
@@ -17881,27 +17881,27 @@ export function sub_2679(m) {
   m.step(0x267c, 13);
   regs.rrca();
   m.step(0x267d, 4);
-  if (regs.fC) { m.step(0x268d, 10); return tail_268d(m); } // odd frame
+  if (regs.fC) { m.step(0x268d, 10); return m.call(0x268d); } // odd frame
   m.step(0x2680, 10);
   regs.hl = 0x62a5;
   m.step(0x2683, 10);
   mem.write8(regs.hl, regs.dec8(mem.read8(regs.hl)));
   m.step(0x2684, 11); // dec (0x62A5)
-  if (regs.fNZ) { m.step(0x268d, 10); return tail_268d(m); }
+  if (regs.fNZ) { m.step(0x268d, 10); return m.call(0x268d); }
   m.step(0x2687, 10);
   mem.write8(regs.hl, 0xff);
   m.step(0x2689, 10); // reload
   regs.l = regs.inc8(regs.l);
   m.step(0x268a, 4); // -> 0x62A6
-  m.push16(0x268d); m.step(0x26de, 17); sub_26de(m); // call 0x26de
-  return tail_268d(m);
+  m.push16(0x268d); m.step(0x26de, 17); m.call(0x26de); // call 0x26de
+  return m.call(0x268d);
 }
 /** tail_268d -- sub_2679 shared tail: 0x62A6->0x63A6 via 0x26e9; every 32nd frame call 0x26a6(0x69F4). */
 export function tail_268d(m) {
   const { regs, mem } = m;
   regs.hl = 0x62a6;
   m.step(0x2690, 10);
-  m.push16(0x2693); m.step(0x26e9, 17); sub_26e9(m); // -> A
+  m.push16(0x2693); m.step(0x26e9, 17); m.call(0x26e9); // -> A
   mem.write8(0x63a6, regs.a);
   m.step(0x2696, 13);
   regs.a = mem.read8(0x601a);
@@ -17916,7 +17916,7 @@ export function tail_268d(m) {
   m.step(0x26a1, 10);
   regs.exDeHl();
   m.step(0x26a2, 4); // HL=0x69F4
-  m.push16(0x26a5); m.step(0x26a6, 17); sub_26a6(m); // call 0x26a6
+  m.push16(0x26a5); m.step(0x26a6, 17); m.call(0x26a6); // call 0x26a6
   m.ret(10);
 }
 /** sub_262f -- sub_25f2's 2nd callee: Y>=0xC0 counts down 0x62A2 (call 0x26de); Y<0xC0 sets 0x62A3=0xFF. Tail: 0x63A5/0x63A4 via 0x26e9, every 32nd frame 0x26a6->0x69ED. ROM 0x262F-0x2676. */
@@ -17928,33 +17928,33 @@ export function sub_262f(m) {
   m.step(0x2635, 13);
   regs.cp(0xc0);
   m.step(0x2637, 7);
-  if (regs.fC) { m.step(0x266f, 10); return loc_266f(m); } // jp c,0x266f
+  if (regs.fC) { m.step(0x266f, 10); return m.call(0x266f); } // jp c,0x266f
   m.step(0x263a, 10);
   regs.a = mem.read8(0x601a);
   m.step(0x263d, 13);
   regs.rrca();
   m.step(0x263e, 4);
-  if (regs.fC) { m.step(0x264c, 10); return loc_264c(m); } // odd frame
+  if (regs.fC) { m.step(0x264c, 10); return m.call(0x264c); } // odd frame
   m.step(0x2641, 10);
   regs.l = (regs.l - 1) & 0xff;
   m.step(0x2642, 4); // -> 0x62A2
   regs.decMem8(mem, regs.hl);
   m.step(0x2643, 11); // dec (0x62A2)
-  if (regs.fNZ) { m.step(0x264c, 10); return loc_264c(m); }
+  if (regs.fNZ) { m.step(0x264c, 10); return m.call(0x264c); }
   m.step(0x2646, 10);
   mem.write8(regs.hl, 0xc0);
   m.step(0x2648, 10); // reload
   regs.l = (regs.l + 1) & 0xff;
   m.step(0x2649, 4); // -> 0x62A3
-  m.push16(0x264c); m.step(0x26de, 17); sub_26de(m); // call 0x26de
-  return loc_264c(m);
+  m.push16(0x264c); m.step(0x26de, 17); m.call(0x26de); // call 0x26de
+  return m.call(0x264c);
 }
 /** loc_264c -- sub_262f shared tail. */
 export function loc_264c(m) {
   const { regs, mem } = m;
   regs.hl = 0x62a3;
   m.step(0x264f, 10);
-  m.push16(0x2652); m.step(0x26e9, 17); sub_26e9(m); // -> A
+  m.push16(0x2652); m.step(0x26e9, 17); m.call(0x26e9); // -> A
   mem.write8(0x63a5, regs.a);
   m.step(0x2655, 13); // 0x63A5 = +val
   regs.neg();
@@ -17973,7 +17973,7 @@ export function loc_264c(m) {
   m.step(0x2664, 10);
   regs.exDeHl();
   m.step(0x2665, 4);
-  m.push16(0x2668); m.step(0x26a6, 17); sub_26a6(m); // call 0x26a6 -> A
+  m.push16(0x2668); m.step(0x26a6, 17); m.call(0x26a6); // call 0x26a6 -> A
   regs.and(0x7f);
   m.step(0x266a, 7);
   regs.hl = 0x69ed;
@@ -17987,12 +17987,12 @@ export function loc_266f(m) {
   const { regs, mem } = m;
   regs.bit(7, mem.read8(regs.hl));
   m.step(0x2671, 12); // bit 7,(hl)
-  if (regs.fNZ) { m.step(0x264c, 10); return loc_264c(m); }
+  if (regs.fNZ) { m.step(0x264c, 10); return m.call(0x264c); }
   m.step(0x2674, 10);
   mem.write8(regs.hl, 0xff);
   m.step(0x2676, 10);
   m.step(0x264c, 10); // jp 0x264c
-  return loc_264c(m);
+  return m.call(0x264c);
 }
 /** sub_2ad3 -- platform-row player mover: Y==0x50/0x78/0xC8 -> pick velocity, X+=vel, clamp via 0x241F, edge-adjust. ROM 0x2AD3-0x2B1B. */
 export function sub_2ad3(m) {
@@ -18010,12 +18010,12 @@ export function sub_2ad3(m) {
     regs.a = mem.read8(0x63a3);
     m.step(0x2aed, 13);
     m.step(0x2b02, 10);
-    return move_2b02(m);
+    return m.call(0x2b02);
   }
   m.step(0x2adf, 10);
   regs.cp(0x78);
   m.step(0x2ae1, 7);
-  if (regs.fZ) { m.step(0x2af6, 10); return arm_2af6(m); }
+  if (regs.fZ) { m.step(0x2af6, 10); return m.call(0x2af6); }
   m.step(0x2ae4, 10);
   regs.cp(0xc8);
   m.step(0x2ae6, 7);
@@ -18024,7 +18024,7 @@ export function sub_2ad3(m) {
     regs.a = mem.read8(0x63a6);
     m.step(0x2af3, 13);
     m.step(0x2b02, 10);
-    return move_2b02(m);
+    return m.call(0x2b02);
   }
   m.step(0x2ae9, 10);
   m.ret(10); // Y not on a platform row
@@ -18038,11 +18038,11 @@ export function arm_2af6(m) {
   m.step(0x2af9, 7);
   regs.a = mem.read8(0x63a5);
   m.step(0x2afc, 13); // ld a,(nn) flag-neutral
-  if (regs.fNC) { m.step(0x2b02, 10); return move_2b02(m); } // X >= 0x80
+  if (regs.fNC) { m.step(0x2b02, 10); return m.call(0x2b02); } // X >= 0x80
   m.step(0x2aff, 10);
   regs.a = mem.read8(0x63a4);
   m.step(0x2b02, 13);
-  return move_2b02(m);
+  return m.call(0x2b02);
 }
 /** move_2b02 -- A=velocity: X+=A, mirror 0x694C, clamp via sub_241F, edge-adjust X. */
 export function move_2b02(m) {
@@ -18053,7 +18053,7 @@ export function move_2b02(m) {
   m.step(0x2b06, 13);
   mem.write8(0x694c, regs.a);
   m.step(0x2b09, 13); // mirror
-  m.push16(0x2b0c); m.step(0x241f, 17); sub_241f(m); // clamp -> DE
+  m.push16(0x2b0c); m.step(0x241f, 17); m.call(0x241f); // clamp -> DE
   regs.hl = 0x6203;
   m.step(0x2b0f, 10);
   regs.e = regs.dec8(regs.e);
@@ -18098,7 +18098,7 @@ export function loc_2227(m) {
     regs.l = regs.inc8(regs.l);
     m.step(0x2231, 4); // base+2
     m.push16(0x2234); m.step(0x2243, 17);
-    if (!sub_2243(m)) return; // MISS -> caller-skip already unwound to loc_197a; do NOT continue/ret
+    if (!m.call(0x2243)) return; // MISS -> caller-skip already unwound to loc_197a; do NOT continue/ret
     regs.a = 0x01;
     m.step(0x2236, 7);
     mem.write8(0x621a, regs.a);
@@ -18110,7 +18110,7 @@ export function loc_2227(m) {
   regs.l = regs.inc8(regs.l);
   m.step(0x223b, 4); // base+2
   m.push16(0x223e); m.step(0x2243, 17);
-  if (!sub_2243(m)) return; // MISS -> caller-skip already unwound to loc_197a; do NOT continue/ret
+  if (!m.call(0x2243)) return; // MISS -> caller-skip already unwound to loc_197a; do NOT continue/ret
   regs.xor(regs.a);
   m.step(0x223f, 4);
   mem.write8(0x621a, regs.a);
@@ -18135,7 +18135,7 @@ export function loc_2259(m) {
   m.step(0x2264, 4); // base+3
   mem.write8(regs.hl, regs.inc8(mem.read8(regs.hl)));
   m.step(0x2265, 11); // bump counter
-  m.push16(0x2268); m.step(0x22bd, 17); sub_22bd(m); // display mirror
+  m.push16(0x2268); m.step(0x22bd, 17); m.call(0x22bd); // display mirror
   regs.a = 0x78;
   m.step(0x226a, 7);
   regs.cp(mem.read8(regs.hl));
@@ -18152,16 +18152,16 @@ export function loc_2259(m) {
   regs.l = regs.dec8(regs.l);
   m.step(0x2276, 4); // base+2
   m.push16(0x2279); m.step(0x2243, 17);
-  if (!sub_2243(m)) return; // MISS -> caller-skip already unwound to loc_197a; do NOT continue/ret
+  if (!m.call(0x2243)) return; // MISS -> caller-skip already unwound to loc_197a; do NOT continue/ret
   regs.a = mem.read8(0x6205);
   m.step(0x227c, 13); // player Y
   regs.cp(0x68);
   m.step(0x227e, 7);
-  if (regs.fC) return descend_2284(m); // Y < 0x68
+  if (regs.fC) return m.call(0x2284); // Y < 0x68
   m.step(0x228a, 10);
   regs.rra();
   m.step(0x228b, 4);
-  if (regs.fC) { m.step(0x2281, 10); return descend_2284(m); } // Y odd
+  if (regs.fC) { m.step(0x2281, 10); return m.call(0x2284); } // Y odd
   m.step(0x228e, 10);
   regs.rra();
   m.step(0x228f, 4);
@@ -18184,7 +18184,7 @@ export function descend_2284(m) {
   m.step(0x2284, 10);
   mem.write8(regs.hl, regs.inc8(mem.read8(regs.hl)));
   m.step(0x2285, 11); // Y++
-  m.push16(0x2288); m.step(0x3fc0, 17); sub_3fc0(m);
+  m.push16(0x2288); m.step(0x3fc0, 17); m.call(0x3fc0);
   mem.write8(regs.hl, regs.inc8(mem.read8(regs.hl)));
   m.step(0x2289, 11); // Y++
   m.ret(10);
@@ -18220,7 +18220,7 @@ export function loc_22a2(m) {
   m.step(0x22ac, 4); // base+3
   mem.write8(regs.hl, regs.dec8(mem.read8(regs.hl)));
   m.step(0x22ad, 11); // counter DOWN
-  m.push16(0x22b0); m.step(0x22bd, 17); sub_22bd(m); // display mirror
+  m.push16(0x22b0); m.step(0x22bd, 17); m.call(0x22bd); // display mirror
   regs.a = 0x68;
   m.step(0x22b2, 7);
   regs.cp(mem.read8(regs.hl));
@@ -18350,10 +18350,10 @@ export function sub_2207_body(m) {
   regs.hl = target;
   m.step(0x0037, 4); // ex de,hl
   m.step(target, 4); // jp (hl)
-  if (target === 0x2227) return loc_2227(m);
-  if (target === 0x2259) return loc_2259(m);
-  if (target === 0x2299) return loc_2299(m);
-  if (target === 0x22a2) return loc_22a2(m);
+  if (target === 0x2227) return m.call(0x2227);
+  if (target === 0x2259) return m.call(0x2259);
+  if (target === 0x2299) return m.call(0x2299);
+  if (target === 0x22a2) return m.call(0x22a2);
   throw new NotImplemented(
     `sub_2207 body rst 0x28 -> unexpected ROM 0x${target.toString(16).padStart(4, "0")}`,
   );
@@ -18417,10 +18417,10 @@ export function entry_2c03(m) {
   m.step(0x2c05, 7); // ld a,0x01
   m.push16(0x2c06);
   m.step(0x0030, 11); // rst 0x30
-  if (!sub_0030(m)) return; // rst 0x30 -- may SKIP
+  if (!m.call(0x0030)) return; // rst 0x30 -- may SKIP
   m.push16(0x2c07);
   m.step(0x0010, 11); // rst 0x10
-  if (!sub_0010(m)) return; // rst 0x10 -- may SKIP
+  if (!m.call(0x0010)) return; // rst 0x10 -- may SKIP
 
   regs.a = mem.read8(0x6393); // NOT 0x6350 (twin sub_03a2)
   m.step(0x2c0a, 13); // ld a,(0x6393)
@@ -18452,7 +18452,7 @@ export function entry_2c03(m) {
   m.step(0x2c18, 4); // cp c
   if (regs.fC) {
     m.step(0x2c7b, 10); // jp c,0x2c7b taken (tail)
-    return entry_2c7b(m);
+    return m.call(0x2c7b);
   }
   m.step(0x2c1b, 10); // jp c,0x2c7b not taken
 
@@ -18462,7 +18462,7 @@ export function entry_2c03(m) {
   m.step(0x2c20, 8); // bit 1,a
   if (bit1) {
     m.step(0x2c86, 10); // jp nz,0x2c86 taken (tail)
-    return loc_2c86(m);
+    return m.call(0x2c86);
   }
   m.step(0x2c23, 10); // jp nz,0x2c86 not taken
 
@@ -18503,7 +18503,7 @@ export function entry_2c03(m) {
   m.step(0x2c39, 4); // cp c
   if (regs.fC) {
     m.step(0x2c41, 10); // jp c,0x2c41 taken (tail)
-    return entry_2c41(m);
+    return m.call(0x2c41);
   }
   m.step(0x2c3c, 10); // jp c,0x2c41 not taken
 
@@ -18516,7 +18516,7 @@ export function entry_2c03(m) {
     return;
   }
   m.step(0x2c41, 5); // ret nc not taken -- FALL-THROUGH into entry_2c41
-  return entry_2c41(m);
+  return m.call(0x2c41);
 }
 
 /**
@@ -18566,15 +18566,15 @@ export function entry_2c41(m) {
 
   m.push16(0x2c44);
   m.step(0x0057, 17); // call 0x0057
-  sub_0057(m); // translated -- A = (0x6018)+(0x601a)+(0x6019)
+  m.call(0x0057); // translated -- A = (0x6018)+(0x601a)+(0x6019)
   regs.and(0x0f);
   m.step(0x2c46, 7); // and 0x0f
   if (regs.fNZ) {
     m.step(0x2c86, 10); // jp nz,0x2c86 taken (tail)
-    return loc_2c86(m);
+    return m.call(0x2c86);
   }
   m.step(0x2c49, 10); // jp nz,0x2c86 not taken
-  return loc_2c49(m);
+  return m.call(0x2c49);
 }
 
 /** loc_2c49 -- ROM 0x2C49 entry (from entry_2c7b jp z,0x2c49): A := 0x01. */
@@ -18582,7 +18582,7 @@ export function loc_2c49(m) {
   const { regs } = m;
   regs.a = 0x01;
   m.step(0x2c4b, 7); // ld a,0x01
-  return loc_2c4b(m);
+  return m.call(0x2c4b);
 }
 
 /** loc_2c4b -- ROM 0x2C4B entry (from entry_2c7b jp 0x2c4b): stores caller's A
@@ -18593,7 +18593,7 @@ export function loc_2c4b(m) {
   m.step(0x2c4e, 13); // ld (0x6382),a
   regs.a = regs.inc8(regs.a); // inc a -- BETWEEN the two stores
   m.step(0x2c4f, 4); // inc a
-  return loc_2c4f(m);
+  return m.call(0x2c4f);
 }
 
 /** loc_2c4f -- ROM 0x2C4F entry (from entry_2c7b jp 0x2c4f): stores caller's A at
@@ -18636,7 +18636,7 @@ export function loc_2c4f(m) {
     m.step(0x2c6b, 4); // and a
     if (regs.fZ) {
       m.step(0x2c72, 10); // jp z,0x2c72 taken (tail) -- free slot found
-      return entry_2c72(m); // entry_2c72 IS translated (0acc93f): set bit 7 of 0x6382
+      return m.call(0x2c72); // entry_2c72 IS translated (0acc93f): set bit 7 of 0x6382
     }
     m.step(0x2c6e, 10); // jp z,0x2c72 not taken
     regs.addHl(regs.de); // add hl,de -- next record
@@ -18683,13 +18683,13 @@ export function entry_2c7b(m) {
   m.step(0x2c7e, 4); // cp c
   if (regs.fZ) {
     m.step(0x2c49, 10); // jp z,0x2c49 taken -- A+2 == C, A kept
-    return loc_2c49(m);
+    return m.call(0x2c49);
   }
   m.step(0x2c81, 10); // jp z,0x2c49 not taken
   regs.a = 0x02;
   m.step(0x2c83, 7); // ld a,0x02
   m.step(0x2c4b, 10); // jp 0x2c4b -- A = 0x02 into loc_2c4b
-  return loc_2c4b(m);
+  return m.call(0x2c4b);
 }
 
 /** loc_2c86 -- ROM 0x2C86 entry (from entry_2c03 @ 0x2C20 and entry_2c41 @ 0x2C46). */
@@ -18702,5 +18702,5 @@ export function loc_2c86(m) {
   regs.a = 0x03;
   m.step(0x2c8c, 7); // ld a,0x03
   m.step(0x2c4f, 10); // jp 0x2c4f -- A = 0x03 into loc_2c4f
-  return loc_2c4f(m);
+  return m.call(0x2c4f);
 }

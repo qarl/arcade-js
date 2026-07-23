@@ -122,7 +122,8 @@ export default {
   //
   //   "<hex dispatch target>": { module: "<path from this dir>", export: "<name>" }
   //
-  // e.g.  "0x01c3": { module: "./optimized/handlers.js", export: "handler_01c3" }
+  // e.g.  "0x01c3": { module: "./optimized/handler_01c3.js", export: "handler_01c3" }
+  //       (one file per routine; the module basename matches the export)
   //
   // The KEY is the exact rst-0x28 dispatch target dispatchGameState() switches on
   // (games/dkong/translated/nmi.js); the VALUE names the optimized module + its
@@ -140,9 +141,9 @@ export default {
   // exact translated behaviour; a run path that wants these live resolves them
   // first (see machine.js resolveOverrides + the constructor's default).
   optimized: {
-    "0x01c3": { module: "./optimized/handlers.js", export: "handler_01c3" },
-    "0x05c6": { module: "./optimized/handlers.js", export: "handler_05c6" },
-    "0x05e9": { module: "./optimized/handlers.js", export: "handler_05e9" },
-    "0x0611": { module: "./optimized/handlers.js", export: "entry_0611" },
+    "0x01c3": { module: "./optimized/handler_01c3.js", export: "handler_01c3" },
+    "0x05c6": { module: "./optimized/handler_05c6.js", export: "handler_05c6" },
+    "0x05e9": { module: "./optimized/handler_05e9.js", export: "handler_05e9" },
+    "0x0611": { module: "./optimized/entry_0611.js", export: "entry_0611" },
   },
 };

@@ -17,6 +17,7 @@ import { IO, Inputs, NotImplemented } from "../../boards/dkong/io.js";
 import { Regs } from "../../core/cpu/z80.js";
 import { bootOnly, reset as romReset } from "./translated/boot.js";
 import { entry_0066 } from "./translated/nmi.js";
+import { ORACLE_ROUTINES } from "./routines.js";
 import {
   buildPalette, CYCLES_PER_LINE, decodeSprites, decodeTiles, drawSprites,
   renderFrameRGB, renderRowRGB,
@@ -87,7 +88,7 @@ export class FramesComplete extends Error {
  * caller-supplied object/Map with the same shape:
  *
  *   {
- *     "0x01c3": { module: "./optimized/handlers.js", export: "handler_01c3" },
+ *     "0x01c3": { module: "./optimized/handler_01c3.js", export: "handler_01c3" },
  *   }
  *
  * The KEY is the rst-0x28 dispatch target — the exact address `dispatchGameState`
@@ -144,7 +145,7 @@ function buildOverrides(spec) {
  * browser worker alike, so one resolver serves both.
  *
  * Module paths are resolved relative to `baseUrl`, which defaults to this file
- * (games/dkong/machine.js), so manifest entries like "./optimized/handlers.js"
+ * (games/dkong/machine.js), so manifest entries like "./optimized/handler_01c3.js"
  * resolve against the game directory — the same base the audio paths use.
  *
  * @param {object} [spec]     manifest.optimized: { "0x01c3": { module, export } }
@@ -206,6 +207,15 @@ export class Machine {
     // behaviour. See buildOverrides / resolveOverrides above, and the prepend in
     // dispatchGameState (nmi.js) / dispatchTask (mainloop.js) that consults it.
     this.overrides = buildOverrides(overrides);
+
+    // The full routine registry the swap layer resolves through: the oracle table
+    // for every ROM address (routines.js), with the proven-equal optimized routines
+    // from opts.overrides laid over the top. m.call(addr) invokes routines.get(addr),
+    // so an optimized routine replaces its oracle at EVERY call site, not only the two
+    // dispatch points m.overrides reaches. With no overrides this is the oracle table,
+    // so behaviour is byte-identical to pure translated code.
+    this.routines = new Map(ORACLE_ROUTINES);
+    for (const [addr, fn] of this.overrides) this.routines.set(addr, fn);
 
     this.cycles = 0;
     this.frames = []; // captured state dumps, one per frame boundary
@@ -517,6 +527,29 @@ export class Machine {
   // a JS `return`.
   ret(cycles = 10) {
     this.step(this.pop16(), cycles);
+  }
+
+  /**
+   * Invoke the routine at ROM address `addr` through the swap registry: the
+   * optimized rewrite if the manifest has one, else the translated oracle. Every
+   * inter-routine call is written this way -- `m.call(0x0874)` for `call 0x0874` --
+   * which is what makes any routine independently swappable rather than only the two
+   * dispatch targets. This dispatches WHICH implementation runs; the `push16`/`step`
+   * that model the CALL's stack push and cycle cost stay at the call site next to it,
+   * so with an empty override map this is byte-identical to a direct call.
+   *
+   * Extra args are forwarded for the two routines the translation parameterised
+   * (`sub_0028`, `draw_0578`); the return value is forwarded for the rst skip-idiom
+   * (`if (!m.call(0x0008)) return;`).
+   */
+  call(addr, ...args) {
+    const fn = this.routines.get(addr);
+    if (fn === undefined) {
+      throw new Error(
+        `m.call: no routine registered at 0x${addr.toString(16).padStart(4, "0")}`,
+      );
+    }
+    return fn(this, ...args);
   }
 
   // LDIR at an arbitrary site: block-copy (DE)<-(HL), BC down, until BC==0.

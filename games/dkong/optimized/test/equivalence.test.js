@@ -4,7 +4,7 @@
  *
  * Two jobs, and the second matters as much as the first:
  *
- *   1. EQUAL — the VERBATIM optimized handler_01c3 (optimized/handlers.js) must
+ *   1. EQUAL — the VERBATIM optimized handler_01c3 (optimized/handler_01c3.js) must
  *      read EQUAL against its translated oracle, both whole-machine and unit.
  *      This is the identity case: if a byte-for-byte copy does not pass, the
  *      harness is measuring the wrong thing.
@@ -23,7 +23,7 @@ import { existsSync, readFileSync } from "node:fs";
 
 import { Machine } from "../../machine.js";
 import { handler_01c3 as translated_01c3 } from "../../translated/state0.js";
-import { handler_01c3 as optimized_01c3 } from "../handlers.js";
+import { handler_01c3 as optimized_01c3 } from "../handler_01c3.js";
 import { unitEquivalence, wholeMachineEquivalence } from "../harness.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
