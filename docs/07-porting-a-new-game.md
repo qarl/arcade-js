@@ -1,4 +1,4 @@
-# 6. Porting a new game
+# 7. Porting a new game
 
 Nothing in the method is Donkey Kong specific. A new game differs along two independent axes — its
 **CPU** and its **board** — and brings one thing of its own, its **ROM**.

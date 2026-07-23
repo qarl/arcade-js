@@ -41,7 +41,8 @@ from observation, where an unobserved case is simply absent and nothing tells yo
 Assembly-JavaScript is deliberately *not* idiomatic JavaScript — it trades readability for a
 provable correspondence to the ROM. Rewriting individual routines as ordinary, higher-level JS is a
 separate, later project: an optimized routine may replace its translated counterpart only after it
-passes the same gates that prove equivalence (unit + mutation + pixel). See `games/<id>/optimized/`.
+passes the same gates that prove equivalence (unit + mutation + pixel). See
+[doc 6, Optimization](06-optimization.md) for the method and `games/<id>/optimized/` for the code.
 
 ### Convention: export every translated routine
 

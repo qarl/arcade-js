@@ -22,7 +22,8 @@ The remaining documents describe the strategies, in the order you'd apply them t
 3. [Drafter testing & mutation](03-drafter-testing-and-mutation.md) — per-routine tests that prove they have teeth.
 4. [Integration testing](04-integration-testing.md) — the MAME ground-truth harness.
 5. [The pixel gate](05-pixel-gate.md) — byte-exact where it must be, tolerant where reality is.
-6. [Porting a new game](06-porting-a-new-game.md) — the CPU / board / game layering in practice.
+6. [Optimization](06-optimization.md) — rewriting the proven translation as idiomatic JS, one equivalence-gated routine at a time.
+7. [Porting a new game](07-porting-a-new-game.md) — the CPU / board / game layering in practice.
 
 The running example throughout is **Donkey Kong** (Z80, Nintendo `dkong` board), the first
 game translated here. Nothing about the method is DK-specific; see doc 6 for what transfers.
