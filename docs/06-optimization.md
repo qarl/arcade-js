@@ -269,31 +269,42 @@ holds in both directions: a routine the NMI *never* reaches is free to collapse,
 be *measured over real gameplay*, not assumed from a short attract run — the interruptible leaves are
 rare targets, not impossible ones.
 
-What happens when you *do* collapse a routine the NMI lands inside was measured directly, by
-collapsing `sub_0347` (a pure leaf, no writes, so the only channel is the stack) and diffing the
-whole-machine trace against the oracle over the same run. The NMI landed inside it 6 times; every
-resulting divergence — 24 stack bytes across 659 frames — stayed **inside the stack region, with zero
-bytes leaking to gameplay or state RAM.** That confinement is structural, not luck: the divergent
-byte is a popped-and-abandoned return PC below the stack pointer, and it is only ever *read* after a
-later push has overwritten it with the matching value. It is dead the whole time it differs — which
-is why the exact routines pass the pixel gates and a collapse changes nothing a player could see.
+What happens when you *do* collapse a routine the NMI lands inside was measured directly. Collapsing
+`sub_0347` (a pure leaf, no writes) and diffing the whole-machine trace: the NMI landed inside it 6
+times, and every resulting divergence — 24 stack bytes across 659 frames — stayed **inside the stack
+region, zero bytes leaking to gameplay RAM.** That confinement is structural: the divergent byte is a
+popped-and-abandoned return PC below the stack pointer, read only after a matching push overwrites it.
+It is dead the whole time it differs.
 
-One intuition needs correcting, though. The divergence does **not** reliably heal within a few
-frames. A byte in a *deep* stack slot — one the stack revisits only under deep nesting — held its
-stale divergent value for **659 consecutive frames** before a matching push finally healed it. So a
-converge/diverge gate must *not* be built on a "RAM reconverges within N frames" rule: that rule
-would have failed this entirely benign collapse. The robust invariant is **region confinement** —
-the divergence never leaves the dead stack scratch below the resting SP, and the pixels never differ.
+But "dead in RAM" is not the same as "invisible," and a heavier test found the gap. Collapsing
+`sub_0350` — the single most NMI-interrupted routine (629 landings over 1400 frames) — again left
+**non-stack RAM byte-identical**, yet the *rendered pixels* differed on **3 isolated frames** (10 px
+total, ≤6 px each, each healing on the next frame). The cause is a second, subtler channel: a collapse
+services the vblank NMI up to a scanline **late** — the interrupt is checked at the lump boundary, not
+the true instruction boundary — so the handler updates sprite/VRAM after the beam has already painted
+that row, a one-frame tear (which is why end-of-frame RAM still matches). So a collapse of an
+interrupted routine *can* touch pixels; the earlier claim that it "changes nothing a player could see"
+was too strong — it can flicker a handful of pixels for one frame, in the same class as, and below the
+magnitude of, the accepted Pauline DMA artifact.
 
-That points at a lighter gate than the byte-exact one, for the day per-instruction verbosity becomes
-the bottleneck: **diff every byte except the stack scratch below the resting SP, and require the
-rendered frame to match.** It accepts the benign stack residue while still catching real corruption —
-because real corruption reaches live RAM or a pixel, and the dead stack never does. Adopting it would
-delete the entire per-call-path atomicity analysis and let every routine collapse. It is **not**
-adopted today: per-instruction is cheap and always correct, and the win is only scaffolding
-verbosity. But it is the sound way to get collapse-everywhere, and the measurement above is what a
-future stack-exclusion mask would be built from. The one thing such a gate *cannot* rescue is a wrong
-cycle **total**, which reseeds the PRNG — the subject of the next section.
+Two things follow. First, the stack divergence does **not** reliably heal within a few frames — a deep
+slot held its stale value **659 frames** — so a converge gate must **not** key on a "reconverges
+within N frames" rule. Second, the benign differences (dead stack, and the self-healing tear) are
+exactly what a byte-exact gate false-fails on. So the gate that licenses a collapse is the
+**convergent gate** (`core/equivalence.js` → `convergentEquivalence`): pixels are the ground truth,
+and both non-stack state and pixels may diverge **transiently** as long as they **reconverge**;
+**persistent** (non-healing) divergence in either fails. The dead stack scratch is excluded outright
+(`STACK_SCRATCH` in `ram.js`, measured `[0x6be0,0x6c00)`). It is validated with teeth — the benign
+`sub_0350` collapse passes (tears heal, non-stack state clean); a real PRNG fork fails (the `RANDOM`
+accumulator stays forked into the tail) — and it needs **both** signals: that fork's pixels happened
+to look converged in-window, and only the persistent-**state** check caught it. Pixels alone are not
+enough.
+
+The state it compares is the complete read/write **FOOTPRINT** (also in `ram.js`): every address the
+game reads or writes, cataloged with real names where we have them and `SCRATCH_`/`SPRITE_`/`VRAM_`
+placeholders elsewhere — for DK that is the whole 5120-byte map minus the 32-byte stack scratch. This
+is the lighter gate that retires the per-call-path atomicity analysis for the routines it clears. The
+one thing it still cannot rescue is a wrong cycle **total**, which reseeds the PRNG — the next section.
 
 ## When the RNG itself is the obstacle — a fallback
 

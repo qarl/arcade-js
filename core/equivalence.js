@@ -230,3 +230,126 @@ export function unitEquivalence(makeMachine, target, translatedFn, optimizedFn, 
     pc: a.pc === b.pc ? null : { a: a.pc, b: b.pc },
   };
 }
+
+// -- convergent (relaxed) equivalence ---------------------------------------
+
+/**
+ * The RELAXED gate. PIXELS are the ground truth; internal state may diverge
+ * TRANSIENTLY as long as it RECONVERGES. PERSISTENT (non-healing) divergence in
+ * either the compared state or the pixels FAILS. This is the gate for licensing a
+ * cycle-collapse of an interruptible routine, where the strict byte-exact gate
+ * false-fails on benign, self-healing differences:
+ *
+ *   - dead STACK scratch: the NMI's pushed PC lands in popped stack memory that is
+ *     read only after a matching push overwrites it — excluded via `excludeAddr`.
+ *   - a sub-perceptible RASTER tear: when the collapse services the vblank NMI a
+ *     scanline late, a few pixels render stale for ONE frame, then heal (measured
+ *     on sub_0350: 10 px total over 1400 frames, 3 isolated single-frame tears).
+ *
+ * Real corruption does NOT reconverge — the game state forks and stays forked —
+ * which is exactly what "persistent" catches. The bias is toward FAILING: any
+ * divergence still present in the final `tailWindow` frames fails, so a benign
+ * tail tear fails safe (re-run longer) rather than a real fork passing.
+ *
+ * The caller MUST enable video (`captureVideo`) in `makeMachine` for the pixel
+ * gate. This function stays game-agnostic: the caller supplies the game's stack
+ * region via `excludeAddr` and (optionally) an address→name map for reporting.
+ *
+ * @param {(overrides?:Map|object)=>object} makeMachine  factory (video-enabled)
+ * @param {number} nFrames
+ * @param {object|Map} overrides   { addr: optimizedFn }
+ * @param {object} [opts]
+ * @param {(addr:number)=>boolean} [opts.excludeAddr]  skip these in the state diff
+ *   (the dead stack scratch); default excludes nothing.
+ * @param {number} [opts.tailWindow=20]  final frames that must be fully converged.
+ * @param {(addr:number)=>string} [opts.name]  addr→name for reporting.
+ * @returns {object} { pass, invocations, framesCompared, statePersistent,
+ *   pixelPersistent, transientStateAddrs, pixDiffFrames, maxPixels, lastPixDiff }
+ */
+export function convergentEquivalence(makeMachine, nFrames, overrides, opts = {}) {
+  const excludeAddr = opts.excludeAddr ?? (() => false);
+  const tailWindow = opts.tailWindow ?? 20;
+  const nameOf = opts.name ?? ((a) => "0x" + a.toString(16));
+
+  const base = makeMachine();
+  const baseFrames = base.runFrames(nFrames);
+  assertRunHealthy(base, baseFrames, nFrames, "baseline");
+  const baseVideo = base.videoFrames ?? [];
+
+  const invocations = new Map();
+  const wrapped = new Map();
+  for (const [k, fn] of overrideEntries(overrides)) {
+    const addr = normAddr(k);
+    invocations.set(addr, 0);
+    wrapped.set(addr, (mm, ...args) => {
+      invocations.set(addr, invocations.get(addr) + 1);
+      return fn(mm, ...args);
+    });
+  }
+  const opt = makeMachine(wrapped);
+  const optFrames = opt.runFrames(nFrames);
+  assertRunHealthy(opt, optFrames, nFrames, "optimized");
+  const optVideo = opt.videoFrames ?? [];
+
+  const F = Math.min(baseFrames.length, optFrames.length);
+  const offToAddr = (o) => base.stateOffsetToAddr(o);
+
+  // PIXELS are the ground truth — they must be captured, or the gate is meaningless.
+  // Refuse to run rather than silently pass a pixel-only divergence (review finding).
+  if (base.videoFrames.length === 0 || opt.videoFrames.length === 0) {
+    throw new Error(
+      "convergentEquivalence: no video frames captured — the caller MUST enable " +
+        "captureVideo. Pixels are the ground truth and cannot be silently skipped.",
+    );
+  }
+  // Need a genuine tail to observe reconvergence; too short a run classes every diff
+  // as persistent (fail-safe) but is not a real convergence test.
+  if (F <= tailWindow) {
+    throw new Error(
+      `convergentEquivalence: nFrames (${F}) must exceed tailWindow (${tailWindow}) ` +
+        "to observe reconvergence — run more frames.",
+    );
+  }
+
+  // STATE: last frame each non-excluded address differed on.
+  const lastStateDiff = new Map();
+  for (let f = 0; f < F; f++) {
+    const a = baseFrames[f], b = optFrames[f];
+    const n = Math.min(a.length, b.length);
+    for (let i = 0; i < n; i++) {
+      if (a[i] === b[i]) continue;
+      const addr = offToAddr(i);
+      if (excludeAddr(addr)) continue;
+      lastStateDiff.set(addr, f);
+    }
+  }
+
+  // PIXELS: last frame pixels differed on (a pixel = 3 RGB bytes).
+  const vN = Math.min(baseVideo.length, optVideo.length);
+  let lastPixDiff = -1, pixDiffFrames = 0, maxPixels = 0;
+  for (let f = 0; f < vN; f++) {
+    const a = baseVideo[f], b = optVideo[f];
+    let d = 0;
+    const n = Math.min(a.length, b.length);
+    for (let i = 0; i < n; i += 3) {
+      if (a[i] !== b[i] || a[i + 1] !== b[i + 1] || a[i + 2] !== b[i + 2]) d++;
+    }
+    if (d) { lastPixDiff = f; pixDiffFrames++; if (d > maxPixels) maxPixels = d; }
+  }
+
+  const stateCutoff = F - tailWindow;
+  const statePersistent = [...lastStateDiff.entries()]
+    .filter(([, lf]) => lf >= stateCutoff)
+    .map(([a, lf]) => ({ addr: a, name: nameOf(a), lastFrame: lf }));
+  const pixelPersistent = vN > 0 && lastPixDiff >= vN - tailWindow;
+
+  return {
+    pass: statePersistent.length === 0 && !pixelPersistent,
+    invocations,
+    framesCompared: F,
+    statePersistent,                                  // FAIL if nonempty (non-healing state)
+    pixelPersistent,                                  // FAIL if true (non-healing pixels)
+    transientStateAddrs: lastStateDiff.size - statePersistent.length, // healed (tolerated)
+    pixDiffFrames, maxPixels, lastPixDiff, videoCompared: vN,
+  };
+}
