@@ -53,7 +53,9 @@ all up front is the only way to avoid discovering a missing export mid-optimizat
 tempted to paste a verbatim copy into `optimized/` (which reintroduces the drift the whole design
 avoids).
 
-`export function foo` runs identically to `function foo` — it is behaviour-neutral and does not
-touch the disassembly correspondence. This is the one edit allowed to a `translated/` file after
-the fact; everything else about it stays frozen. (Donkey Kong was retrofitted; the next game does
-it from the start.)
+Do this *at translation time*, as you write each routine — not later. That is the whole point:
+once every routine is exported up front, the optimization layer never needs to reach into
+`translated/`, so the rule there stays the simplest possible one — **`translated/` is never
+changed.** (`export function foo` runs identically to `function foo`, so it costs nothing.
+Donkey Kong predates this convention and was exported in a one-time retrofit; the next game does
+it from the first line.)
