@@ -458,6 +458,19 @@ export const FRAME_SEEN = 0x6383;
  *  below runs every 256 frames. Measured +1/frame. */
 export const DIFFICULTY_PRESCALER = 0x6384;
 
+// ── State-0 colour cycle ─────────────────────────────────────────────────────
+// Source: naming-confirmer control-poke (2026-07-23). Confirmed by ownership via
+// live write-trace: only the colour-cycle driver writes this byte.
+
+/** 1 = the colour-cycle frame-counter sweep is currently running. While set, loc_0426 advances the
+ *  sweep counter 0x6390 every frame; loc_0413 sets it to 1 at each FRAME wrap (0x601A==0, ROM 0x0423),
+ *  and loc_0464 clears it to 0 when the counter finishes its sweep at 0x80 (ROM 0x0468). Its only live
+ *  writers are those two colour-cycle sites (+ boot clear) — unshared. CONTROL: forcing 0 mid-sweep
+ *  freezes 0x6390; forcing 1 during an idle window starts 0x6390 advancing immediately. (The counter
+ *  0x6390 stays hex — it is SHARED with the how-high interlude animation stepper, so a colour-specific
+ *  name there would mislead.) */
+export const COLOUR_CYCLE_ACTIVE = 0x6391;
+
 // ── Task scheduler ───────────────────────────────────────────────────────────
 // Source: ram-verify-world.md.
 
@@ -526,7 +539,9 @@ export const SND_PRIORITY_FRAMES = 0x608B;
 //                               0x6060 0x6100 0x611C 0x61A5 0x61B1 0x61C6 0x61C7
 //   0x63xx engine scratch:      0x6300 0x6310 0x6340 0x6341 0x6342 0x6343 0x6345 0x6346
 //                               0x6348 0x6350 0x6382 0x6387 0x6388 0x638C 0x638F 0x6390
-//                               0x6391 0x6392 0x6393 0x63A0
+//                               0x6392 0x6393 0x63A0
+//                               (0x6391 was PROMOTED to COLOUR_CYCLE_ACTIVE above — control-poke
+//                               confirmed it unshared; 0x6390 & 0x6393 rejection UPHELD as shared bytes)
 //   Board-object bookkeeping:   0x62AA 0x62AC 0x62AF 0x62B5 0x62B6 0x62B7 0x62B8 0x62B9
 //                               0x62BA 0x6291 (0x6291 sits below the rivet array, NOT part of it)
 //
