@@ -130,8 +130,8 @@ export default {
   // named export to route that address to.
   //
   // An entry is added here ONLY after its optimized routine is proven EQUAL by
-  // the harness (games/dkong/optimized/harness.js). The three below are each
-  // proven byte-identical to their translated oracle and now run live: the run
+  // the harness (games/dkong/optimized/harness.js). Every entry below is proven
+  // byte-identical to its translated oracle and runs live: the run
   // paths (games/dkong/tools/emit.js and web/worker.js) resolve this declarative
   // block with resolveOverrides() and hand the resulting Map to the Machine.
   //
@@ -169,5 +169,15 @@ export default {
     "0x0a76": { module: "./optimized/loc_0a76.js", export: "loc_0a76" },
     "0x0a8a": { module: "./optimized/loc_0a8a.js", export: "loc_0a8a" },
     "0x0bda": { module: "./optimized/loc_0bda.js", export: "loc_0bda" },
+    "0x0abf": { module: "./optimized/loc_0abf.js", export: "loc_0abf" },
+    "0x0ae8": { module: "./optimized/loc_0ae8.js", export: "loc_0ae8" },
+    "0x0b06": { module: "./optimized/loc_0b06.js", export: "loc_0b06" },
+    "0x0b68": { module: "./optimized/loc_0b68.js", export: "loc_0b68" },
+    "0x0bb3": { module: "./optimized/loc_0bb3.js", export: "loc_0bb3" },
+    "0x3069": { module: "./optimized/loc_3069.js", export: "loc_3069" },
+    "0x0c91": { module: "./optimized/loc_0c91.js", export: "loc_0c91" },
+    "0x127c": { module: "./optimized/loc_127c.js", export: "loc_127c" },
+    "0x128b": { module: "./optimized/entry_128b.js", export: "entry_128b" },
+    "0x12ac": { module: "./optimized/loc_12ac.js", export: "loc_12ac" },
   },
 };
