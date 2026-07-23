@@ -92,10 +92,20 @@ export function handler_0779(m) {
 
   // Clear both palette-bank latches (0x7D86, 0x7D87) by walking HL, leaving HL at
   // 0x7D87 for the task calls (sub_309f preserves it). `ld (hl),n` bus offset +7.
+  //
+  // PARTIAL COLLAPSE across the two tagged hardware writes. Both are ls259.6h latches
+  // recorded in the --writes trace at clock()+7; the oracle lands 0x7D86 at +17 and
+  // 0x7D87 at +33 (relative to entry), because 10t and then 16t of clock elapse first.
+  // Folding the whole branch into ONE late m.step would put both at +7 -- invisible to
+  // the RAM+regs gate but a real trace divergence. So charge just those leading
+  // instructions here; the 26t (10 + 16) is subtracted from the final branch charge
+  // below, keeping each branch TOTAL exact. Proven by the WRITE-TRACE test.
   regs.hl = PALETTE_BANK_LO;
-  mem.write8(regs.hl, 0x00, 7);
+  m.step(0x077c, 10); // ld hl,0x7d86 -> clock +10
+  mem.write8(regs.hl, 0x00, 7); // 0x7D86 write bus @ +17
   regs.hl = PALETTE_BANK_HI; // inc hl (16-bit, no flags)
-  mem.write8(regs.hl, 0x00, 7);
+  m.step(0x077f, 16); // ld (hl),0x00 (10) + inc hl (6) -> clock +26
+  mem.write8(regs.hl, 0x00, 7); // 0x7D87 write bus @ +33
 
   // Enqueue attract-draw tasks 0x031B then 0x031C (inc e keeps handler nibble 3,
   // steps the payload). sub_309f reads D,E and preserves HL.
@@ -139,10 +149,13 @@ export function handler_0779(m) {
   regs.de = mem.read16(DIP_COINS_FOR_1P); // 0x6022
   regs.hl = 0x756c; // VRAM (attract coin-digit cell)
 
-  // ONE cycle charge for this executed branch — atomic routine, distribution free,
-  // total preserved (see LADDER STATUS). Must precede the calls: the trailing
-  // sub_07ad sets the final PC via its own ret, so no m.step may follow it.
-  m.step(0x07ad, drawExtra ? 256 : 249);
+  // ONE cycle charge for the REST of this executed branch — atomic routine,
+  // distribution free, total preserved (see LADDER STATUS). The two leading palette
+  // stores (26t) are charged up top so their hardware writes trace correctly, so this
+  // is the branch total (249 / 256) MINUS that 26t = 223 / 230. Must precede the
+  // calls: the trailing sub_07ad sets the final PC via its own ret, so no m.step may
+  // follow it.
+  m.step(0x07ad, drawExtra ? 230 : 223);
 
   // Two-pass sub_07ad: first pass rets to 0x07AD, second re-runs it straight-line
   // and its ret pops the caller's return address — this routine's own return.

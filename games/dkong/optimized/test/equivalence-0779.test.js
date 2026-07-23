@@ -35,6 +35,12 @@
  *      (0x6009) store lands the wrong value must be CAUGHT: NOT-EQUAL, naming the
  *      diverging address.
  *
+ *   6. WRITE-TRACE — handler_0779 makes its OWN hardware writes (the two palette-bank
+ *      latch clears 0x7D86/0x7D87, its first two stores). The RAM+regs gate cannot see
+ *      the emit.js --writes trace's cycle column, so this proves the two writes land at
+ *      the oracle's exact write-bus cycle (0x7D86 @ +17, 0x7D87 @ +33 — 16 t apart, not
+ *      collapsed onto one) — and that a flat-collapse would shift them (teeth).
+ *
  * THE CYCLE FINDING this routine adds: handler_0779 is ATOMIC even though it is an
  * NMI handler with SEVEN callees. The NMI handler clears io.nmiMask on entry so no
  * NMI re-fires inside it; and the NMI fires at cycle N·CYCLES_PER_FRAME (right
@@ -56,6 +62,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { handler_0779 as translated_0779 } from "../../translated/state0.js";
 import { handler_0779 as optimized_0779 } from "../handler_0779.js";
 import { unitEquivalence, wholeMachineEquivalence } from "../harness.js";
+import { Machine } from "../../machine.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -205,5 +212,69 @@ test("TEETH (unit): a wrong SUBSTATE_TIMER store is CAUGHT and names 0x6009", ()
   console.log(
     `  TEETH/unit: caught at 0x${r.ram.addr.toString(16)} ` +
       `(translated ${r.ram.a} vs broken ${r.ram.b})`,
+  );
+});
+
+// -- WRITE-TRACE (the hardware-write bus cycle the RAM gate cannot see) --------
+
+/** Capture the pristine machine the instant handler_0779 is first dispatched (once,
+ *  early in attract). A constructor override snapshots the entry; the host run
+ *  continues via the translated oracle so it reaches a clean stop. */
+function captureEntry(maxFrames = 40) {
+  let entry = null;
+  const snap = new Map([[TARGET, (mm) => {
+    if (entry === null) entry = mm.clone();
+    return translated_0779(mm);
+  }]]);
+  const host = new Machine(ROM, { overrides: snap });
+  host.runFrames(maxFrames);
+  if (entry === null) throw new Error(`0x${TARGET.toString(16)} never dispatched in ${maxFrames} frames`);
+  return entry;
+}
+
+/** Run `fn` on a fresh clone of `entry` with the hardware write-trace recording.
+ *  Cycles are reported RELATIVE to entry so they are base-independent. */
+function traceClone(entry, fn) {
+  const c = entry.clone();
+  c.mem.writeTrace = []; // clock is () => c.cycles (installed by the constructor)
+  const c0 = c.cycles;
+  fn(c);
+  return c.mem.writeTrace.map((w) => ({ rel: w.cycle - c0, addr: w.addr, value: w.value }));
+}
+
+test("WRITE-TRACE: the two palette-bank writes land at the oracle's exact bus cycle", () => {
+  const entry = captureEntry();
+  const oracleTrace = traceClone(entry, translated_0779);
+  const optTrace = traceClone(entry, optimized_0779);
+
+  // handler_0779's OWN hardware writes are the two palette-bank latch clears; they are
+  // its first two stores, so they trace at fixed offsets from entry regardless of the
+  // dispatch cycle. Its seven callees write only work/sprite/video RAM (no hardware
+  // writes), and its own later stores (SUBSTATE_TIMER 0x6009, GAME_SUBSTATE 0x600A)
+  // are work RAM — none appear in the hardware-write trace.
+  assert.deepEqual(
+    oracleTrace,
+    [{ rel: 17, addr: 0x7d86, value: 0 }, { rel: 33, addr: 0x7d87, value: 0 }],
+    "oracle hardware-write trace is not the two palette-bank clears @ +17/+33",
+  );
+  assert.deepEqual(optTrace, oracleTrace, "optimized palette-write bus cycles differ from the oracle");
+
+  // Teeth: the PRE-FIX flat collapse emits both palette stores before any cycle charge,
+  // so both hardware writes land at +7 (the same cycle). RAM+regs are unaffected (the
+  // whole branch is charged in one lump), so ONLY the write trace catches it — it must
+  // fail the deepEqual, or this check has no teeth.
+  const flat = traceClone(entry, (m) => {
+    const { regs, mem } = m;
+    regs.hl = 0x7d86;
+    mem.write8(regs.hl, 0x00, 7); // +7
+    regs.hl = 0x7d87;
+    mem.write8(regs.hl, 0x00, 7); // +7 — collapsed onto the same cycle
+    m.step(0x07ad, 249); // whole branch folded into one late lump (the bug)
+  });
+  assert.equal(flat[0].rel, flat[1].rel, "flat variant should collapse both writes onto one cycle");
+  assert.notDeepEqual(flat, oracleTrace, "write-trace check has no teeth");
+  console.log(
+    `  WRITE-TRACE: palette writes @ +17/+33t identical to oracle (16t apart); ` +
+      `flat-collapse variant (both @ +${flat[0].rel}t) caught`,
   );
 });

@@ -102,12 +102,23 @@ export function loc_08ba(m) {
 
   // 0x08CE xor a / 0x08CF ld hl,0x7D86 / 0x08D2 ld (hl),a / 0x08D3 inc l / 0x08D4 ld (hl),a.
   // Clear both palette-bank latch bits, then fall through. run = 4+10+7+4+7 = 32.
+  //
+  // PARTIAL COLLAPSE across the two palette-bank HARDWARE writes (0x7D86/0x7D87 are
+  // ls259.6h latches, in the emit.js --writes trace with a write-bus-cycle column =
+  // clock()+7). Collapsing all 32t into one m.step would put BOTH writes at the same
+  // (too-early) cycle -- the oracle records 0x7D86 at +7-past-a-14t-clock and 0x7D87
+  // at +7-past-a-25t-clock. The RAM+regs gate can't see that column, so keep just
+  // enough m.step granularity (14 / 11 / 7 = 32, total unchanged) that each write
+  // lands at the oracle's exact bus cycle. Proven by the WRITE-TRACE test; same
+  // partial-collapse pattern as loc_0a8a.
   regs.xor(regs.a); // A = 0
   regs.hl = PALETTE_BANK_0; // 0x7D86
+  m.step(0x08d2, 14); // xor a (4) + ld hl,0x7d86 (10)
   mem.write8(regs.hl, regs.a, 7); // 0x7D86 = 0 (ld (hl),a -> write bus at +7)
   regs.l = regs.inc8(regs.l); // inc l -> 0x87 (8-bit, no carry into H)
+  m.step(0x08d4, 11); // ld (hl),a (7) + inc l (4)
   mem.write8(regs.hl, regs.a, 7); // 0x7D87 = 0
-  m.step(0x08d5, 32);
+  m.step(0x08d5, 7); // ld (hl),a
 
   // Fall through into loc_08d5 (0x08D5). It is a JUMP target, not a call, so there
   // is NO push16: loc_08d5's ret pops loc_08ba's own return address and returns for
