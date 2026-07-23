@@ -667,6 +667,7 @@ export function dispatchTask(m) {
   m.step(0x0306, 4);
   m.step(regs.hl, 4); // jp (hl)
 
+  if (m.overrides && m.overrides.has(regs.hl)) return m.overrides.get(regs.hl)(m);
   if (regs.hl === 0x05e9) return handler_05e9(m);
   if (regs.hl === 0x05c6) return handler_05c6(m);
   if (regs.hl === 0x0611) return entry_0611(m);

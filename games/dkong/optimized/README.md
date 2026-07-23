@@ -40,36 +40,44 @@ reach into `translated/` at all.
 one-time, behaviour-neutral change made before any optimization began. Future games export from
 the first line, and `translated/` is then genuinely frozen.)
 
-### 2. The ROM self-synchronises, so cycles are mostly unobservable
+### 2. A routine's TOTAL cycle cost is preserved; its distribution is free
 
-The instinct is that `m.step(addr, tstates)` charges are load-bearing everywhere, because the
-NMI fires on accumulated cycles — so an optimized routine that runs "instantly" would move the
-interrupt and diverge. That is true in `translated/`, which *generates* the schedule. It is
-mostly false here, and `mainLoop` (ROM 0x02BD) shows why: it compares `0x601a` against `0x6383`
-and **spins until the NMI moves it**. An explicit wait-for-vblank. The machine deliberately
-parks itself and idles until the frame boundary.
+This section was wrong twice before the harness pinned it down — a good example of why the rule
+here is *measured*, not reasoned. The instinct is that `m.step(addr, tstates)` charges are
+load-bearing because the NMI fires on accumulated cycles. The counter-instinct (that the ROM's
+own wait-for-vblank spin makes cycles free) is *also* wrong. Here is what is actually true.
 
-> **The cycle clock's only observable job is deciding where the NMI lands, and the ROM already
-> decides that itself. For a routine that completes within the frame's work phase, its internal
-> cycle distribution is unobservable.**
+`mainLoop` (ROM 0x02BD) does its per-frame work and then **spins until the NMI moves the frame
+counter** — an explicit wait-for-vblank. The NMI fires at a fixed cycle interval, so the spin
+absorbs *whatever cycle slack the frame's work leaves*: `spin = CYCLES_PER_FRAME − (work
+cycles)`. And the number of spin iterations **is the PRNG's entropy** (`SPIN_COUNT` = 0x6019,
+feeding `RNG` = 0x6018). Make the frame's work cheaper and it reaches the spin sooner, spins one
+more time, and reseeds the PRNG.
 
-So an optimized routine does not need per-instruction `m.step()` calls. What it needs is for the
-frame's work to still **reach the spin before vblank**.
+> **So a routine's TOTAL cycle cost is observable — for EVERY routine, main-loop or NMI —
+> because the spin count absorbs the difference. Its internal DISTRIBUTION is not: you can
+> replace a routine's per-instruction `m.step()` charges with a SINGLE charge of the same total
+> and nothing downstream can tell.**
 
-**MEASURED CAVEAT — this only holds for MAIN-LOOP routines, NOT NMI-path routines.** The very
-first routine we took down the ladder (`handler_01c3`, game-state-0 init) exposed the boundary,
-and the harness proved it rather than us guessing. That routine runs *inside the NMI*, and the
-NMI's total cycle cost sets when it returns — which sets how long the main loop then spins
-before the next NMI. That spin count *is* the PRNG's entropy (`SPIN_COUNT` = 0x6019, feeding
-`RNG` = 0x6018). So dropping the `m.step()` charges from an NMI-path routine is observable:
-stripping them from `handler_01c3` diverged at **frame 5, address 0x6019, 65 vs 66** — one fewer
-cycle in the NMI, one extra spin, a reseeded PRNG. The charges had to stay.
+Both halves are harness-proven, on two routines from the two dispatch paths, and they gave the
+*same* answer:
 
-So the sharpened rule: **cycle distribution is unobservable for a routine that runs in the main
-loop and finishes before the vblank spin. For a routine that runs inside the NMI, its total
-cycle cost is observable through the spin count, and the `m.step()` charges must be preserved.**
-Optimizing an NMI-path routine therefore buys readability (names, structure, dropped register
-churn) but not fewer cycle charges — and the harness is what tells you which kind you have.
+| routine | dispatch | strip ALL cycles | collapse to one total charge |
+|---|---|---|---|
+| `handler_01c3` | NMI (game-state) | diverges @ 0x6019, 65→66 | (kept per-instr.; equivalent) |
+| `handler_05c6` | main loop (task) | diverges @ 0x6019, 65→66 | **EQUAL** |
+
+Identical divergence address and values from both paths — so `handler_01c3`'s divergence was
+never NMI-specific; it is the spin-count mechanism, which is universal.
+
+**The de-scaffolding, therefore:** you do *not* drop the cycle charges, but you do *not* keep one
+per instruction either. Compute each executed path's total and charge it once — `m.step(entry,
+TOTAL)` per branch. `handler_05c6` went from eleven `m.step` calls to one per branch (58 or 68
+cycles), which is most of the readability win with the total preserved exactly. Optimization
+buys names, structure, dropped register churn, and this collapse — never fewer *total* cycles.
+(A routine whose total genuinely doesn't reach the spin-count-sensitive path could in principle
+drop them, but neither routine we've measured is that routine — so the rule is: preserve the
+total unless the harness says otherwise, and it has not yet.)
 
 Two further caveats, narrower:
 
