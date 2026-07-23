@@ -162,6 +162,36 @@ attract-mode blinker or a cutscene sprite by a routine that runs in a different 
 "Mario" there would mislead, so it stays hex with a comment. The reviewer who confirms a name must
 never be the agent who proposed it.
 
+### Expanding the table is a standing job of optimization
+
+The name table is never "done", and growing it is part of the work, not a separate project.
+Optimizing a routine means reading it closely enough to understand what its addresses *mean* — so
+every optimization is also an opportunity to name an address that was hex before, and the
+understanding **compounds across routines**: an address a dozen routines all decrement as a timer,
+or all index the same table with, is far better evidenced than any single routine could show.
+Cross-routine agreement is the strongest signal the sweep produces, and it only appears once several
+routines have been dug into.
+
+The discipline that keeps this safe is the same proposer-≠-confirmer split, mechanised:
+
+1. **Optimizers propose, they do not edit `ram.js`.** `ram.js` is a shared file most optimized
+   routines import (the rest touch only unevidenced addresses and import nothing); a proposer
+   editing it would both violate proposer-≠-confirmer and collide with other in-flight work. So when a routine reveals an address's meaning *with evidence*, the
+   optimizer keeps the address hex in its own code (with a comment) and **reports it as a naming
+   candidate** — address, proposed name, the evidence (control poke or ROM cite), and which routines
+   corroborate it.
+2. **A separate confirmer re-derives each candidate** against the control-not-correlation bar — a
+   poke the world obeys, or an unambiguous citation — never trusting the proposal. A candidate that
+   only correlates, or whose meaning is state-dependent (the sprite-record trap above), is rejected
+   or scoped, not named.
+3. **Confirmed names land in `ram.js` in one serialized step**, and the routines that referenced the
+   address as hex are swept to the new name. Doing this centrally, not per-routine, is what avoids
+   two rewrites racing on the shared file.
+
+The same loop runs *backward* over already-optimized routines: because later routines evidence
+addresses earlier ones left hex, periodically mining the finished set surfaces names that no single
+routine could justify at the time it was written.
+
 ## Reaching the routine to test it
 
 Most routines do not run in a bare boot. The equivalence gates need the routine to actually

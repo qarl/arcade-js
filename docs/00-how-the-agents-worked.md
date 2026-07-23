@@ -87,6 +87,62 @@ actually done" stayed with a person throughout. Inside a decision the agents wer
 productive; deciding what the decision *was* is where they needed steering, and where an
 unchallenged agent will happily build the wrong thing correctly.
 
+## The optimization phase — the same shape, tighter gates
+
+Rewriting the proven translation into idiomatic JavaScript (doc 6) is a second wave of agent
+work, and it kept the same load-bearing separation: an **optimizer** rewrites one routine and
+proves it observably equivalent, a **reviewer** (in fact two, adversarially) gates it against
+the frozen oracle without ever having written it, and a **lead** owns the batch orchestration and
+the judgement calls. What changed was the *gate*. Translation is gated by pixels against MAME;
+optimization is gated by a tighter equivalence harness — same RAM, plus the full register file
+and the frame's cycle cost — because an optimized routine can be wrong in ways that never reach a
+pixel (a flag it stopped computing, a cycle it moved) yet still corrupt state a frame later.
+
+The optimizers needed **support built specifically for them**, and building it was part of the
+work:
+
+- **A swap layer so any routine is testable live.** Early on, only the ~70 dispatch-target
+  routines could be overridden. A routine registry that routes *every* call through one seam made
+  all ~420 swappable, so a leaf subroutine could be proven in the running game exactly like a
+  dispatch handler.
+- **A harness that reaches what agents actually write.** The unit gate originally captured its
+  entry state through a mechanism only dispatch points saw; a one-function fix let it reach
+  routines entered by an ordinary call. Without it, most leaf routines could not have been
+  unit-tested at all.
+- **Teeth for a dimension the state gate is blind to.** Writes to hardware latches carry a
+  *bus-cycle* the RAM diff cannot see, so a routine that redistributed its cycles could shift one
+  invisibly. That required its own write-trace test — a gate nobody knew was needed until a
+  reviewer found the hole.
+- **A naming confirmer.** Understanding accumulates across routines, so the name table grows as a
+  standing operation: optimizers propose an address's meaning with evidence, a separate confirmer
+  re-derives it by control-poke or citation before it is trusted — proposer-≠-confirmer again, now
+  applied to interpretation rather than code.
+
+The **failure modes were their own**, and the gate caught every one an agent got wrong:
+
+- **Stale oracle comments misled agents.** Docstrings written early ("not yet wired", "a
+  frontier") went stale once the swap layer and the live demo made routines reachable; agents that
+  trusted the prose mis-modeled a routine as unreachable. The reachability probe — *measure*, don't
+  read — caught the false assumption every time (one routine's agent expected zero dispatches and
+  the harness reported four).
+- **"Unreachable" claimed on too short a window.** A family of routines looked dead in a short
+  attract window and was in fact dispatched steadily once the selecting byte was held and the
+  window widened. Absence of evidence read as evidence of absence.
+- **Both directions of the cycle question were wrong first.** Collapsing every routine's cycles
+  breaks the interruptible ones (the NMI lands mid-routine and a redistributed routine pushes the
+  wrong return address); keeping every routine per-instruction throws away the readability. Only
+  the harness, per routine, could say which — and it did, including proving one collapse
+  *demonstrably* wrong rather than merely risky.
+- **"Dead" register churn that wasn't.** Dropping a scan's flag computation is safe only if the
+  tail overwrites it; on one branch the tail passed the flags straight through, so the churn was
+  live. Full-branch coverage — synthesising the arm the driven run never took — is what caught it.
+
+The **pattern that carried it** was batches of ten, one file per routine (two rewrites never
+touch the same file, so they parallelize without colliding), each run through a fixed loop:
+optimize → prove each routine's own gate → wire it live → re-run the whole-game gates once for the
+batch → two independent reviews → fix → commit. The lead never hand-verified a routine and never
+let an author's own confidence stand in for the gate.
+
 ## What this does not show
 
 - One codebase, one CPU, one board, one game. The method is not yet demonstrated on a second
