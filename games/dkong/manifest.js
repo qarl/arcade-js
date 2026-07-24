@@ -283,6 +283,7 @@ export default {
     "0x0d30": { module: "./optimized/sub_0d30.js", export: "sub_0d30" },
     "0x0d43": { module: "./optimized/sub_0d43.js", export: "sub_0d43" },
     "0x0d4c": { module: "./optimized/sub_0d4c.js", export: "sub_0d4c" },
+    "0x0d5f": { module: "./optimized/loc_0d5f.js", export: "loc_0d5f" },
     "0x0da7": { module: "./optimized/sub_0da7.js", export: "sub_0da7" },
     "0x0dd3": { module: "./optimized/loc_0dd3.js", export: "loc_0dd3" },
     "0x0e19": { module: "./optimized/loc_0e19.js", export: "loc_0e19" },
