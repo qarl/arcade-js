@@ -291,5 +291,6 @@ export default {
     "0x0e4f": { module: "./optimized/loc_0e4f.js", export: "loc_0e4f" },
     "0x0ee8": { module: "./optimized/loc_0ee8.js", export: "loc_0ee8" },
     "0x0f1b": { module: "./optimized/entry_0f1b.js", export: "entry_0f1b" },
+    "0x0f56": { module: "./optimized/sub_0f56.js", export: "sub_0f56" },
   },
 };
