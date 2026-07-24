@@ -293,6 +293,7 @@ export default {
     "0x0f1b": { module: "./optimized/entry_0f1b.js", export: "entry_0f1b" },
     "0x0f56": { module: "./optimized/sub_0f56.js", export: "sub_0f56" },
     "0x0fd7": { module: "./optimized/loc_0fd7.js", export: "loc_0fd7" },
+    "0x122a": { module: "./optimized/sub_122a.js", export: "sub_122a" },
     "0x2441": { module: "./optimized/sub_2441.js", export: "sub_2441" },
   },
 };
