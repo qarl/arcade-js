@@ -295,6 +295,7 @@ export default {
     "0x0fd7": { module: "./optimized/loc_0fd7.js", export: "loc_0fd7" },
     "0x11d3": { module: "./optimized/sub_11d3.js", export: "sub_11d3" },
     "0x11ec": { module: "./optimized/sub_11ec.js", export: "sub_11ec" },
+    "0x11fa": { module: "./optimized/sub_11fa.js", export: "sub_11fa" },
     "0x122a": { module: "./optimized/sub_122a.js", export: "sub_122a" },
     "0x2441": { module: "./optimized/sub_2441.js", export: "sub_2441" },
   },
