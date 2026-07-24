@@ -283,5 +283,7 @@ export default {
     "0x0d30": { module: "./optimized/sub_0d30.js", export: "sub_0d30" },
     "0x0d43": { module: "./optimized/sub_0d43.js", export: "sub_0d43" },
     "0x0d4c": { module: "./optimized/sub_0d4c.js", export: "sub_0d4c" },
+    "0x0e19": { module: "./optimized/loc_0e19.js", export: "loc_0e19" },
+    "0x0e2a": { module: "./optimized/loc_0e2a.js", export: "loc_0e2a" },
   },
 };
