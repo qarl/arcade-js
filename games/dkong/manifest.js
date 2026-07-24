@@ -288,5 +288,6 @@ export default {
     "0x0dd3": { module: "./optimized/loc_0dd3.js", export: "loc_0dd3" },
     "0x0e19": { module: "./optimized/loc_0e19.js", export: "loc_0e19" },
     "0x0e2a": { module: "./optimized/loc_0e2a.js", export: "loc_0e2a" },
+    "0x0e4f": { module: "./optimized/loc_0e4f.js", export: "loc_0e4f" },
   },
 };
