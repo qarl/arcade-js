@@ -178,6 +178,7 @@ export default {
     "0x1826": { module: "./optimized/sub_1826.js", export: "sub_1826" },
     "0x2913": { module: "./optimized/entry_2913.js", export: "entry_2913" },
     "0x309f": { module: "./optimized/sub_309f.js", export: "sub_309f" },
+    "0x30fa": { module: "./optimized/sub_30fa.js", export: "sub_30fa" },
     "0x0c91": { module: "./optimized/loc_0c91.js", export: "loc_0c91" },
     "0x127c": { module: "./optimized/loc_127c.js", export: "loc_127c" },
     "0x128b": { module: "./optimized/entry_128b.js", export: "entry_128b" },
