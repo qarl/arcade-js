@@ -38,5 +38,30 @@
     "addr": "0x24b7",
     "why": "loc_202c jp(hl) at 0x203c, state index (A&0x0f)=7 -> ptr (0x203d+2*7)=0x24b7",
     "provenance": "computed 16-bit pointer table (base 0x203d), bounded @8; static, MAME-confirm pending"
+  },
+  {
+    "addr": "0x00e6",
+    "why": "loc_0066 rst 0x28 @0x00cd, inline word table @0x00ce -> game-state handler 0x00e6",
+    "provenance": "rst-0x28 inline table (base 0x00ce, 5 entries); reached via the NMI state dispatch. Boot-crawl confirmed 0x00e6."
+  },
+  {
+    "addr": "0x0156",
+    "why": "loc_0066 rst 0x28 @0x00cd, inline word table @0x00ce -> game-state handler 0x0156",
+    "provenance": "rst-0x28 inline table (base 0x00ce, 5 entries); reached via the NMI state dispatch. Boot-crawl confirmed 0x00e6."
+  },
+  {
+    "addr": "0x03f2",
+    "why": "loc_0066 rst 0x28 @0x00cd, inline word table @0x00ce -> game-state handler 0x03f2",
+    "provenance": "rst-0x28 inline table (base 0x00ce, 5 entries); reached via the NMI state dispatch. Boot-crawl confirmed 0x00e6."
+  },
+  {
+    "addr": "0x0536",
+    "why": "loc_0066 rst 0x28 @0x00cd, inline word table @0x00ce -> game-state handler 0x0536",
+    "provenance": "rst-0x28 inline table (base 0x00ce, 5 entries); reached via the NMI state dispatch. Boot-crawl confirmed 0x00e6."
+  },
+  {
+    "addr": "0x077b",
+    "why": "loc_0066 rst 0x28 @0x00cd, inline word table @0x00ce -> game-state handler 0x077b",
+    "provenance": "rst-0x28 inline table (base 0x00ce, 5 entries); reached via the NMI state dispatch. Boot-crawl confirmed 0x00e6."
   }
 ]
