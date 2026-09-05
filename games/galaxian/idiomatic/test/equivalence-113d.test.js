@@ -12,7 +12,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { craft, ramDiff, romsPresent } from "./_bootSetup.js";
-import { loc_113d } from "../loc_113d.js";
+import { endObjectAnimOnTimerExpiry as loc_113d } from "../endObjectAnimOnTimerExpiry.js";
 import { loc_113d as oracle } from "../../translated/loc_113d.js";
 
 const OBJ = 0x4280; // scratch actor record in work RAM (clear of the masked stack window at 0x43e0+)

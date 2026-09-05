@@ -10,7 +10,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { craft, ramDiff, romsPresent } from "./_bootSetup.js";
-import { loc_003c as cand } from "../loc_003c.js";
+import { advanceRandomSeed as cand } from "../advanceRandomSeed.js";
 import { loc_003c as oracle } from "../../translated/loc_003c.js";
 
 const RNG_SEED = 0x401e;

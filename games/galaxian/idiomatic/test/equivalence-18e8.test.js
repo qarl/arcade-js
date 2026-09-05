@@ -12,7 +12,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { craft, ramDiff, romsPresent } from "./_bootSetup.js";
-import { loc_18e8 as cand } from "../loc_18e8.js";
+import { endMessageScrollOnExpiry as cand } from "../endMessageScrollOnExpiry.js";
 import { loc_18e8 as oracle } from "../../translated/loc_18e8.js";
 
 const COUNTER = 0x4300; // seeded countdown cell (work RAM, outside the masked stack window)

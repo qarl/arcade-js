@@ -10,7 +10,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { craft, ramDiff, romsPresent } from "./_bootSetup.js";
-import { loc_0983 as cand } from "../loc_0983.js";
+import { setSweepAscending as cand } from "../setSweepAscending.js";
 import { loc_0983 as oracle } from "../../translated/loc_0983.js";
 
 const skip = romsPresent() ? false : "ROM images are gitignored; none assembled";

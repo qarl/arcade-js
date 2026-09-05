@@ -11,7 +11,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { craft, ramDiff, romsPresent } from "./_bootSetup.js";
-import { loc_08e5 as cand } from "../loc_08e5.js";
+import { clearGateOnPendingRequest as cand } from "../clearGateOnPendingRequest.js";
 import { loc_08e5 as oracle } from "../../translated/loc_08e5.js";
 
 const FLAG = 0x420b; // loc_420b — request flag (bit 0 tested)

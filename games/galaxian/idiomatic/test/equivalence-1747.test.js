@@ -13,7 +13,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { craft, ramDiff, romsPresent } from "./_bootSetup.js";
-import { loc_1747 as cand } from "../loc_1747.js";
+import { armSoundSequenceOnRequest as cand } from "../armSoundSequenceOnRequest.js";
 import { loc_1747 as oracle } from "../../translated/loc_1747.js";
 
 const REQUEST = 0x41d1; // arm-request gate: fires only when it holds 1, then cleared to 0

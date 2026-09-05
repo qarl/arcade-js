@@ -12,7 +12,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { craft, ramDiff, romsPresent, STUBS } from "./_bootSetup.js";
-import { loc_1989 as cand } from "../loc_1989.js";
+import { clearCoinLockout as cand } from "../clearCoinLockout.js";
 import { loc_1989 as oracle } from "../../translated/loc_1989.js";
 
 const COIN_LOCKOUT = 0x6002;

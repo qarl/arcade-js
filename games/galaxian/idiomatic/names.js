@@ -10,6 +10,9 @@
  * Cells whose role two derivers read differently stay loc_<addr> placeholders (names-debt.txt).
  */
 
+// Return-stack scratch window (measured §3; excluded from grounding write-attribution).
+export const STACK_SCRATCH = { lo: 0x43e0, hi: 0x4400 };
+
 // Hardware ports / discrete-sound latches (board-mapped).
 export const IN0 = 0x6000; // [code] IN0 input port (read)
 export const COIN_LOCKOUT = 0x6002; // [code] coin-lockout latch (D0 = coin_lock output)
@@ -36,7 +39,7 @@ export const SOUND_SEQ_ACTIVE = 0x41cd; // [code] sound-sequence active flag
 export const SOUND_TONE_DURATION = 0x41ce; // [code] sound tone duration
 export const SOUND_PITCH = 0x41c1; // [code] staged sound pitch value (fed to 0x7800)
 export const SOUND_SEQ_PTR = 0x41d3; // [code] sound-sequence 16-bit pointer
-export const OBJ_SWEEP_DIRECTION = 0x420d; // [code] object sweep direction flag (0=near, 1=far)
+export const OBJ_SWEEP_DIRECTION = 0x420d; // [code] object sweep direction flag (0=ascending, 1=descending)
 export const SOUND_LFO_LEVEL = 0x421f; // [code] sound LFO level shadow
 
 // loc_<addr> placeholders — role not yet consensus-confident; allowlisted in names-debt.txt, named at grounding.
@@ -64,45 +67,45 @@ export const loc_420b = 0x420b;
 // Idiomatic overrides wired OVER the translated oracle (batch 1, leaves-first). Names stay loc_<addr>
 // this pass; role is a [code] reading; cert lifts to "seen" at grounding.
 export const ROUTINES = {
-  0x003c: { name: "loc_003c", role: "[code] one step of the 8-bit LCG PRNG: reads RNG_SEED, advances it, stores it back", cert: "code" },
-  0x0322: { name: "loc_0322", role: "[code] sequence state handler: SEQUENCE_STATE <- 1 and arm the step-1 dwell timer (0x4008/0x4009)", cert: "code" },
-  0x0331: { name: "loc_0331", role: "[code] shared tick of a two-tier cascade countdown (pointer names the countdown byte)", cert: "code" },
-  0x050f: { name: "loc_050f", role: "[code] arm-field tail: force the byte at loc_41b5 to 3", cert: "code" },
-  0x0515: { name: "loc_0515", role: "[code] sibling of loc_050f: force the byte at loc_4195 to 3", cert: "code" },
-  0x0598: { name: "loc_0598", role: "[code] seed a strided work-RAM field", cert: "code" },
-  0x070e: { name: "loc_070e", role: "[code] arm-the-mode-timer tail of the mode-0x10 handler: write loc_4009 <- 0x50", cert: "code" },
-  0x08e5: { name: "loc_08e5", role: "[code] conditional consume-request-and-clear-target tail (tests bit 0 of a request flag)", cert: "code" },
-  0x090b: { name: "loc_090b", role: "[code] stack-plumbing epilogue: pop hl; ret (restores HL from the stack)", cert: "code" },
-  0x0972: { name: "loc_0972", role: "[code] strided block writer: stamp A into nine work-RAM cells at stride 2 from loc_4028", cert: "code" },
-  0x097d: { name: "loc_097d", role: "[code] reverse-sweep tail: OBJ_SWEEP_DIRECTION <- 1", cert: "code" },
-  0x0983: { name: "loc_0983", role: "[code] clear-sweep leaf: OBJ_SWEEP_DIRECTION <- 0", cert: "code" },
-  0x0df6: { name: "loc_0df6", role: "[code] nudge one object-record field toward a target X value", cert: "code" },
-  0x10d8: { name: "loc_10d8", role: "[code] per-frame handler nudging one object-record field toward a fixed rest value", cert: "code" },
-  0x10f0: { name: "loc_10f0", role: "[code] sub-state-0 entry of a multi-phase object animation: seed phase 0 and arm a sound countdown (loc_41df)", cert: "code" },
-  0x113d: { name: "loc_113d", role: "[code] per-frame expiry tick for one actor record (base pointer in IX)", cert: "code" },
-  0x1146: { name: "loc_1146", role: "[code] null dispatch handler: a lone ret (target of a null jump-table slot)", cert: "code" },
-  0x1292: { name: "loc_1292", role: "[code] conditional +1 gated on two look-ahead object slots being free", cert: "code" },
-  0x15df: { name: "loc_15df", role: "[code] refill-one-expired-cell-and-tally body of the countdown-refresh loop", cert: "code" },
-  0x16a6: { name: "loc_16a6", role: "[code] once-every-other-frame sound sweep gated by the countdown at loc_41df", cert: "code" },
-  0x1733: { name: "loc_1733", role: "[code] drive one gated square-tone tick (SOUND_W_REG5 / SOUND_TONE_DURATION)", cert: "code" },
-  0x1747: { name: "loc_1747", role: "[code] arm the gated sound sequence (SOUND_SEQ_PTR + companion cells)", cert: "code" },
-  0x1815: { name: "loc_1815", role: "[code] stage the sound pitch value: SOUND_PITCH <- A", cert: "code" },
-  0x183a: { name: "loc_183a", role: "[code] arm the alternate sound sequence (SOUND_SEQ_ACTIVE / SOUND_SEQ_PTR)", cert: "code" },
-  0x186c: { name: "loc_186c", role: "[code] writer for the output-shadow pair loc_41c0 / loc_41c1", cert: "code" },
-  0x1886: { name: "loc_1886", role: "[code] per-tick sound-pitch ramp over a {countdown, pitch} pair (SOUND_PITCH)", cert: "code" },
-  0x18b2: { name: "loc_18b2", role: "[code] broadcast a sound level across the LFO-frequency latches (SOUND_LFO_LEVEL / SOUND_LFO_FREQ)", cert: "code" },
-  0x18e8: { name: "loc_18e8", role: "[code] countdown-and-finish tail of the message scroller (MESSAGE_SCROLL_ENABLE)", cert: "code" },
-  0x1917: { name: "loc_1917", role: "[code] state-3 branch of sequencer loc_18ef: seed loc_4001/loc_4002", cert: "code" },
-  0x1961: { name: "loc_1961", role: "[code] overshoot arm of a compare-and-clamp: write the ceiling 99 into the counter at HL", cert: "code" },
-  0x1971: { name: "loc_1971", role: "[code] set-to-one arm of a two-state flag toggle: write 1 into the flag at HL", cert: "code" },
-  0x1974: { name: "loc_1974", role: "[code] pulse the coin-counter output and tick a counter (COIN_COUNTER_0_LATCH)", cert: "code" },
-  0x1989: { name: "loc_1989", role: "[code] clear the coin-lockout latch: COIN_LOCKOUT <- 0", cert: "code" },
-  0x1ceb: { name: "loc_1ceb", role: "[code] draw a run of tiles up a VRAM column", cert: "code" },
-  0x1d58: { name: "loc_1d58", role: "[code] input-gated re-seed of the screen-fill state (VRAM_WRITE_PTR/loc_4008/loc_401a/GAME_STATE)", cert: "code" },
-  0x210a: { name: "loc_210a", role: "[code] out-of-range branch of a value clamp: B <- 0x80 saturation", cert: "code" },
-  0x214e: { name: "loc_214e", role: "[code] select a player's status-VRAM base (PLAYER1_STATUS_VRAM / PLAYER2_STATUS_VRAM)", cert: "code" },
-  0x2279: { name: "loc_2279", role: "[code] single-digit painter of the BCD number printer", cert: "code" },
-  0x2290: { name: "loc_2290", role: "[code] active-player score-field selector (PLAYER1_SCORE_BCD / PLAYER2_SCORE_BCD by CURRENT_PLAYER)", cert: "code" },
-  0x25a0: { name: "loc_25a0", role: "[code] tile-pair stamp-and-step primitive", cert: "code" },
-  0x25a9: { name: "loc_25a9", role: "[code] vertical tile-pair stamp", cert: "code" },
+  0x003c: { name: "advanceRandomSeed", role: "[seen] advance the 8-bit LCG PRNG seed (RNG_SEED, 0x401e) one step (seed*5+1) and return the new byte as this frame's random draw", cert: "seen" },
+  0x0322: { name: "enterSequenceStep1", role: "[code] RST-28 sequence-state handler: set SEQUENCE_STATE (0x400a) to 1 and arm the step-1 dwell cascade (0x4008/0x4009 = 3,3)", cert: "code" },
+  0x0331: { name: "tickCascadeCountdown", role: "[seen] shared dec-and-carry timer tick: decrement the byte at HL; on expiry step to the next in-page byte and increment it. Both current callers pass HL=0x4009, carrying into SEQUENCE_STATE (0x400a)", cert: "seen" },
+  0x050f: { name: "armStateAdvanceGate", role: "[code] store the armed marker (3) into gate byte 0x41b5, which the state handler loc_06d8 tests as nonzero to take its advance/proceed path", cert: "code" },
+  0x0515: { name: "armSubstateAdvanceGate", role: "[seen] store the armed marker (3) into gate byte 0x4195, tested by the sub-state handler loc_07e8 to take its advance-and-show path", cert: "seen" },
+  0x0598: { name: "seedObjectRamShadowField", role: "[seen] copy 32 bytes from a ROM template into one interleaved (stride-2) field of the OBJRAM shadow (0x4021,0x4023,...,0x405f) at screen/formation init", cert: "seen" },
+  0x070e: { name: "reloadSequenceDwellTimer", role: "[code] re-arm the mid-tier sequence dwell timer (0x4009) to 0x50 (80 ticks) after the handler sets the next state", cert: "code" },
+  0x08e5: { name: "clearGateOnPendingRequest", role: "[code] When request flag 0x420b bit0 is pending, acknowledge it (clear 0x420b) and clear the behavior gate 0x4208 that loc_0661/loc_090d test.", cert: "code" },
+  0x090b: { name: "loc_090b", role: "[code] Shared stack epilogue of the loc_08f2 enqueue path: pop the caller's saved HL and return; no work-RAM effect.", cert: "code" },
+  0x0972: { name: "broadcastToStridedTable", role: "[seen] Broadcast the byte in A across the 9-cell stride-2 work-RAM table at 0x4028 (0x4028,0x402a,...,0x4038).", cert: "seen" },
+  0x097d: { name: "setSweepDescending", role: "[seen] Set object sweep-direction flag 0x420d (OBJ_SWEEP_DIRECTION) to 1, switching the oscillator to its decreasing/descending phase; called by loc_090d when the swept 0x420e word reaches the upper bound.", cert: "seen" },
+  0x0983: { name: "setSweepAscending", role: "[seen] Clear object sweep-direction flag 0x420d (OBJ_SWEEP_DIRECTION) to 0, switching the oscillator to its increasing/ascending phase; called by loc_090d when the swept 0x420e word reaches the lower bound.", cert: "seen" },
+  0x0df6: { name: "commitMoveToTargetX", role: "[seen] Commit an object (IX record) to a horizontal move toward a chosen target X: store target X (ix+0x19), the signed per-frame step delta current-minus-target (ix+0x09), zero the move accumulator (ix+0x1a..0x1c), and advance the planner sub-state (ix+0x02).", cert: "seen" },
+  0x10d8: { name: "settleObjectXAtRest", role: "[seen] Per-frame settle handler: step the object coordinate ix+0x04 up one count per frame until it lands within 5 of the rest value 0xc8 (200), then hold.", cert: "seen" },
+  0x10f0: { name: "armObjectAnimAndRequestSound", role: "[code] Sub-state-0 entry of a deactivated object's animation: seed the animation timers, advance its sub-state, and post a position-keyed sound request", cert: "code" },
+  0x113d: { name: "endObjectAnimOnTimerExpiry", role: "[code] Sub-state-2 tick of the deactivated-object animation: count the dwell timer down and clear the object's state flag when it expires", cert: "code" },
+  0x1146: { name: "noopAnimDispatchSlot", role: "[code] No-op terminal slot (sub-state 3) of the object-animation dispatch table", cert: "code" },
+  0x1292: { name: "bumpCountIfNeighborsInactive", role: "[code] Return the count incremented by one only when both look-ahead object slots are inactive, else unchanged", cert: "code" },
+  0x15df: { name: "reloadExpiredCounterAndTally", role: "[seen] Reload one expired counter cell from its ROM table and return the refill tally incremented", cert: "seen" },
+  0x16a6: { name: "driveDecayingSoundSweep", role: "[code] On alternate frames, emit the sweep countdown (rotated right two) to the discrete-sound register and tick it down, fading to silence", cert: "code" },
+  0x1733: { name: "driveGatedSquareTone", role: "[code] Per-frame tick of a gated square-wave tone: run the duration counter down driving the toggled bit to the sound register, silence when spent", cert: "code" },
+  0x1747: { name: "armSoundSequenceOnRequest", role: "[seen] Arm the gated sound sequence on an outstanding request: clear the request gate, raise the active flags, and publish the sequence-data pointer (SOUND_SEQ_PTR).", cert: "seen" },
+  0x1815: { name: "stageSoundPitch", role: "[seen] Stage a pitch byte into SOUND_PITCH, the shadow the per-frame sound driver latches to the pitch port.", cert: "seen" },
+  0x183a: { name: "armSoundSequenceForSelector16", role: "[code] Dispatch arm for sound-request selector 0x16: clear its sub-flag, raise SOUND_SEQ_ACTIVE and companion, and publish sequence pointer 0x1edf.", cert: "code" },
+  0x186c: { name: "stagePitchAndRaiseSoundFlag", role: "[code] Stage pitch (A-1) into SOUND_PITCH and raise the 0x41c0 composite sound flag the driver latches to the sound registers.", cert: "code" },
+  0x1886: { name: "advanceSoundPitchRamp", role: "[seen] Advance a rising sound-pitch ramp one step over a {countdown,pitch} pair: tick the countdown, add a fixed step to the pitch, publish it to SOUND_PITCH, and clear the 0x41c0 composite flag; idle when the countdown is drained.", cert: "seen" },
+  0x18b2: { name: "broadcastSoundLfoLevel", role: "[seen] Save a sound LFO level to SOUND_LFO_LEVEL, then fan it (rotated right one bit per write) across the four SOUND_LFO_FREQ hardware latches.", cert: "seen" },
+  0x18e8: { name: "endMessageScrollOnExpiry", role: "[seen] Tick a countdown at (HL) and, on the zero-crossing, clear MESSAGE_SCROLL_ENABLE (0x40b0) to stop the scroller.", cert: "seen" },
+  0x1917: { name: "presetCreditCount", role: "[code] mode-3 branch of coin service loc_18ef: preset the credit count to 9 and clear the coin-phase flag", cert: "code" },
+  0x1961: { name: "clampCreditsToMax", role: "[code] overshoot arm of the credit clamp: pin the credit counter back to its 99 ceiling", cert: "code" },
+  0x1971: { name: "setCoinPhaseFlag", role: "[code] set arm of the coin-phase toggle: raise the coins-per-credit flag when the first coin of a pair is received", cert: "code" },
+  0x1974: { name: "pulseCoinCounter", role: "[seen] drive the coin-counter output pulse and tick down its pulse-width timer", cert: "seen" },
+  0x1989: { name: "clearCoinLockout", role: "[code] release the coin mechanism by clearing the coin-lockout latch", cert: "code" },
+  0x1ceb: { name: "drawTextColumn", role: "[code] draw a run of characters down a VRAM column, mapping each source byte to a font tile (byte - 0x30)", cert: "code" },
+  0x1d58: { name: "resetScreenFillState", role: "[seen] input-gated reset of the screen-fill state: rewind the VRAM write cursor to base, re-arm the full-page fill length, and clear the dispatch flag and game state", cert: "seen" },
+  0x210a: { name: "markValueOutOfRange", role: "[code] Clamp's out-of-range arm: forces the fold index B to the fixed 0x80 sentinel when the input is beyond range.", cert: "code" },
+  0x214e: { name: "selectPlayerStatusVram", role: "[code] Selects a player's status-column VRAM base (player 1 -> 0x5340, else player 2 -> 0x50e0), returned in HL.", cert: "code" },
+  0x2279: { name: "drawBcdDigit", role: "[code] Paints one BCD digit as a font tile (digit+0x90) with leading-zero blanking, then advances the cursor.", cert: "code" },
+  0x2290: { name: "selectCurrentPlayerScore", role: "[code] Selects the current player's 3-byte packed-BCD score field (player 1 -> 0x40a2, else player 2 -> 0x40a5), returned in DE.", cert: "code" },
+  0x25a0: { name: "stampTilePair", role: "[code] Stamps a pair of consecutive tile codes into two adjacent cells ((HL)=A, (HL+1)=A+1), then steps HL by the stride and the tile code by two.", cert: "code" },
+  0x25a9: { name: "drawDoubleHeightTile", role: "[code] Stamps the two halves of a double-height glyph: tile A at (HL) and tile+2 at (HL+0x20), one tilemap row apart; preserves DE.", cert: "code" },
 };

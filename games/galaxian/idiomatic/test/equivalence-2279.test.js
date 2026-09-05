@@ -15,7 +15,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { craft, ramDiff, romsPresent, STUBS } from "./_bootSetup.js";
-import { loc_2279 as cand } from "../loc_2279.js";
+import { drawBcdDigit as cand } from "../drawBcdDigit.js";
 import { loc_2279 as oracle } from "../../translated/loc_2279.js";
 
 const CELL = 0x4200; // scratch cell, clear of the masked stack window

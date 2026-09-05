@@ -11,7 +11,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { craft, ramDiff, romsPresent } from "./_bootSetup.js";
-import { loc_18b2 as cand } from "../loc_18b2.js";
+import { broadcastSoundLfoLevel as cand } from "../broadcastSoundLfoLevel.js";
 import { loc_18b2 as oracle } from "../../translated/loc_18b2.js";
 
 const LEVEL_CELL = 0x421f;

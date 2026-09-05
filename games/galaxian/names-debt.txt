@@ -1,0 +1,4 @@
+# names-debt.txt -- idiomatic loc_ ROUTINE modules whose loc_ name is RETAINED, reviewer-verified
+# (runbook R6: loc_ is for a genuinely-unclear mechanism / no game-level effect to name).
+# Format: loc_<addr>  <reason>
+loc_090b  pure stack epilogue of the loc_08f2 enqueue path (pop hl; ret): no work-RAM effect and no game-level effect to name by; [code], observed writing no RAM

@@ -13,7 +13,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { craft, ramDiff, romsPresent } from "./_bootSetup.js";
-import { loc_1886 as cand } from "../loc_1886.js";
+import { advanceSoundPitchRamp as cand } from "../advanceSoundPitchRamp.js";
 import { loc_1886 as oracle } from "../../translated/loc_1886.js";
 
 const PTR = 0x41c9;        // the pointer loc_1876 hands in (HL)

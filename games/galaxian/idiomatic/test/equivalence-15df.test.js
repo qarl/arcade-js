@@ -11,7 +11,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { craft, ramDiff, romsPresent, STUBS } from "./_bootSetup.js";
-import { loc_15df as cand } from "../loc_15df.js";
+import { reloadExpiredCounterAndTally as cand } from "../reloadExpiredCounterAndTally.js";
 import { loc_15df as oracle } from "../../translated/loc_15df.js";
 
 const SRC = 0x4390; // seeded source byte (work RAM, outside the masked stack window)

@@ -11,7 +11,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { craft, ramDiff, romsPresent } from "./_bootSetup.js";
-import { loc_0322 } from "../loc_0322.js";
+import { enterSequenceStep1 as loc_0322 } from "../enterSequenceStep1.js";
 import { loc_0322 as oracle } from "../../translated/loc_0322.js";
 
 const SEQUENCE_STATE = 0x400a;

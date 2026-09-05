@@ -13,7 +13,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { craft, ramDiff, romsPresent } from "./_bootSetup.js";
-import { loc_10f0 as cand } from "../loc_10f0.js";
+import { armObjectAnimAndRequestSound as cand } from "../armObjectAnimAndRequestSound.js";
 import { loc_10f0 as oracle } from "../../translated/loc_10f0.js";
 
 const OBJ = 0x4200;         // scratch object record base (work RAM, clear of the masked stack window)

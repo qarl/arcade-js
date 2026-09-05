@@ -10,7 +10,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { craft, ramDiff, romsPresent } from "./_bootSetup.js";
-import { loc_050f as cand } from "../loc_050f.js";
+import { armStateAdvanceGate as cand } from "../armStateAdvanceGate.js";
 import { loc_050f as oracle } from "../../translated/loc_050f.js";
 
 const STATE_FIELD = 0x41b5;

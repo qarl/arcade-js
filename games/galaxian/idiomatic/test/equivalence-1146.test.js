@@ -10,7 +10,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { craft, ramDiff, romsPresent } from "./_bootSetup.js";
-import { loc_1146 } from "../loc_1146.js";
+import { noopAnimDispatchSlot as loc_1146 } from "../noopAnimDispatchSlot.js";
 import { loc_1146 as oracle } from "../../translated/loc_1146.js";
 
 const skip = romsPresent() ? false : "ROM images are gitignored; none assembled";

@@ -12,7 +12,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { craft, ramDiff, romsPresent } from "./_bootSetup.js";
-import { loc_070e as cand } from "../loc_070e.js";
+import { reloadSequenceDwellTimer as cand } from "../reloadSequenceDwellTimer.js";
 import { loc_070e as oracle } from "../../translated/loc_070e.js";
 
 const MODE_STATE = 0x400a;

@@ -11,7 +11,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { craft, ramDiff, romsPresent } from "./_bootSetup.js";
-import { loc_186c } from "../loc_186c.js";
+import { stagePitchAndRaiseSoundFlag as loc_186c } from "../stagePitchAndRaiseSoundFlag.js";
 import { loc_186c as oracle } from "../../translated/loc_186c.js";
 
 const FLAG = 0x41c0; // raised to 1

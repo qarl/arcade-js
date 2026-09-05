@@ -9,7 +9,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { craft, ramDiff, romsPresent } from "./_bootSetup.js";
-import { loc_0972 as cand } from "../loc_0972.js";
+import { broadcastToStridedTable as cand } from "../broadcastToStridedTable.js";
 import { loc_0972 as oracle } from "../../translated/loc_0972.js";
 
 const BASE = 0x4028;
