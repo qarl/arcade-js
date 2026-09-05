@@ -89,6 +89,14 @@ score field and status-column VRAM base; `stampTilePair` `[code]` and `drawDoubl
 consecutive / double-height glyph pairs into the tilemap. `endMessageScrollOnExpiry` `[seen]` ticks a
 countdown and clears `MESSAGE_SCROLL_ENABLE` on the zero-crossing to stop the attract message scroller.
 
+## Decompiled but not yet understood (batch 2)
+A second decompile batch has lifted ~50 more leaf routines to idiomatic JS with equivalence tests, and
+their work-RAM/hardware cells are named in `names.js` at `[code]` confidence (object-field tables, occupancy
+grids, the message-scroller pointers, the sound write registers, coin/credit cells, and several role-unclear
+`loc_` placeholders). Those routines keep their `loc_<addr>` names and are **not narrated here yet** — their
+effect names and MAME grounding are the job of understanding pass 2, which will fold them into the subsystem
+sections above. Until then, treat this map as covering the batch-1 leaves plus the cell inventory.
+
 ## Open questions
 - The per-frame orchestration (main loop 0x200a, the rst-28 state dispatchers, the object update engine) is
   translated but not idiomatically decompiled — its narration above is inferred from the leaves it calls.
