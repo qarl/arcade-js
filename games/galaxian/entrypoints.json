@@ -1,1 +1,42 @@
-[]
+[
+  {
+    "addr": "0x2055",
+    "why": "loc_202c jp(hl) at 0x203c, state index (A&0x0f)=0 -> ptr (0x203d+2*0)=0x2055",
+    "provenance": "computed 16-bit pointer table (base 0x203d, 8 entries; 9th word 0x7be4 is out-of-ROM, bounding it); handlers RET to the pushed 0x200a. Static recovery, MAME-confirm pending."
+  },
+  {
+    "addr": "0x205e",
+    "why": "loc_202c jp(hl) at 0x203c, state index (A&0x0f)=1 -> ptr (0x203d+2*1)=0x205e",
+    "provenance": "computed 16-bit pointer table (base 0x203d), bounded @8; static, MAME-confirm pending"
+  },
+  {
+    "addr": "0x215f",
+    "why": "loc_202c jp(hl) at 0x203c, state index (A&0x0f)=2 -> ptr (0x203d+2*2)=0x215f",
+    "provenance": "computed 16-bit pointer table (base 0x203d), bounded @8; static, MAME-confirm pending"
+  },
+  {
+    "addr": "0x21a6",
+    "why": "loc_202c jp(hl) at 0x203c, state index (A&0x0f)=3 -> ptr (0x203d+2*3)=0x21a6",
+    "provenance": "computed 16-bit pointer table (base 0x203d), bounded @8; static, MAME-confirm pending"
+  },
+  {
+    "addr": "0x21fe",
+    "why": "loc_202c jp(hl) at 0x203c, state index (A&0x0f)=4 -> ptr (0x203d+2*4)=0x21fe",
+    "provenance": "computed 16-bit pointer table (base 0x203d), bounded @8; static, MAME-confirm pending"
+  },
+  {
+    "addr": "0x2231",
+    "why": "loc_202c jp(hl) at 0x203c, state index (A&0x0f)=5 -> ptr (0x203d+2*5)=0x2231",
+    "provenance": "computed 16-bit pointer table (base 0x203d), bounded @8; static, MAME-confirm pending"
+  },
+  {
+    "addr": "0x22f1",
+    "why": "loc_202c jp(hl) at 0x203c, state index (A&0x0f)=6 -> ptr (0x203d+2*6)=0x22f1",
+    "provenance": "computed 16-bit pointer table (base 0x203d), bounded @8; static, MAME-confirm pending"
+  },
+  {
+    "addr": "0x24b7",
+    "why": "loc_202c jp(hl) at 0x203c, state index (A&0x0f)=7 -> ptr (0x203d+2*7)=0x24b7",
+    "provenance": "computed 16-bit pointer table (base 0x203d), bounded @8; static, MAME-confirm pending"
+  }
+]
