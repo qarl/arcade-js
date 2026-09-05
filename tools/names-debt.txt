@@ -202,3 +202,26 @@ invaders 0x22ff
 # tilt/panic warm-restart banner cells (role read at decompile; promote at MAME stage-B grounding)
 invaders 0x1cbc
 invaders 0x3016
+
+# galaxian §4 decompile batch 1 — loc_ cell placeholders whose role is not yet consensus-confident
+# (two derivers disagreed, or role contested); the understand pass grounds + names them descriptively.
+galaxian 0x1e68
+galaxian 0x1edf
+galaxian 0x4001
+galaxian 0x4002
+galaxian 0x4007
+galaxian 0x4008
+galaxian 0x4009
+galaxian 0x401a
+galaxian 0x4021
+galaxian 0x4028
+galaxian 0x4195
+galaxian 0x41b5
+galaxian 0x41c0
+galaxian 0x41cf
+galaxian 0x41d1
+galaxian 0x41d2
+galaxian 0x41d6
+galaxian 0x41df
+galaxian 0x4208
+galaxian 0x420b
