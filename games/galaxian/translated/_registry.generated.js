@@ -11,7 +11,20 @@ import { loc_0020 } from "./loc_0020.js";
 import { loc_0028 } from "./loc_0028.js";
 import { loc_003c } from "./loc_003c.js";
 import { loc_0048 } from "./loc_0048.js";
+import { loc_004c } from "./loc_004c.js";
 import { loc_0050 } from "./loc_0050.js";
+import { loc_0066 } from "./loc_0066.js";
+import { loc_00d8 } from "./loc_00d8.js";
+import { loc_08f2 } from "./loc_08f2.js";
+import { loc_0908 } from "./loc_0908.js";
+import { loc_090b } from "./loc_090b.js";
+import { loc_16a6 } from "./loc_16a6.js";
+import { loc_16f5 } from "./loc_16f5.js";
+import { loc_1723 } from "./loc_1723.js";
+import { loc_1733 } from "./loc_1733.js";
+import { loc_1747 } from "./loc_1747.js";
+import { loc_175d } from "./loc_175d.js";
+import { loc_176c } from "./loc_176c.js";
 import { loc_1a55 } from "./loc_1a55.js";
 import { loc_1a5a } from "./loc_1a5a.js";
 import { loc_1a5c } from "./loc_1a5c.js";
@@ -48,6 +61,41 @@ import { loc_1c50 } from "./loc_1c50.js";
 import { loc_1c5d } from "./loc_1c5d.js";
 import { loc_1c68 } from "./loc_1c68.js";
 import { loc_1c73 } from "./loc_1c73.js";
+import { loc_1ccf } from "./loc_1ccf.js";
+import { loc_1cdc } from "./loc_1cdc.js";
+import { loc_1ceb } from "./loc_1ceb.js";
+import { loc_1d28 } from "./loc_1d28.js";
+import { loc_1d39 } from "./loc_1d39.js";
+import { loc_1d43 } from "./loc_1d43.js";
+import { loc_1d51 } from "./loc_1d51.js";
+import { loc_1d58 } from "./loc_1d58.js";
+import { loc_2000 } from "./loc_2000.js";
+import { loc_2005 } from "./loc_2005.js";
+import { loc_200a } from "./loc_200a.js";
+import { loc_2019 } from "./loc_2019.js";
+import { loc_202c } from "./loc_202c.js";
+import { loc_205e } from "./loc_205e.js";
+import { loc_2067 } from "./loc_2067.js";
+import { loc_207d } from "./loc_207d.js";
+import { loc_2089 } from "./loc_2089.js";
+import { loc_2094 } from "./loc_2094.js";
+import { loc_209c } from "./loc_209c.js";
+import { loc_20a7 } from "./loc_20a7.js";
+import { loc_20ac } from "./loc_20ac.js";
+import { loc_20cd } from "./loc_20cd.js";
+import { loc_20e1 } from "./loc_20e1.js";
+import { loc_210a } from "./loc_210a.js";
+import { loc_211d } from "./loc_211d.js";
+import { loc_2131 } from "./loc_2131.js";
+import { loc_213d } from "./loc_213d.js";
+import { loc_2146 } from "./loc_2146.js";
+import { loc_214a } from "./loc_214a.js";
+import { loc_214e } from "./loc_214e.js";
+import { loc_2583 } from "./loc_2583.js";
+import { loc_2585 } from "./loc_2585.js";
+import { loc_25a0 } from "./loc_25a0.js";
+import { loc_25a7 } from "./loc_25a7.js";
+import { loc_25a9 } from "./loc_25a9.js";
 
 export const ROUTINE_ENTRIES = [
   [0x0000, loc_0000],
@@ -57,7 +105,20 @@ export const ROUTINE_ENTRIES = [
   [0x0028, loc_0028],
   [0x003c, loc_003c],
   [0x0048, loc_0048],
+  [0x004c, loc_004c],
   [0x0050, loc_0050],
+  [0x0066, loc_0066],
+  [0x00d8, loc_00d8],
+  [0x08f2, loc_08f2],
+  [0x0908, loc_0908],
+  [0x090b, loc_090b],
+  [0x16a6, loc_16a6],
+  [0x16f5, loc_16f5],
+  [0x1723, loc_1723],
+  [0x1733, loc_1733],
+  [0x1747, loc_1747],
+  [0x175d, loc_175d],
+  [0x176c, loc_176c],
   [0x1a55, loc_1a55],
   [0x1a5a, loc_1a5a],
   [0x1a5c, loc_1a5c],
@@ -94,4 +155,39 @@ export const ROUTINE_ENTRIES = [
   [0x1c5d, loc_1c5d],
   [0x1c68, loc_1c68],
   [0x1c73, loc_1c73],
+  [0x1ccf, loc_1ccf],
+  [0x1cdc, loc_1cdc],
+  [0x1ceb, loc_1ceb],
+  [0x1d28, loc_1d28],
+  [0x1d39, loc_1d39],
+  [0x1d43, loc_1d43],
+  [0x1d51, loc_1d51],
+  [0x1d58, loc_1d58],
+  [0x2000, loc_2000],
+  [0x2005, loc_2005],
+  [0x200a, loc_200a],
+  [0x2019, loc_2019],
+  [0x202c, loc_202c],
+  [0x205e, loc_205e],
+  [0x2067, loc_2067],
+  [0x207d, loc_207d],
+  [0x2089, loc_2089],
+  [0x2094, loc_2094],
+  [0x209c, loc_209c],
+  [0x20a7, loc_20a7],
+  [0x20ac, loc_20ac],
+  [0x20cd, loc_20cd],
+  [0x20e1, loc_20e1],
+  [0x210a, loc_210a],
+  [0x211d, loc_211d],
+  [0x2131, loc_2131],
+  [0x213d, loc_213d],
+  [0x2146, loc_2146],
+  [0x214a, loc_214a],
+  [0x214e, loc_214e],
+  [0x2583, loc_2583],
+  [0x2585, loc_2585],
+  [0x25a0, loc_25a0],
+  [0x25a7, loc_25a7],
+  [0x25a9, loc_25a9],
 ];
