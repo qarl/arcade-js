@@ -24,6 +24,7 @@ Any flags after the known options are passed straight through to MAME.
 import argparse
 import json
 import os
+import shutil
 import sys
 import tempfile
 
