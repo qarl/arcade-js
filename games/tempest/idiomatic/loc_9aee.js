@@ -13,3 +13,14 @@ export function loc_9aee(m, y = m.regs.y) {
   const a = mem8[loc_29];
   return (m.regs.a = a);
 }
+
+// The same setup entered one step later: take the low pointer straight from the caller
+// instead of the fixed low table, then load the high pointer by index, stash the index,
+// and reload A from its holding cell.
+export function loc_9af1(m, a = m.regs.a, y = m.regs.y) {
+  const { mem8 } = m;
+  mem8[loc_2c] = a;
+  mem8[loc_2d] = mem8[u16(loc_9afd + y)];
+  mem8[loc_2b] = y;
+  return (m.regs.a = mem8[loc_29]);
+}

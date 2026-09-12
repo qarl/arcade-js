@@ -226,6 +226,7 @@ export const loc_160 = 0x0160;
 export const loc_16a = 0x016a;
 export const loc_16b = 0x016b;
 export const loc_16c = 0x016c;
+export const loc_16d = 0x016d;
 export const loc_16e = 0x016e;
 export const loc_1c6 = 0x01c6;
 export const loc_1c7 = 0x01c7;
@@ -390,6 +391,7 @@ export const loc_91c7 = 0x91c7;
 export const loc_91fe = 0x91fe;
 export const loc_9afd = 0x9afd;
 export const loc_9b02 = 0x9b02;
+export const loc_9b03 = 0x9b03;
 export const loc_a0f7 = 0xa0f7;
 export const loc_a0f8 = 0xa0f8;
 export const loc_a304 = 0xa304;
@@ -514,8 +516,10 @@ export const ROUTINES = {
   0x97f8: { name: "loc_97f8" },
   0x994d: { name: "loc_994d" },
   0x9a9d: { name: "loc_9a9d" },
+  0x9ab7: { name: "loc_9a9d", entry: "loc_9ab7" },
   0x9abb: { name: "loc_9abb" },
   0x9aee: { name: "loc_9aee" },
+  0x9af1: { name: "loc_9aee", entry: "loc_9af1" },
   0x9bca: { name: "loc_9bca" },
   0x9bcf: { name: "loc_9bcf" },
   0x9bd0: { name: "loc_9bd0" },

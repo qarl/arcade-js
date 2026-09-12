@@ -584,3 +584,5 @@ needing a register an intervening frozen leaf leaves that cannot yet be faithful
 Understanding pending: the deep-tail dissolve reached loc_904b and loc_c800 (both tail-delegating to the now-idiomatic loc_9749); their roles are grounded in the next understanding pass over this map.
 
 Understanding pending: a deep-tail pass dissolved the ready leaves `loc_97f8`, `loc_b5ad` and `loc_b230`; their roles are grounded in the next understanding pass over this map.
+
+Understanding pending: the `loc_9a9d` mid-entries `loc_9aa9`/`loc_9ab3`/`loc_9ab7` and the `loc_9aee` mid-entry `loc_9af1` were split into exported pointer-pair setup functions (each seats the low/high pointer pair at its own index and reloads A); their roles are grounded in the next understanding pass over this map.
