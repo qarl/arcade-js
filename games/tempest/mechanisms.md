@@ -576,10 +576,9 @@ The subsystems above are the idiomatic layer's decompiled set — the leaves, th
 them, and the computed-jump dispatchers `loc_b84e` and `loc_b5d7` (both described above). The rest of the
 reachable call graph still runs as the frozen translated oracle: the deeper callers whose callees are not
 yet decompiled, and the remaining computed-jump dispatchers that form the game's spine (each is decompiled
-only once all of its jump-table targets are idiomatic). Two register-thread callers remain deferred, each
+only once all of its jump-table targets are idiomatic). One register-thread caller remains deferred,
 needing a register an intervening frozen leaf leaves that cannot yet be faithfully modelled: `loc_c891`
-(whose call to `loc_ccfa` needs the X/Y left by a leaf with too many exit paths) and `loc_9749` (whose call
-to `loc_ccb5` needs the Y left by `loc_97c5`, not yet extended to return it). Deep-tail roles tagged
+(whose call to `loc_ccfa` needs the X/Y left by a leaf with too many exit paths). Deep-tail roles tagged
 `[code]` lift to `[seen]` once a capture drives the states that exercise them.
 
 Understanding pending: a deep-tail pass dissolved the ready leaves `loc_97f8`, `loc_b5ad` and `loc_b230`; their roles are grounded in the next understanding pass over this map.
