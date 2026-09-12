@@ -581,4 +581,6 @@ needing a register an intervening frozen leaf leaves that cannot yet be faithful
 (whose call to `loc_ccfa` needs the X/Y left by a leaf with too many exit paths). Deep-tail roles tagged
 `[code]` lift to `[seen]` once a capture drives the states that exercise them.
 
+Understanding pending: the deep-tail dissolve reached loc_904b and loc_c800 (both tail-delegating to the now-idiomatic loc_9749); their roles are grounded in the next understanding pass over this map.
+
 Understanding pending: a deep-tail pass dissolved the ready leaves `loc_97f8`, `loc_b5ad` and `loc_b230`; their roles are grounded in the next understanding pass over this map.
