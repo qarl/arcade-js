@@ -9,6 +9,6 @@ import { loc_b69b } from "./loc_b69b.js";
 // table; select the draw handler and tail-return its result to this routine's own caller.
 const TABLE = [loc_b5eb, loc_b71b, loc_b60f, loc_b622, loc_b69b];
 
-export function loc_b5d7(m, a = m.regs.a) {
-  return TABLE[a >> 1](m);
+export function loc_b5d7(m, a = m.regs.a, x = m.regs.x) {
+  return TABLE[a >> 1](m, x);
 }
