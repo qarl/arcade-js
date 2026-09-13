@@ -517,3 +517,5 @@ link return it. Deep-tail roles tagged `[code]` — including the `loc_9a88` arm
 drives the states that exercise them.
 
 Understanding pending: five motion movers were decompiled — `loc_9b07`, `loc_a06f`, `loc_9c58` (with its add/subtract mid-entries `loc_9c63`/`loc_9c99`) and `loc_9ef1`; their roles are grounded in the next understanding pass over this map. (`loc_9cb6` and the twenty-entry `loc_9b98` dispatcher that depends on it are held for a follow-up that threads the steering Y through the shared insert tail.)
+
+Understanding pending: loc_dd0d (the spinner/pot-readout vector builder that reads the DIP-switch ports loc_d00/loc_e00) was decompiled by threading the digit-run exit A up through loc_df5f/loc_df1f/loc_dd2b so it feeds loc_dbe0's POKEY pot-scan pulse; its role is grounded in the next understanding pass over this map.
