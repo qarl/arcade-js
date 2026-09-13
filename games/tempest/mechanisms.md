@@ -511,16 +511,17 @@ This subsystem gathers the small format-and-scratch helpers that other routines 
 ## Still on the frozen oracle
 
 The subsystems above are the idiomatic layer's decompiled set — the leaves, the caller routines that drive
-them, and the computed-jump dispatchers `loc_b84e`, `loc_b5d7` and `loc_9a88` (all described above). The
-rest of the reachable call graph still runs as the frozen translated oracle: the deeper callers whose
-callees are not yet decompiled, and the remaining computed-jump dispatchers that form the game's spine —
-`loc_9b98`, `loc_b20d`, `loc_db0f`, `loc_c7bd`, and the `loc_9677`/`loc_9683` pair — each decompiled only
-once all of its jump-table targets are idiomatic. Two register-thread callers remain deferred, each needing
-a register a deep clobbering chain leaves that cannot yet be faithfully threaded: `loc_c891` (whose call to
-`loc_ccfa` needs the X/Y left by `loc_de1b`, a many-exit-path leaf) and `loc_9cb6` (whose common tail hands
-`loc_a347` the Y that `loc_9c63` leaves, threaded up a deep `loc_9d06`/`loc_9d67` chain — the only remaining
-blocker for the `loc_9b98` dispatcher). Deep-tail roles tagged `[code]` lift to `[seen]` once a capture
-drives the states that exercise them.
+them, and the computed-jump dispatchers `loc_b84e`, `loc_b5d7` and `loc_9a88` (all described above). A
+handful of reachable routines still run as the frozen translated oracle. The bulk is the RESET / self-test
+and main-loop spine: `loc_d93f` (the RESET entry and display-finalize block), `loc_c7a0` (the main loop),
+`loc_b1b6`, the computed-jump dispatcher `loc_b20d`, and `loc_d804` are strongly connected — the cycle runs
+through `loc_b20d`'s dynamic dispatch into `loc_d804` — so they land as one unit, with `loc_d704` following
+once `loc_d93f` is idiomatic. The other three are a caller and two leaves: `loc_c891`, a register-thread
+caller whose call to `loc_ccfa` needs the X/Y left by `loc_de1b`; and the small table helpers `loc_9700` (a
+`loc_968f`-table coordinate-helper sibling reached through `loc_9677`) and `loc_9af6` (the deepest mid-entry
+of `loc_9aee`, the routine that seeds the source/destination pointers `loc_2c`/`loc_2d`; `loc_9af6` enters
+past both table loads to stash Y in `loc_2b` with those pointers already set by the caller). Deep-tail roles tagged `[code]`
+lift to `[seen]` once a capture drives the states that exercise them.
 
 `loc_db0f` [code] is the draw-handler dispatcher on the display-finalize path: it selects one of seven per-frame draw handlers — `loc_db5a`, `loc_dbf7`, `loc_db84`, `loc_db9a`, `loc_db7e`, `loc_db6f`, `loc_db22` — by a byte offset held in `loc_00` (handler index offset>>1); an out-of-range offset (>= 0x0e) is clamped to the second handler and the clamp persisted to `loc_00`. It is called from `loc_d93f`'s display-finalize block, which seats the display cursor at vector RAM 0x2000, derives `loc_4c`/`loc_4e`/`loc_50`/`loc_52` from an input port and a POKEY read, and pre-doubles the offset in `loc_00` before entering. Not reached in the gameplay+attract write-tap capture: that finalize block did not execute in the captured window (its sibling `loc_df0d` on the same path is likewise [code] not-reached), so it stands [code]; once a capture drives the display state that enters the block, it grounds derivatively on its dispatch cell `loc_00` plus its handlers.
 
@@ -580,6 +581,6 @@ drives the states that exercise them.
 
 `loc_9b98` [seen] is the 20-way motion/steering/coordinate dispatcher: the caller leaves a pre-doubled table offset in the incoming value, which selects one of twenty per-slot handlers (loc_9bca..loc_9c3b, including the steering step loc_9cb6) and runs it, the offset also riding into each handler's deeper object-insert tail. It is reached heavily in the capture (its computed-jump vectoring observed thousands of times). `loc_9cb6` [code] is one of those handlers — a per-slot steering step keyed on loc_28a,x bit7: it steps the slot coordinate (add or subtract via loc_9c63/loc_9c99), may reverse direction at the loc_157 threshold, and when the slot has settled into position seeds a fresh object; the index the step leaves in Y rides into that seed and is stored at loc_36. It is not reached in the capture (loc_9b98's observed dispatches selected other handlers), so its role rests on the code and its equivalence test.
 
-`loc_970b` [code] is a per-frame update driver: it runs nine per-frame passes in order (loc_9749, loc_a23f, loc_a83a, loc_98a2, loc_9b1e, loc_a18f, loc_a2a6, loc_a454, loc_a416) and tail-delegates to loc_a504. `loc_9b1e` [code] is one of those passes: when loc_201 is nonnegative it walks the active slots (loc_37 = loc_11c down), running a per-entry motion pass through the loc_9b98 dispatcher (the slot rides X, loc_a0f7 indexes the handler) until the loc_10a continue-flag clears, then it signed-accumulates the delta loc_147 into loc_148 and negates loc_147 when loc_148 leaves the [0x0f,0xc0] band. Both were decompiled; their per-frame roles are grounded in the next understanding pass.
+`loc_970b` [seen] is a per-frame update driver: it runs nine per-frame passes in order (loc_9749, loc_a23f, loc_a83a, loc_98a2, loc_9b1e, loc_a18f, loc_a2a6, loc_a454, loc_a416) and tail-delegates to loc_a504. It makes no role-defining own write; it grounds as a driver, reached each frame (n=1227) with its call sites (pc 0x970b through 0x9723) pushing returns into its own 0x97xx body in sequence as it dispatches its [seen] pass set in order. `loc_9b1e` [seen] is one of those passes: when loc_201 is nonnegative it walks the active slots (loc_37 = loc_11c down), running a per-entry motion pass through the loc_9b98 dispatcher (the slot rides X, loc_a0f7 indexes the handler) until the loc_10a continue-flag clears, then it signed-accumulates the delta loc_147 into loc_148 and negates loc_147 when loc_148 leaves the [0x0f,0xc0] band. It is heavily reached, its role-defining writes observed: the motion cursor loc_10b (pc 0x9b44, n=21374), the slot-walk index loc_37 (pc 0x9b52), the continue flag loc_10a (pc 0x9b31), the per-slot cursor store-back loc_291,x (pc 0x9b4f), the accumulator loc_148 (pc 0x9b61) and the direction-reversing negate of loc_147 (pc 0x9b94).
 
-`loc_c7bd` [code] is a DSW-gated per-frame handler dispatcher: when the coinage dip (loc_d00 & 0x83) reads 0x82 it does nothing; otherwise it runs a pre-pass, marks bit7 of loc_4e, and selects one of eighteen per-frame handlers by the byte offset in loc_00 (a nineteen-entry table whose one unused slot holds a zero word). Decompiled as a direct table select; its per-frame role is grounded in the next understanding pass.
+`loc_c7bd` [seen] is a DSW-gated per-frame handler dispatcher: when the coinage dip (loc_d00 & 0x83) reads 0x82 it does nothing; otherwise it runs a pre-pass, marks bit7 of loc_4e, and selects one of eighteen per-frame handlers by the byte offset in loc_00 (a nineteen-entry table whose one unused slot holds a zero word). It is reached (n=2431) and producing: its role-defining write loc_4e |= 0x80 is observed (pc 0xc7cf), and the RTS-trick dispatch into the selected handler is exercised (pc 0xc7d8).
