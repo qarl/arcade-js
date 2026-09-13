@@ -2,7 +2,8 @@
 // Memory-equivalence for loc_dd2b (ROM 0xdd2b-0xdd40) -- stashes Y at $35, scales A,X via loc_df75, then
 // shifts $35 out MSB-first over 8 passes ($37 = 7..0), emitting each carry bit through loc_df1f. The
 // idiomatic side dissolves the two jsr into direct loc_df75(m, a, x) and loc_df1f(m, bit) calls. Live-out is
-// memory only ($35 ends 0x00, $37 ends 0xff, plus the emitted records); registers are NOT asserted. Run:
+// memory ($35 ends 0x00, $37 ends 0xff, plus the emitted records) PLUS exit A -- the LAST loc_df1f return
+// (the cursor value), threaded up the chain to dd0d; the arms compare RAM AND A. Run:
 // node --test games/tempest/idiomatic/test/equivalence-dd2b.test.js
 
 import nodeTest from "node:test";
@@ -40,11 +41,12 @@ function captureDispatches(K, maxFrames) {
 }
 const CAPS = ROM_PRESENT ? captureDispatches(16, 2000) : [];
 
-test("CAPTURE: real 0xdd2b dispatches -- loc_dd2b == oracle in RAM (-stack)", () => {
+test("CAPTURE: real 0xdd2b dispatches -- loc_dd2b == oracle in RAM (-stack) and A live-out", () => {
   for (const cap of CAPS) {
     const o = cap.clone(), c = cap.clone();
     oracle(o); loc_dd2b(c);
     assert.equal(ramDiff(o, c), null);
+    assert.equal(c.regs.a, o.regs.a, "A live-out (last df1f cursor value) matches");
   }
   console.log(`  CAPTURE: ${CAPS.length} dispatch(es) checked`);
 });
@@ -61,6 +63,7 @@ test("CRAFTED: distinct A/X and a mixed bit pattern -- loc_dd2b == oracle in RAM
   const c = new Machine(ROM, OPTS); seedDistinct(c);
   oracle(o); loc_dd2b(c);
   assert.equal(ramDiff(o, c), null, "RAM equal after scale + 8 digit emits");
+  assert.equal(c.regs.a, o.regs.a, "A live-out (last df1f cursor value) matches");
   assert.equal(c.mem.read8(loc_35), 0x00, "$35 shifted fully out to 0");
   assert.equal(c.mem.read8(loc_37), 0xff, "$37 loop counter ran to 0xff");
 });

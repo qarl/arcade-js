@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for loc_df5f (ROM 0xdf5f) -- advance the ($74/$75) little-endian display-list cursor
-// by Y+1 (tya; sec; adc $74; sta $74) and carry into $75. Live-out is RAM only ($74 + conditionally $75);
-// A is scratch, so the arms compare RAM (-stack). Plain (non-dispatching) rewrite -- no SP tooth. No POKEY
+// by Y+1 (tya; sec; adc $74; sta $74) and carry into $75. Live-out is RAM ($74 + conditionally $75) PLUS A:
+// the exit A is the new cursor low byte (adc leaves it in A), threaded up the digit-emit chain to dd0d, so
+// the arms compare RAM (-stack) AND A. Plain (non-dispatching) rewrite -- no SP tooth. No POKEY
 // read, so the CRAFTED seed diffs are deterministic.
 // Run: node --test games/tempest/idiomatic/test/equivalence-df5f.test.js
 
@@ -31,10 +32,11 @@ const ramDiff = (ma, mb) =>
   firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 // Y (the stride-minus-one) is the only register read on entry; the clone carries it.
-function diffFrom(cap) {
+// Returns { diff, o, c } so callers can also assert the A live-out (the new cursor low byte).
+function runFrom(cap) {
   const o = cap.clone(), c = cap.clone();
   oracle(o); loc_df5f(c, c.regs.y);
-  return ramDiff(o, c);
+  return { diff: ramDiff(o, c), o, c };
 }
 
 function captureDispatches(K, maxFrames) {
@@ -45,8 +47,12 @@ function captureDispatches(K, maxFrames) {
 }
 const CAPS = ROM_PRESENT ? captureDispatches(16, 2000) : [];
 
-test("CAPTURE: real 0xdf5f dispatches -- loc_df5f == oracle in RAM (-stack)", () => {
-  for (const cap of CAPS) assert.equal(diffFrom(cap), null);
+test("CAPTURE: real 0xdf5f dispatches -- loc_df5f == oracle in RAM (-stack) and A live-out", () => {
+  for (const cap of CAPS) {
+    const { diff, o, c } = runFrom(cap);
+    assert.equal(diff, null);
+    assert.equal(c.regs.a, o.regs.a, "A live-out (new cursor low byte) matches");
+  }
   console.log(`  CAPTURE: ${CAPS.length} dispatch(es) checked`);
 });
 
@@ -67,6 +73,7 @@ test("CRAFTED: no-carry / carry / boundary cursor advance == oracle (RAM -stack)
     const c = new Machine(ROM, OPTS); seed(c, { [loc_74]: t.lo, [loc_75]: t.hi }); c.regs.y = t.y;
     oracle(o); loc_df5f(c, c.regs.y);
     assert.equal(ramDiff(o, c), null, `RAM: ${t.tag}`);
+    assert.equal(c.regs.a, o.regs.a, `A live-out: ${t.tag}`);
   }
 });
 
