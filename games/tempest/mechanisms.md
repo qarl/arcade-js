@@ -516,9 +516,16 @@ handful of reachable routines still run as the frozen translated oracle. The bul
 and main-loop spine: `loc_d93f` (the RESET entry and display-finalize block), `loc_c7a0` (the main loop),
 `loc_b1b6`, the computed-jump dispatcher `loc_b20d`, and `loc_d804` are strongly connected — the cycle runs
 through `loc_b20d`'s dynamic dispatch into `loc_d804` — so they land as one unit, with `loc_d704` following
-once `loc_d93f` is idiomatic. The last is `loc_c891`, a register-thread caller whose call to `loc_ccfa`
-needs the X/Y left by `loc_de1b`. Deep-tail roles tagged `[code]`
+once `loc_d93f` is idiomatic. Deep-tail roles tagged `[code]`
 lift to `[seen]` once a capture drives the states that exercise them.
+
+`loc_c891` [code] is a per-frame dispatcher. From the coin input `loc_c00`, the mode flag `loc_5`, and the
+phase counters `loc_a`/`loc_6`, it seeds the speed/mode cells `loc_00`/`loc_1`/`loc_a2`, running the setup
+step `loc_c81b` on the appropriate phase; a common tail then advances the frame counter `loc_3` and fires
+the periodic sub-steps — the EAROM step `loc_de1b` on odd frames and the sound-register call `loc_ccfa` when
+`loc_c` is live — carrying the slot index (X/Y) from one sub-step into the next. When `loc_16c` is set and
+`loc_9f` exceeds 0x13 it leaves the CPU in decimal mode for the arithmetic that follows the dispatcher, and
+finally it trims bit7 of `loc_4e`. Its per-frame role is grounded in the next understanding pass.
 
 `loc_db0f` [code] is the draw-handler dispatcher on the display-finalize path: it selects one of seven per-frame draw handlers — `loc_db5a`, `loc_dbf7`, `loc_db84`, `loc_db9a`, `loc_db7e`, `loc_db6f`, `loc_db22` — by a byte offset held in `loc_00` (handler index offset>>1); an out-of-range offset (>= 0x0e) is clamped to the second handler and the clamp persisted to `loc_00`. It is called from `loc_d93f`'s display-finalize block, which seats the display cursor at vector RAM 0x2000, derives `loc_4c`/`loc_4e`/`loc_50`/`loc_52` from an input port and a POKEY read, and pre-doubles the offset in `loc_00` before entering. Not reached in the gameplay+attract write-tap capture: that finalize block did not execute in the captured window (its sibling `loc_df0d` on the same path is likewise [code] not-reached), so it stands [code]; once a capture drives the display state that enters the block, it grounds derivatively on its dispatch cell `loc_00` plus its handlers.
 

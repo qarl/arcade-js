@@ -774,6 +774,7 @@ export const ROUTINES = {
   0xc7bd: { name: "loc_c7bd" },
   0xc800: { name: "loc_c800" },
   0xc81b: { name: "loc_c81b" },
+  0xc891: { name: "loc_c891" },
   0xc97b: { name: "loc_c97b" },
   0xc9af: { name: "loc_c9af" },
   0xc9f1: { name: "loc_c9f1" },
