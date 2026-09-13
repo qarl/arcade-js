@@ -11,12 +11,14 @@ import {
 // rebuilds a single-bit mask, seeds the row pointer from the packed tables, then
 // walks the port block emitting one entry per pass and advancing the cursor,
 // re-entering from the top until the pass count comes back nonzero.
-export function loc_de1b(m) {
+// Live-out: the exit X/Y, returned as [x, y] (a caller reads them); X/Y carry
+// across the outer passes rather than resetting each one.
+export function loc_de1b(m, x = m.regs.x, y = m.regs.y) {
   const { mem8 } = m;
   const ind = (yy) => u16(((mem8[loc_be] << 8) | mem8[loc_bd]) + yy);
 
   outer: for (;;) {
-    let a = 0, x = 0, y = 0, c = false;
+    let a = 0, c = false;
 
     if (mem8[loc_1ca] === 0 && mem8[loc_1c7] !== 0) {
       // Fresh row: clear the counters and rebuild the walking mask in $1ce.
@@ -44,10 +46,11 @@ export function loc_de1b(m) {
       mem8[loc_be] = mem8[u16(loc_dde4 + x)];
     }
 
-    // Common block: reset the control port, bail when the mode byte is clear.
-    mem8[loc_6040] = 0;
+    // Common block: clear Y (LDY #0), reset the control port, bail when the mode byte is clear.
+    y = 0x00;
+    mem8[loc_6040] = y;
     a = mem8[loc_1ca];
-    if (a === 0) return;
+    if (a === 0) return [x, y];
 
     y = mem8[loc_1cb];
     x = mem8[loc_1cc];
@@ -116,7 +119,7 @@ export function loc_de1b(m) {
     }
     // deff
     mem8[loc_6040] = y;
-    if (y !== 0) return;
+    if (y !== 0) return [x, y];
     continue outer;
   }
 }
