@@ -24,3 +24,12 @@ export function loc_9af1(m, a = m.regs.a, y = m.regs.y) {
   mem8[loc_2b] = y;
   return (m.regs.a = mem8[loc_29]);
 }
+
+// Entered past both table loads: the caller has already set the low pointer, so this takes the high
+// pointer straight from A, stashes the index, and reloads A from its holding cell.
+export function loc_9af6(m, a = m.regs.a, y = m.regs.y) {
+  const { mem8 } = m;
+  mem8[loc_2b] = y;
+  mem8[loc_2d] = a;
+  return (m.regs.a = mem8[loc_29]);
+}
