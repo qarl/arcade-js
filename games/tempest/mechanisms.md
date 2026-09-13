@@ -515,3 +515,5 @@ input A is the exit A of the `loc_df1f`→`loc_dd2b`→`loc_dd29`→`loc_dd27` c
 link return it. Deep-tail roles tagged `[code]` — including the `loc_9a88` arms `loc_9aa9`, `loc_9ab3` and
 `loc_9ab7`, reached only when that dispatcher is driven at indices 1/3/4 — lift to `[seen]` once a capture
 drives the states that exercise them.
+
+Understanding pending: five motion movers were decompiled — `loc_9b07`, `loc_a06f`, `loc_9c58` (with its add/subtract mid-entries `loc_9c63`/`loc_9c99`) and `loc_9ef1`; their roles are grounded in the next understanding pass over this map. (`loc_9cb6` and the twenty-entry `loc_9b98` dispatcher that depends on it are held for a follow-up that threads the steering Y through the shared insert tail.)
