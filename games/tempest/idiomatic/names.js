@@ -500,7 +500,71 @@ export const loc_dfdc = 0xdfdc;
 export const loc_dfe4 = 0xdfe4;
 export const loc_dfe8 = 0xdfe8;
 
+export const loc_4c = 0x4c;
+export const loc_a7 = 0xa7;
+export const loc_b3 = 0xb3;
+export const loc_129 = 0x0129;
+export const loc_12e = 0x012e;
+export const loc_13d = 0x013d;
+export const loc_13f = 0x013f;
+export const loc_14a = 0x014a;
+export const loc_14f = 0x014f;
+export const loc_150 = 0x0150;
+export const loc_151 = 0x0151;
+export const loc_152 = 0x0152;
+export const loc_153 = 0x0153;
+export const loc_154 = 0x0154;
+export const loc_155 = 0x0155;
+export const loc_15e = 0x015e;
+export const loc_161 = 0x0161;
+export const loc_162 = 0x0162;
+export const loc_163 = 0x0163;
+export const loc_166 = 0x0166;
+export const loc_167 = 0x0167;
+export const loc_168 = 0x0168;
+export const loc_27f = 0x027f;
+export const loc_2c0 = 0x02c0;
+export const loc_4800 = 0x4800;
+export const loc_5000 = 0x5000;
+export const loc_60c4 = 0x60c4;
+export const loc_60c5 = 0x60c5;
+export const loc_9604 = 0x9604;
+export const loc_969d = 0x969d;
+export const loc_a3c5 = 0xa3c5;
+export const loc_a883 = 0xa883;
+export const loc_ca38 = 0xca38;
+export const loc_daf9 = 0xdaf9;
+
 export const ROUTINES = {
+  0x9677: { name: "loc_9677" },
+  0x9683: { name: "loc_9683" },
+  0x9a87: { name: "loc_9a87" },
+  0xa309: { name: "loc_a309" },
+  0xa398: { name: "loc_a398" },
+  0xda62: { name: "loc_da62" },
+  0x92c5: { name: "loc_92c5" },
+  0x99a5: { name: "loc_99a5" },
+  0xa38e: { name: "loc_a38e" },
+  0xa888: { name: "loc_a888" },
+  0xda0a: { name: "loc_da0a" },
+  0x9009: { name: "loc_9009" },
+  0x9025: { name: "loc_9025" },
+  0x90c4: { name: "loc_90c4" },
+  0x9923: { name: "loc_9923" },
+  0xa463: { name: "loc_a463" },
+  0xa83a: { name: "loc_a83a" },
+  0xd8ca: { name: "loc_d8ca" },
+  0x98a2: { name: "loc_98a2" },
+  0xa23f: { name: "loc_a23f" },
+  0xa454: { name: "loc_a454" },
+  0xc90c: { name: "loc_c90c" },
+  0xc940: { name: "loc_c940" },
+  0xc98c: { name: "loc_c98c" },
+  0x9729: { name: "loc_9729" },
+  0x9108: { name: "loc_90c4", entry: "loc_9108" },
+  0x9149: { name: "loc_90c4", entry: "loc_9149" },
+  0xd8cd: { name: "loc_d8ca", entry: "loc_d8cd" },
+
   0x902b: { name: "loc_902b" },
   0x904b: { name: "loc_904b" },
   0x91b5: { name: "loc_91b5" },
