@@ -523,3 +523,5 @@ blocker for the `loc_9b98` dispatcher). Deep-tail roles tagged `[code]` lift to 
 drives the states that exercise them.
 
 Understanding pending: loc_dbf7 (the per-frame vector-list emit reached through the loc_db0f dispatcher — it advances the loc_2e/loc_2f counter, builds the POKEY control cells, fires the digit/coordinate draws, and walks the loc_7d and loc_78 tables) was decompiled; its role is grounded in the next understanding pass over this map.
+
+`loc_db0f` is the per-frame draw-handler dispatcher: it selects one of seven handlers by a byte offset held in `loc_00` (offsets 0..12, i.e. handler index offset>>1); an out-of-range offset (>= 0x0e) is clamped to the second handler and the clamp written back to `loc_00`. The seven handlers are `loc_db5a, loc_dbf7, loc_db84, loc_db9a, loc_db7e, loc_db6f, loc_db22` — the vector-list emit `loc_dbf7` among them. All seven are now covered, so the dispatcher is dissolved to a direct table select. `[code]` roles lift to `[seen]` once a capture drives the states that reach this path.
