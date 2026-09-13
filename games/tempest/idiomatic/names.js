@@ -65,6 +65,7 @@ export const loc_4d = 0x004d;
 export const loc_4e = 0x004e;
 export const loc_50 = 0x0050;
 export const loc_51 = 0x0051;
+export const loc_52 = 0x0052;
 export const loc_53 = 0x0053;
 export const loc_55 = 0x0055;
 export const loc_56 = 0x0056;
@@ -355,6 +356,7 @@ export const loc_3284 = 0x3284;
 export const loc_3286 = 0x3286;
 export const loc_3db2 = 0x3db2;
 export const loc_3db3 = 0x3db3;
+export const loc_4000 = 0x4000;
 export const loc_5800 = 0x5800;
 export const loc_6000 = 0x6000;
 export const loc_6040 = 0x6040;
@@ -379,6 +381,8 @@ export const loc_6095 = 0x6095;
 export const loc_6096 = 0x6096;
 export const loc_60c0 = 0x60c0;
 export const loc_60c1 = 0x60c1;
+export const loc_60c2 = 0x60c2;
+export const loc_60c3 = 0x60c3;
 export const loc_60c8 = 0x60c8;
 export const loc_60ca = 0x60ca;
 export const loc_60cb = 0x60cb;
@@ -487,11 +491,14 @@ export const loc_d6f7 = 0xd6f7;
 export const loc_d6ff = 0xd6ff;
 export const loc_dbd5 = 0xdbd5;
 export const loc_dbd6 = 0xdbd6;
+export const loc_dce1 = 0xdce1;
 export const loc_dddd = 0xdddd;
 export const loc_ddde = 0xddde;
 export const loc_dde3 = 0xdde3;
 export const loc_dde4 = 0xdde4;
 export const loc_dfdc = 0xdfdc;
+export const loc_dfe4 = 0xdfe4;
+export const loc_dfe8 = 0xdfe8;
 
 export const ROUTINES = {
   0x902b: { name: "loc_902b" },
@@ -731,6 +738,7 @@ export const ROUTINES = {
   0xdb9a: { name: "loc_db9a" },
   0xdbe0: { name: "loc_dbe0" },
   0xdce6: { name: "loc_dce6" },
+  0xdbf7: { name: "loc_dbf7" },
   0xdd0d: { name: "loc_dd0d" },
   0xdd27: { name: "loc_dd27" },
   0xdd29: { name: "loc_dd29" },

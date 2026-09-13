@@ -521,3 +521,5 @@ a register a deep clobbering chain leaves that cannot yet be faithfully threaded
 `loc_a347` the Y that `loc_9c63` leaves, threaded up a deep `loc_9d06`/`loc_9d67` chain — the only remaining
 blocker for the `loc_9b98` dispatcher). Deep-tail roles tagged `[code]` lift to `[seen]` once a capture
 drives the states that exercise them.
+
+Understanding pending: loc_dbf7 (the per-frame vector-list emit reached through the loc_db0f dispatcher — it advances the loc_2e/loc_2f counter, builds the POKEY control cells, fires the digit/coordinate draws, and walks the loc_7d and loc_78 tables) was decompiled; its role is grounded in the next understanding pass over this map.
