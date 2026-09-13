@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { u8, u16 } from "../../../core/int.js";
 import {
-  loc_202, loc_2df, loc_283, loc_3ab, loc_28a, loc_108, loc_109, loc_38, loc_10b,
+  loc_202, loc_2df, loc_283, loc_3ab, loc_28a, loc_108, loc_109, loc_38, loc_10b, loc_2b9,
 } from "./names.js";
 import { loc_9d67 } from "./loc_9d67.js";
 
@@ -37,8 +37,10 @@ export function loc_9d06(m, x = m.regs.x) {
     }
     // Copy the matched slot's bit6, inverted, into slot x's flag byte.
     mem8[u16(loc_283 + x)] = (mem8[u16(loc_283 + y)] & 0x40) ^ 0x40;
+    m.regs.y = y; // Y here is the scan index (matched slot, or 0xff on no match), a tail live-out
   } else {
     loc_9d67(m, x);
+    m.regs.y = mem8[u16(loc_2b9 + x)]; // the deeper step leaves Y = loc_2b9,x
   }
 
   mem8[loc_10b] = 0x41;

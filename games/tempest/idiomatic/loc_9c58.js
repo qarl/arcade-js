@@ -23,6 +23,8 @@ export function loc_9c58(m, x = m.regs.x) {
 // come back as the slot index).
 export function loc_9c63(m, x = m.regs.x, y = m.regs.y) {
   const { mem8 } = m;
+  m.regs.y = y; // enter with Y = the delta index; the plain arms leave Y here as a live-out
+                // the caller's tail reads
   const loSum = mem8[u16(loc_29f + x)] + mem8[u16(loc_160 + y)]; // clc: carry-in 0
   mem8[u16(loc_29f + x)] = loSum;
   const carry = loSum > 0xff ? 1 : 0;
@@ -32,6 +34,7 @@ export function loc_9c63(m, x = m.regs.x, y = m.regs.y) {
   if (hi <= mem8[loc_202]) { loc_9d06(m, x); return; } // at/below the floor: step the slot (A/Y incidental)
   if (hi >= 0x20) return (m.regs.a = hi);              // above 0x20 -> done, A live-out is the new hi
   if ((mem8[u16(loc_28a + x)] & 0x03) === 0) return (m.regs.a = 0x00); // gate clear -> done, A = 0
+  m.regs.y = x; // Y = the slot index into the retire helper (which preserves it), a tail live-out
   loc_a06f(m, x, x);
   return (m.regs.a = x); // retire done -> A and X come back as the slot index
 }

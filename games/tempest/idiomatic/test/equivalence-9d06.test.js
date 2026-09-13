@@ -2,7 +2,9 @@
 // Memory-equivalence for loc_9d06 (ROM 0x9d06-0x9d66) -- per-slot(x) step over the $02df/$0283 slot
 // tables. Dissolves the jsr $9d67 into a direct idiomatic call. The oracle m.calls the frozen 9d67; the
 // idiomatic calls idiomatic 9d67. All output is RAM (slot tables, $0108/$0109/$010b), so each arm
-// compares the RAM diff (minus the dead stack). An omitted-ret rewrite. A/X/Y at RTS incidental.
+// compares the RAM diff (minus the dead stack). An omitted-ret rewrite. A/X at RTS incidental; Y is a
+// live-out on the scan and 9d67 arms (the oracle leaves the scan index / $02b9,x in Y), consumed by
+// loc_9cb6's tail after this delegate, so it carries a standing comparison arm.
 // Run: node --test games/tempest/idiomatic/test/equivalence-9d06.test.js
 
 import nodeTest from "node:test";
@@ -79,6 +81,23 @@ test("CRAFTED: seeded states across every branch == oracle (RAM)", () => {
     oracle(o); loc_9d06(c);
     assert.equal(ramDiff(o, c), null, s.tag);
   }
+});
+
+test("Y-LIVE-OUT: the scan index / 9d67 Y is reproduced (loc_9cb6 reads it after the delegate)", () => {
+  // scan-match arm: the oracle leaves Y = the matched scan slot index.
+  const scan = { c109: 1, flags: [0, 0, 0, 0x02, 0, 0, 0], shared: 0x55, stash: [0, 0, 0, 0, 0, 0, 0x55] };
+  let o = new Machine(ROM, OPTS); seat(o, scan);
+  let c = new Machine(ROM, OPTS); seat(c, scan);
+  oracle(o); loc_9d06(c);
+  assert.equal(ramDiff(o, c), null, "scan arm RAM");
+  assert.equal(c.regs.y, o.regs.y, "scan arm: Y live-out (the scan index) matches the oracle");
+  // 9d67 arm: the oracle leaves Y = loc_2b9,x.
+  const j = { c109: 2, flags: [0, 0, 0, 0x02, 0, 0, 0] };
+  o = new Machine(ROM, OPTS); seat(o, j);
+  c = new Machine(ROM, OPTS); seat(c, j);
+  oracle(o); loc_9d06(c);
+  assert.equal(ramDiff(o, c), null, "9d67 arm RAM");
+  assert.equal(c.regs.y, o.regs.y, "9d67 arm: Y live-out (loc_2b9,x) matches the oracle");
 });
 
 test("TEETH: a twin that skips the $010b tail store diverges from the oracle", () => {
