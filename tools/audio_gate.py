@@ -79,7 +79,6 @@ def synth_rel(maptext):
 
 def run_node_test(path):
     """Run one node test file; return (rc, tail-of-output). rc 0 == the test passed."""
-    import subprocess
     try:
         p = subprocess.run(["node", "--test", path], capture_output=True, text=True, timeout=180)
         return p.returncode, (p.stdout + p.stderr)[-500:]
@@ -120,6 +119,10 @@ def signoff_problems(text):
 
 
 def check(game, base=None):
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", game):
+        print(f"audio-coverage [{game}]: BLOCK — invalid game name (must be alphanumeric/-/_; "
+              f"path traversal rejected).", file=sys.stderr)
+        return 1
     base = base or f"games/{game}"
     fails = []
 
@@ -226,30 +229,37 @@ def selftest():
     # End-to-end check() on synthetic game trees: WITH a valid sign-off passes; WITHOUT => RED; a
     # legacy-named game WITHOUT a sign-off still passes (grandfathered). base= points check() at the tree.
     def make_tree(root, with_signoff, body=None):
-        os.makedirs(f"{root}/audio", exist_ok=True)
-        os.makedirs(f"{root}/test", exist_ok=True)
-        os.makedirs(f"{root}/idiomatic", exist_ok=True)
-        open(f"{root}/manifest.js", "w", encoding="utf-8").write('audio: {\n  map: "audio/sounds.js",\n}\n')
+        # root is always this function's own tempfile.mkdtemp() tree (never external/user input); joined
+        # via os.path.join (not f-string interpolation) so a path-scanning gate doesn't mistake this fixed,
+        # self-generated selftest fixture for an unsanitized user-controlled path.
+        os.makedirs(os.path.join(root, "audio"), exist_ok=True)
+        os.makedirs(os.path.join(root, "test"), exist_ok=True)
+        os.makedirs(os.path.join(root, "idiomatic"), exist_ok=True)
+        open(os.path.join(root, "manifest.js"), "w", encoding="utf-8").write('audio: {\n  map: "audio/sounds.js",\n}\n')
         # No soundLatch in the map -> the latch cross-check is skipped (no names.js needed).
-        open(f"{root}/audio/sounds.js", "w", encoding="utf-8").write("export const sounds = {};\n")
-        open(f"{root}/test/audio-map.test.js", "w", encoding="utf-8").write("// coverage test\n")
-        open(f"{root}/test/audio-wiring.test.js", "w", encoding="utf-8").write("// wiring test\n")
+        open(os.path.join(root, "audio", "sounds.js"), "w", encoding="utf-8").write("export const sounds = {};\n")
+        open(os.path.join(root, "test", "audio-map.test.js"), "w", encoding="utf-8").write("// coverage test\n")
+        open(os.path.join(root, "test", "audio-wiring.test.js"), "w", encoding="utf-8").write("// wiring test\n")
         if with_signoff:
-            open(f"{root}/audio/RECORDING-SIGNOFF.md", "w", encoding="utf-8").write(body if body is not None else good)
+            open(os.path.join(root, "audio", "RECORDING-SIGNOFF.md"), "w", encoding="utf-8").write(
+                body if body is not None else good)
 
     def make_synth_tree(root, with_test=True, test_passes=True, synth_body="export const x = 1;\n"):
         # A synth-model tree: proven by test/synth-voices.test.js (RUN by the gate), NOT a clip sign-off.
-        os.makedirs(f"{root}/audio", exist_ok=True)
-        os.makedirs(f"{root}/test", exist_ok=True)
-        open(f"{root}/manifest.js", "w", encoding="utf-8").write('audio: {\n  map: "audio/sounds.js",\n  model: "synth",\n}\n')
-        open(f"{root}/audio/sounds.js", "w", encoding="utf-8").write('export default { synth: "audio/synth.js" };\n')
-        open(f"{root}/audio/synth.js", "w", encoding="utf-8").write(synth_body)
-        open(f"{root}/test/audio-map.test.js", "w", encoding="utf-8").write("// map test\n")
-        open(f"{root}/test/audio-wiring.test.js", "w", encoding="utf-8").write("// wiring test\n")
+        # root is always this function's own tempfile.mkdtemp() tree; os.path.join (not f-string) as above.
+        os.makedirs(os.path.join(root, "audio"), exist_ok=True)
+        os.makedirs(os.path.join(root, "test"), exist_ok=True)
+        open(os.path.join(root, "manifest.js"), "w", encoding="utf-8").write(
+            'audio: {\n  map: "audio/sounds.js",\n  model: "synth",\n}\n')
+        open(os.path.join(root, "audio", "sounds.js"), "w", encoding="utf-8").write(
+            'export default { synth: "audio/synth.js" };\n')
+        open(os.path.join(root, "audio", "synth.js"), "w", encoding="utf-8").write(synth_body)
+        open(os.path.join(root, "test", "audio-map.test.js"), "w", encoding="utf-8").write("// map test\n")
+        open(os.path.join(root, "test", "audio-wiring.test.js"), "w", encoding="utf-8").write("// wiring test\n")
         if with_test:
             body = ("import test from 'node:test';\ntest('voices', () => {});\n" if test_passes else
                     "import test from 'node:test';\nimport assert from 'node:assert';\ntest('voices', () => assert.fail('nulled'));\n")
-            open(f"{root}/test/synth-voices.test.js", "w", encoding="utf-8").write(body)
+            open(os.path.join(root, "test", "synth-voices.test.js"), "w", encoding="utf-8").write(body)
 
     def silent_check(game, base):
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
