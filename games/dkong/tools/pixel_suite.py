@@ -40,7 +40,6 @@ WHY THIS IS BUILT THE WAY IT IS (all four numbers MEASURED, see the block commen
 import argparse
 import json
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -54,6 +53,7 @@ import numpy as np  # noqa: E402
 import pixel_gate  # noqa: E402
 from framediff import FROZEN_OFFSET  # noqa: E402
 from hardware import Hardware  # noqa: E402
+from raw_dumps import raw_dumps  # noqa: E402
 
 HW = os.path.join(REPO, "boards", "dkong", "hardware.json")
 DRIVER = "dkong"
@@ -420,7 +420,7 @@ def run_done(a):
     print(f"  layer: {'IDIOMATIC (generator engine, renderFrame snapshot)' if cfg['idiomatic'] else 'oracle (cycle-driven)'}"
           f"  (--done: attract completeness + tape gameplay, pinned reconverge)")
     work = tempfile.mkdtemp(prefix="dkong_pixel_done_")
-    try:
+    with raw_dumps(work, keep=a.keep_frames, rmtree=True):
         # PART A -- attract COMPLETENESS (input-free golden, a full attract window, reconverged).
         ok, why = _done_part(work, "attract", a.rompath, DONE_ATTRACT_SECONDS, cfg)
         if not ok:
@@ -434,8 +434,6 @@ def run_done(a):
             return 1
         print("pixel_suite: PASS")
         return 0
-    finally:
-        shutil.rmtree(work, ignore_errors=True)
 
 
 def main():
@@ -449,6 +447,9 @@ def main():
     p.add_argument("--done", action="store_true",
                    help="the runbook DONE bar: attract COMPLETENESS + tape-driven GAMEPLAY vs MAME "
                         "(drift-tolerant whole-run reconverge), NOT the per-commit fixed-window tripwire.")
+    p.add_argument("--keep-frames", action="store_true",
+                   help="keep the raw frames.rgb / state.bin dumps after the verdict "
+                        "(default: delete them; tools/raw_dumps.py).")
     a = p.parse_args()
 
     # --done: the ship bar (attract completeness + gameplay reconverge). Separate from the default
@@ -473,36 +474,37 @@ def main():
           f"; golden offset {cfg['gen_offset']} +-{cfg['drift']}, band {cfg['band_max_px']}px (from {src})")
 
     os.makedirs(a.work, exist_ok=True)
-    go, jo = os.path.join(a.work, "golden"), os.path.join(a.work, layer)
-    capture_golden(a.rompath, go, lua_tape(os.path.join(a.work, "tape.lua")))
-    render_js(jo, a.frames, cfg)
+    with raw_dumps(a.work, keep=a.keep_frames):
+        go, jo = os.path.join(a.work, "golden"), os.path.join(a.work, layer)
+        capture_golden(a.rompath, go, lua_tape(os.path.join(a.work, "tape.lua")))
+        render_js(jo, a.frames, cfg)
 
-    rc = 0
-    resp = game_responded(go)
-    for label, frames in resp.items():
-        if not frames:
-            print(f"pixel_suite: FAIL -- golden shows no '{label}'; this run compares two "
-                  "attract/idle screens, which proves nothing.")
+        rc = 0
+        resp = game_responded(go)
+        for label, frames in resp.items():
+            if not frames:
+                print(f"pixel_suite: FAIL -- golden shows no '{label}'; this run compares two "
+                      "attract/idle screens, which proves nothing.")
+                return 1
+            print(f"  golden: {label:32} frames {frames[0]}..{frames[-1]}")
+
+        _, _, bpf = pixel_gate.screen_geometry(HW)
+        njs = os.path.getsize(os.path.join(jo, "frames.rgb")) // bpf
+        if njs < GATE_TO:
+            print(f"pixel_suite: INCOMPLETE -- render delivered {njs} frames; the gate window ends at "
+                  f"{GATE_TO}, so the comparison never reached gameplay.")
             return 1
-        print(f"  golden: {label:32} frames {frames[0]}..{frames[-1]}")
 
-    _, _, bpf = pixel_gate.screen_geometry(HW)
-    njs = os.path.getsize(os.path.join(jo, "frames.rgb")) // bpf
-    if njs < GATE_TO:
-        print(f"pixel_suite: INCOMPLETE -- render delivered {njs} frames; the gate window ends at "
-              f"{GATE_TO}, so the comparison never reached gameplay.")
-        return 1
+        worst, over, at = band_worst(os.path.join(jo, "frames.rgb"),
+                                     os.path.join(go, "frames.rgb"), cfg)
+        verdict = pixel_gate.PASS if over == 0 else pixel_gate.FAIL
+        print(f"  gameplay [{GATE_FROM}:{GATE_TO}] worst={worst:5d}px (budget {cfg['band_max_px']}) "
+              f"over={over} worst@{at} -> {verdict}")
+        if over:
+            rc = 1
 
-    worst, over, at = band_worst(os.path.join(jo, "frames.rgb"),
-                                 os.path.join(go, "frames.rgb"), cfg)
-    verdict = pixel_gate.PASS if over == 0 else pixel_gate.FAIL
-    print(f"  gameplay [{GATE_FROM}:{GATE_TO}] worst={worst:5d}px (budget {cfg['band_max_px']}) "
-          f"over={over} worst@{at} -> {verdict}")
-    if over:
-        rc = 1
-
-    print(f"pixel_suite: {'PASS' if rc == 0 else 'FAIL'}")
-    return rc
+        print(f"pixel_suite: {'PASS' if rc == 0 else 'FAIL'}")
+        return rc
 
 
 if __name__ == "__main__":

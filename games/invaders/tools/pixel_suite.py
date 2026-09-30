@@ -19,7 +19,6 @@ each print a non-PASS line and exit nonzero -- exactly as pooyan's suite does.
 import argparse
 import os
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -27,6 +26,8 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 GAME = os.path.dirname(HERE)                        # games/invaders
 REPO = os.path.dirname(os.path.dirname(GAME))       # arcade-js
+sys.path.insert(0, os.path.join(REPO, "tools"))
+from raw_dumps import raw_dumps  # noqa: E402
 HW = os.path.join(REPO, "boards", "invaders", "hardware.json")
 LUA = os.path.join(HERE, "lua")
 DRIVER = "invaders"
@@ -118,6 +119,9 @@ def main():
                    help="the runbook DONE bar: attract completeness + tape-driven gameplay vs MAME.")
     p.add_argument("--rompath", default=os.path.expanduser("~/Downloads"),
                    help="MAME romset search path (needs invaders); NOT the JS ROM dir.")
+    p.add_argument("--keep-frames", action="store_true",
+                   help="keep the raw frames.rgb / state.bin dumps after the verdict "
+                        "(default: delete them; tools/raw_dumps.py).")
     a = p.parse_args()
 
     ok, skip = have_romset(a.rompath)
@@ -126,7 +130,7 @@ def main():
         return 1
 
     work = tempfile.mkdtemp(prefix="invaders_pixel_")
-    try:
+    with raw_dumps(work, keep=a.keep_frames, rmtree=True):
         idio = a.layer == "idiomatic"
         if a.done:
             # PART A -- attract completeness (well past the historical ~757-frame fork).
@@ -150,8 +154,6 @@ def main():
             return 1
         print("pixel_suite: PASS")
         return 0
-    finally:
-        shutil.rmtree(work, ignore_errors=True)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,6 @@
+# Pixel re-runs OWED: games committed without their pixel gate because the romset was missing.
+# One line per game: game<TAB>date<TAB>reason. Written by `python3 tools/pixel_gate_required.py
+# skip-romset --game <g> --reason "..."` (a single-use waiver bound to the staged diff); printed loudly on
+# every run of the gate while any line remains. Delete a line only once that game's suite PASSes -- the
+# commit that deletes it re-runs the suite and is refused unless it PASSes. See docs/runbook.md §2.
+centiped	2026-09-30	no verified centiped3 romset on this machine (136001-213.p4 absent); Karl to supply from his collection

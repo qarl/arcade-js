@@ -68,7 +68,6 @@ worst is 729px (0 over either). Clean 12x separation. (The scratch flip is rever
 import argparse
 import json
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -81,6 +80,7 @@ sys.path.insert(0, os.path.join(REPO, "tools"))
 import numpy as np  # noqa: E402
 import pixel_gate  # noqa: E402
 from hardware import Hardware  # noqa: E402
+from raw_dumps import raw_dumps  # noqa: E402
 
 HW = os.path.join(REPO, "boards", "thepit", "hardware.json")
 DRIVER = "thepitu1"
@@ -476,7 +476,7 @@ def run_done(a):
     print("  layer: IDIOMATIC (generator engine)  (--done: attract completeness + tape gameplay, "
           "pinned nearest-frame reconverge)")
     work = tempfile.mkdtemp(prefix="thepit_pixel_done_")
-    try:
+    with raw_dumps(work, keep=a.keep_frames, rmtree=True):
         # PART A -- attract COMPLETENESS (input-free golden, a full attract window, reconverged).
         ok, why = _done_attract(work, a.rompath)
         if not ok:
@@ -489,8 +489,6 @@ def run_done(a):
             return 1
         print("pixel_suite: PASS")
         return 0
-    finally:
-        shutil.rmtree(work, ignore_errors=True)
 
 
 def run_idiomatic(a):
@@ -646,6 +644,9 @@ def main():
                    help="the runbook DONE bar: attract COMPLETENESS + tape-driven GAMEPLAY vs MAME "
                         "(drift-tolerant whole-run reconverge, convergence.mjs's rule in-process), NOT "
                         "the per-commit fixed-window tripwire. Always renders the idiomatic layer.")
+    p.add_argument("--keep-frames", action="store_true",
+                   help="keep the raw frames.rgb / state.bin dumps after the verdict "
+                        "(default: delete them; tools/raw_dumps.py).")
     a = p.parse_args()
 
     # --done: the ship bar (attract completeness + gameplay reconverge). Separate from the default
@@ -662,7 +663,8 @@ def main():
               f"(BYO romset; set --rompath or $THEPIT_ROMPATH)")
         return 0
 
-    return run_oracle(a) if a.layer == "oracle" else run_idiomatic(a)
+    with raw_dumps(a.work, keep=a.keep_frames):
+        return run_oracle(a) if a.layer == "oracle" else run_idiomatic(a)
 
 
 if __name__ == "__main__":

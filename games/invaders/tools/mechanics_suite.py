@@ -37,6 +37,8 @@ import tempfile
 
 TOOLS = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(TOOLS)))
+sys.path.insert(0, os.path.join(REPO, "tools"))
+from raw_dumps import raw_dumps  # noqa: E402
 MECH_COMPARE = os.path.join(TOOLS, "mech_compare.mjs")
 HARDWARE = os.path.join(REPO, "boards/invaders/hardware.json")
 LUA_DIR = os.path.join(REPO, "games/invaders/tools/lua")
@@ -174,7 +176,7 @@ def run_test(mech):
     A pass requires BOTH the real compare to PASS and the --perturb mutation to FAIL — a mechanic whose
     perturbed twin still passes has no teeth and is reported as a failure."""
     mid = mech["id"]
-    with tempfile.TemporaryDirectory(prefix=f"mech_{mid}_") as out_dir:
+    with tempfile.TemporaryDirectory(prefix=f"mech_{mid}_") as out_dir, raw_dumps(out_dir, rmtree=True):
         ok, state, detail = capture_golden(mech, out_dir)
         if not ok:
             print(f"MECHANIC {mid} FAIL {detail}")

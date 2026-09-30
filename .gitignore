@@ -43,3 +43,6 @@ mame-src
 # repo-root scratch space (agent mirrors, patches, renders). The few files already tracked
 # under it stay tracked; only new, untracked work is ignored.
 /scratchpad/
+
+# pixel_gate_required romset waivers: local, single-use, bound to one staged diff
+.pixelgate-waivers/

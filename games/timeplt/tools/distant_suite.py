@@ -22,6 +22,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 import pixel_suite as ps  # noqa: E402 -- reuse the proven gate pieces unchanged
+from raw_dumps import raw_dumps  # noqa: E402
 
 # A direct RAM poke has no input-debounce pipeline, so it aligns on the tape frame itself
 # (MEASURED: golden 0xAD04 changes on the tape frame it is poked); the coin's +1 (TAPE_OFFSET)
@@ -357,12 +358,10 @@ def main():
     work = work_dir(a.work, sched["name"], layer)
     os.makedirs(work, exist_ok=True)
     # Every step below (responded_frames, frame_diffs, band_scan, the reach window) reads the raw
-    # dumps; ps.finish_work deletes them only after the verdict is final (see pixel_suite.py).
+    # dumps; raw_dumps deletes them only after the verdict is final (tools/raw_dumps.py).
     summary = {"suite": "distant_suite", "tape": sched["name"], "layer": layer, "verdict": "CRASH"}
-    try:
+    with raw_dumps(work, keep=a.keep_frames, summary=summary):
         return distant_gate(a, sched, work, idiomatic, summary)
-    finally:
-        ps.finish_work(work, summary, a.keep_frames)
 
 
 def distant_gate(a, sched, work, idiomatic, summary):

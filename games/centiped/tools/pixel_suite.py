@@ -32,6 +32,8 @@ import argparse, os, re, shutil, subprocess, sys, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 GAME = os.path.dirname(HERE)                        # games/centiped
 REPO = os.path.dirname(os.path.dirname(GAME))       # arcade-js
+sys.path.insert(0, os.path.join(REPO, "tools"))
+from raw_dumps import raw_dumps  # noqa: E402
 LUA = os.path.join(HERE, "lua", "dump_state_rng.lua")
 LUA_TAPE = os.path.join(HERE, "lua", "dump_state_rng_tape.lua")
 CONV = os.path.join(HERE, "convergence.mjs")
@@ -46,8 +48,8 @@ GAMEPLAY_SECONDS = 15           # the coin/start/play tape runs to ~frame 710
 # ~730-frame margin) and completeness over the whole golden. A regression that forks earlier REDs.
 FORK_FLOOR = 33000
 CONV_PASS = re.compile(r"^centiped_convergence: PASS", re.M)
-DONE_GOLDEN = os.path.join(HERE, ".golden-done-600s")   # cached, gitignored (games/*/tools/.golden-*/)
-TAPE_GOLDEN = os.path.join(HERE, ".golden-tape")        # cached, gitignored
+DONE_GOLDEN = os.path.join(HERE, ".golden-done-600s")   # gitignored; reused only after a --keep-frames run
+TAPE_GOLDEN = os.path.join(HERE, ".golden-tape")        # gitignored; reused only after a --keep-frames run
 
 
 def have_romset(rompath, mame):
@@ -161,26 +163,30 @@ def main():
     p.add_argument("--done", action="store_true")  # the ship gate: full golden (bounded) + gameplay tape
     p.add_argument("--rompath", default=os.path.join(os.environ.get("HOME", ""), "Downloads"))
     p.add_argument("--mame", default="/opt/homebrew/bin/mame")
+    p.add_argument("--keep-frames", action="store_true",
+                   help="keep the raw frames.rgb / state.bin dumps after the verdict "
+                        "(default: delete them; tools/raw_dumps.py).")
     a = p.parse_args()
 
     if not shutil.which("ffmpeg"):
         print("pixel_suite: SKIP -- ffmpeg not found"); sys.exit(1)
+    if not shutil.which(a.mame):
+        print(f"pixel_suite: SKIP -- no `mame` at {a.mame}"); sys.exit(1)
     if not have_romset(a.rompath, a.mame):
         print(f"pixel_suite: SKIP -- no verified {DRIVER} romset at {a.rompath}"); sys.exit(1)
 
     if a.done:
-        ok = run_done(a)
+        with raw_dumps(DONE_GOLDEN, TAPE_GOLDEN, keep=a.keep_frames):  # --keep-frames also keeps them reusable
+            ok = run_done(a)
         if ok:
             print("pixel_suite: PASS"); sys.exit(0)
         sys.exit(1)
 
     work = tempfile.mkdtemp(prefix="centiped_px_")
-    try:
+    with raw_dumps(work, keep=a.keep_frames, rmtree=True):
         if run_default(a, work):
             print("pixel_suite: PASS"); sys.exit(0)
         print("pixel_suite: FAIL -- convergence did not PASS"); sys.exit(1)
-    finally:
-        shutil.rmtree(work, ignore_errors=True)
 
 
 if __name__ == "__main__":

@@ -101,3 +101,23 @@ That means a golden captured from one is uninterpretable without the values it w
 that drifts silently. So the manifest records `tape`, `tape_sha256`, and every `TAPE_*` env var. This
 is the same argument that refused to re-time a tape rather than add a second one, applied to the
 artifact instead of the source.
+
+## Raw dumps are deleted once the verdict is in
+
+`frames.rgb` and `state.bin` are multi-GB for a long capture, and nothing reads them after the verdict.
+Every script that drives this tool (or `render.js`/`emit.js`, or a raw `-aviwrite`) wraps its work in
+`tools/raw_dumps.py`'s `raw_dumps(...)`, which deletes them on PASS, FAIL, an exception, Ctrl-C and
+SIGTERM/SIGHUP, keeping the small artifacts; `--keep-frames` opts out. On a signal it first SIGTERMs its
+child processes and waits for them, and this tool runs under `signals_to_exit()`, so a capture in flight
+stops MAME and removes its own temp dir (`out.avi`, `state.raw` under `$TMPDIR/mame_golden_*`) before the
+caller sweeps. A sweep refuses an empty path, `/`, `$HOME`, the repo root and their ancestors.
+
+An ad-hoc driver wraps itself: `python3 tools/raw_dumps.py run --dir <out> [--dir <out2>] -- <command>`
+runs the command in its own process group, forwards signals to the whole group, sweeps every `--dir`
+once the group is gone, and returns the command's exit code. The producer does not delete its own output:
+a verdict needs two producers' dumps at once, so cleanup belongs to whoever runs the comparison.
+
+Still able to strand dumps: a SIGKILL of the caller (nothing runs), a child that ignores SIGTERM past the
+`STOP_GRACE` (it is then SIGKILLed, skipping its own cleanup), and a producer run by hand outside both. The
+scheduled disk sweep is the backstop. `tools/test/raw-dumps.test.js` holds every producer-driving script
+to this.

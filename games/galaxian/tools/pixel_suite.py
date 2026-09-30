@@ -18,11 +18,13 @@ FAIL-CLOSED: `pixel_suite: PASS` prints ONLY on a clean convergence PASS. No mam
 nonzero (never PASS). A poisoned capture, a convergence non-PASS, a crash, or an incomplete run each print a
 non-PASS line and exit nonzero.
 """
-import argparse, os, re, shutil, subprocess, sys, tempfile
+import argparse, os, re, subprocess, sys, tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 GAME = os.path.dirname(HERE)                        # games/galaxian
 REPO = os.path.dirname(os.path.dirname(GAME))       # arcade-js
+sys.path.insert(0, os.path.join(REPO, "tools"))
+from raw_dumps import raw_dumps  # noqa: E402
 HW = os.path.join(REPO, "boards", "galaxian", "hardware.json")
 LUA = os.path.join(HERE, "lua")
 DRIVER = "galaxian"
@@ -89,6 +91,9 @@ def main():
     p.add_argument("--seconds", type=int, default=SECONDS)
     p.add_argument("--done", action="store_true")
     p.add_argument("--rompath", default=os.path.expanduser("~/Downloads"))
+    p.add_argument("--keep-frames", action="store_true",
+                   help="keep the raw frames.rgb / state.bin dumps after the verdict "
+                        "(default: delete them; tools/raw_dumps.py).")
     a = p.parse_args()
 
     ok, skip = have_romset(a.rompath)
@@ -96,7 +101,7 @@ def main():
         print(skip); return 1
 
     work = tempfile.mkdtemp(prefix="galaxian_pixel_")
-    try:
+    with raw_dumps(work, keep=a.keep_frames, rmtree=True):
         if a.done:
             ok, why = _part(work, "attract", a.rompath, DONE_ATTRACT_SECONDS)
             if not ok:
@@ -115,8 +120,6 @@ def main():
         if not ok:
             print(f"pixel_suite: FAIL -- {why}"); return 1
         print("pixel_suite: PASS"); return 0
-    finally:
-        shutil.rmtree(work, ignore_errors=True)
 
 
 if __name__ == "__main__":

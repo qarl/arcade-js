@@ -2,6 +2,7 @@
 import subprocess, os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..','..','..','tools'))
 import pixel_gate
+from raw_dumps import raw_dumps
 S=os.path.dirname(os.path.abspath(__file__)); ROOT=os.path.dirname(S)
 REPO=os.path.dirname(os.path.dirname(ROOT))  # repo root (games/dkong/tools -> ../../..)
 WORK=os.path.join(ROOT,"out","movework"); os.makedirs(WORK,exist_ok=True)
@@ -54,17 +55,19 @@ def diff(js,gd):
     d=pixel_gate.frame_diffs(js,gd,HW)
     return pixel_gate.rough_verdict(d,HW,from_frame=1600)
 print(f"{'test':16} {'emit':10} {'max%':>6} {'>5%':>4} {'verdict'}")
+KEEP="--keep-frames" in sys.argv  # else each test's raw dumps go once its verdict prints
 for name,b,x,y,bits,hold in TESTS:
     lp=lua(name,b,x,y,bits,hold)
     go=f"{WORK}/g_{name}"; eo=f"{WORK}/e_{name}"
-    r=subprocess.run(["python3",f"{REPO}/tools/mame_golden.py",
-       "--hardware",f"{REPO}/boards/dkong/hardware.json","--lua-dir",f"{REPO}/games/dkong/tools/lua",
-       "--rompath",f"{REPO}/games/dkong/rom",
-       "--out",go,"--seconds","30","--tape",lp],capture_output=True,text=True,timeout=150)
-    er=subprocess.run(emit_cmd(eo,b,x,y,bits,hold),cwd=ROOT,capture_output=True,text=True)
-    stopped = "GAP" if "not impl" in (er.stdout+er.stderr).lower() else "ran"
-    if stopped=="ran" and os.path.exists(f"{eo}/frames.rgb") and os.path.exists(f"{go}/frames.rgb"):
-        r=diff(f"{eo}/frames.rgb",f"{go}/frames.rgb")
-        print(f"{name:16} {'ran':10} {r['max_pct']:6.2f} {r['frames_over']:4d} {r['verdict']}")
-    else:
-        print(f"{name:16} {stopped:10} {'--':>6} {'--':>4} {'GAP-FOUND' if stopped=='GAP' else 'NO-FRAMES'}")
+    with raw_dumps(go,eo,keep=KEEP):
+        r=subprocess.run(["python3",f"{REPO}/tools/mame_golden.py",
+           "--hardware",f"{REPO}/boards/dkong/hardware.json","--lua-dir",f"{REPO}/games/dkong/tools/lua",
+           "--rompath",f"{REPO}/games/dkong/rom",
+           "--out",go,"--seconds","30","--tape",lp],capture_output=True,text=True,timeout=150)
+        er=subprocess.run(emit_cmd(eo,b,x,y,bits,hold),cwd=ROOT,capture_output=True,text=True)
+        stopped = "GAP" if "not impl" in (er.stdout+er.stderr).lower() else "ran"
+        if stopped=="ran" and os.path.exists(f"{eo}/frames.rgb") and os.path.exists(f"{go}/frames.rgb"):
+            r=diff(f"{eo}/frames.rgb",f"{go}/frames.rgb")
+            print(f"{name:16} {'ran':10} {r['max_pct']:6.2f} {r['frames_over']:4d} {r['verdict']}")
+        else:
+            print(f"{name:16} {stopped:10} {'--':>6} {'--':>4} {'GAP-FOUND' if stopped=='GAP' else 'NO-FRAMES'}")

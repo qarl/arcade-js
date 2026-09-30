@@ -44,6 +44,7 @@ sys.path.insert(0, os.path.join(REPO, "tools"))
 import numpy as np      # noqa: E402
 import hardware         # noqa: E402
 import pixel_gate       # noqa: E402
+from raw_dumps import raw_dumps  # noqa: E402
 
 HW = os.path.join(REPO, "boards", "pooyan", "hardware.json")
 DRIVER = "pooyan"
@@ -679,14 +680,15 @@ def run_done(a):
     above (no mame / no romset), and each part fails closed."""
     os.makedirs(a.work, exist_ok=True)
     print(f"pixel_suite --done [{DRIVER}]: attract completeness + tape-driven gameplay + extended attract vs MAME")
-    if not _done_partA(a):
-        return 1
-    if not _done_partB(a):
-        return 1
-    if not _done_partC(a):
-        return 1
-    print("pixel_suite: PASS")
-    return 0
+    with raw_dumps(a.work, keep=a.keep_frames):
+        if not _done_partA(a):
+            return 1
+        if not _done_partB(a):
+            return 1
+        if not _done_partC(a):
+            return 1
+        print("pixel_suite: PASS")
+        return 0
 
 
 def selftest_deepstates(a):
@@ -699,36 +701,37 @@ def selftest_deepstates(a):
     bpf = sum(size for _n, _b, size in hardware.Hardware.load(HW).state_regions)
     off = _state_offset(0x8907)
     d = tempfile.mkdtemp(prefix="pooyan_deepstate_selftest_")
-    NF = 100
-    POKE_FRAME = 60
+    with raw_dumps(d, rmtree=True):
+        NF = 100
+        POKE_FRAME = 60
 
-    neg = os.path.join(d, "neg_round0")
-    os.makedirs(neg)
-    np.zeros(NF * bpf, dtype=np.uint8).tofile(os.path.join(neg, "state.bin"))
-    ok_neg, lines_neg = check_deep_states(neg)
+        neg = os.path.join(d, "neg_round0")
+        os.makedirs(neg)
+        np.zeros(NF * bpf, dtype=np.uint8).tofile(os.path.join(neg, "state.bin"))
+        ok_neg, lines_neg = check_deep_states(neg)
 
-    pos = os.path.join(d, "pos_round1")
-    os.makedirs(pos)
-    arr = np.zeros((NF, bpf), dtype=np.uint8)
-    arr[POKE_FRAME, off] = 1
-    arr.tofile(os.path.join(pos, "state.bin"))
-    ok_pos, lines_pos = check_deep_states(pos)
+        pos = os.path.join(d, "pos_round1")
+        os.makedirs(pos)
+        arr = np.zeros((NF, bpf), dtype=np.uint8)
+        arr[POKE_FRAME, off] = 1
+        arr.tofile(os.path.join(pos, "state.bin"))
+        ok_pos, lines_pos = check_deep_states(pos)
 
-    print(f"pixel_suite selftest-deepstates: state.bin {bpf} B/frame, ROUND_COUNTER 0x8907 -> byte {off}")
-    print("  NEGATIVE fixture (round stays 0 -- must FAIL coverage):")
-    for line in lines_neg:
-        print("   " + line)
-    print(f"  POSITIVE fixture (round poked to 1 @frame {POKE_FRAME} -- must PASS coverage):")
-    for line in lines_pos:
-        print("   " + line)
-    if ok_neg:
-        print("pixel_suite: FAIL -- selftest: the round-0 fixture PASSED coverage (the check has NO teeth).")
-        return 1
-    if not ok_pos:
-        print("pixel_suite: FAIL -- selftest: the round>=1 fixture FAILED coverage (false red).")
-        return 1
-    print("pixel_suite: PASS -- deep-state coverage has teeth (round-0 fixture RED, round>=1 fixture GREEN).")
-    return 0
+        print(f"pixel_suite selftest-deepstates: state.bin {bpf} B/frame, ROUND_COUNTER 0x8907 -> byte {off}")
+        print("  NEGATIVE fixture (round stays 0 -- must FAIL coverage):")
+        for line in lines_neg:
+            print("   " + line)
+        print(f"  POSITIVE fixture (round poked to 1 @frame {POKE_FRAME} -- must PASS coverage):")
+        for line in lines_pos:
+            print("   " + line)
+        if ok_neg:
+            print("pixel_suite: FAIL -- selftest: the round-0 fixture PASSED coverage (the check has NO teeth).")
+            return 1
+        if not ok_pos:
+            print("pixel_suite: FAIL -- selftest: the round>=1 fixture FAILED coverage (false red).")
+            return 1
+        print("pixel_suite: PASS -- deep-state coverage has teeth (round-0 fixture RED, round>=1 fixture GREEN).")
+        return 0
 
 
 def main():
@@ -760,6 +763,9 @@ def main():
                    help="POSITIVE CONTROL for --done PART B deep-state coverage: synthesise a round-0 and a "
                         "round>=1 state.bin and prove the coverage check fails the first, passes the second. "
                         "Needs no MAME/golden.")
+    p.add_argument("--keep-frames", action="store_true",
+                   help="keep the raw frames.rgb / state.bin dumps after the verdict "
+                        "(default: delete them; tools/raw_dumps.py).")
     a = p.parse_args()
     idiomatic = a.layer == "idiomatic"
 
@@ -780,81 +786,82 @@ def main():
         return run_done(a)
 
     os.makedirs(a.work, exist_ok=True)
-    go, jo = os.path.join(a.work, "golden"), os.path.join(a.work, "js")
+    with raw_dumps(a.work, keep=a.keep_frames):
+        go, jo = os.path.join(a.work, "golden"), os.path.join(a.work, "js")
 
-    secs = max(a.seconds, IDIOMATIC_SECONDS) if idiomatic else a.seconds
-    if not capture_golden(a.rompath, go, secs):
-        print("pixel_suite: FAIL -- mame_golden refused to certify the capture (poisoned golden).")
-        return 1
-
-    painted, gap, dropped, log = render_js(jo, a.frames, idiomatic)
-    if dropped:
-        print("pixel_suite: FAIL -- render dropped frames (a tick outran a frame); indices shifted.")
-        return 1
-    if gap is not None:
-        print(f"pixel_suite: FAIL -- boot stopped at gap 0x{gap:04x} inside the {PREFIX_FRAMES}-frame prefix. "
-              "The prefix must run CLEAN (the attract boot runs the full ~10-min golden gap-free); an earlier "
-              "stop is a regression -- investigate.\n" + log.strip()[-400:])
-        return 1
-    if painted < MIN_PAINTED:
-        print(f"pixel_suite: FAIL -- render painted {painted} frames (< {MIN_PAINTED}); too short to judge.")
-        return 1
-
-    _, _, bpf = pixel_gate.screen_geometry(HW)
-    w, h = pixel_gate.frameio.WIDTH, pixel_gate.frameio.HEIGHT
-    n_g = os.path.getsize(os.path.join(go, "frames.rgb")) // bpf
-    if n_g < painted + WINDOW:
-        print(f"pixel_suite: FAIL -- golden {n_g} frames < render {painted} + window {WINDOW}; "
-              "capture more --seconds so every frame has a search window.")
-        return 1
-
-    golden = load_frames(os.path.join(go, "frames.rgb"), n_g, bpf, h, w)
-    js = load_frames(os.path.join(jo, "frames.rgb"), painted, bpf, h, w)
-    g_d, j_d = distinct(golden), distinct(js)
-    print(f"  golden: {n_g} frames, {g_d} distinct   render: {painted} frames, {j_d} distinct")
-    if g_d < MIN_DISTINCT or j_d < MIN_DISTINCT:
-        print(f"pixel_suite: FAIL -- under {MIN_DISTINCT} distinct frames (golden {g_d}, render {j_d}); "
-              "a frozen screen proves nothing.")
-        return 1
-
-    if a.inject_defect:
-        x, y = INJECT_XY
-        js[INJECT_AT] = js[INJECT_AT].copy()
-        js[INJECT_AT][y, x] ^= np.uint8(0xFF)
-        print(f"  INJECTED one wrong pixel at frame {INJECT_AT} {INJECT_XY} (positive control -- expect FAIL).")
-
-    if idiomatic:
-        # The idiomatic BOOT PREFIX is deterministic (pre-RNG), so it is byte-exact everywhere -- budget 0.
-        budget = 0
-        scores, idxs = reconverge_monotonic(js, golden, MONO_BACK, MONO_AHEAD)
-        over = [i for i, v in enumerate(scores) if v > BAND_MAX_PX]
-        worst = int(np.argmax(scores))
-        span = idxs[-1] - idxs[0]
-        print(f"  reconverge (monotonic, collapsed timeline): worst={scores[worst]}px @frame {worst}; "
-              f"matched golden {idxs[0]}..{idxs[-1]} (span {span}); mismatches(>{BAND_MAX_PX}px)={over} "
-              f"(budget {budget})")
-        if idxs[-1] >= n_g - 1:
-            print(f"pixel_suite: FAIL -- idiomatic match reached the end of the golden ({idxs[-1]}/{n_g}); "
-                  "capture more --seconds so the collapsed timeline keeps headroom.")
+        secs = max(a.seconds, IDIOMATIC_SECONDS) if idiomatic else a.seconds
+        if not capture_golden(a.rompath, go, secs):
+            print("pixel_suite: FAIL -- mame_golden refused to certify the capture (poisoned golden).")
             return 1
-        if span < painted // 2:
-            print(f"pixel_suite: FAIL -- idiomatic match advanced only {span} golden frames over {painted} "
-                  "render frames; the render is not tracking the timeline (frozen/misaligned).")
-            return 1
-    else:
-        budget = TRANSIENT_BUDGET
-        scores = reconverge(js, golden, WINDOW)
-        over = [i for i, v in enumerate(scores) if v > BAND_MAX_PX]
-        worst = int(np.argmax(scores))
-        print(f"  reconverge: worst={scores[worst]}px @frame {worst}; mismatches(>{BAND_MAX_PX}px)={over} "
-              f"(budget {budget})")
 
-    if len(over) > budget:
-        print(f"pixel_suite: FAIL -- {len(over)} frames mismatch (> {budget}); the render is not "
-              "byte-exact against MAME beyond the allowed transient.")
-        return 1
-    print("pixel_suite: PASS")
-    return 0
+        painted, gap, dropped, log = render_js(jo, a.frames, idiomatic)
+        if dropped:
+            print("pixel_suite: FAIL -- render dropped frames (a tick outran a frame); indices shifted.")
+            return 1
+        if gap is not None:
+            print(f"pixel_suite: FAIL -- boot stopped at gap 0x{gap:04x} inside the {PREFIX_FRAMES}-frame prefix. "
+                  "The prefix must run CLEAN (the attract boot runs the full ~10-min golden gap-free); an earlier "
+                  "stop is a regression -- investigate.\n" + log.strip()[-400:])
+            return 1
+        if painted < MIN_PAINTED:
+            print(f"pixel_suite: FAIL -- render painted {painted} frames (< {MIN_PAINTED}); too short to judge.")
+            return 1
+
+        _, _, bpf = pixel_gate.screen_geometry(HW)
+        w, h = pixel_gate.frameio.WIDTH, pixel_gate.frameio.HEIGHT
+        n_g = os.path.getsize(os.path.join(go, "frames.rgb")) // bpf
+        if n_g < painted + WINDOW:
+            print(f"pixel_suite: FAIL -- golden {n_g} frames < render {painted} + window {WINDOW}; "
+                  "capture more --seconds so every frame has a search window.")
+            return 1
+
+        golden = load_frames(os.path.join(go, "frames.rgb"), n_g, bpf, h, w)
+        js = load_frames(os.path.join(jo, "frames.rgb"), painted, bpf, h, w)
+        g_d, j_d = distinct(golden), distinct(js)
+        print(f"  golden: {n_g} frames, {g_d} distinct   render: {painted} frames, {j_d} distinct")
+        if g_d < MIN_DISTINCT or j_d < MIN_DISTINCT:
+            print(f"pixel_suite: FAIL -- under {MIN_DISTINCT} distinct frames (golden {g_d}, render {j_d}); "
+                  "a frozen screen proves nothing.")
+            return 1
+
+        if a.inject_defect:
+            x, y = INJECT_XY
+            js[INJECT_AT] = js[INJECT_AT].copy()
+            js[INJECT_AT][y, x] ^= np.uint8(0xFF)
+            print(f"  INJECTED one wrong pixel at frame {INJECT_AT} {INJECT_XY} (positive control -- expect FAIL).")
+
+        if idiomatic:
+            # The idiomatic BOOT PREFIX is deterministic (pre-RNG), so it is byte-exact everywhere -- budget 0.
+            budget = 0
+            scores, idxs = reconverge_monotonic(js, golden, MONO_BACK, MONO_AHEAD)
+            over = [i for i, v in enumerate(scores) if v > BAND_MAX_PX]
+            worst = int(np.argmax(scores))
+            span = idxs[-1] - idxs[0]
+            print(f"  reconverge (monotonic, collapsed timeline): worst={scores[worst]}px @frame {worst}; "
+                  f"matched golden {idxs[0]}..{idxs[-1]} (span {span}); mismatches(>{BAND_MAX_PX}px)={over} "
+                  f"(budget {budget})")
+            if idxs[-1] >= n_g - 1:
+                print(f"pixel_suite: FAIL -- idiomatic match reached the end of the golden ({idxs[-1]}/{n_g}); "
+                      "capture more --seconds so the collapsed timeline keeps headroom.")
+                return 1
+            if span < painted // 2:
+                print(f"pixel_suite: FAIL -- idiomatic match advanced only {span} golden frames over {painted} "
+                      "render frames; the render is not tracking the timeline (frozen/misaligned).")
+                return 1
+        else:
+            budget = TRANSIENT_BUDGET
+            scores = reconverge(js, golden, WINDOW)
+            over = [i for i, v in enumerate(scores) if v > BAND_MAX_PX]
+            worst = int(np.argmax(scores))
+            print(f"  reconverge: worst={scores[worst]}px @frame {worst}; mismatches(>{BAND_MAX_PX}px)={over} "
+                  f"(budget {budget})")
+
+        if len(over) > budget:
+            print(f"pixel_suite: FAIL -- {len(over)} frames mismatch (> {budget}); the render is not "
+                  "byte-exact against MAME beyond the allowed transient.")
+            return 1
+        print("pixel_suite: PASS")
+        return 0
 
 
 if __name__ == "__main__":

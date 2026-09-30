@@ -119,7 +119,17 @@ real running game, not attract mode.
 - **Turn the pixel gate on now and keep it green for the layer's life** (a precondition, not a capstone).
   Declare the game's suite in `tools/pixel_gate_required.py` (an undeclared game's commit is refused). The
   interlock requires the literal `PASS` line; SKIP/INCOMPLETE/FAIL/crash/timeout all count as refusal —
-  **never trust the suite's exit code** (it exits 0 when it can't run). Which layer the gate renders vs
+  **never trust the suite's exit code** (it exits 0 when it can't run). **One narrow exception — a missing
+  romset:** when a commit must touch a game whose romset this machine does not have (a shared-tool change
+  that edits every suite), `python3 tools/pixel_gate_required.py skip-romset --game <g> --reason "..."`
+  records a single-use waiver bound to the staged diff and appends (and stages) `<g>` to
+  `tools/pixel-rerun-owed.txt`. The gate honours it only for that game, only for that exact staged diff,
+  and only when the suite's last line is a romset-missing SKIP (never FAIL/INCOMPLETE/crash/timeout/no-mame);
+  it prints `<g> SKIPPED -- romset missing -- NOT validated ... RE-RUN OWED` and never a PASS for `<g>`.
+  While the ledger has a line, **every** gate run prints it. Remove a line by hand, and only after
+  `pixel_gate_required.py run <g>` PASSes: the commit that deletes it re-runs `<g>`'s suite and is refused
+  unless it PASSes (the gate does not edit the ledger itself — a hook that rewrites and restages files
+  changes the very diff it is checking; the deletion stays a reviewed line). Which layer the gate renders vs
   MAME is a **CLI switch** (`render.js --idiomatic` vs the translated path), never `manifest.runtime`.
   Confirm the render path paints **sprites**, not just the tilemap. **Bootstrapping a NEW game:** it cannot
   render a frame matching MAME until translation reaches a rendering state (the boot must clear its
@@ -158,6 +168,10 @@ Stand up these pieces in the skeleton; none of them needs a finished layer.
   expected values read off MAME, input idle values from the dip-switch defaults — and enforce each where
   it is checked: the board unit tests assert the input/DSW values, and `mame_golden.py`'s config probe
   rejects any capture whose control byte disagrees (a wrong control byte silently poisons every golden).
+- **Delete the raw dumps after the verdict.** Wrap the suite's work in `tools/raw_dumps.py`'s
+  `raw_dumps(...)` (a temp dir with `rmtree=True`, a `--work` dir swept) and give it `--keep-frames`; an
+  ad-hoc capture-and-diff runs under `python3 tools/raw_dumps.py run --dir <out> -- <command>`.
+  `tools/test/raw-dumps.test.js` fails a producer-driving script that skips it (docs/mame-golden.md).
 - **Measure the frame offset; never hardcode it.** MAME's AVI lags the JS render by a per-game constant
   (one frame is typical: `render[N] == golden[N+1]`). Sweep a small window of offsets and pick the one
   that minimises total differing pixels, so a drift either way shows up instead of being assumed.

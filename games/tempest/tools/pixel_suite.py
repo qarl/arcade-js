@@ -31,6 +31,8 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 GAME = os.path.dirname(HERE)                        # games/tempest
 REPO = os.path.dirname(os.path.dirname(GAME))       # arcade-js
+sys.path.insert(0, os.path.join(REPO, "tools"))
+from raw_dumps import raw_dumps  # noqa: E402
 ROM_DIR = os.path.join(GAME, "rom")
 LUA = os.path.join(HERE, "lua", "dump_random.lua")
 GAMEPLAY_LUA = os.path.join(HERE, "lua", "gameplay_tape.lua")   # drives coin->start->fire so the golden is play
@@ -110,6 +112,9 @@ def main():
     p.add_argument("--seconds", type=int, default=SECONDS)
     p.add_argument("--done", action="store_true")
     p.add_argument("--rompath", default=os.path.expanduser("~/Downloads"))
+    p.add_argument("--keep-frames", action="store_true",
+                   help="keep the raw frames.rgb / state.bin dumps after the verdict "
+                        "(default: delete them; tools/raw_dumps.py).")
     a = p.parse_args()
 
     if a.done:
@@ -118,7 +123,7 @@ def main():
             print(skip)
             return 1
         work = tempfile.mkdtemp(prefix="tempest_done_")
-        try:
+        with raw_dumps(work, keep=a.keep_frames, rmtree=True):
             # PART A -- attract reconverge over a longer window.
             attract = os.path.join(work, "attract")
             if not capture_golden(a.rompath, attract, GAMEPLAY_SECONDS):
@@ -171,8 +176,6 @@ def main():
                   "entropy pin); every rendering primitive is covered by PART A+B.")
             print("pixel_suite: PASS -- attract + gameplay pixel-reconverge; forced transitions state-validated.")
             return 0
-        finally:
-            shutil.rmtree(work, ignore_errors=True)
 
     ok, skip = have_romset(a.rompath)
     if not ok:
@@ -180,7 +183,7 @@ def main():
         return 1
 
     work = tempfile.mkdtemp(prefix="tempest_pixel_")
-    try:
+    with raw_dumps(work, keep=a.keep_frames, rmtree=True):
         if not capture_golden(a.rompath, work, a.seconds):
             print("pixel_suite: FAIL -- MAME/ffmpeg refused to produce a golden (poisoned or short capture).")
             return 1
@@ -191,8 +194,6 @@ def main():
             return 1
         print("pixel_suite: PASS")
         return 0
-    finally:
-        shutil.rmtree(work, ignore_errors=True)
 
 
 if __name__ == "__main__":

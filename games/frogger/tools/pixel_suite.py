@@ -13,7 +13,6 @@ import json
 import math
 import os
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -25,6 +24,7 @@ sys.path.insert(0, os.path.join(REPO, "tools"))
 
 import numpy as np      # noqa: E402
 import pixel_gate       # noqa: E402
+from raw_dumps import raw_dumps  # noqa: E402
 
 HW = os.path.join(REPO, "boards", "frogger", "hardware.json")
 DRIVER = "frogger"
@@ -190,6 +190,9 @@ def main():
     p.add_argument("--done", action="store_true",
                    help="the runbook DONE bar: attract completeness + tape-driven gameplay vs MAME "
                         "(drift-tolerant reconverge via tools/convergence.mjs), NOT the fixed-offset tripwire.")
+    p.add_argument("--keep-frames", action="store_true",
+                   help="keep the raw frames.rgb / state.bin dumps after the verdict "
+                        "(default: delete them; tools/raw_dumps.py).")
     a = p.parse_args()
 
     # --done: the ship bar. Verify the romset, then reconverge attract COMPLETENESS + tape GAMEPLAY via
@@ -207,7 +210,7 @@ def main():
         idio = a.layer == "idiomatic"
         print(f"  layer: {'IDIOMATIC (runIdiomaticGame)' if idio else 'oracle (cycle-driven)'}  (--done)")
         work = tempfile.mkdtemp(prefix="frogger_pixel_")
-        try:
+        with raw_dumps(work, keep=a.keep_frames, rmtree=True):
             # PART A -- attract completeness (a longer golden than the tripwire, reconverged unpinned).
             ok, why = _done_part(work, "attract", a.rompath, DONE_ATTRACT_SECONDS, idio)
             if not ok:
@@ -221,8 +224,6 @@ def main():
                 return 1
             print("pixel_suite: PASS")
             return 0
-        finally:
-            shutil.rmtree(work, ignore_errors=True)
 
     if a.frames is None:
         a.frames = math.ceil(60.606061 * a.seconds) + 34
@@ -243,57 +244,58 @@ def main():
         return 1
 
     os.makedirs(a.work, exist_ok=True)
-    go, jo = os.path.join(a.work, "golden"), os.path.join(a.work, "js")
+    with raw_dumps(a.work, keep=a.keep_frames):
+        go, jo = os.path.join(a.work, "golden"), os.path.join(a.work, "js")
 
-    if not capture_golden(a.rompath, go, a.seconds):
-        print("pixel_suite: FAIL -- mame_golden refused to certify the capture (poisoned golden).")
-        return 1
-    if not render_js(jo, a.frames, idiomatic):
-        print("pixel_suite: FAIL -- render.js stopped early (boot gap / dropped frame); "
-              "a short artifact must not be diffed.")
-        return 1
+        if not capture_golden(a.rompath, go, a.seconds):
+            print("pixel_suite: FAIL -- mame_golden refused to certify the capture (poisoned golden).")
+            return 1
+        if not render_js(jo, a.frames, idiomatic):
+            print("pixel_suite: FAIL -- render.js stopped early (boot gap / dropped frame); "
+                  "a short artifact must not be diffed.")
+            return 1
 
-    g_rgb, j_rgb = os.path.join(go, "frames.rgb"), os.path.join(jo, "frames.rgb")
-    bpf = frame_bytes()
-    n_g = os.path.getsize(g_rgb) // bpf
-    n_j = os.path.getsize(j_rgb) // bpf
+        g_rgb, j_rgb = os.path.join(go, "frames.rgb"), os.path.join(jo, "frames.rgb")
+        bpf = frame_bytes()
+        n_g = os.path.getsize(g_rgb) // bpf
+        n_j = os.path.getsize(j_rgb) // bpf
 
-    # --- positive control: the golden must actually be a LIVE, animated attract, not frozen/black. ---
-    g_distinct = distinct_frames(os.path.join(go, "frames.json"))
-    j_distinct = distinct_frames(os.path.join(jo, "frames.json"))
-    print(f"  golden: {n_g} frames, {g_distinct} distinct   render: {n_j} frames, {j_distinct} distinct")
-    if g_distinct < MIN_DISTINCT or j_distinct < MIN_DISTINCT:
-        print(f"pixel_suite: FAIL -- fewer than {MIN_DISTINCT} distinct frames "
-              f"(golden {g_distinct}, render {j_distinct}); a frozen screen proves nothing.")
-        return 1
+        # --- positive control: the golden must actually be a LIVE, animated attract, not frozen/black. ---
+        g_distinct = distinct_frames(os.path.join(go, "frames.json"))
+        j_distinct = distinct_frames(os.path.join(jo, "frames.json"))
+        print(f"  golden: {n_g} frames, {g_distinct} distinct   render: {n_j} frames, {j_distinct} distinct")
+        if g_distinct < MIN_DISTINCT or j_distinct < MIN_DISTINCT:
+            print(f"pixel_suite: FAIL -- fewer than {MIN_DISTINCT} distinct frames "
+                  f"(golden {g_distinct}, render {j_distinct}); a frozen screen proves nothing.")
+            return 1
 
-    # --- MEASURE the offset: minimise total differing pixels over the overlap. ---
-    sweep = {off: total_diff(j_rgb, g_rgb, bpf, off, from_frame) for off in offsets}
-    for off in offsets:
-        tot, wst, _at, nn = sweep[off]
-        print(f"    offset {off:+d}: total={tot:>8d}px  worst={wst:>6d}px  frames={nn}")
-    offset = min(offsets, key=lambda o: sweep[o][0])
-    total, worst, worst_at, n = sweep[offset]
-    expect = f"expected +{GEN_OFFSET}, the boot collapse" if idiomatic else "expected +1, the AVI lag"
-    print(f"  measured offset: {offset:+d} (minimises total diff; {expect})")
+        # --- MEASURE the offset: minimise total differing pixels over the overlap. ---
+        sweep = {off: total_diff(j_rgb, g_rgb, bpf, off, from_frame) for off in offsets}
+        for off in offsets:
+            tot, wst, _at, nn = sweep[off]
+            print(f"    offset {off:+d}: total={tot:>8d}px  worst={wst:>6d}px  frames={nn}")
+        offset = min(offsets, key=lambda o: sweep[o][0])
+        total, worst, worst_at, n = sweep[offset]
+        expect = f"expected +{GEN_OFFSET}, the boot collapse" if idiomatic else "expected +1, the AVI lag"
+        print(f"  measured offset: {offset:+d} (minimises total diff; {expect})")
 
-    # --- did we actually compare the whole attract? render must span the full golden overlap. ---
-    need = n_g - offset - from_frame
-    if n < need:
-        print(f"pixel_suite: FAIL -- compared only {n} of {need} overlapping frames; "
-              "render did not cover the full golden attract.")
-        return 1
+        # --- did we actually compare the whole attract? render must span the full golden overlap. ---
+        need = n_g - offset - from_frame
+        if n < need:
+            print(f"pixel_suite: FAIL -- compared only {n} of {need} overlapping frames; "
+                  "render did not cover the full golden attract.")
+            return 1
 
-    # --- the tight full-frame band is the whole verdict (no decorative loose band). ---
-    verdict = pixel_gate.PASS if worst <= BAND_MAX_PX else pixel_gate.FAIL
-    print(f"  band: worst={worst}px @frame {worst_at} (floor {BAND_FLOOR_PX}px, budget {BAND_MAX_PX}px) "
-          f"over {n} frames -> {verdict}")
-    if verdict != pixel_gate.PASS:
-        print(f"pixel_suite: FAIL -- frame {worst_at} differs by {worst}px, over the {BAND_MAX_PX}px band.")
-        return 1
+        # --- the tight full-frame band is the whole verdict (no decorative loose band). ---
+        verdict = pixel_gate.PASS if worst <= BAND_MAX_PX else pixel_gate.FAIL
+        print(f"  band: worst={worst}px @frame {worst_at} (floor {BAND_FLOOR_PX}px, budget {BAND_MAX_PX}px) "
+              f"over {n} frames -> {verdict}")
+        if verdict != pixel_gate.PASS:
+            print(f"pixel_suite: FAIL -- frame {worst_at} differs by {worst}px, over the {BAND_MAX_PX}px band.")
+            return 1
 
-    print("pixel_suite: PASS")
-    return 0
+        print("pixel_suite: PASS")
+        return 0
 
 
 if __name__ == "__main__":

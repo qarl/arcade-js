@@ -31,6 +31,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import hardware  # noqa: E402
+import raw_dumps  # noqa: E402
 import frameio  # noqa: E402
 import scope  # noqa: E402
 import stateio  # noqa: E402
@@ -598,4 +599,7 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # A SIGTERM from the caller (tools/raw_dumps.py stops its children this way) stops MAME/ffmpeg and
+    # then unwinds through main's `finally`, so the temp capture dir (out.avi, state.raw) is removed.
+    with raw_dumps.signals_to_exit():
+        sys.exit(main())

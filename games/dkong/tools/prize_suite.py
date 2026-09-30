@@ -37,6 +37,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..','..','..','tools'))
 import pixel_gate
+from raw_dumps import raw_dumps
 
 S = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(S)
@@ -213,7 +214,8 @@ def verify_pickup(sbin, expect_val, prizeXY):
 
 
 def main():
-    filt = [a for a in sys.argv[1:]]
+    keep = "--keep-frames" in sys.argv[1:]  # else each prize's raw dumps go once its verdict prints
+    filt = [a for a in sys.argv[1:] if a != "--keep-frames"]
     tests = [t for t in TESTS if (not filt or any(f in t[0] for f in filt))]
     print(f"{'prize':14} {'emit':6} {'max%':>6} {'>5%':>4} {'pickup':>7} {'verdict'}")
     print("-" * 60)
@@ -223,34 +225,35 @@ def main():
         go = os.path.join(WORK, f"g_{name}")
         eo = os.path.join(WORK, f"e_{name}")
         so = os.path.join(WORK, f"s_{name}")
-        subprocess.run(
-            ["python3", os.path.join(REPO, "tools", "mame_golden.py"),
-             "--rompath", os.path.join(ROOT, "rom"),
-             "--hardware", os.path.join(REPO, "boards", "dkong", "hardware.json"),
-             "--lua-dir", os.path.join(REPO, "games", "dkong", "tools", "lua"),
-             "--out", go, "--seconds", "30", "--tape", lp],
-            capture_output=True, text=True, timeout=400)
-        er = subprocess.run(emit_cmd(eo, so, b, start, prize, hold),
-                            cwd=ROOT, capture_output=True, text=True)
-        blob = (er.stdout + er.stderr).lower()
-        gap = "not impl" in blob or "unmapped" in blob
-        efr = os.path.join(eo, "frames.rgb")
-        gfr = os.path.join(go, "frames.rgb")
-        sbin = os.path.join(so, "state.bin")
-        if gap or not (os.path.exists(efr) and os.path.exists(gfr)):
-            tag = "GAP" if gap else "NO-FRAMES"
-            print(f"{name:14} {tag:6} {'--':>6} {'--':>4} {'--':>7} {tag}")
-            rows.append((name, None, None, None, None))
-            continue
-        r = diff(efr, gfr)
-        mx, over = r["max_pct"], r["frames_over"]
-        pu_ok, detail = verify_pickup(sbin, val, prize)
-        pix_ok = r["verdict"] == pixel_gate.PASS
-        verdict = "PASS" if (pix_ok and pu_ok) else (r["verdict"] if not pix_ok else "FAIL")
-        print(f"{name:14} {'ran':6} {mx:6.2f} {over:4d} "
-              f"{('yes' if pu_ok else 'NO'):>7} {verdict}")
-        print(f"               {detail}")
-        rows.append((name, mx, over, pu_ok, verdict))
+        with raw_dumps(go, eo, so, keep=keep):
+            subprocess.run(
+                ["python3", os.path.join(REPO, "tools", "mame_golden.py"),
+                 "--rompath", os.path.join(ROOT, "rom"),
+                 "--hardware", os.path.join(REPO, "boards", "dkong", "hardware.json"),
+                 "--lua-dir", os.path.join(REPO, "games", "dkong", "tools", "lua"),
+                 "--out", go, "--seconds", "30", "--tape", lp],
+                capture_output=True, text=True, timeout=400)
+            er = subprocess.run(emit_cmd(eo, so, b, start, prize, hold),
+                                cwd=ROOT, capture_output=True, text=True)
+            blob = (er.stdout + er.stderr).lower()
+            gap = "not impl" in blob or "unmapped" in blob
+            efr = os.path.join(eo, "frames.rgb")
+            gfr = os.path.join(go, "frames.rgb")
+            sbin = os.path.join(so, "state.bin")
+            if gap or not (os.path.exists(efr) and os.path.exists(gfr)):
+                tag = "GAP" if gap else "NO-FRAMES"
+                print(f"{name:14} {tag:6} {'--':>6} {'--':>4} {'--':>7} {tag}")
+                rows.append((name, None, None, None, None))
+                continue
+            r = diff(efr, gfr)
+            mx, over = r["max_pct"], r["frames_over"]
+            pu_ok, detail = verify_pickup(sbin, val, prize)
+            pix_ok = r["verdict"] == pixel_gate.PASS
+            verdict = "PASS" if (pix_ok and pu_ok) else (r["verdict"] if not pix_ok else "FAIL")
+            print(f"{name:14} {'ran':6} {mx:6.2f} {over:4d} "
+                  f"{('yes' if pu_ok else 'NO'):>7} {verdict}")
+            print(f"               {detail}")
+            rows.append((name, mx, over, pu_ok, verdict))
     print("-" * 60)
     npass = sum(1 for r in rows if r[4] == "PASS")
     print(f"{npass}/{len(rows)} PASS")

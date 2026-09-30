@@ -25,6 +25,8 @@ import tempfile
 
 TOOLS = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(TOOLS)))
+sys.path.insert(0, os.path.join(REPO, "tools"))
+from raw_dumps import raw_dumps  # noqa: E402
 MECH_COMPARE = os.path.join(TOOLS, "mech_compare.mjs")
 SCENARIO_LUA = os.path.join(REPO, "games/frogger/tapes/timer_expiry.lua")
 HARDWARE = os.path.join(REPO, "boards/frogger/hardware.json")
@@ -108,7 +110,7 @@ def run_compare(mech, state_path):
 def run_test(mech):
     """Run one mechanic test; print its MECHANIC result line. Returns True iff it PASSED."""
     mid = mech["id"]
-    with tempfile.TemporaryDirectory(prefix=f"mech_{mid}_") as out_dir:
+    with tempfile.TemporaryDirectory(prefix=f"mech_{mid}_") as out_dir, raw_dumps(out_dir, rmtree=True):
         ok, state, detail = capture_golden(mech, out_dir)
         if not ok:
             print(f"MECHANIC {mid} FAIL {detail}")

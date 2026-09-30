@@ -86,8 +86,12 @@ distant tapes — they had to be run by hand.
   gated the moment it lands) and adds one entry per tape, accepted only on its anchored
   `distant_suite: PASS -- <name>` line. Every entry passes the same `--work games/<g>/out/distantwork`; the
   suite partitions it into `<name>/<layer>/`, so no two tapes or layers share a dir. After the verdict the
-  suite deletes the raw `frames.rgb`/`state.bin` dumps (on PASS and FAIL), keeping the hashes, `reach.json`
-  and a `summary.json` (on FAIL, the worst frames and their pixel counts); `--keep-frames` keeps them. The tapes, `distant_suite.py` and `tools/render-lib.js` are
+  suite deletes the raw `frames.rgb`/`state.bin` dumps (on PASS, FAIL, an exception or SIGTERM/SIGHUP, after
+  stopping a capture in flight; a SIGKILL is left to the disk sweep), keeping the hashes, `reach.json` and a
+  `summary.json` (on FAIL, the worst frames and their pixel counts); `--keep-frames` keeps them. This is the
+  repo-wide rule, not a timeplt one: every script that drives `mame_golden.py`/`render.js` cleans up through
+  `tools/raw_dumps.py`, and an ad-hoc driver runs under its `run` wrapper (docs/mame-golden.md, "Raw dumps are
+  deleted once the verdict is in"). The tapes, `distant_suite.py` and `tools/render-lib.js` are
   render-affecting and shared, so a change to any runs both layers. Every tape PASSes on `--layer oracle` and
   `--layer idiomatic`, so both are wired.
 - DONE: `tools/done_gate.py` `check_pixel` runs every tape on the idiomatic layer before either pixel

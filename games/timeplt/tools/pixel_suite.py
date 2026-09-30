@@ -10,7 +10,6 @@ over all 1802 frames, at +2 it fails at 402. Re-derive if the tape's timing chan
 import argparse
 import json
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -24,6 +23,7 @@ import numpy as np  # noqa: E402
 import pixel_gate  # noqa: E402
 from framediff import FROZEN_OFFSET  # noqa: E402
 from hardware import Hardware  # noqa: E402
+from raw_dumps import raw_dumps  # noqa: E402
 
 HW = os.path.join(REPO, "boards", "timeplt", "hardware.json")
 DRIVER = "timeplt"
@@ -197,40 +197,14 @@ def game_responded(golden_dir):
 
 
 # ── Raw-capture cleanup ────────────────────────────────────────────────────────────────────────
-# Each run leaves ~300MB per side of raw frames (plus the golden's state dump) under the work dir,
-# and every gated tape keeps its own work dir, so they pile up to tens of GB. Once the verdict is
-# computed nothing reads them again (the gates key on the printed verdict line, never on the files),
-# so they are deleted on PASS and FAIL alike. What stays is small: frames.json (per-frame hashes),
-# manifest/state.json, reach.json, tape.lua, and summary.json -- the verdict plus, on FAIL, the
-# worst frames and their pixel counts. --keep-frames keeps the raw dumps for debugging.
-RAW_DUMPS = (os.path.join("golden", "frames.rgb"), os.path.join("golden", "state.bin"),
-             os.path.join("js", "frames.rgb"))
-
-
+# tools/raw_dumps.py deletes the raw frames.rgb / state.bin once the verdict is in (PASS, FAIL, crash
+# or SIGTERM). What stays: frames.json hashes, tape.lua, reach.json, and summary.json -- the verdict
+# plus, on FAIL, the worst frames and their pixel counts. --keep-frames keeps the raw dumps.
 def worst_frames(diffs, from_frame=0, k=10):
     """The `k` worst JS frames at or after `from_frame` as [[frame, differing_px], ...], worst first."""
     window = np.asarray(diffs[from_frame:], dtype=np.int64)
     order = np.argsort(window, kind="stable")[::-1][:k]
     return [[int(i) + from_frame, int(window[i])] for i in order if window[i] > 0]
-
-
-def finish_work(work, summary, keep_frames):
-    """Write summary.json into `work`, then delete the raw dumps unless `keep_frames`. Called once
-    the verdict is final, including on an early FAIL or a crash, so a failed run cannot strand them."""
-    summary["raw_frames_kept"] = bool(keep_frames)
-    try:
-        with open(os.path.join(work, "summary.json"), "w", encoding="utf-8") as fh:
-            json.dump(summary, fh, indent=1, default=str)
-            fh.write("\n")
-    except OSError as e:
-        print(f"  warning: could not write summary.json: {e}")
-    if keep_frames:
-        return
-    for rel in RAW_DUMPS:
-        try:
-            os.remove(os.path.join(work, rel))
-        except FileNotFoundError:
-            pass
 
 
 # ── --done helpers ─────────────────────────────────────────────────────────────────────────────
@@ -389,7 +363,7 @@ def run_done(a):
     print(f"  layer: {'IDIOMATIC (generator engine)' if idiomatic else 'oracle (cycle-driven)'}"
           f"  (--done: attract completeness + tape gameplay, nearest-frame reconverge)")
     work = tempfile.mkdtemp(prefix="timeplt_pixel_done_")
-    try:
+    with raw_dumps(work, keep=a.keep_frames, rmtree=True):
         # PART A -- attract COMPLETENESS (input-free golden, a full attract window, reconverged).
         ok, why = _done_part(work, "attract", a.rompath, DONE_ATTRACT_SECONDS, idiomatic, offset)
         if not ok:
@@ -404,8 +378,6 @@ def run_done(a):
             return 1
         print("pixel_suite: PASS")
         return 0
-    finally:
-        shutil.rmtree(work, ignore_errors=True)
 
 
 def main():
@@ -441,10 +413,8 @@ def main():
 
     os.makedirs(a.work, exist_ok=True)
     summary = {"suite": "pixel_suite", "verdict": "CRASH"}
-    try:
+    with raw_dumps(a.work, keep=a.keep_frames, summary=summary):
         return gameplay_gate(a, summary)
-    finally:
-        finish_work(a.work, summary, a.keep_frames)
 
 
 def gameplay_gate(a, summary):

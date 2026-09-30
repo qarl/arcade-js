@@ -34,14 +34,19 @@ ROUGH_TOLERANCE, which changes every game's verdict; the sharpest hole left here
 knowingly. `boards/<board>/` and `games/<g>/manifest.js` are NOT excluded: each is single-game and
 costs one suite run, and the board is resolved through each manifest's `board:` field.
 """
+import argparse
 import concurrent.futures
+import contextlib
 import glob
+import hashlib
+import io
 import json
 import os
 import re
 import subprocess
 import sys
 import tempfile
+import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -342,13 +347,147 @@ def dormancy_caveat(game, paths):
             "    This PASS does NOT cover the staged change. See docs/pixel-gate.md.")
 
 
+# ── romset-absent waiver + the re-run-owed ledger ─────────────────────────────────────────────
+# A machine without a game's romset cannot run that game's suite, and a commit touching every suite
+# (a shared-tool change) is then refused for a reason no code change can fix. The waiver lets that ONE
+# case through, loudly and accountably: single-use (bound to the staged diff like batch_size_gate's),
+# for the NAMED game only, honoured only when that game's suite printed a romset-missing SKIP and
+# nothing else went wrong, and only with the game's line staged in the ledger -- which every run of
+# this gate then prints until a PASS for that game lets someone delete it. See docs/runbook.md §2.
+WAIVER_DIR = ".pixelgate-waivers"
+LEDGER = "tools/pixel-rerun-owed.txt"
+ROMSET_SKIP = re.compile(r"^(?:pixel|distant)_suite: SKIP -- (?:romset \S+ not found under "
+                         r"|no verified \S+ romset at |MAME cannot verify \S+ under --rompath )")
+NOT_A_SKIP = re.compile(r"^(?:Traceback|\S*(?:Error|Exception)\b)|^(?:pixel|distant)_suite: (?:PASS|FAIL|INCOMPLETE)"
+                        r"|exceeded \d+s and was killed|^could not execute", re.M)
+
+
+def romset_skip(out):
+    """True only for a run whose LAST line is a romset-missing SKIP, exiting 0 or 1, with no verdict,
+    traceback, timeout or launch failure anywhere in it."""
+    lines = [ln.strip() for ln in out.strip().splitlines() if ln.strip()]
+    if lines and re.fullmatch(r"\[exit -?\d+\]", lines[-1]):
+        if lines[-1] != "[exit 1]":
+            return False
+        lines = lines[:-1]
+    return bool(lines) and bool(ROMSET_SKIP.match(lines[-1])) and not NOT_A_SKIP.search(out)
+
+
+def _git(*args, check=True):
+    r = subprocess.run(["git", *args], cwd=REPO, capture_output=True, text=True)
+    if check and r.returncode != 0:
+        raise RuntimeError(f"git {' '.join(args)} failed: {r.stderr.strip()}")
+    return r
+
+
+def staged_diff_id():
+    """sha256 of the staged diff, flags pinned as batch_size_gate's: edit one byte and it changes."""
+    diff = _git("diff", "--cached", "--no-color", "--no-ext-diff", "-U0", "--full-index").stdout
+    return hashlib.sha256(diff.encode()).hexdigest()
+
+
+def ledger_games(rev):
+    """{game: line} in the ledger at `rev` ('' = the index, 'HEAD' = the last commit, None = the
+    working tree). A missing file is an empty ledger; '#' lines are commentary."""
+    if rev is None:
+        try:
+            with open(os.path.join(REPO, LEDGER), encoding="utf-8") as fh:
+                text = fh.read()
+        except FileNotFoundError:
+            text = ""
+    else:
+        r = _git("show", f"{rev}:{LEDGER}", check=False)
+        text = r.stdout if r.returncode == 0 else ""
+    out = {}
+    for ln in text.splitlines():
+        if ln.strip() and not ln.lstrip().startswith("#"):
+            out.setdefault(ln.split("\t")[0].strip(), ln.strip())
+    return out
+
+
+def loud(lines):
+    bar = "!" * 100
+    return "\n".join([bar, *(f"!!  {ln}" for ln in lines), bar])
+
+
+def ledger_banner():
+    """The owed re-runs, loud, or '' when the ledger is empty. Printed on every check and run."""
+    owed = ledger_games(None)
+    if not owed:
+        return ""
+    return loud(["pixel_gate_required: PIXEL RE-RUN OWED -- these games were committed WITHOUT their pixel gate:",
+                 *(f"  {ln}" for ln in owed.values()),
+                 "Run `python3 tools/pixel_gate_required.py run <game>` once the romset is back; on PASS delete",
+                 f"the game's line from {LEDGER} and stage it (that commit re-runs the game's suite)."])
+
+
+def waiver_games():
+    """{game: reason} from the waiver bound to the CURRENT staged diff; {} when none matches."""
+    path = os.path.join(REPO, WAIVER_DIR, staged_diff_id() + ".json")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return {}
+    games = data.get("games")
+    return games if isinstance(games, dict) and data.get("diff_id") == os.path.basename(path)[:-5] else {}
+
+
+def cmd_skip_romset(game, reason):
+    """Record a single-use romset-absent waiver for `game`: append (and stage) its ledger line, then
+    bind the waiver to the resulting staged diff. Any later staging change makes it stale."""
+    if game not in SUITES:
+        print(f"pixel_gate_required: {game} has no declared suite; nothing to waive.", file=sys.stderr)
+        return 2
+    if not reason.strip():
+        print("pixel_gate_required: skip-romset needs a --reason.", file=sys.stderr)
+        return 2
+    carried = waiver_games()
+    old = os.path.join(REPO, WAIVER_DIR, staged_diff_id() + ".json")
+    if game not in ledger_games(""):
+        path = os.path.join(REPO, LEDGER)
+        prior = ""
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as fh:
+                prior = fh.read()
+        clean = " ".join(reason.split())
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(prior + ("" if not prior or prior.endswith("\n") else "\n")
+                     + f"{game}\t{time.strftime('%Y-%m-%d')}\t{clean}\n")
+        _git("add", "--", LEDGER)
+    did = staged_diff_id()
+    os.makedirs(os.path.join(REPO, WAIVER_DIR), exist_ok=True)
+    with open(os.path.join(REPO, WAIVER_DIR, did + ".json"), "w", encoding="utf-8") as fh:
+        json.dump({"diff_id": did, "games": dict(carried, **{game: reason}),
+                   "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}, fh, indent=2)
+    if os.path.exists(old) and os.path.basename(old) != did + ".json":
+        os.remove(old)
+    print(f"pixel_gate_required: romset waiver {did[:12]} for {game} -- {reason}\n"
+          f"  {LEDGER} carries {game} (staged). Honoured ONLY if {game}'s suite reports a missing romset,\n"
+          "  and only for THIS staged diff: restage anything and it no longer matches.")
+    return 0
+
+
 def cmd_check(_args=None):
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(line_buffering=True)  # keep verdict lines in order when piped
+    banner = ledger_banner()
+    if banner:
+        print(banner, file=sys.stderr)
     paths = staged_paths()
     games = affected_games(paths)
+    # A ledger line may leave only with a PASS: removing one runs that game's suite, never waivable.
+    cleared = [g for g in ledger_games("HEAD") if g not in ledger_games("")]
+    for g in cleared:
+        if g not in games:
+            games.append(g)
+            paths = paths + [f"games/{g}/manifest.js"]
     if not games:
         return 0
 
-    failed = []
+    waivers = waiver_games()
+    staged_ledger = ledger_games("")
+    failed, waived = [], []
     for game in games:
         if game in EXEMPT:
             print(f"pixel_gate_required: {game} EXEMPT -- {EXEMPT[game]}")
@@ -385,16 +524,30 @@ def cmd_check(_args=None):
             futs = [pool.submit(run_serial)] + [pool.submit(run_one, i) for i in parallel]
             for f in futs:
                 f.result()
+        bad = [out for ok, out in results if not ok]
+        waivable = (bool(bad) and all(romset_skip(o) for o in bad) and game in waivers
+                    and game in staged_ledger and game not in cleared)
         for (full, _p, layer), (ok, out) in zip(jobs, results):
             tail = "\n".join(out.strip().splitlines()[-12:])
             what = f"{game} [{layer}] {' '.join(full[1:4])}"
             if ok:
                 print(f"  {what}: PASS{dormancy_caveat(game, paths)}\n{tail}")
+            elif waivable:
+                print(f"  {what}: SKIPPED (romset missing) -- NOT validated\n{tail}", file=sys.stderr)
             else:
                 print(f"  {what}: REFUSED -- the suite did not print its PASS "
                       f"line.\n{tail}", file=sys.stderr)
                 if game not in failed:
                     failed.append(game)
+        if waivable:
+            waived.append(game)
+            print(loud([f"pixel_gate_required: {game} SKIPPED -- romset missing -- NOT validated",
+                        f"waiver {staged_diff_id()[:12]}: {waivers[game]}",
+                        f"RE-RUN OWED -- recorded in {LEDGER}; this commit carries NO pixel evidence for {game}."]),
+                  file=sys.stderr)
+        elif not bad and game in staged_ledger:
+            print(loud([f"pixel_gate_required: {game} PASSED and is still in {LEDGER}.",
+                        "Delete its line and stage the file: the re-run it owed is done."]), file=sys.stderr)
 
     if failed:
         print(
@@ -404,9 +557,15 @@ def cmd_check(_args=None):
             "  says nothing about the glass. SKIP (no MAME, no romset) and INCOMPLETE are NOT\n"
             "  passes -- they mean nothing was checked.\n"
             "  Either make the suite runnable and green, or add a checkable reason to EXEMPT in\n"
-            "  tools/pixel_gate_required.py so the waiver lands in the diff and gets reviewed.",
+            "  tools/pixel_gate_required.py so the waiver lands in the diff and gets reviewed.\n"
+            "  A MISSING ROMSET alone: `python3 tools/pixel_gate_required.py skip-romset --game <g> "
+            "--reason \"...\"`\n"
+            "  (single-use, this staged diff only; records the owed re-run in " + LEDGER + ").",
             file=sys.stderr)
         return 1
+    if waived:
+        print(f"\npixel_gate_required: ALLOWED WITH A ROMSET WAIVER -- {', '.join(waived)} NOT VALIDATED "
+              f"(re-run owed, {LEDGER}).", file=sys.stderr)
     return 0
 
 
@@ -681,6 +840,136 @@ def _selftest_manifest_reads():
     return bad
 
 
+def _selftest_romset_waiver():
+    """The romset waiver, end to end against a REAL throwaway git repo (diff binding, staged ledger),
+    driving the real cmd_check / cmd_skip_romset with stand-in suites. Fail-closed arms: the waiver
+    must NOT rescue FAIL, INCOMPLETE, a crash, a timeout, a no-mame SKIP, another game, a stale diff
+    or a missing ledger line; the control (romset SKIP + waiver + ledger) must pass, banner and all."""
+    global REPO
+    bad, saved, real_suites = 0, REPO, SUITES
+
+    def expect(label, got, want):
+        nonlocal bad
+        bad += got != want
+        print(f"  [{'ok ' if got == want else 'BAD'}] romset waiver: {label} -> {got} (expected {want})")
+
+    skip_line = "pixel_suite: SKIP -- no verified gset romset at /nowhere\n"
+    for label, out, want in [
+        ("romset SKIP, exit 0 (control)", skip_line, True),
+        ("romset SKIP, exit 1 (control)", skip_line + "\n[exit 1]", True),
+        ("romset SKIP, exit 2", skip_line + "\n[exit 2]", False),
+        ("no-mame SKIP", "pixel_suite: SKIP -- no `mame` on PATH\n", False),
+        ("romset SKIP then a traceback", skip_line + "Traceback (most recent call last):\nKeyError: 1\n[exit 1]", False),
+        ("FAIL after a romset line", skip_line + "pixel_suite: FAIL\n[exit 1]", False),
+        ("FAIL, then a romset SKIP as the last line", "pixel_suite: FAIL -- x\n" + skip_line + "[exit 1]", False),
+        ("traceback, then a romset SKIP as the last line", "Traceback (most recent call last):\nKeyError: 1\n" + skip_line + "[exit 1]", False),
+        ("INCOMPLETE", "pixel_suite: INCOMPLETE -- 3 of 1801\n[exit 1]", False),
+        ("timeout", "python3 s.py exceeded 900s and was killed", False),
+        ("launch failure", "could not execute python3 s.py: [Errno 2]", False),
+    ]:
+        expect(f"romset_skip({label})", romset_skip(out), want)
+
+    def check():
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            rc = cmd_check()
+        return rc, buf.getvalue()
+
+    with tempfile.TemporaryDirectory() as repo:
+        def git(*a):
+            subprocess.run(["git", *a], cwd=repo, check=True, capture_output=True, text=True)
+
+        def stage(rel, text):
+            os.makedirs(os.path.dirname(os.path.join(repo, rel)), exist_ok=True)
+            with open(os.path.join(repo, rel), "w", encoding="utf-8") as fh:
+                fh.write(text)
+            git("add", "--", rel)
+
+        def suite(name, text, rc):
+            globals()["SUITES"] = {"g": [(_fixture(repo, name, text, rc), PIXEL_SUITE_PASS)],
+                                   "h": [(_fixture(repo, name + "_h", "pixel_suite: PASS\n", 0), PIXEL_SUITE_PASS)]}
+
+        try:
+            REPO = repo
+            git("init", "-q")
+            git("config", "user.email", "selftest@example.invalid")
+            git("config", "user.name", "selftest")
+            stage(LEDGER, "# game<TAB>date<TAB>reason\n")
+            stage("games/g/tools/pixel_suite.py", "# v1\n")
+            git("commit", "-qm", "base")
+            stage("games/g/tools/pixel_suite.py", "# v2\n")
+
+            suite("skip.py", skip_line, 1)
+            rc, _ = check()
+            expect("romset SKIP, NO waiver -> refused", rc, 1)
+            with contextlib.redirect_stdout(io.StringIO()):
+                cmd_skip_romset("g", "selftest: no gset romset")
+            rc, out = check()
+            expect("romset SKIP + waiver + staged ledger line -> allowed", rc, 0)
+            expect("  ...prints the SKIPPED/NOT validated/RE-RUN OWED banner",
+                   all(k in out for k in ("g SKIPPED -- romset missing -- NOT validated", "RE-RUN OWED")), True)
+            expect("  ...and never a PASS line for g", bool(re.search(r"^\s*g \[.*\]: PASS", out, re.M)), False)
+            expect("  ...and the ledger line is staged", "g" in ledger_games(""), True)
+            expect("  ...and the ledger banner prints on this run", "PIXEL RE-RUN OWED" in out, True)
+            for label, text, rc_ in [("FAIL", "pixel_suite: FAIL\n", 1),
+                                     ("INCOMPLETE", "pixel_suite: INCOMPLETE -- 3 of 9\n", 1),
+                                     ("crash after the romset line", skip_line + "Traceback (x)\nKeyError\n", 1),
+                                     ("no-mame SKIP", "pixel_suite: SKIP -- no `mame` on PATH\n", 0)]:
+                suite(f"w_{label[:4]}.py", text, rc_)
+                expect(f"waiver present, suite {label} -> refused", check()[0], 1)
+
+            suite("skip2.py", skip_line, 1)
+            did = staged_diff_id()
+            with open(os.path.join(repo, WAIVER_DIR, did + ".json"), "w", encoding="utf-8") as fh:
+                json.dump({"diff_id": did, "games": {"h": "wrong game"}}, fh)
+            expect("waiver names ANOTHER game -> refused", check()[0], 1)
+            with open(os.path.join(repo, WAIVER_DIR, did + ".json"), "w", encoding="utf-8") as fh:
+                json.dump({"diff_id": did, "games": {"g": "right game"}}, fh)
+            expect("waiver re-bound to g (control) -> allowed", check()[0], 0)
+            stage("games/g/tools/pixel_suite.py", "# v3\n")
+            expect("staged diff changed after the waiver (stale) -> refused", check()[0], 1)
+
+            git("rm", "-q", "--cached", "--", LEDGER)
+            stage(LEDGER, "# game<TAB>date<TAB>reason\n")
+            did = staged_diff_id()
+            with open(os.path.join(repo, WAIVER_DIR, did + ".json"), "w", encoding="utf-8") as fh:
+                json.dump({"diff_id": did, "games": {"g": "no ledger line"}}, fh)
+            expect("waiver for this diff but NO ledger line -> refused", check()[0], 1)
+
+            git("reset", "-q", "--hard")
+            stage(LEDGER, "# game<TAB>date<TAB>reason\ng\t2026-01-01\towed\n")
+            git("commit", "-qm", "owe g")
+            stage("docs/x.md", "unrelated\n")
+            rc, out = check()
+            expect("ledger non-empty, nothing render-affecting staged -> allowed", rc, 0)
+            expect("  ...and the RE-RUN OWED banner still prints", "PIXEL RE-RUN OWED" in out and "g\t2026" in out, True)
+
+            stage(LEDGER, "# game<TAB>date<TAB>reason\n")
+            suite("skip3.py", skip_line, 1)
+            did = staged_diff_id()
+            with open(os.path.join(repo, WAIVER_DIR, did + ".json"), "w", encoding="utf-8") as fh:
+                json.dump({"diff_id": did, "games": {"g": "try to waive the clearing"}}, fh)
+            expect("deleting a ledger line runs g's suite; a SKIP, even with a waiver -> refused", check()[0], 1)
+            suite("pass.py", "pixel_suite: PASS\n", 0)
+            expect("deleting a ledger line with g PASSing -> allowed", check()[0], 0)
+
+            git("reset", "-q", "--hard")
+            stage("games/g/tools/pixel_suite.py", "# v4\n")
+            rc, out = check()
+            expect("g PASSes while still owed -> allowed, told to delete its line",
+                   (rc, "Delete its line" in out), (0, True))
+
+            git("reset", "-q", "--hard")
+            stage(LEDGER, "# game<TAB>date<TAB>reason\n")
+            git("commit", "-qm", "clear")
+            rc, out = check()
+            expect("empty ledger (control) -> no RE-RUN OWED banner", "RE-RUN OWED" in out, False)
+        finally:
+            REPO = saved
+            globals()["SUITES"] = real_suites
+    return bad
+
+
 def cmd_selftest(_args=None):
     """Prove this gate can REFUSE -- by driving run_suite and cmd_check, not a copy of them.
 
@@ -796,6 +1085,7 @@ def cmd_selftest(_args=None):
             globals()["staged_paths"], globals()["SUITES"] = real_staged, real_suites
 
     bad += _selftest_staged_paths()
+    bad += _selftest_romset_waiver()
     bad += _selftest_distant_glob()
     bad += _selftest_distant_budget()
     bad += _selftest_manifest_reads()
@@ -889,6 +1179,9 @@ def cmd_selftest(_args=None):
 
 def cmd_run(game):
     """Run one game's declared pixel suite(s) on demand, outside any staged-diff context."""
+    banner = ledger_banner()
+    if banner:
+        print(banner, file=sys.stderr)
     if game not in SUITES:
         manual = MANUAL.get(game)
         print(f"pixel_gate_required: no pixel suite is declared for {game}.", file=sys.stderr)
@@ -917,7 +1210,14 @@ def main():
             print(f"usage: {sys.argv[0]} run <game>", file=sys.stderr)
             return 2
         return cmd_run(sys.argv[2])
-    print(f"usage: {sys.argv[0]} [check|selftest|run <game>]", file=sys.stderr)
+    if cmd == "skip-romset":
+        ap = argparse.ArgumentParser(prog=f"{sys.argv[0]} skip-romset")
+        ap.add_argument("--game", required=True)
+        ap.add_argument("--reason", required=True)
+        a = ap.parse_args(sys.argv[2:])
+        return cmd_skip_romset(a.game, a.reason)
+    print(f"usage: {sys.argv[0]} [check|selftest|run <game>|skip-romset --game G --reason R]",
+          file=sys.stderr)
     return 2
 
 
