@@ -8,13 +8,16 @@
  *   - a SIGTERM while a producer child holds a temp capture leaves nothing there either (the child is
  *     stopped and runs its own cleanup first), in-process and through the wrapper;
  *   - a sweep refuses '', $HOME, the repo root and their ancestors (dummy files, a stand-in HOME and repo);
- *   - every producer-driving script uses the helper, and every pixel suite takes --keep-frames.
+ *   - every producer-driving script uses the helper, and every pixel suite takes --keep-frames;
+ *   - sweep-stale (the scheduled backstop) skips every child dir that is live: a file in its tree younger
+ *     than --min-age-hours (by the later of mtime and ctime), or a process with its cwd or an open file
+ *     under it, re-judged right before deleting; --below-gi, --dry-run, symlinks and refused roots.
  * Run: node --test tools/test/raw-dumps.test.js
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, spawnSync, execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, copyFileSync, rmSync, readdirSync, readFileSync, writeFileSync, existsSync, statSync } from "node:fs";
+import { mkdtempSync, mkdirSync, copyFileSync, rmSync, readdirSync, readFileSync, writeFileSync, existsSync, statSync, utimesSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -336,4 +339,258 @@ test("every pixel suite offers --keep-frames", () => {
   assert.ok(suites.length > 0);
   const missing = suites.filter((f) => !readFileSync(join(REPO, f), "utf8").includes("--keep-frames"));
   assert.deepEqual(missing, []);
+});
+
+// ── sweep-stale: the scheduled backstop never touches a still-running agent's work dir ─────────────
+// Liveness is decided mechanically per child dir of ROOT: any file in its tree younger than
+// --min-age-hours, or a process with its cwd or an open file under it. A dump between its write and its
+// compare is held by nobody, so the tree's age is what protects it (the incident this guards).
+const HOUR = 3600;
+// ctime cannot be set back, so "old" is made by running the sweep's clock 24h ahead (RAW_DUMPS_NOW) and a
+// "young" file gets a future mtime; a file written now reads as 24h old.
+const NOW = Math.floor(Date.now() / 1000) + 24 * HOUR;
+const CLOCK = { ...process.env, RAW_DUMPS_NOW: String(NOW) };
+function aged(path, hours, body = "x") {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, body);
+  const t = Math.max(NOW - hours * HOUR, Date.now() / 1000);
+  utimesSync(path, t, t);
+  return path;
+}
+function sweepStale(roots, ...flags) {
+  return spawnSync("python3", [HELPER, "sweep-stale", ...roots, "--min-age-hours", "3", ...flags], { env: CLOCK, encoding: "utf8" });
+}
+// Spawn `argv` in `cwd`, wait for its READY line (or for it to be up), run `fn`, then kill it.
+async function whileRunning(argv, cwd, fn) {
+  const c = spawn(argv[0], argv.slice(1), { cwd, stdio: ["ignore", "pipe", "ignore"] });
+  try {
+    await new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error("never became READY")), 20000);
+      c.stdout.on("data", (d) => { if (String(d).includes("READY")) { clearTimeout(t); resolve(); } });
+      c.on("exit", () => { clearTimeout(t); reject(new Error("exited before READY")); });
+    });
+    return fn();
+  } finally {
+    c.kill("SIGKILL");
+  }
+}
+const HOLD = ["python3", "-c", "import sys, time; f = open(sys.argv[1], 'rb') if len(sys.argv) > 1 else None; print('READY', flush=True); time.sleep(30)"];
+
+test("sweep-stale: a child with a fresh non-dump file keeps its OLD state.bin (write..compare gap)", () => {
+  const root = freshWork();
+  const bin = aged(join(root, "auditor", "work", "golden", "state.bin"), 10);
+  aged(join(root, "auditor", "work", "golden", "frames.json"), 0);
+  const r = sweepStale([root]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(bin), r.stdout);
+  assert.match(r.stdout, /LIVE .*auditor: newest entry .*frames\.json/);
+});
+
+test("sweep-stale: a child whose whole tree is old loses its old dumps, keeps everything else", () => {
+  const root = freshWork();
+  const dumps = ["a/golden/state.bin", "a/games/g/out/w/golden/frames.rgb", "a/x/out.avi"].map((f) => aged(join(root, f), 10));
+  const keep = ["a/golden/frames.json", "a/summary.json", "a/tape.txt"].map((f) => aged(join(root, f), 10));
+  const r = sweepStale([root]);
+  assert.equal(r.status, 0, r.stderr);
+  for (const d of dumps) assert.ok(!existsSync(d), `${d} should be gone\n${r.stdout}`);
+  for (const k of keep) assert.ok(existsSync(k), k);
+  assert.match(r.stdout, /removed .*state\.bin/);
+});
+
+test("sweep-stale: a child that a running process has as its cwd is kept even when all files are old", async () => {
+  const root = freshWork();
+  const bin = aged(join(root, "busy", "state.bin"), 10);
+  const r = await whileRunning(HOLD, join(root, "busy"), () => sweepStale([root]));
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(bin), r.stdout);
+  assert.match(r.stdout, /LIVE .*busy: pid \d+ .*cwd/);
+  const again = sweepStale([root]);
+  assert.ok(!existsSync(bin), "positive control: with the process gone the same dump IS swept\n" + again.stdout);
+});
+
+test("sweep-stale: a child with an old dump held open by a process is kept", async () => {
+  const root = freshWork();
+  const bin = aged(join(root, "held", "deep", "frames.rgb"), 10);
+  const r = await whileRunning([...HOLD, bin], SCRATCH, () => sweepStale([root]));
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(bin), r.stdout);
+  assert.match(r.stdout, /LIVE .*held: pid \d+ .*open on .*frames\.rgb/);
+});
+
+test("sweep-stale: files directly in ROOT go by their own age and open-file check", async () => {
+  const root = freshWork();
+  const old = aged(join(root, "old.rgb"), 10);
+  const fresh = aged(join(root, "fresh.rgb"), 0);
+  const open = aged(join(root, "state.bin"), 10);
+  const r = await whileRunning([...HOLD, open], SCRATCH, () => sweepStale([root]));
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(!existsSync(old), r.stdout);
+  assert.ok(existsSync(fresh) && existsSync(open), r.stdout);
+});
+
+test("sweep-stale: --below-gi not met (more free than the threshold) deletes nothing and prints the free space", () => {
+  const root = freshWork();
+  const bin = aged(join(root, "a", "state.bin"), 10);
+  const r = sweepStale([root], "--below-gi", "0.001");
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(bin), r.stdout);
+  assert.match(r.stdout, /GiB free, not below/);
+  const met = sweepStale([root], "--below-gi", "1e9");
+  assert.ok(!existsSync(bin), "positive control: a threshold that IS met sweeps\n" + met.stdout);
+  assert.match(met.stdout, /GiB free/);
+});
+
+test("sweep-stale: a clone extracted just now with OLD mtimes (git archive | tar -x, cp -p) is live by ctime", () => {
+  const root = freshWork();
+  const bin = join(root, "clone", "state.bin");
+  aged(bin, 0);
+  const t = Date.now() / 1000 - 48 * HOUR;
+  utimesSync(bin, t, t);   // mtime 48h back, as cp -p / tar -x leave it; ctime stays now
+  utimesSync(join(root, "clone"), t, t);   // tar -x restores directory mtimes too
+  const r = spawnSync("python3", [HELPER, "sweep-stale", root, "--min-age-hours", "3"], { encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(bin), r.stdout);
+  assert.match(r.stdout, /LIVE .*clone: newest entry/);
+});
+
+test("sweep-stale: a directory changed just now (an entry renamed or deleted in it) makes its unit live", () => {
+  const root = freshWork();
+  const bin = aged(join(root, "u", "golden", "state.bin"), 10);
+  aged(join(root, "u", "work", "frames.json"), 10);
+  utimesSync(join(root, "u", "work"), NOW, NOW);   // as a rename/delete in work/ leaves it: no file is newer
+  const r = sweepStale([root]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(bin), r.stdout);
+  assert.match(r.stdout, /LIVE .*u: newest entry .*u\/work is 0\.00h old/);
+});
+
+test("sweep-stale: --dry-run deletes nothing", () => {
+  const root = freshWork();
+  const bin = aged(join(root, "a", "state.bin"), 10);
+  const loose = aged(join(root, "frames.rgb"), 10);
+  const r = sweepStale([root], "--dry-run");
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(bin) && existsSync(loose), r.stdout);
+  assert.match(r.stdout, /would remove .*state\.bin/);
+});
+
+test("sweep-stale: a symlinked child dir (and a symlinked ROOT) is not followed", () => {
+  const root = freshWork();
+  const elsewhere = freshWork();
+  const bin = aged(join(elsewhere, "target", "state.bin"), 10);
+  mkdirSync(root);
+  symlinkSync(join(elsewhere, "target"), join(root, "link"));
+  const r = sweepStale([root]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(bin), r.stdout);
+  assert.match(r.stdout, /SKIP .*link: a symlink/);
+  const viaLink = sweepStale([join(root, "link")]);
+  assert.notEqual(viaLink.status, 0);
+  assert.match(viaLink.stderr, /refusing/);
+  assert.ok(existsSync(bin));
+});
+
+test("sweep-stale refuses '', /, $HOME, the repo root, their ancestors and a non-directory", () => {
+  const root = freshWork();
+  const home = join(root, "h", "home");
+  const repo = join(root, "fakerepo");
+  mkdirSync(join(repo, "tools"), { recursive: true });
+  copyFileSync(HELPER, join(repo, "tools", "raw_dumps.py"));
+  const bins = [home, repo].map((d) => aged(join(d, "child", "state.bin"), 10));
+  const file = aged(join(root, "plain.txt"), 10);
+  const env = { ...CLOCK, HOME: home };
+  const helper = join(repo, "tools", "raw_dumps.py");
+  for (const d of ["", "/", home, join(root, "h"), repo, root, file]) {
+    const r = spawnSync("python3", [helper, "sweep-stale", d, "--min-age-hours", "3"], { env, encoding: "utf8" });
+    assert.equal(r.status, 2, `${d}: ${r.stdout}${r.stderr}`);
+    assert.match(r.stderr, /refusing/, d);
+  }
+  for (const b of bins) assert.ok(existsSync(b), b);
+  const below = join(repo, "scratchpad");
+  const ok = aged(join(below, "clone", "state.bin"), 10);
+  const r = spawnSync("python3", [helper, "sweep-stale", below, "--min-age-hours", "3"], { env, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(!existsSync(ok), "positive control: a scratchpad below the repo root IS swept\n" + r.stdout);
+});
+
+test("sweep-stale: when lsof cannot run, nothing is judged unheld and nothing is deleted", () => {
+  const root = freshWork();
+  const bin = aged(join(root, "a", "state.bin"), 10);
+  const python = execFileSync("python3", ["-c", "import sys; print(sys.executable)"], { encoding: "utf8" }).trim();
+  const r = spawnSync(python, [HELPER, "sweep-stale", root, "--min-age-hours", "3"],
+    { env: { ...CLOCK, PATH: join(SCRATCH, "no-such-bin") }, encoding: "utf8" });
+  assert.equal(r.status, 2, r.stdout + r.stderr);
+  assert.match(r.stderr, /lsof failed.*deleting nothing/);
+  assert.ok(existsSync(bin));
+});
+
+// The unit is judged again right before its deletions, and each dump right before its own: a sweep that
+// pauses (RAW_DUMPS_TEST_PAUSE) between a check and the deletion lets the test change the tree there.
+function sweepPausedAt(stage, root, during) {
+  return new Promise((resolve, reject) => {
+    const c = spawn("python3", [HELPER, "sweep-stale", root, "--min-age-hours", "3"],
+      { env: { ...CLOCK, RAW_DUMPS_TEST_PAUSE: stage }, stdio: ["pipe", "pipe", "pipe"] });
+    let out = "", err = "", paused = false;
+    const t = setTimeout(() => { c.kill("SIGKILL"); reject(new Error("never paused: " + out + err)); }, 30000);
+    c.stdout.on("data", async (d) => {
+      out += d;
+      if (!paused && out.includes(`PAUSED ${stage}`)) {
+        paused = true;
+        try { await during(); } catch (e) { reject(e); }
+        c.stdin.end("\n");
+      }
+    });
+    c.stderr.on("data", (d) => { err += d; });
+    c.on("exit", (code) => { clearTimeout(t); resolve({ status: code, stdout: out, stderr: err }); });
+  });
+}
+
+test("sweep-stale: a unit that turns live between the scan and its deletions is re-judged and kept", async () => {
+  const root = freshWork();
+  const bin = aged(join(root, "u", "golden", "state.bin"), 10);
+  const r = await sweepPausedAt("scanned", root, () => aged(join(root, "u", "golden", "frames.json"), 0));
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(bin), r.stdout);
+  assert.match(r.stdout, /stale .*u: /, "the first pass judged it stale");
+  assert.match(r.stdout, /LIVE .*u on the re-check before deleting: newest entry .*frames\.json/);
+});
+
+test("sweep-stale: a process that starts in a unit after the scan keeps it (the re-check re-runs lsof)", async () => {
+  const root = freshWork();
+  const bin = aged(join(root, "u", "state.bin"), 10);
+  let holder;
+  const r = await sweepPausedAt("scanned", root, () => new Promise((resolve, reject) => {
+    holder = spawn(HOLD[0], HOLD.slice(1), { cwd: join(root, "u"), stdio: ["ignore", "pipe", "ignore"] });
+    holder.stdout.on("data", (d) => { if (String(d).includes("READY")) resolve(); });
+    holder.on("error", reject);
+  }));
+  holder.kill("SIGKILL");
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(bin), r.stdout);
+  assert.match(r.stdout, /LIVE .*u on the re-check before deleting: pid \d+ .*cwd/);
+});
+
+test("sweep-stale: a dump rewritten after the unit's re-check is skipped; its old sibling still goes", async () => {
+  const root = freshWork();
+  const bin = aged(join(root, "u", "state.bin"), 10);
+  const rgb = aged(join(root, "u", "golden", "frames.rgb"), 10);
+  const r = await sweepPausedAt("rechecked", root, () => { utimesSync(bin, NOW, NOW); });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(bin), r.stdout);
+  assert.match(r.stdout, /skip .*state\.bin: changed since the scan/);
+  assert.ok(!existsSync(rgb), "positive control: the untouched old dump in the same unit IS removed\n" + r.stdout);
+});
+
+test("sweep-stale: when lsof fails on the re-check before deleting, the unit is kept", () => {
+  const root = freshWork();
+  const bin = aged(join(root, "a", "state.bin"), 10);
+  const shim = join(SCRATCH, `lsof-once-${n++}`);
+  mkdirSync(shim, { recursive: true });
+  const real = execFileSync("sh", ["-c", "command -v lsof"], { encoding: "utf8" }).trim();
+  writeFileSync(join(shim, "lsof"), `#!/bin/sh\nif [ -e "${shim}/used" ]; then exit 1; fi\n: > "${shim}/used"\nexec "${real}" "$@"\n`, { mode: 0o755 });
+  const r = spawnSync("python3", [HELPER, "sweep-stale", root, "--min-age-hours", "3"],
+    { env: { ...CLOCK, PATH: `${shim}:${process.env.PATH}` }, encoding: "utf8" });
+  assert.ok(existsSync(join(shim, "used")), "positive control: the first lsof ran\n" + r.stdout + r.stderr);
+  assert.ok(existsSync(bin), r.stdout + r.stderr);
+  assert.match(r.stdout, /LIVE .*a on the re-check before deleting: lsof failed on the re-check/);
 });

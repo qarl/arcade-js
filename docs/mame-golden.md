@@ -121,3 +121,17 @@ Still able to strand dumps: a SIGKILL of the caller (nothing runs), a child that
 `STOP_GRACE` (it is then SIGKILLed, skipping its own cleanup), and a producer run by hand outside both. The
 scheduled disk sweep is the backstop. `tools/test/raw-dumps.test.js` holds every producer-driving script
 to this.
+
+The scheduled backstop is `python3 tools/raw_dumps.py sweep-stale ROOT... --min-age-hours H [--below-gi N]
+[--dry-run]`, never a bare delete of unheld dumps: a dump between its write and its compare is held by no
+process, so "no process has it open" does not mean "finished". Each immediate child dir of a ROOT (a clone
+or work dir) is judged whole and skipped as LIVE if any file or directory anywhere in its tree is younger
+than H, by the later of its mtime and ctime (`cp -p`, `tar -x` and `git archive | tar -x` leave an old mtime
+on a file made just now; the ctime says when it arrived), if any running process has its cwd or an open
+file under it (lsof), or if its tree walk runs past the time bound. Only in a non-live child are dumps
+deleted, and only those older than H; the child's liveness is re-checked right before its deletions and
+each dump right before its own. A dump lying directly in ROOT goes by its own age and open-file check.
+H must stay at least about three times the longest run in the fleet: a run that writes nothing for H
+while no process sits in its dir reads as finished. Liveness is measured, never read from a list
+someone maintains; if lsof cannot run, nothing is deleted. `--below-gi` makes it act only when the filesystem is short of space, and
+every deletion and every skip is printed with its reason. It refuses the same roots `sweep` does.
