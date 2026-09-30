@@ -1456,7 +1456,10 @@ export const FIRE_BUTTON_EDGE_SHIFT = 0xa98e;
 /*
  * Enemy aim points: a block at 0xAC64-0xAC7F the object driver rewrites every phase-tick -- entry 0 (0xAC64=Y 0x78,
  * 0xAC65=X 0x84) is the ship anchor, and six standoff points stand off the ship on its heading. The block's values
- * and movement are [seen] (mechanisms.md §5, write-tap); that the enemy steerers READ them to aim is [code].
+ * and movement are [seen] (mechanisms.md §5, write-tap). The enemy steerers READ them to aim [seen]: in the MAME
+ * read-tap the only role reads of the block are headingToward's point loads (PC 0x33BD reads the X byte, 0x33BF the
+ * Y byte) of the anchor 0xAC65/0xAC64 and the standoff pairs 0xAC74-0xAC7F; 0xAC66-0xAC73 are read only by the boot
+ * RAM clear.
  */
 
 /**
@@ -1464,7 +1467,11 @@ export const FIRE_BUTTON_EDGE_SHIFT = 0xa98e;
  *
  * The reaim pass indexes this base by twice a craft's state byte to pick which aim point that craft steers toward;
  * state 0x11 uses the anchor here (aim at the ship's pinned point) then latches to a hold. A pointer base doubling
- * as the anchor scalar. Block values [seen] (§5); the aim-reader role is [code].
+ * as the anchor scalar. Block values [seen] (§5); the aim-reader role is [seen]: in the MAME read-tap headingToward
+ * reads 0xAC65 (PC 0x33BD, always 0x84) and 0xAC64 (PC 0x33BF, always 0x78), and the standoff pairs 0xAC74-0xAC7F,
+ * whose X bytes sit at base + 2*state for states 0x08-0x0D. The reaim pass is the only code that loads this base into HL
+ * ahead of headingToward (ROM 0x31F6, 0x3201).
+ * It reads craft states up to 0x11 (PC 0x31EB), and its state-0x11 branch writes the 0x10 hold latch (PC 0x320C).
  */
 export const ENEMY_AIM_POINT_TABLE = 0xac65;
 

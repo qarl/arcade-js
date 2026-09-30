@@ -152,9 +152,15 @@ ROUTINE_ALIAS = re.compile(r"^[a-z][A-Za-z0-9]*_ADDR$")   # <routineName>_ADDR: 
 
 
 def _own_tag(text):
-    """First evidence tag in a cell's own comment text ([code]->[seen] = seen), or None if untagged."""
-    m = FIRST_TAG.search(GND_ARROW.sub("[seen]", text))
-    return m.group(1) if m else None
+    """Evidence grade of a cell's own comment text, or None if untagged. Fail-closed across the WHOLE text:
+    ANY [code]/[guess] anywhere in it wins (the first such), even after a leading [seen] -- a trailing
+    "...; the X role is [code]" clause is an ungrounded claim, not a grounded cell. The completion arrow
+    `[code]->[seen]` (or `→`) is rewritten to [seen] FIRST, so a promotion record still counts as seen."""
+    tags = FIRST_TAG.findall(GND_ARROW.sub("[seen]", text))
+    for t in tags:
+        if t in ("code", "guess"):
+            return t
+    return "seen" if tags else None
 
 
 def _strict_cells(lines):
@@ -563,6 +569,19 @@ def selftest():
         print("selftest FAIL: strict grounding orphan _ADDR alias not graded as a cell", file=sys.stderr); ok = False
     if _strict_cells(["/** [code] from the routines */\n", "export const MIX = 0xa006; // [seen]\n"])[0] != [("MIX", 0xa006, "code")]:
         print("selftest FAIL: strict grounding an own [seen] masked an own [code] (fail-closed precedence)", file=sys.stderr); ok = False
+    # mixed tags in ONE own comment (R40 timeplt OPEN 1): a leading [seen] must not mask a later [code]/[guess]
+    # clause, inline or in the JSDoc block; the `[code]->[seen]` promotion arrow alone still reads seen.
+    for label, src, want in [
+        ("inline '[seen] ... [code]'", ["export const MI = 0xa007; // [seen] values; the reader role is [code]\n"], "code"),
+        ("JSDoc '[seen] ... [code]'", ["/**\n", " * X byte. [seen]\n", " * Values [seen]; the reader role is [code].\n", " */\n",
+                                        "export const MJ = 0xa008;\n"], "code"),
+        ("JSDoc '[seen] ... [guess]'", ["/** [seen] block; the role is [guess] */\n", "export const MG = 0xa009;\n"], "guess"),
+        ("'[code]->[seen]' promotion", ["/** [seen] (MAME: [code]->[seen]. read at PC 0x2231) */\n", "export const MP = 0xa00a;\n"], "seen"),
+        ("'[code] → [seen]' promotion (arrow glyph)", ["export const MQ = 0xa00b; // lifted [code] → [seen] by capture\n"], "seen"),
+    ]:
+        got = _strict_cells(src)[0][0][2]
+        if got != want:
+            print(f"selftest FAIL: strict grounding mixed own tags {label} -> {got!r} want {want!r}", file=sys.stderr); ok = False
     ok_u, det_u = _check_grounding_strict(["export const U = 0xa001;\n"], [], {0xa001: "r"})
     if ok_u or "stale" not in det_u:
         print(f"selftest FAIL: strict grounding debt excused an untagged cell -> {det_u!r}", file=sys.stderr); ok = False
