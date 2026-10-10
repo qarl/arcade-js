@@ -473,7 +473,9 @@ feeds the next batch's targets.
   call site. (The `= m.regs.X` in a param default is the one sanctioned exception — the load-bearing bridge
   for register-based `m.call` dispatch from the *frozen* translated layer, which cannot pass named args, so
   it stays; it is exempt from the count.) **Enforced by `tools/idiomatic_gate.py` (pre-commit)** — the
-  single gate that counts ALL idiomatic-layer cruft (register refs + `m.call` + `m.push*` + raw `0xHHHH`)
+  single gate that counts ALL idiomatic-layer cruft (register refs + `m.call` + `m.push*` + raw `0xHHHH` in any
+  case or padding; for `SHORT_ADDR_GAMES` also a short address in address position or of address
+  magnitude, minus reviewed sizes in `games/<game>/idiomatic-sizes.txt`; and for `TIGHT_GAMES` `m.pop*`/`m.ret`)
   and holds every `games/*/idiomatic/` to a per-game budget (implicit 0), so a NEW game is fail-closed from
   its first module and an author literally cannot commit new cruft. Each game's own
   `games/<game>/idiomatic-budget.txt` (a single integer — game-local config, NOT in common `tools/`) is a

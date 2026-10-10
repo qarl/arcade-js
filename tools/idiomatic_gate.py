@@ -5,15 +5,15 @@
 Runbook goal (§5 definition of done): a finished idiomatic module names its data and control flow,
 never the machine. Six kinds of cruft are counted, all of which must reach 0 for a game to be
 IDIOMATIC (a hard done requirement):
-  - REGISTERS: `regs.a` / ALU helpers, minus two exempt bridges — a param-default (`fn(m, x=m.regs.a)`)
+  - REGISTERS: `regs.a` / ALU helpers (however spelled: `m["regs"]`, an alias, a field destructure), minus two exempt bridges — a param-default (`fn(m, x=m.regs.a)`)
     and a write riding a return (`return (m.regs.a=v)`). For a TIGHT_GAMES game the return-write
     exemption is narrower: the write must BE the return's value (a seat before a call is NOT exempt).
   - m.call(...) — dissolve to a direct JS call (or `yield*`). m.push16/* — Z80 stack trampolines.
-    (m.ret / m.pop* are Z80 stack primitives too, but counted CLOSURE-only — like `unlifted` below —
-    so a frozen legacy game's budget is not re-baselined by the gate newly seeing them.)
-  - raw 0xHHHH — a bare address; use a named import from names.js. For a SHORT_ADDR_GAMES game (e.g.
-    timeplt) an address written short (0xd1b, decimal) is counted too, but only in address position: the
-    whole index of a memory access, or a literal-only table const that reaches one (short_addr_hits).
+    (m.ret / m.pop* are Z80 stack primitives too, but counted only for CLOSURE games (as `stack`) and
+    TIGHT_GAMES (as pushes), so a frozen legacy game's budget is not re-baselined by the gate newly seeing them.)
+  - raw 0xHHHH — a bare address (any case, zero-padded or `_`-separated); use a named import from names.js.
+    For a SHORT_ADDR_GAMES game (e.g. timeplt) an address written short (0xd1b, decimal) is counted too, in
+    address position: an index base, a call's address slot, a binding reaching either, or 0x100+ (short_addr_hits).
   - mem.read8/write8/read16/write16(...) — the low-level API; idiomatic is the indexed view `mem8[addr]`.
   - a redundant width-mask on a mem assignment (`mem8[x]=..&0xff` / `mem16[x]=..&0xffff`): the write already
     truncates, so it's noise. Counted with it: a non-canonical `const foo=m.mem8` alias that would hide one.
@@ -47,10 +47,11 @@ WRITE = re.compile(r"\b(?:m\.)?regs\.[A-Za-z][A-Za-z0-9]*\s*=(?!=)")  # write ri
 CALL = re.compile(r"\bm\.call\(")
 PUSH = re.compile(r"\bm\.push\w*\(")
 # m.ret / m.pop* are Z80 stack primitives too (a fully idiomatic layer uses JS control flow, not the
-# machine stack). Counted CLOSURE-only (like `unlifted`): the games being driven to zero primitives,
-# so a legacy game's frozen budget is not re-baselined by making the gate newly see them.
+# machine stack). Counted for CLOSURE games and TIGHT_GAMES only: galaxian, dkong and thepit still hold
+# some, and their frozen budgets are not re-baselined by making the gate newly see them.
 STACK = re.compile(r"\bm\.(?:ret|pop\w*)\(")
-ADDR = re.compile(r"0x[0-9a-fA-F]{4}\b")
+# 4+ hex digits of a 16-bit value, case-blind and however padded: 0xad30, 0XAD30, 0x0ad30, 0x0_d1b.
+ADDR = re.compile(r"(?<![0-9A-Za-z$])0[xX](?:_?[0-9a-fA-F])+(?![\w$])")
 MEM = re.compile(r"\bmem\.(?:read|write)(?:8|16)\(")  # low-level machine API; idiomatic form is mem8[addr]
 # Redundant width-mask on a mem assignment: mem8[..]=..&0xff (write8 truncates) / mem16[..]=..&0xffff
 # (write16 truncates). The mask must be the outermost op on the RHS (right before `;`), width-matched.
@@ -61,41 +62,75 @@ MASK16 = re.compile(r"\bmem16\[[^\]]*\]\s*=[^;=]*&\s*0x[fF]{4}\s*;")
 ALIAS = re.compile(r"\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*m\.mem(?:8|16)\s*;")
 
 # --- a raw address written SHORT (1-3 hex digits, or decimal), which ADDR's 4-digit form cannot see ---
-# Dropping a leading zero (0x0d1b -> 0xd1b) must not hide an address, but a bare "any short hex" rule
-# would count every mask, count, size and plane offset (0x7f, 0x100, 0x400 ...: timeplt alone holds
-# twenty-odd such sizes/offsets >= 0x100). So a short literal is counted only in ADDRESS POSITION,
-# decided by where the value goes, never by its magnitude:
-#   (A) it IS the whole index of a memory access: mem8[0xd1b], mem16[907], mem.read8(0x7d3, ..);
-#   (B) it is a constant TABLE entry -- the initializer of a const/let is nothing but literals and names
-#       (`const RECORDS = 0xd1b`, `const SOURCES = [CELL_A, 0xa9c, 0x7d3]`) -- and that name reaches a
-#       whole memory index, directly (mem8[NAME], mem8[NAME[i]]) or through one plain alias
-#       (`let p = NAME; ... mem16[p]`, `for (const s of NAME) mem8[s]`).
-# Arithmetic is never an address position: an offset added to a named base (mem8[BASE + 0x400]), a mask
-# (x & 0x7f), a loop bound, a size or an initializer like `BASE + 8` is not counted. A 4-digit hex literal
-# is ADDR's, so it is excluded here (no double count). Opt-in per game (SHORT_ADDR_GAMES), like TIGHT_GAMES.
-_NUM = r"(?:0x[0-9a-fA-F]{1,3}(?![0-9a-fA-F])|\d+)(?![\w$.])"
-_SHORT_LIT = re.compile(r"(?<![\w$.])(?:0x[0-9a-fA-F]{1,3}|\d+)(?![\w$.])")
-_IDX_LIT = re.compile(r"\bmem(?:8|16)\[\s*(" + _NUM + r")\s*\]"
-                      r"|\b(?:mem|m)\.(?:read|write)(?:8|16)\(\s*(" + _NUM + r")\s*[,)]")
-_DECL = re.compile(r"\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=(?!=)")
+# A bare "any short hex" rule would count every mask, count, size and plane offset, so a short literal
+# counts only where an address goes (per SHORT_ADDR_GAMES game; a 4+-digit literal is ADDR's, never both):
+#   (A) the LEFTMOST operand of a memory index -- the base, not the offset: mem8[0xd1b], mem8[(0xd1b) | 0],
+#       mem8[0x7d3 + i], mem.read8(0xc78);
+#   (B) a binding (value >= 0x10) whose value starts with a literal (`let p = (0xd1b)`, `p = 0xd1b + 2`, `{ base: 0xd1b }`),
+#       or a literal-and-names table (`const SRC = [CELL_A, 0xa9c]`), that reaches an address position --
+#       an index base or an address slot below -- itself, as `.base`, or through one plain alias;
+#   (C) a call argument in an ADDRESS SLOT: a (callee, position) that some call site in the game fills
+#       with a names.js address (`fetchTableByte(m, HEADING_SHAPE_TABLE, i)` makes slot 1 an address);
+#   (M) any value 0x100..0xffff that is not a size/mask shape (2^k, 2^k-1), anywhere -- except the whole
+#       initializer of `const NAME = <lit>` with NAME in the reviewed games/<game>/idiomatic-sizes.txt.
+# An offset added to a base (mem8[record + 0x0e]), a mask, a loop bound and a 2^k size never count.
+# Residual: a value below 0x100 reached only through derived bindings (rec = 0x7d + 4*s; mem8[rec + 1]) is not tracked.
+_LIT = re.compile(r"(?<![\w$.])(?:0[xX][0-9a-fA-F](?:_?[0-9a-fA-F])*|\d(?:_?\d)*)(?![\w$.])")
+_TOK = re.compile(r"[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*")
+_IDX_OPEN = re.compile(r"\bmem(?:8|16)\[|\b(?:mem|m)\.(?:read|write)(?:8|16)\(")
+_BIND = re.compile(r"(?<![\w$.])([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\s*(=(?![=>])|:(?!:))")
+_SIZE_DECL = re.compile(r"(\bexport\s+)?\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*"
+                        r"(0[xX][0-9a-fA-F](?:_?[0-9a-fA-F])*|\d(?:_?\d)*)\s*;")
 _TABLE_INIT = re.compile(r"^[\s\w$\[\],]*$")   # literals, names, commas and brackets only -- no operator
+_NAMES_IMPORT = re.compile(r"\bimport\s*\{([^}]*)\}\s*from\s*[\"']\./names\.js[\"']")
+_ADDR_EXPORT = re.compile(r"^export\s+const\s+([A-Za-z_$][\w$]*)\s*=\s*0[xX][0-9a-fA-F]{4}\s*;", re.M)
 
 
-def _idx_use(code, name):
-    """True when `name` (or name[...]) is the WHOLE index of a memory access somewhere in `code`."""
-    n = re.escape(name)
-    return bool(re.search(r"\bmem(?:8|16)\[\s*" + n + r"\s*(?:\]|\[[^\]]*\]\s*\])", code)
-                or re.search(r"\b(?:mem|m)\.(?:read|write)(?:8|16)\(\s*" + n + r"\s*(?:[,)]|\[)", code))
+def _lit_val(t):
+    t = t.replace("_", "")
+    return int(t, 16) if t[:2] in ("0x", "0X") else int(t)
 
 
-def _reaches_index(code, name):
-    """`name` reaches a whole memory index directly, or through one plain alias binding."""
-    if _idx_use(code, name):
-        return True
-    n = re.escape(name)
-    alias = (r"\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?:=(?!=)\s*" + n + r"\s*[;,\n]"
-             r"|\s+of\s+" + n + r"\s*\))")
-    return any(_idx_use(code, m.group(1)) for m in re.finditer(alias, code))
+def _is_long(t):
+    """ADDR's form: 4+ hex digits (zero-padding, `0X` and `_` separators included) of a 16-bit value."""
+    d = t.replace("_", "")
+    return d[:2] in ("0x", "0X") and len(d) >= 6 and int(d, 16) <= 0xFFFF
+
+
+def _big(v):
+    return 0x100 <= v <= 0xFFFF and v & (v - 1) and (v + 1) & v
+
+
+def _lead(s, a, b):
+    """(kind, text, pos) of the leftmost primary of s[a:b], through parens, unary +/- and u8()/u16()."""
+    while True:
+        while a < b and (s[a].isspace() or s[a] in "(+-"):
+            a += 1
+        u = re.compile(r"(?:u8|u16)\s*\(").match(s, a, b)
+        if not u:
+            break
+        a = u.end()
+    for kind, rx in (("lit", _LIT), ("name", _TOK)):
+        m = rx.match(s, a, b)
+        if m:
+            return kind, m.group(0), m.start()
+    return None, "", a
+
+
+def _arg_spans(code):
+    """(callee, position, start, end) of every call argument (a u8()/u16() mask is no callee)."""
+    for c in _CALL_AT.finditer(code):
+        if c.group(1) in _NOT_CALL or c.group(1) in _PURE:
+            continue
+        o = c.end() - 1
+        for i, (pa, pb) in enumerate(_split(code, o + 1, _close(code, o), ",")):
+            yield c.group(1), i, pa, pb
+
+
+def _index_spans(code):
+    for x in _IDX_OPEN.finditer(code):
+        o = x.end() - 1
+        yield o + 1, (_split(code, o + 1, _close(code, o), ",")[0][1])
 
 
 def _initializer(code, i):
@@ -113,15 +148,76 @@ def _initializer(code, i):
     return i
 
 
-def short_addr_hits(code):
-    """Short-written raw addresses in comment-stripped `code` (rules A and B above): list of literals."""
-    hits = [m.group(1) or m.group(2) for m in _IDX_LIT.finditer(code)]
-    for d in _DECL.finditer(code):
-        init = code[d.end():_initializer(code, d.end())]
-        lits = _SHORT_LIT.findall(init)
-        if lits and _TABLE_INIT.match(init) and _reaches_index(code, d.group(1)):
-            hits.extend(lits)
-    return hits
+def address_slots(texts, names_js):
+    """{(callee, position)} that some call site in `texts` fills with a names.js address (rule C)."""
+    addrs = set(_ADDR_EXPORT.findall(names_js))
+    out = set()
+    for text in texts:
+        code = strip_comments(text)
+        local = {n.split(" as ")[-1].strip(): n.split(" as ")[0].strip()
+                 for g in _NAMES_IMPORT.findall(code) for n in g.split(",")}
+        for f, i, pa, pb in _arg_spans(code):
+            kind, tok, _ = _lead(code, pa, pb)
+            if kind == "name" and local.get(tok) in addrs:
+                out.add((f, i))
+    return out
+
+
+def short_addr_hits(code, slots=frozenset(), sizes=frozenset()):
+    """Short-written raw addresses in comment-stripped `code` (rules A, B, C, M above): list of literals."""
+    hits = {}
+    leads, slot_leads, arg_leads = set(), set(), set()
+
+    def lead_hit(kind, tok, pos):
+        if kind == "lit" and not _is_long(tok):
+            hits[pos] = tok
+
+    idx_text = []
+    for a, b in _index_spans(code):
+        idx_text.append(code[a:b])
+        k, t, p = _lead(code, a, b)
+        lead_hit(k, t, p) if k == "lit" else leads.add(t)
+    for f, i, pa, pb in _arg_spans(code):
+        k, t, p = _lead(code, pa, pb)
+        if (f, i) in slots:
+            lead_hit(k, t, p) if k == "lit" else slot_leads.add(t)
+        if k == "name":
+            arg_leads.add(t)
+
+    def reaches(name, pool):
+        hit = lambda t: t == name or (name[0] == "." and t.endswith(name))
+        if any(hit(t) for t in pool):
+            return True
+        if name[0] == ".":
+            return False
+        alias = r"\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?:=(?!=)|\s+of\b)"
+        for d in re.finditer(alias, code):
+            init = code[d.end():_initializer(code, d.end())]
+            if re.search(r"(?<![\w$.])" + re.escape(name) + r"(?![\w$])", init) and \
+                    set(_TOK.findall(init)) <= {name, "u8", "u16"} and d.group(1) in pool:
+                return True
+        return False
+
+    named_sizes = {m.start(3) for m in _SIZE_DECL.finditer(code) if not m.group(1) and m.group(2) in sizes}
+    for d in _BIND.finditer(code):
+        name, end = d.group(1), _initializer(code, d.end())
+        if d.group(2) == ":" or "." in name:
+            name = "." + name.rsplit(".", 1)[-1]
+        init = code[d.end():end]
+        k, t, p = _lead(code, d.end(), end)
+        lits = [(m.start() + d.end(), m.group(0)) for m in _LIT.finditer(init)
+                if not _is_long(m.group(0)) and _lit_val(m.group(0)) >= 0x10]
+        table = init.strip().startswith("[") and _TABLE_INIT.match(init)
+        if not (k == "lit" or table) or not lits:
+            continue
+        if reaches(name, leads | slot_leads):
+            for pos, tok in (lits if table else [(p, t)]):
+                if not _is_long(tok) and _lit_val(tok) >= 0x10:
+                    hits[pos] = tok
+    for m in _LIT.finditer(code):
+        if m.start() not in named_sizes and not _is_long(m.group(0)) and _big(_lit_val(m.group(0))):
+            hits[m.start()] = m.group(0)
+    return list(hits.values())
 
 
 # Games whose `addrs` count also includes short-written addresses (short_addr_hits). Opt-in per game.
@@ -317,16 +413,40 @@ def register_hits_tight(text):
     return [m.group(1) for m in REF.finditer(text) if not in_sig(m.start()) and m.start() not in exempt]
 
 
-def counts(text, game=None):
+def _normalize_regs(code):
+    """Rewrite hidden register-file spellings to `regs.X` so the register rule sees them: `m["regs"]`,
+    `regs["a"]`, `?.`, an alias (`const r = m.regs` / `{ regs: r } = m`; the escape itself counts), and a
+    destructure of register fields (`const { a, hl } = m.regs`)."""
+    code = re.sub(r"\bm\s*\??\.?\s*\[\s*(['\"`])regs\1\s*\]", "m.regs", code)
+    code = re.sub(r"\b(m|regs)\s*\?\.\s*", r"\1.", code)
+    code = re.sub(r"\bregs\s*\.\s*", "regs.", code)
+    code = re.sub(r"\bregs\s*\[\s*(['\"`])([A-Za-z]\w*)\1\s*\]", r"regs.\2", code)
+    code = re.sub(r"\bregs\s*\[", "regs.dynamic[", code)
+    code = re.sub(r"\{([^{}]*)\}(\s*=\s*(?:m\.)?regs\b(?!\.))",
+                  lambda d: "{" + ", ".join("regs." + f.split(":")[0].strip()
+                                            for f in d.group(1).split(",") if f.strip()) + "}" + d.group(2), code)
+    code = re.sub(r"\bregs\s*:\s*\{([^{}]*)\}", lambda d: "regs: {" + ", ".join(
+        "regs." + f.split(":")[0].strip() for f in d.group(1).split(",") if f.strip()) + "}", code)
+    aliases = re.findall(r"\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:m\.)?regs\s*(?=[;,\n)])", code)
+    aliases += re.findall(r"\{[^{}]*\bregs\s*:\s*([A-Za-z_$][\w$]*)[^{}]*\}\s*=\s*m\b", code)
+    code = re.sub(r"\bm\.regs\b(?!\.)", "m.regs.file", code)
+    for a in set(aliases) - {"regs"}:
+        code = re.sub(r"(?<![\w$.])" + re.escape(a) + r"\s*(?:\.|(?=\[))\s*", "regs.", code)
+    return re.sub(r"\bregs\.\[", "regs.dynamic[", code)
+
+
+def counts(text, game=None, slots=frozenset(), sizes=frozenset()):
     """Per-category cruft counts for one module's source text. The CATEGORIES keys are always-counted
-    (baked into every game's budget); "stack" (m.ret/m.pop*) is a separate closure-only addend the
-    callers apply only for CLOSURE_GAMES, so it is returned but excluded from total()."""
+    (baked into every game's budget); "stack" (m.ret/m.pop*) is a separate addend the callers apply only
+    for CLOSURE_GAMES (TIGHT_GAMES fold it into "pushes"), so it is returned but excluded from total(). `slots` feeds rule C (address_slots), `sizes` rule M (read_sizes)."""
     code = strip_comments(text)
     return {
-        "registers": len(register_hits(code, tight=game in TIGHT_GAMES)),
+        "registers": len(register_hits(_normalize_regs(code), tight=game in TIGHT_GAMES)),
         "calls": len(CALL.findall(code)),
-        "pushes": len(PUSH.findall(code)),
-        "addrs": len(ADDR.findall(code)) + (len(short_addr_hits(code)) if game in SHORT_ADDR_GAMES else 0),
+        "pushes": len(PUSH.findall(code)) + (len(STACK.findall(code)) if game in TIGHT_GAMES
+                                             and game not in CLOSURE_GAMES else 0),
+        "addrs": (sum(1 for t in ADDR.findall(code) if _is_long(t))
+                  + (len(short_addr_hits(code, slots, sizes)) if game in SHORT_ADDR_GAMES else 0)),
         "mem": len(MEM.findall(code)),
         "masks": (len(MASK8.findall(code)) + len(MASK16.findall(code))
                   + sum(1 for n in ALIAS.findall(code) if n not in ("mem8", "mem16"))),
@@ -362,17 +482,68 @@ def _modules_in_index(game):
     return out
 
 
+def _game_slots(game, texts, from_index):
+    """Rule C's address slots for a SHORT_ADDR game (empty otherwise, or with no names.js)."""
+    if game not in SHORT_ADDR_GAMES:
+        return frozenset()
+    try:
+        names_js = _read(f"games/{game}/idiomatic/names.js", from_index)
+    except (GitError, OSError):
+        return frozenset()
+    return address_slots(texts, names_js)
+
+
+def read_sizes(game, from_index):
+    """{NAME: reason} from games/<game>/idiomatic-sizes.txt (rule M's reviewed named sizes); {} if absent.
+    Fail closed on a reasonless line."""
+    path = f"games/{game}/idiomatic-sizes.txt"
+    try:
+        text = _read(path, from_index)
+    except (GitError, OSError):
+        return {}
+    return parse_sizes(text, path)
+
+
+def parse_sizes(text, path):
+    out = {}
+    for raw in text.splitlines():
+        parts = raw.split("#", 1)[0].split(None, 1)
+        if parts and len(parts) < 2:
+            raise GitError(f"reasonless entry in {path}: {raw.strip()}")
+        if parts:
+            out[parts[0]] = parts[1].strip()
+    return out
+
+
+def stale_sizes(sizes, texts):
+    """Allowlisted names that no module declares as `const NAME = <literal 0x100..0xffff, not 2^k/2^k-1>`."""
+    live = {m.group(2) for t in texts for m in _SIZE_DECL.finditer(strip_comments(t))
+            if not m.group(1) and _big(_lit_val(m.group(3)))}
+    return sorted(set(sizes) - live)
+
+
+def _game_sizes(game, texts, from_index):
+    sizes = read_sizes(game, from_index)
+    stale = stale_sizes(sizes, texts)
+    if stale:
+        raise GitError(f"stale entry in games/{game}/idiomatic-sizes.txt: {', '.join(stale)}")
+    return frozenset(sizes) if game in SHORT_ADDR_GAMES else frozenset()
+
+
 def count_in_index(game):
     """Total cruft in the STAGED content, matching the other gates. Returns (total, per_category, stack)
     where stack (m.ret/m.pop*) is a closure-only addend the caller applies, not part of total()."""
     agg = {k: 0 for k in CATEGORIES}
     stk = 0
+    blobs = []
     for path in _modules_in_index(game):
         try:
-            blob = git(["show", f":{path}"])
+            blobs.append(git(["show", f":{path}"]))
         except GitError:
             continue
-        c = counts(blob, game)
+    slots, sizes = _game_slots(game, blobs, True), _game_sizes(game, blobs, True)
+    for blob in blobs:
+        c = counts(blob, game, slots, sizes)
         for k in CATEGORIES:
             agg[k] += c[k]
         stk += c["stack"]
@@ -540,10 +711,15 @@ def worklist(game):
     idir = os.path.join("games", game, "idiomatic")
     closure = game in CLOSURE_GAMES
     rows = []
-    for path in sorted(glob.glob(os.path.join(idir, "*.js"))):
-        if os.path.basename(path) == "names.js":
-            continue
-        per = counts(open(path, encoding="utf-8").read(), game)
+    paths = [p for p in sorted(glob.glob(os.path.join(idir, "*.js"))) if os.path.basename(p) != "names.js"]
+    texts = [open(p, encoding="utf-8").read() for p in paths]
+    try:
+        slots, sizes = _game_slots(game, texts, False), _game_sizes(game, texts, False)
+    except GitError as e:
+        print(f"idiomatic_gate: BLOCK — {game}: {e}")
+        return 1
+    for path, text in zip(paths, texts):
+        per = counts(text, game, slots, sizes)
         disp_tot = total(per) + (per["stack"] if closure else 0)
         if disp_tot:
             rows.append((disp_tot, os.path.basename(path), per))
@@ -648,6 +824,68 @@ def selftest():
                    ("const K = 0x100;\nlet p = K + BASE;\nmem8[p] = 0;", 0)):   # not a plain alias
         want(f"short addr {sg}: {src!r}", counts(src, sg)["addrs"], n)
     want("short addr opt-in: legacy game not counted", counts("mem8[0xd1b] = 1;", lg)["addrs"], 0)
+    # every game: ADDR is case-blind and sees zero-padding and `_` separators; 0x10000 is no 16-bit address
+    for src, n in (("mem8[0XAD30] = 1;", 1), ("mem8[0x0ad30] = 1;", 1), ("f(m, 0x0_d1b);", 1),
+                   ("g(m, 0X3C84, i);", 1), ("const W = 0x10000;", 0), ("const B = 0x000ff;", 1)):
+        want(f"addr any game: {src!r}", counts(src, lg)["addrs"], n)
+    # the R40 mutants: a short base in an index, a call's address slot, a literal-based binding, magnitude
+    names = "export const CAPTION_RECORD_TABLE = 0x0c50;\nexport const PEN = 0xad0c;\n"
+    caller = 'import { CAPTION_RECORD_TABLE } from "./names.js";\nconst r = fetchWideTableWord(m, CAPTION_RECORD_TABLE, i);'
+    slots = address_slots([caller], names)
+    want("address slot found", slots, {("fetchWideTableWord", 1)})
+    want("a shadowing local is no slot", address_slots(["const PEN = 16;\npaint(m, x, PEN);"], names), set())
+    for src, n in (("const r = fetchWideTableWord(m, 0xc50, i);", 1),
+                   ("const r = fetchWideTableWord(m, 0x50, i);", 1),         # small value, but an address slot
+                   ("const T = 0x50;\nconst r = fetchWideTableWord(m, T, i);", 1),
+                   ("const r = fetchWideTableWord(m, (0xc50) | 0, i);", 1),
+                   ("const r = fetchWideTableWord(m, 3152, i);", 1),
+                   ("const v = mem8[0x7d3 + i];", 1), ("const v = mem8[i + 0x7d3];", 1),
+                   ("const v = mem8[u16(0x7d + i)];", 1), ("const v = mem8[0xd1b | 0];", 1),
+                   ("let p;\np = 0xd1b;\nconst v = mem8[p];", 1), ("let r = (0x7d);\nconst v = mem8[r];", 1),
+                   ("const ZL = 0xd1b + 2;", 1), ("const ZL = 0x7d + 2;\nmem8[ZL] = 0;", 1),
+                   ("const T = { base: 0x7d };\nconst v = mem8[T.base + i];", 1),
+                   ("t.base = 0x7d;\nconst v = mem8[t.base];", 1), ("const R = 0x7d | 0;\nmem8[R] = 1;", 1),
+                   ("const STEP = 384;\nf(m, STEP);", 1),                     # a non-2^k "size" passed raw
+                   ("const RECORDS = 0xd1b;\nconst p = RECORDS + i;\nreturn mem8[p];", 1),
+                   ("const RECORDS = 0xd1b;\nconst a = RECORDS + 4 * slot;\nconst hi = mem8[a + 1];", 1),
+                   ("const RECORDS = 0xd1b;\nreturn mem8[i + RECORDS];", 1), ("export const RECORDS = 0xd1b;", 1),
+                   ("const W = 768;\nfor (; i < W;) i++;", 1),                # not allowlisted
+                   ("let p = 0;\nconst v = mem8[p];", 0),                      # rule B ignores values < 0x10
+                   ("let p = 1 + 0x40;\nconst v = mem8[p];", 0),
+                   ("const v = mem8[record + 0x0e];", 0), ("const v = mem8[u16(iy + 0x31)];", 0),
+                   ("const r = fetchWideTableWord(m, CAPTION_RECORD_TABLE, 7);", 0),   # index slot, not base
+                   ("paint(m, x, 0x10);", 0), ("const y = (x & 0x3ff) + 0x400;", 0),
+                   ("const T = { n: 0x7d };\nf(T.n);", 0), ("const S = 0x7d;\nf(m, S);", 0)):
+        want(f"short addr {sg} (slots): {src!r}", counts(src, sg, slots)["addrs"], n)
+    # rule M needs no inference: a derived address counts however it travels (the reviewer's chains)
+    for tail in ("const rec = BASE + 4 * s;\nconst hi = rec + 1;\nreturn mem8[hi];",
+                 "const rec = BASE + 4 * s;\nconst hi = rec + 1;\nreturn f(m, hi);",
+                 "let p = i;\np += BASE;\nreturn mem8[p];",
+                 "const [p, q] = [BASE + i, BASE + i + 1];\nreturn mem8[p];",
+                 "const addrs = [BASE, BASE + 2];\nfor (const a of addrs) mem8[a] = 0;",
+                 "function at(i) { return BASE + 2 * i; }\nreturn mem8[at(i)];"):
+        want(f"rule M chain: {tail!r}", counts("const BASE = 0xd1b;\n" + tail, sg, slots)["addrs"], 1)
+    sizes = {"STEP", "LEN"}
+    for src, n in (("const STEP = 384;\nx += STEP;", 0), ("const LEN = 768;\nfor (; i < LEN;) i++;", 0),
+                   ("export const STEP = 384;", 1), ("let STEP = 384;", 1), ("const STEP = 384 + 0;", 1)):
+        want(f"size allowlist: {src!r}", counts(src, sg, slots, sizes)["addrs"], n)
+    want("stale size entry", stale_sizes({"STEP": "r", "GONE": "r"}, ["const STEP = 384;"]), ["GONE"])
+    for bad in ("STEP\n", "STEP   # reason only in a comment\n"):
+        try:
+            parse_sizes(bad, "x")
+            want(f"reasonless size entry blocks: {bad!r}", "parsed", "GitError")
+        except GitError:
+            pass
+    want("size entry parsed", parse_sizes("# c\nSTEP  a velocity\n", "x"), {"STEP": "a velocity"})
+    want("a 2^k const is no size entry", stale_sizes({"N": "r"}, ["const N = 0x400;"]), ["N"])
+    # hidden register-file spellings are counted for every game; m.pop*/m.ret count as pushes for TIGHT_GAMES
+    for src, n in (('const v = m["regs"].a;', 1), ("const r = m.regs;\nconst v = r.a;", 2),
+                   ("const { a, hl } = m.regs;", 3), ("const { regs: q } = m;\nq.a = 1;", 1),
+                   ("const v = m.regs['a'] + m?.regs?.b + regs [k];", 3), ("const { regs, mem8 } = m;", 0),
+                   ("const { regs: { a } } = m;", 1)):
+        want(f"register spelling: {src!r}", counts(src, lg)["registers"], n)
+    want("pop/ret are pushes for TIGHT", counts("m.pop16(); m.pop8(); m.ret();", tg)["pushes"], 3)
+    want("pop/ret not pushes for legacy", counts("m.pop16(); m.ret();", lg)["pushes"], 0)
     # closure parsing: a translated-registry row and a ROUTINES key are recognised; a plain const is not
     want("registry-row", bool(REG_ENTRY.match("  [0x0ff1, loc_0ff1],")), True)
     want("routine-key", bool(ROUTINE_KEY.match('  0x0ff1: { name: "renderX" },')), True)
