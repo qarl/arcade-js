@@ -11,10 +11,14 @@ IDIOMATIC (a hard done requirement):
   - m.call(...) — dissolve to a direct JS call (or `yield*`). m.push16/* — Z80 stack trampolines.
     (m.ret / m.pop* are Z80 stack primitives too, but counted only for CLOSURE games (as `stack`) and
     TIGHT_GAMES (as pushes), so a frozen legacy game's budget is not re-baselined by the gate newly seeing them.)
-  - raw 0xHHHH — a bare address (any case, zero-padded or `_`-separated); use a named import from names.js.
+    For a TIGHT game this is a WHITELIST (machine_hits): a Machine PRIMITIVE named on any receiver in any
+    spelling counts, and any other member of a machine parameter outside SANCTIONED[game] counts as `mem`.
+  - raw 0xHHHH — a bare address (any case, zero-padded or `_`-separated, or any other JS numeric spelling of
+    its value: canon_literals); use a named import from names.js. SHORT_ADDR games also fold `lit << 8` pages.
     For a SHORT_ADDR_GAMES game (e.g. timeplt) an address written short (0xd1b, decimal) is counted too, in
     address position: an index base, a call's address slot, a binding reaching either, or 0x100+ (short_addr_hits).
-  - mem.read8/write8/read16/write16(...) — the low-level API; idiomatic is the indexed view `mem8[addr]`.
+  - mem.read8/write8/read16/write16(...) — the low-level API; idiomatic is the indexed view `mem8[addr]`
+    (plus, for a TIGHT game, an unsanctioned machine member).
   - a redundant width-mask on a mem assignment (`mem8[x]=..&0xff` / `mem16[x]=..&0xffff`): the write already
     truncates, so it's noise. Counted with it: a non-canonical `const foo=m.mem8` alias that would hide one.
 All six are counted in CODE ONLY (comments stripped); the last five have NO exemptions (registers keep the two bridges above).
@@ -72,7 +76,7 @@ ALIAS = re.compile(r"\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*m\.mem(?:8|16)\s*;")
 #   (C) a call argument in an ADDRESS SLOT: a (callee, position) that some call site in the game fills
 #       with a names.js address (`fetchTableByte(m, HEADING_SHAPE_TABLE, i)` makes slot 1 an address);
 #   (M) any value 0x100..0xffff that is not a size/mask shape (2^k, 2^k-1), anywhere -- except the whole
-#       initializer of `const NAME = <lit>` with NAME in the reviewed games/<game>/idiomatic-sizes.txt.
+#       initializer of `const NAME = <lit>` whose NAME and value are in the reviewed idiomatic-sizes.txt.
 # An offset added to a base (mem8[record + 0x0e]), a mask, a loop bound and a 2^k size never count.
 # Residual: a value below 0x100 reached only through derived bindings (rec = 0x7d + 4*s; mem8[rec + 1]) is not tracked.
 _LIT = re.compile(r"(?<![\w$.])(?:0[xX][0-9a-fA-F](?:_?[0-9a-fA-F])*|\d(?:_?\d)*)(?![\w$.])")
@@ -198,7 +202,7 @@ def short_addr_hits(code, slots=frozenset(), sizes=frozenset()):
                 return True
         return False
 
-    named_sizes = {m.start(3) for m in _SIZE_DECL.finditer(code) if not m.group(1) and m.group(2) in sizes}
+    named_sizes = {m.start(3) for m in _SIZE_DECL.finditer(code) if not m.group(1) and (m.group(2), _lit_val(m.group(3))) in sizes}
     for d in _BIND.finditer(code):
         name, end = d.group(1), _initializer(code, d.end())
         if d.group(2) == ":" or "." in name:
@@ -413,11 +417,69 @@ def register_hits_tight(text):
     return [m.group(1) for m in REF.finditer(text) if not in_sig(m.start()) and m.start() not in exempt]
 
 
+# --- TIGHT_GAMES machine surface: a WHITELIST, so a primitive added to a Machine later is still seen ---
+# The CPU-level operations of every games/*/machine.js Machine class and of core/cpu's register files: a
+# member mention of one of these names counts on ANY receiver (`mc.call`, `m['push16']`, `{ ret } = m`).
+PRIMITIVES = frozenset({
+    "call", "ret", "rti", "step", "tick", "ldi", "ldir", "ldirAt", "lddrAt", "fireNmi", "fireIrq", "fireInt",
+    "restartMain", "push8", "push16", "pop16", "pull8", "pull16", "exAf", "exx", "exDeHl", "ldAI", "djnz",
+    "daa", "cpi", "cpir", "rlca", "rrca", "rla", "rra", "addHl", "adcHl", "sbcHl", "addIx", "addIy",
+    "incMem8", "decMem8", "add16", "scf", "ccf", "cpl"})
+_PRIM_FAMILY = re.compile(r"(?:push|pop|pull)\d+|ldir\w*|lddr\w*")
+# What an idiomatic module may touch on its machine parameter. `regs` is policed by the register rule.
+SANCTIONED = {"timeplt": frozenset({"mem8", "mem16", "regs", "beamPlan", "paintBeamBand"})}
+_ID = r"[A-Za-z_$][\w$]*"
+_MEMBER = re.compile(r"(" + _ID + r")?\s*(?<!\.)(?:\?\.|\.(?!\.))\s*(" + _ID + r")"
+                     r"|(" + _ID + r")?\s*(?:\?\.)?\s*\[\s*(['\"`])(" + _ID + r")\4\s*\]")
+_DESTRUCTURE = re.compile(r"\{([^{}]*)\}\s*=(?![=>])\s*(" + _ID + r")?")
+MACHINE_NAMES = frozenset({"m", "mc", "machine"})
+_PLAIN_ALIAS = re.compile(r"(?:\b(?:const|let|var)\s+|,\s*)(" + _ID + r")\s*=\s*(" + _ID + r")\s*(?=[;,\n])")
+_MACHINE_PARAM = re.compile(r"\bexport\s+(?:default\s+)?(?:async\s+)?(?:function\s*\*?\s*" + _ID
+                            + r"\s*\(|const\s+" + _ID + r"\s*=\s*(?:async\s*)?(?:function\s*\*?\s*)?\(?)\s*(" + _ID + ")")
+
+
+def member_mentions(code):
+    """(receiver or None, member) for every `.x` / `?.x` (whitespace and newlines allowed), string-keyed
+    `["x"]`, and destructured key `{ x } = expr` in comment-stripped `code`."""
+    out = [(d.group(1) or d.group(3), d.group(2) or d.group(5)) for d in _MEMBER.finditer(code)]
+    for d in _DESTRUCTURE.finditer(code):
+        for part in d.group(1).split(","):
+            key = part.split(":")[0].strip().lstrip(".").strip()
+            if re.fullmatch(_ID, key):
+                out.append((d.group(2), key))
+    return out
+
+
+def is_primitive(name):
+    return name in PRIMITIVES or bool(_PRIM_FAMILY.fullmatch(name))
+
+
+def machine_hits(code, game):
+    """(calls, pushes, unsanctioned) for a TIGHT game: primitive mentions on any receiver (`call` is a call,
+    the rest stack/CPU ops), plus any other member of a machine -- an exported function's first parameter,
+    any `m`/`mc`/`machine`, or a plain alias of one -- outside SANCTIONED[game]."""
+    params = set(_MACHINE_PARAM.findall(code)) | MACHINE_NAMES
+    while True:
+        more = {a for a, b in _PLAIN_ALIAS.findall(code) if b in params} - params
+        if not more:
+            break
+        params |= more
+    allowed = SANCTIONED.get(game, frozenset({"mem8", "mem16", "regs"}))
+    calls = pushes = other = 0
+    for recv, name in member_mentions(code):
+        if is_primitive(name):
+            calls += name == "call"
+            pushes += name != "call"
+        elif recv in params and name not in allowed:
+            other += 1
+    return calls, pushes, other
+
+
 def _normalize_regs(code):
     """Rewrite hidden register-file spellings to `regs.X` so the register rule sees them: `m["regs"]`,
     `regs["a"]`, `?.`, an alias (`const r = m.regs` / `{ regs: r } = m`; the escape itself counts), and a
     destructure of register fields (`const { a, hl } = m.regs`)."""
-    code = re.sub(r"\bm\s*\??\.?\s*\[\s*(['\"`])regs\1\s*\]", "m.regs", code)
+    code = re.sub(r"\b(" + _ID + r")\s*\??\.?\s*\[\s*(['\"`])regs\2\s*\]", r"\1.regs", code)
     code = re.sub(r"\b(m|regs)\s*\?\.\s*", r"\1.", code)
     code = re.sub(r"\bregs\s*\.\s*", "regs.", code)
     code = re.sub(r"\bregs\s*\[\s*(['\"`])([A-Za-z]\w*)\1\s*\]", r"regs.\2", code)
@@ -435,19 +497,66 @@ def _normalize_regs(code):
     return re.sub(r"\bregs\.\[", "regs.dynamic[", code)
 
 
+_NUMTOK = re.compile(r"(?<![\w$.])(?:0[xX][0-9a-fA-F_]+|0[oObB][0-9_]+|(?:\d[\d_]*(?:\.[\d_]*)?|\.\d[\d_]*)"
+                     r"(?:[eE][+-]?\d+)?)n?(?![\w$.])")
+
+
+def canon_literals(code):
+    """Rewrite every JS numeric spelling that _LIT/ADDR cannot read -- 0o/0b, legacy octal, a fraction or
+    exponent, a BigInt `n` -- to the hex of its integer value (a non-integer is left alone)."""
+    def canon(t):
+        s = t.group(0)
+        b = (s[:-1] if s.endswith("n") else s).replace("_", "")
+        if b == s.replace("_", "") and (b[:2] in ("0x", "0X") or re.fullmatch(r"[1-9]\d*|0", b)):
+            return s
+        try:
+            v = int(b, 0) if b[:2].lower() in ("0x", "0o", "0b") else int(b, 8) if re.fullmatch(r"0[0-7]+", b) \
+                else float(b)
+        except ValueError:
+            return s
+        return s if v != int(v) else f"0x{int(v):x}"
+    return _NUMTOK.sub(canon, code)
+
+
+_PAGE = re.compile(r"(?<![\w$.])(0x[0-9a-fA-F]+|\d+)\s*(?:<<\s*8|\*\s*(?:256|0x100))(?![\w$.])"
+                   r"|(?<![\w$.])(?:256|0x100)\s*\*\s*(0x[0-9a-fA-F]+|\d+)(?![\w$.])")
+
+
+def fold_pages(code):
+    """SHORT_ADDR_GAMES: fold a page composition `lit << 8` / `lit * 256` (lit >= 0x10) into its value, so
+    ADDR sees `mem8[lo | (0xad << 8)]` as 0xad00. Kept unfolded, as a mask: an operand of `&`, and outside
+    a memory index the high-byte fill 0xff00 (`c ? (0xff << 8) : 0`). 0xc0 << 8 is a page (I/O), not a mask."""
+    spans = list(_index_spans(code))
+
+    def fold(d):
+        v = int(d.group(1) or d.group(2), 0) << 8
+        before, after = code[:d.start()].rstrip(" (\n"), code[d.end():].lstrip(" )\n")
+        and_operand = (before.endswith("&") and not before.endswith("&&")) or \
+            (after.startswith("&") and not after.startswith("&&"))
+        in_index = any(a <= d.start() < b for a, b in spans)
+        high_mask = v == 0xFF00 and not in_index
+        return d.group(0) if not 0x1000 <= v <= 0xFFFF or and_operand or high_mask else f"0x{v:04x}"
+    return _PAGE.sub(fold, code)
+
+
 def counts(text, game=None, slots=frozenset(), sizes=frozenset()):
     """Per-category cruft counts for one module's source text. The CATEGORIES keys are always-counted
     (baked into every game's budget); "stack" (m.ret/m.pop*) is a separate addend the callers apply only
     for CLOSURE_GAMES (TIGHT_GAMES fold it into "pushes"), so it is returned but excluded from total(). `slots` feeds rule C (address_slots), `sizes` rule M (read_sizes)."""
-    code = strip_comments(text)
+    code = canon_literals(strip_comments(text))
+    if game in SHORT_ADDR_GAMES:
+        code = fold_pages(code)
+    if game in TIGHT_GAMES:
+        calls, pushes, other = machine_hits(code, game)
+    else:
+        calls, pushes, other = len(CALL.findall(code)), len(PUSH.findall(code)), 0
     return {
         "registers": len(register_hits(_normalize_regs(code), tight=game in TIGHT_GAMES)),
-        "calls": len(CALL.findall(code)),
-        "pushes": len(PUSH.findall(code)) + (len(STACK.findall(code)) if game in TIGHT_GAMES
-                                             and game not in CLOSURE_GAMES else 0),
+        "calls": calls,
+        "pushes": pushes,
         "addrs": (sum(1 for t in ADDR.findall(code) if _is_long(t))
                   + (len(short_addr_hits(code, slots, sizes)) if game in SHORT_ADDR_GAMES else 0)),
-        "mem": len(MEM.findall(code)),
+        "mem": len(MEM.findall(code)) + other,
         "masks": (len(MASK8.findall(code)) + len(MASK16.findall(code))
                   + sum(1 for n in ALIAS.findall(code) if n not in ("mem8", "mem16"))),
         "stack": len(STACK.findall(code)),
@@ -494,8 +603,8 @@ def _game_slots(game, texts, from_index):
 
 
 def read_sizes(game, from_index):
-    """{NAME: reason} from games/<game>/idiomatic-sizes.txt (rule M's reviewed named sizes); {} if absent.
-    Fail closed on a reasonless line."""
+    """{(NAME, value): reason} from games/<game>/idiomatic-sizes.txt (rule M's reviewed sizes); {} if absent.
+    Fail closed on a malformed line."""
     path = f"games/{game}/idiomatic-sizes.txt"
     try:
         text = _read(path, from_index)
@@ -505,21 +614,22 @@ def read_sizes(game, from_index):
 
 
 def parse_sizes(text, path):
+    """`NAME  VALUE  reason` lines: the entry pins the value, so the const cannot later be re-pointed."""
     out = {}
     for raw in text.splitlines():
-        parts = raw.split("#", 1)[0].split(None, 1)
-        if parts and len(parts) < 2:
-            raise GitError(f"reasonless entry in {path}: {raw.strip()}")
+        parts = raw.split("#", 1)[0].split(None, 2)
+        if parts and (len(parts) < 3 or not _LIT.fullmatch(parts[1])):
+            raise GitError(f"entry needs NAME VALUE reason in {path}: {raw.strip()}")
         if parts:
-            out[parts[0]] = parts[1].strip()
+            out[(parts[0], _lit_val(parts[1]))] = parts[2].strip()
     return out
 
 
 def stale_sizes(sizes, texts):
-    """Allowlisted names that no module declares as `const NAME = <literal 0x100..0xffff, not 2^k/2^k-1>`."""
-    live = {m.group(2) for t in texts for m in _SIZE_DECL.finditer(strip_comments(t))
+    """Entries that no module declares as `const NAME = VALUE` (VALUE 0x100..0xffff, not 2^k/2^k-1)."""
+    live = {(m.group(2), _lit_val(m.group(3))) for t in texts for m in _SIZE_DECL.finditer(strip_comments(t))
             if not m.group(1) and _big(_lit_val(m.group(3)))}
-    return sorted(set(sizes) - live)
+    return sorted(f"{n}={v}" for n, v in set(sizes) - live)
 
 
 def _game_sizes(game, texts, from_index):
@@ -865,25 +975,67 @@ def selftest():
                  "const addrs = [BASE, BASE + 2];\nfor (const a of addrs) mem8[a] = 0;",
                  "function at(i) { return BASE + 2 * i; }\nreturn mem8[at(i)];"):
         want(f"rule M chain: {tail!r}", counts("const BASE = 0xd1b;\n" + tail, sg, slots)["addrs"], 1)
-    sizes = {"STEP", "LEN"}
+    sizes = {("STEP", 384), ("LEN", 768)}
     for src, n in (("const STEP = 384;\nx += STEP;", 0), ("const LEN = 768;\nfor (; i < LEN;) i++;", 0),
-                   ("export const STEP = 384;", 1), ("let STEP = 384;", 1), ("const STEP = 384 + 0;", 1)):
+                   ("export const STEP = 384;", 1), ("let STEP = 384;", 1), ("const STEP = 384 + 0;", 1),
+                   ("const STEP = 0xd1b;", 1), ("const STEP =\n  0xd1b;", 1), ("const LEN = 3355;", 1)):
         want(f"size allowlist: {src!r}", counts(src, sg, slots, sizes)["addrs"], n)
-    want("stale size entry", stale_sizes({"STEP": "r", "GONE": "r"}, ["const STEP = 384;"]), ["GONE"])
-    for bad in ("STEP\n", "STEP   # reason only in a comment\n"):
+    want("stale size entry", stale_sizes({("STEP", 384): "r", ("GONE", 384): "r"}, ["const STEP = 384;"]), ["GONE=384"])
+    want("re-pointed size is stale", stale_sizes({("STEP", 384): "r"}, ["const STEP = 0xd1b;"]), ["STEP=384"])
+    for bad in ("STEP\n", "STEP   # reason only in a comment\n", "STEP 384\n", "STEP a velocity\n"):
         try:
             parse_sizes(bad, "x")
-            want(f"reasonless size entry blocks: {bad!r}", "parsed", "GitError")
+            want(f"malformed size entry blocks: {bad!r}", "parsed", "GitError")
         except GitError:
             pass
-    want("size entry parsed", parse_sizes("# c\nSTEP  a velocity\n", "x"), {"STEP": "a velocity"})
-    want("a 2^k const is no size entry", stale_sizes({"N": "r"}, ["const N = 0x400;"]), ["N"])
+    want("size entry parsed", parse_sizes("# c\nSTEP  384  a velocity\n", "x"), {("STEP", 384): "a velocity"})
+    want("a 2^k const is no size entry", stale_sizes({("N", 0x400): "r"}, ["const N = 0x400;"]), ["N=1024"])
     # hidden register-file spellings are counted for every game; m.pop*/m.ret count as pushes for TIGHT_GAMES
     for src, n in (('const v = m["regs"].a;', 1), ("const r = m.regs;\nconst v = r.a;", 2),
                    ("const { a, hl } = m.regs;", 3), ("const { regs: q } = m;\nq.a = 1;", 1),
                    ("const v = m.regs['a'] + m?.regs?.b + regs [k];", 3), ("const { regs, mem8 } = m;", 0),
                    ("const { regs: { a } } = m;", 1)):
         want(f"register spelling: {src!r}", counts(src, lg)["registers"], n)
+    # TIGHT machine surface: a primitive on any receiver/spelling counts; an unsanctioned member of the
+    # exported function's machine parameter counts as `mem`; an Array method or a sanctioned member does not
+    fn = "export function f(m) {\n  %s\n}"
+    for src, cat, n in (("m.ldirAt(f, NEXT);", "pushes", 1), ("m.lddrAt(f, NEXT);", "pushes", 1),
+                        ("m.ldi(NEXT);", "pushes", 1), ("m.step(NEXT, 7);", "pushes", 1), ("m.tick(7);", "pushes", 1),
+                        ("m.fireNmi();", "pushes", 1), ("m['call'](X);", "calls", 1), ("m.call?.(X);", "calls", 1),
+                        ("m\n    .call(X);", "calls", 1), ("const { call } = m;", "calls", 1),
+                        ("m.call.apply(m, [X]);", "calls", 1), ("const c = m.call.bind(m);", "calls", 1),
+                        ("m.push16 (X);", "pushes", 1), ("m['push16'](X);", "pushes", 1), ("m.ret ();", "pushes", 1),
+                        ("m?.pop16();", "pushes", 1), ("m.exx();", "pushes", 1), ("o.step += 1;", "pushes", 1),
+                        ("m.io.write(1, 2);", "mem", 1), ("m.cycles += 4;", "mem", 1), ("const { pc } = m;", "mem", 1),
+                        ("m.halt();", "mem", 1), ("m?.cycles;", "mem", 1), ("m\n    .cycles;", "mem", 1), ("m['halt']();", "mem", 1),
+                        ("const { mem8, mem16, regs } = m;", "mem", 0), ("if (m.beamPlan) m.beamPlan.push(e);", "pushes", 0),
+                        ("m.paintBeamBand(r);", "mem", 0), ("xs.map(f).push(1); xs.pop();", "pushes", 0)):
+        want(f"machine surface {tg}: {src!r}", counts(fn % src, tg)[cat], n)
+    for src in ("function h(mc) { return mc.io.read(1); }", "function h(mc) { return mc.vpos(); }",
+                "const h = (mc) => mc.cycles;", "const mm = m;\nmm.io.write(1);", "const a = m, b = a;\nb.cycles;",
+                "function h(machine) { return machine.frames; }"):
+        want(f"machine alias/helper: {src!r}", counts(src, tg)["mem"], 1)
+    want("non-machine local", counts("const o = { io: 1 };\nconst v = o.io + q.cycles;", tg)["mem"], 0)
+    want("helper machine param", counts("function h(mc) { mc.call(X); mc.push16(Y); }", tg)["calls"], 1)
+    want("helper mc['regs']", counts("function h(mc) { return mc['regs'].a; }", tg)["registers"], 1)
+    want("machine surface opt-in", counts(fn % "m.step(1, 2); m.io.x = 1;", lg)["pushes"], 0)
+    # every JS numeric spelling is read as its value; SHORT_ADDR page compositions fold to their address
+    for src, n in (("mem8[0o126460] = 1;", 1), ("mem8[0b1010110100110000] = 1;", 1), ("mem8[44336.0] = 1;", 1),
+                   ("mem8[4.4336e4] = 1;", 1), ("const A = 0xad30n;", 1), ("mem8[0O126460] = 1;", 1),
+                   ("const h = 0.5 * x;", 0), ("const n = 12;", 0)):
+        want(f"literal spelling: {src!r}", counts(src, lg)["addrs"], n)
+    for src, n in (("mem8[lo | (0xad << 8)] = 1;", 1), ("mem8[lo + 0xad * 256] = 1;", 1),
+                   ("const at = hi | (0xad << 8);", 1), ("mem8[0x100 * 0xad + lo] = 1;", 1),
+                   ("const hb = c ? (0xff << 8) : 0;", 0), ("const p = x & (0xf0 << 8);", 0),
+                   ("return m.mem8[i + (0x3c << 8)];", 1), ("return m.mem8[i | 0x3c << 8];", 1),
+                   ("return m.mem8[i + 0x3c * 256];", 1), ("const at = lo | (0x3c << 8);\nreturn m.mem8[at];", 1),
+                   ("return m.mem8[(0xc0 << 8) | i];", 1), ("const io = (0xc0 << 8) | 0x20;", 1),
+                   ("return m.mem8[(point & (0xff << 8)) | u8(point - 1)];", 0),
+                   ("const PAGE_MASK = 0xff << 8;", 0),
+                   ("return m.mem8[i | (0xff << 8)];", 1),
+                   ("const c = 0x04 << 8;", 0), ("const w = (7 << 8) | 1;", 0)):
+        want(f"page fold {sg}: {src!r}", counts(src, sg)["addrs"], n)
+    want("page fold opt-in", counts("mem8[lo | (0xad << 8)] = 1;", lg)["addrs"], 0)
     want("pop/ret are pushes for TIGHT", counts("m.pop16(); m.pop8(); m.ret();", tg)["pushes"], 3)
     want("pop/ret not pushes for legacy", counts("m.pop16(); m.ret();", lg)["pushes"], 0)
     # closure parsing: a translated-registry row and a ROUTINES key are recognised; a plain const is not

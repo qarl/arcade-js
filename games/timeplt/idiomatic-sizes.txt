@@ -1,4 +1,4 @@
 # idiomatic_gate rule M allowlist: a `const NAME = <literal 0x100..0xffff>` that is a size, not an address.
-# One `NAME  reason` per line; a reasonless or stale entry blocks the gate. Reviewed entries only.
-GUARDED_BYTES  byte count (0x300) of the image span guardBlockOrDerailSequence folds; a loop bound
-STEP_ACROSS    8.8 fixed-point sideways speed (1.5 px/frame) flyAlongBallisticArc adds; a velocity
+# One `NAME  VALUE  reason` per line; the value is pinned. A malformed or stale entry blocks the gate.
+GUARDED_BYTES  768  byte count (0x300, ROM `ld bc,0x0300` at 0x3252) of the span guardBlockOrDerailSequence folds
+STEP_ACROSS    384  8.8 fixed-point sideways speed (0x0180, ROM `ld hl,0x0180` at 0x4026) flyAlongBallisticArc adds
