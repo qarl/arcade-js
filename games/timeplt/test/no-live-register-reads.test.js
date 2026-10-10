@@ -11,32 +11,39 @@
 //
 // HOW. The whole wired idiomatic machine runs under runIdiomaticGame (the shipped clock-free engine),
 // with every register field of its Regs object (core/cpu/z80.js REG_FIELDS) replaced by a getter trap
-// for the run. A read is charged to the first frame outside the Regs accessors and native frames, when that frame is an idiomatic module -- the pair and flag
-// accessors (hl, de, fC, ...) are walked through, so `m.regs.de` is charged to its caller like
-// `m.regs.e`. Two kinds of access are NOT reads, and are named so they cannot hide one:
+// for the run. A read is charged to the first frame outside the Regs accessors and native frames -- the
+// pair and flag accessors (hl, de, fC, ...) are walked through, so `m.regs.de` is charged to its caller
+// like `m.regs.e`. That frame is charged whatever file it is in: a module anywhere under idiomatic/ (a
+// subdirectory too), or any other file -- a core/ or machine helper an idiomatic module calls is charged
+// as `<file>:<line> via <idiomatic module>`. Two kinds of access are NOT reads, and are named so they
+// cannot hide one:
 //   * a getter called from inside a Regs SETTER -- a flag write (`m.regs.fC = x`) rewrites F from F, so
 //     the write reads F first; the value handed out is never the idiomatic code's;
-//   * a read whose first frame outside the Regs accessors and native frames is not an idiomatic module
-//     (the boot seam in machine.js reading SP; a machine or core helper that an idiomatic module calls
-//     falls here too, and none did on the coin/start/play tape).
-// Every other register read by idiomatic code fails the gate. Nothing is allowed.
+//   * an ENGINE read: the first frame is the engine itself (ENGINE_FILES -- the withOmittedRet seam in
+//     machine.js reading SP, the run loop) AND no idiomatic module is anywhere on the stack. Counted in
+//     engineReads, never charged; the same file read with an idiomatic frame below it is charged.
+// Every other register read fails the gate. Nothing is allowed.
 //
 // SESSIONS: the coin/start/play tape and attract (3600 NMIs each; the input tape is test/idiomatic.test.js's, which that test runs at its own lengths), and every
 // poke-driven distant state in tapes/*.poke.json, built from the exact render argv distant_suite.py uses.
 // A routine that no session runs is not measured (the HOLE); the static half of the question -- an
 // idiomatic call that leaves out a `= m.regs.X` argument -- is the reviewer's (reviewer-rules R37).
 //
-// TEETH. Four mutants, each on a copied idiomatic tree, each must be heard: a scenery step that leaves
+// TEETH. Each mutant below runs on a copied idiomatic tree and must be heard: a scenery step that leaves
 // its cursors out (IX/IY read through the bridge, the tape), a round caption that leaves its character
 // cursor out (DE, a pair accessor, a distant state), and a flag READ riding a flag write (F through the
 // fC accessor) -- so the setter carve-out cannot swallow a real flag read. A fourth copies the register
 // file with Object.assign, so a read made from a native frame is still charged to the idiomatic caller.
+// The last three read through code the module reaches: a helper in an idiomatic/ SUBDIRECTORY, a helper
+// OUTSIDE the layer (a core/-style file beside the tree), and a Machine method in the engine's own
+// machine.js -- so neither location, nor the engine carve-out, can drop a read made for idiomatic code.
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { REG_FIELDS } from "../../../core/cpu/z80.js";
 import { runIdiomaticGame } from "../../../core/frame-stepped.js";
@@ -73,17 +80,31 @@ function inputAt(n, live) {
 
 // ── the instrument ──────────────────────────────────────────────────────────────────────────
 
-const IDIOMATIC_FRAME = /\/games\/timeplt\/idiomatic\/(\w+\.js):(\d+)/;
+const IDIOMATIC_FRAME = /\/games\/timeplt\/idiomatic\/((?:[\w.-]+\/)*[\w.-]+\.m?js):(\d+)/;
 const REGS_FRAME = /\/core\/cpu\/z80\.js:/;
 const SETTER_FRAME = /at (?:Regs\.)?set \w+ /;
+// The run engine's own files: a read from one of these with NO idiomatic frame on the stack is the
+// engine's (the omitted-ret seam reads SP around each dispatch), not idiomatic code's.
+const ENGINE_FILES = new Set(["games/timeplt/machine.js", "core/frame-stepped.js"]);
+// "<repo-relative file>:<line>" of a stack frame (the tree root of a copied idiomatic tree is dropped too).
+const FRAME_AT = /(\/[^\s()]+?\.m?js):(\d+):\d+\)?\s*$/;
+function frameAt(f) {
+  const hit = f && f.match(FRAME_AT);
+  if (!hit) return { file: f ? f.trim() : "<no frame>", line: "?" };
+  const rel = hit[1].match(/\/((?:games|core|boards|tools|web)\/.*)$/);
+  return { file: rel ? rel[1] : hit[1], line: hit[2] };
+}
 
 /**
  * Replace every register field of `m.regs` with a getter trap. Returns the tally the run fills:
- * reads (idiomatic "module:line reg" -> count), setterReads (flag-write read-modify-writes, counted
- * only to show the carve-out is exercised), and arm/disarm switches.
+ * reads (charged "module:line reg" -> count; an idiomatic module by its path under idiomatic/, any
+ * other file as "<file>:<line> reg via <idiomatic module or no idiomatic caller>"), setterReads
+ * (flag-write read-modify-writes, counted only to show the carve-out is exercised), engineReads (the
+ * engine's own seam reads, counted only to show the carve-out is named), and arm/disarm switches.
  */
 function trapRegisters(m) {
-  const tally = { reads: new Map(), setterReads: 0, armed: false };
+  const tally = { reads: new Map(), setterReads: 0, engineReads: 0, armed: false };
+  const charge = (key) => tally.reads.set(key, (tally.reads.get(key) ?? 0) + 1);
   for (const k of REG_FIELDS) {
     // Most fields are width-masking accessors on the Regs prototype; the trap delegates to them, so the
     // run observes the shipped masked behaviour rather than a plain unmasked slot.
@@ -99,11 +120,17 @@ function trapRegisters(m) {
             tally.setterReads++;
           } else {
             // Walk out through the Regs accessors (hl, de, fC, ...) to the code that asked.
-            const at = frames.find((f) => !REGS_FRAME.test(f) && !f.includes("(<anonymous>)"));
+            const i = frames.findIndex((f) => !REGS_FRAME.test(f) && !f.includes("(<anonymous>)"));
+            const at = i < 0 ? null : frames[i];
             const hit = at && at.match(IDIOMATIC_FRAME);
             if (hit) {
-              const key = `${hit[1]}:${hit[2]} ${k}`;
-              tally.reads.set(key, (tally.reads.get(key) ?? 0) + 1);
+              charge(`${hit[1]}:${hit[2]} ${k}`);
+            } else {
+              // Not an idiomatic frame: charged unless it is the engine with no idiomatic code below it.
+              const caller = frames.slice(Math.max(i, 0)).map((f) => f.match(IDIOMATIC_FRAME)).find(Boolean);
+              const { file, line } = frameAt(at);
+              if (!caller && ENGINE_FILES.has(file)) tally.engineReads++;
+              else charge(`${file}:${line} ${k} via ${caller ? `${caller[1]}:${caller[2]}` : "no idiomatic caller"}`);
             }
           }
         }
@@ -170,6 +197,7 @@ for (const [label, live] of [["coin/start/play tape", true], ["attract", false]]
     assert.equal(stop, null, `the run stopped early: ${stop}`);
     assert.equal(frames, NMIS, "the run did not reach its NMI budget");
     assert.equal(tally.reads.size, 0, `idiomatic code read registers: ${show(tally)}`);
+    assert.ok(tally.engineReads > 0, "no engine seam read was seen, so the engine carve-out was never tested");
     // Attract's drifting objects make flag writes (hasReachedHorizontalEdgeWindow's carry), so the
     // setter carve-out is met there and a green run is not green by never meeting one.
     if (!live) assert.ok(tally.setterReads > 0, "no flag write was seen, so the setter carve-out was never tested");
@@ -224,4 +252,48 @@ test("TEETH: a register-file copy made through a native frame is heard (Object.a
   const { tally } = await runTape(false, tree.machine);
   const keys = [...tally.reads.keys()];
   assert.ok(keys.some((k) => k.startsWith("hasReachedHorizontalEdgeWindow.js:") && k.endsWith(" a")), `Object.assign read not heard: ${keys.join(", ")}`);
+});
+
+/** A copied tree where hasReachedHorizontalEdgeWindow (run every attract frame) calls `helper(m)`
+ * from `spec`, a module written at `rel` (relative to the tree's games/timeplt/idiomatic/). */
+function helperTree(spec, rel) {
+  const tree = idiomaticTree({ edits: {
+    "hasReachedHorizontalEdgeWindow.js": (src) =>
+      edit("return (m.regs.fC = arrived);", "helper(m); return (m.regs.fC = arrived);")(src)
+      + `\nimport { helper } from "${spec}";\n`,
+  } });
+  const path = join(dirname(fileURLToPath(tree.machine)), "idiomatic", rel);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, "export function helper(m) {\n  return m.regs.a;\n}\n");
+  return tree;
+}
+
+test("TEETH: a register read in an idiomatic/ SUBDIRECTORY helper is heard (lib/evil.js, attract)", async () => {
+  const tree = helperTree("./lib/evil.js", "lib/evil.js");
+  const { tally } = await runTape(false, tree.machine);
+  const keys = [...tally.reads.keys()];
+  assert.ok(keys.some((k) => k.startsWith("lib/evil.js:2 a")), `subdirectory read not heard: ${keys.join(", ")}`);
+});
+
+test("TEETH: a register read in a helper OUTSIDE the layer is heard, charged via its idiomatic caller (attract)", async () => {
+  const tree = helperTree("../../../core-mutant/z80ops_tmp.js", "../../../core-mutant/z80ops_tmp.js");
+  const { tally } = await runTape(false, tree.machine);
+  const keys = [...tally.reads.keys()];
+  assert.ok(keys.some((k) => /\/core-mutant\/z80ops_tmp\.js:2 a via hasReachedHorizontalEdgeWindow\.js:\d+$/.test(k)),
+    `outside-layer read not heard: ${keys.join(", ")}`);
+});
+
+test("TEETH: a register read in an ENGINE file on behalf of idiomatic code is heard (a machine.js method, attract)", async () => {
+  const tree = idiomaticTree({ edits: {
+    "hasReachedHorizontalEdgeWindow.js": edit("return (m.regs.fC = arrived);", "m.peekA(); return (m.regs.fC = arrived);"),
+  } });
+  const path = fileURLToPath(tree.machine);
+  const src = readFileSync(path, "utf8");
+  const at = "export class Machine {\n";
+  assert.ok(src.includes(at), "machine.js has no Machine class to extend");
+  writeFileSync(path, src.replace(at, `${at}  peekA() {\n    return this.regs.a;\n  }\n`));
+  const { tally } = await runTape(false, tree.machine);
+  const keys = [...tally.reads.keys()];
+  assert.ok(keys.some((k) => /^games\/timeplt\/machine\.js:\d+ a via hasReachedHorizontalEdgeWindow\.js:\d+$/.test(k)),
+    `engine-file read for idiomatic code not heard: ${keys.join(", ")}`);
 });

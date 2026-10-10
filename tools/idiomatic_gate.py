@@ -21,13 +21,18 @@ IDIOMATIC (a hard done requirement):
     (plus, for a TIGHT game, an unsanctioned machine member).
   - a redundant width-mask on a mem assignment (`mem8[x]=..&0xff` / `mem16[x]=..&0xffff`): the write already
     truncates, so it's noise. Counted with it: a non-canonical `const foo=m.mem8` alias that would hide one.
-All six are counted in CODE ONLY (comments stripped); the last five have NO exemptions (registers keep the two bridges above).
+  - imports (TIGHT_GAMES): an import from outside the layer that is not on the reviewed allowlist
+    (IMPORT_PURE / IMPORT_NAMED, each re-verified free of machine surface on every run).
+  - for SHORT_ADDR_GAMES, `addrs` also counts an OFFSET ALIAS: `NAME +/- literal` landing on a different
+    names.js cell, unless NAME is a reviewed record/word base (games/<game>/idiomatic-bases.txt).
+All are counted in CODE ONLY (comments stripped); only registers keep exemptions (the two bridges above).
 
 FAIL-CLOSED ratchet: `check` enumerates EVERY games/*/idiomatic/ and holds each to a budget
 (games/<game>/idiomatic-budget.txt), implicit 0 for a game not listed — so a NEW game is born idiomatic. It
 blocks when a game's STAGED count EXCEEDS its budget (no NEW cruft; the allowlist only shrinks).
-Fail-closed on a missing/malformed allowlist. Scope: games/<game>/idiomatic/*.js, minus names.js and
-the test/ subdir.
+Fail-closed on a missing/malformed allowlist. Scope: every .js under games/<game>/idiomatic/ at any depth,
+minus the test/ subdir. names.js is scanned too, minus its data consts (names_code): any function or other
+code in it is held to every rule.
 
 COMPLETENESS: `check` also enforces the game-local `idiomaticComplete: true` flag (manifest) — a game may
 declare it only at 0 total cruft. Rationale: docs/comment-gate.md.
@@ -37,6 +42,7 @@ Subcommands: worklist (per-module, per-category), check (the ratchet), selftest.
 import argparse
 import glob
 import os
+import posixpath
 import re
 import subprocess
 import sys
@@ -227,7 +233,7 @@ def short_addr_hits(code, slots=frozenset(), sizes=frozenset()):
 # Games whose `addrs` count also includes short-written addresses (short_addr_hits). Opt-in per game.
 SHORT_ADDR_GAMES = {"timeplt"}
 
-CATEGORIES = ("registers", "calls", "pushes", "addrs", "mem", "masks")
+CATEGORIES = ("registers", "calls", "pushes", "addrs", "mem", "masks", "imports")
 
 
 def strip_comments(text):
@@ -539,11 +545,253 @@ def fold_pages(code):
     return _PAGE.sub(fold, code)
 
 
-def counts(text, game=None, slots=frozenset(), sizes=frozenset()):
+# --- SCOPE: every .js under games/<game>/idiomatic/ except test/, names.js included ---
+# The layer is whatever an idiomatic module can reach without leaving it: a helper in a subdirectory
+# is scanned like a top-level module, and names.js's non-data code is held to the same rules.
+NAMES_FILE = "names.js"
+
+
+def in_layer(path, game):
+    """True for a repo-relative path inside games/<game>/idiomatic/ and outside its test/ subdir."""
+    idir = f"games/{game}/idiomatic/"
+    return path.startswith(idir) and not path.startswith(idir + "test/")
+
+
+def strip_js(text):
+    """Comments removed and '...' / "..." / plain `...` string bodies blanked, string-aware (a `//` inside
+    a string is not a comment). A template literal holding `${` is kept whole: its expressions are code."""
+    out, i, n = [], 0, len(text)
+    while i < n:
+        c = text[i]
+        if text.startswith("//", i):
+            j = text.find("\n", i)
+            i = n if j < 0 else j
+        elif text.startswith("/*", i):
+            j = text.find("*/", i + 2)
+            i = n if j < 0 else j + 2
+            out.append(" ")
+        elif c in "'\"`":
+            j = _skip_str(text, i)
+            body = text[i:j]
+            out.append(body if c == "`" and "${" in body else c + c)
+            i = j
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out)
+
+
+_CONST_STMT = re.compile(r"(?:(?<=^)|(?<=[\s;}]))(?:export\s+)?const\s+[A-Za-z_$][\w$]*\s*=")
+_NOT_DATA = re.compile(r"\(|=>|\bfunction\b|\bclass\b|\bget\b\s*\w|\bset\b\s*\w")
+
+
+def names_code(text):
+    """names.js minus its DATA: comments and strings stripped (strip_js), then every top-level
+    `[export] const NAME = <init>;` whose initializer has no call, arrow, function, class or accessor
+    (a literal, a name, an arithmetic expression of them, or an object/array literal of them) removed --
+    addresses live there by design. What remains (a function, a class, a const computed by a call, any
+    other statement) is code and is counted under the full rules, raw addresses included."""
+    code = strip_js(text)
+    out, i, depth, n = [], 0, 0, len(code)
+    while i < n:
+        m = _CONST_STMT.match(code, i) if depth == 0 else None
+        if m:
+            j, d = m.end(), 0
+            while j < n and not (d == 0 and code[j] == ";"):
+                d += (code[j] in _OPEN) - (code[j] in _CLOSE)
+                j += 1
+            if not _NOT_DATA.search(code[m.end():j]):
+                i = j + 1
+                continue
+        c = code[i]
+        depth += (c in _OPEN) - (c in _CLOSE)
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
+# --- IMPORTS (TIGHT_GAMES): an idiomatic module may import only from the layer itself (any .js under
+# games/<game>/idiomatic/ but test/, names.js included) and from this REVIEWED set outside it. Any other
+# import -- a core/ or board helper, the translated layer, a bare package, a dynamic import()/require() --
+# counts, because the gate cannot see what the imported code does to the machine.
+#   PURE: any named import. Each must stay a leaf (no import of its own) with no machine surface, which
+#   verify_import_allowlist re-checks on every run, so a CPU helper added to one later blocks.
+#     core/int.js  -- u8/u16/page: integer width masks, the integer-width helpers of the layer.
+#     core/bcd.js  -- bcdAddByte/bcdSubByte: packed-decimal byte add/subtract on plain values (a JS
+#                     re-expression of add+daa that takes and returns numbers, never `m`).
+#   NAMED: only the listed names; each must be a numeric const or an Error class in that file (checked).
+#     core/cpu/z80.js -- the F_* flag-bit constants, plain numbers naming bit positions in a flags byte
+#                     a routine computes and returns. Nothing executable of the CPU is importable.
+#     boards/<game>/io.js -- NotImplemented, the error class an unreached arm throws (the board's own
+#                     "no answer here" marker; constructing it touches no machine state).
+IMPORT_PURE = ("core/int.js", "core/bcd.js")
+IMPORT_NAMED = {"core/cpu/z80.js": frozenset({"F_C", "F_N", "F_PV", "F_F3", "F_H", "F_F5", "F_Z", "F_S"}),
+                "boards/{game}/io.js": frozenset({"NotImplemented"})}
+_IMPORT_FROM = re.compile(r"(?<![\w$.])(import|export)(?![\w$])(?!\s*\()([^;'\"`]*?)(?<![\w$.])from\s*(['\"])([^'\"]*)\3")
+_IMPORT_BARE = re.compile(r"(?<![\w$.])import\s*(['\"])([^'\"]*)\1")
+_IMPORT_DYN = re.compile(r"(?<![\w$.])(?:import|require)\s*\(")
+
+
+def _resolve(path, spec):
+    return posixpath.normpath(posixpath.join(posixpath.dirname(path), spec)) if spec.startswith(".") else spec
+
+
+def _named_policy(target, game):
+    for k, names in IMPORT_NAMED.items():
+        if k.format(game=game) == target:
+            return names
+    return None
+
+
+def import_hits(code, path, game):
+    """Unallowed imports in comment-stripped `code` of the module at repo-relative `path`: one per
+    statement from a file off the allowlist, one per unlisted name (or namespace/default import) from a
+    NAMED file, one per dynamic import()/require()."""
+    hits = []
+    stmts = [(m.group(2), m.group(4)) for m in _IMPORT_FROM.finditer(code)]
+    stmts += [(None, m.group(2)) for m in _IMPORT_BARE.finditer(code)]
+    for clause, spec in stmts:
+        target = _resolve(path, spec)
+        if (in_layer(target, game) and target.endswith(".js")) or target in IMPORT_PURE:
+            continue
+        allowed = _named_policy(target, game)
+        if allowed is None:
+            hits.append(target)
+            continue
+        brace = re.fullmatch(r"\s*\{([^{}]*)\}\s*", clause or "")
+        if not brace:
+            hits.append(f"{target} (not a named import)")
+            continue
+        for part in brace.group(1).split(","):
+            name = part.split(" as ")[0].strip()
+            if name and name not in allowed:
+                hits.append(f"{target}:{name}")
+    hits += ["dynamic import"] * len(_IMPORT_DYN.findall(code))
+    return hits
+
+
+def verify_import_allowlist(game, from_index, read=None):
+    """Problems with the reviewed allowlist itself for `game`: a PURE file that imports anything or has a
+    machine surface (registers, calls, stack ops, machine members), or a NAMED name that is not a numeric
+    const / Error class of its file. A missing PURE file is a problem (fail closed). `read(path)` defaults
+    to the index (from_index) or the working tree."""
+    read = read or (lambda path: _read(path, from_index))
+    probs = []
+    for path in IMPORT_PURE:
+        try:
+            code = strip_js(read(path))
+        except (GitError, OSError):
+            probs.append(f"{path}: unreadable")
+            continue
+        c = counts(code, game)
+        if _IMPORT_FROM.search(code) or _IMPORT_BARE.search(code) or _IMPORT_DYN.search(code):
+            probs.append(f"{path}: imports another file, so it is no longer a reviewed leaf")
+        for k in ("registers", "calls", "pushes", "mem"):
+            if c[k]:
+                probs.append(f"{path}: {c[k]} {k}")
+    for pattern, names in IMPORT_NAMED.items():
+        path = pattern.format(game=game)
+        try:
+            text = read(path)
+        except (GitError, OSError):
+            continue  # only a file the game imports needs to exist; import_hits handles the rest
+        for name in sorted(names):
+            const = re.search(r"(?m)^export\s+const\s+" + name + r"\s*=\s*(?:0[xX][0-9a-fA-F]+|\d+)\s*;", text)
+            cls = re.search(r"(?m)^export\s+class\s+" + name + r"\s+extends\s+Error\b", text)
+            if not (const or cls) and re.search(r"\b" + name + r"\b", text):
+                probs.append(f"{path}: {name} is not a numeric const or an Error class")
+    return probs
+
+
+# --- OFFSET ALIAS (SHORT_ADDR_GAMES): a names.js cell reached as ANOTHER cell's name plus an offset ---
+# `mem8[INTRO_ANIMATION_STEP + 1]` writes PLAYER_FLASH_TICK without naming it, so the reader cannot see
+# which cell it is. A whole operand `NAME +/- literal` (or `literal + NAME`) whose NAME is a names.js address
+# import counts when its value is the address of a DIFFERENT names.js export -- unless NAME is a reviewed
+# record/word base in games/<game>/idiomatic-bases.txt (`NAME  SPAN  reason`) and the offset lies inside
+# its SPAN bytes (a word's high byte written with its low byte, a record's field).
+_OPERAND_START = "[(,=:?&|!{"
+_OPERAND_END = "]),;:?}"
+
+
+def _names_locals(code, path, game):
+    """{local name: names.js export} for `import {...} from "<names.js of this game>"` in `code`."""
+    out = {}
+    for m in re.finditer(r"\bimport\s*\{([^}]*)\}\s*from\s*['\"]([^'\"]+)['\"]", code):
+        spec = m.group(2)
+        ok = (_resolve(path, spec) == f"games/{game}/idiomatic/{NAMES_FILE}") if path else spec == "./names.js"
+        if ok:
+            for n in m.group(1).split(","):
+                if n.strip():
+                    out[n.split(" as ")[-1].strip()] = n.split(" as ")[0].strip()
+    return out
+
+
+def names_addresses(names_js):
+    """{export: address} for every 4-digit address export of names.js."""
+    return {m.group(1): int(m.group(2), 16) for m in re.finditer(
+        r"(?m)^export\s+const\s+([A-Za-z_$][\w$]*)\s*=\s*(0[xX][0-9a-fA-F]{4})\s*;", names_js)}
+
+
+def offset_alias_sites(code, names, path=None, game=None, bases=None):
+    """[(base, offset, other export, exempt)] for every whole-operand `NAME +/- lit` / `lit + NAME` in
+    comment-stripped `code` whose value is another names.js export's address. `names` is
+    names_addresses(); `bases` {NAME: span}."""
+    bases = bases or {}
+    local = _names_locals(code, path, game)
+    by_addr = {}
+    for k, v in names.items():
+        by_addr.setdefault(v, k)
+    lit = r"(0[xX][0-9a-fA-F](?:_?[0-9a-fA-F])*|\d(?:_?\d)*)"
+    nm = r"([A-Za-z_$][\w$]*)"
+    forms = ((re.compile(r"(?<![\w$.])" + nm + r"\s*([+-])\s*" + lit + r"(?![\w$.])"), 1, 2, 3),
+             (re.compile(r"(?<![\w$.])" + lit + r"\s*(\+)\s*" + nm + r"(?![\w$.(])"), 3, 2, 1))
+    out = []
+    for rx, gn, go, gl in forms:
+        for m in rx.finditer(code):
+            before = code[:m.start()].rstrip()
+            after = code[m.end():].lstrip(" \t")
+            whole_start = not before or before[-1] in _OPERAND_START or re.search(r"\breturn$", before)
+            whole_end = not after or after[0] in _OPERAND_END or after[0] == "\n"
+            if not (whole_start and whole_end) or before.endswith(("-", "+")):
+                continue
+            export = local.get(m.group(gn))
+            if export not in names:
+                continue
+            off = _lit_val(m.group(gl)) * (-1 if m.group(go) == "-" else 1)
+            other = by_addr.get((names[export] + off) & 0xFFFF)
+            if off == 0 or other is None or other == export:
+                continue
+            exempt = export in bases and 0 <= off < bases[export]
+            out.append((export, off, other, exempt))
+    return out
+
+
+def parse_bases(text, path, names):
+    """`NAME  SPAN  reason` lines -> {NAME: span}. Fail closed on a malformed line or a NAME that is not a
+    names.js address export."""
+    out = {}
+    for raw in text.splitlines():
+        parts = raw.split("#", 1)[0].split(None, 2)
+        if not parts:
+            continue
+        if len(parts) < 3 or not parts[1].isdigit() or int(parts[1]) < 2:
+            raise GitError(f"entry needs NAME SPAN(>=2) reason in {path}: {raw.strip()}")
+        if parts[0] not in names:
+            raise GitError(f"{parts[0]} in {path} is not a names.js address export")
+        out[parts[0]] = int(parts[1])
+    return out
+
+
+def counts(text, game=None, slots=frozenset(), sizes=frozenset(), path=None, names=None, bases=None):
     """Per-category cruft counts for one module's source text. The CATEGORIES keys are always-counted
     (baked into every game's budget); "stack" (m.ret/m.pop*) is a separate addend the callers apply only
-    for CLOSURE_GAMES (TIGHT_GAMES fold it into "pushes"), so it is returned but excluded from total(). `slots` feeds rule C (address_slots), `sizes` rule M (read_sizes)."""
+    for CLOSURE_GAMES (TIGHT_GAMES fold it into "pushes"), so it is returned but excluded from total(). `slots` feeds rule C (address_slots), `sizes` rule M (read_sizes).
+    `path` (repo-relative) enables the TIGHT import allowlist; `names` (names_addresses) and `bases`
+    (parse_bases) enable the SHORT_ADDR offset-alias rule. names.js itself is passed through names_code first."""
     code = canon_literals(strip_comments(text))
+    imports = len(import_hits(code, path, game)) if path and game in TIGHT_GAMES else 0
+    aliases = (sum(1 for *_, ex in offset_alias_sites(code, names, path, game, bases) if not ex)
+               if names and game in SHORT_ADDR_GAMES else 0)
     if game in SHORT_ADDR_GAMES:
         code = fold_pages(code)
     if game in TIGHT_GAMES:
@@ -555,10 +803,11 @@ def counts(text, game=None, slots=frozenset(), sizes=frozenset()):
         "calls": calls,
         "pushes": pushes,
         "addrs": (sum(1 for t in ADDR.findall(code) if _is_long(t))
-                  + (len(short_addr_hits(code, slots, sizes)) if game in SHORT_ADDR_GAMES else 0)),
+                  + (len(short_addr_hits(code, slots, sizes)) if game in SHORT_ADDR_GAMES else 0) + aliases),
         "mem": len(MEM.findall(code)) + other,
         "masks": (len(MASK8.findall(code)) + len(MASK16.findall(code))
                   + sum(1 for n in ALIAS.findall(code) if n not in ("mem8", "mem16"))),
+        "imports": imports,
         "stack": len(STACK.findall(code)),
     }
 
@@ -579,16 +828,62 @@ def git(args):
 
 
 def _modules_in_index(game):
-    """Staged (index) idiomatic module paths for a game, minus names.js and the test/ subdir."""
+    """Staged (index) paths of every .js under a game's idiomatic/ (any depth, names.js included), minus
+    the test/ subdir. git's pathspec '*' spans '/', so subdirectories are listed."""
     idir = f"games/{game}/idiomatic"
+    return [p for p in git(["ls-files", f"{idir}/*.js"]).splitlines() if p and in_layer(p, game)]
+
+
+def _modules_in_tree(game):
+    """The working-tree twin of _modules_in_index (the worklist view)."""
+    idir = os.path.join("games", game, "idiomatic")
     out = []
-    for path in git(["ls-files", f"{idir}/*.js"]).splitlines():
-        if not path or os.path.basename(path) == "names.js":
-            continue
-        if os.path.dirname(path) != idir:  # git pathspec '*' spans '/'; keep only top-level modules
-            continue
-        out.append(path)
-    return out
+    for root, dirs, files in os.walk(idir):
+        dirs[:] = sorted(d for d in dirs if not (root == idir and d == "test"))
+        out += [posixpath.join(root.replace(os.sep, "/"), f) for f in sorted(files) if f.endswith(".js")]
+    return [p for p in out if in_layer(p, game)]
+
+
+def _is_names(path, game):
+    return path == f"games/{game}/idiomatic/{NAMES_FILE}"
+
+
+def _game_bases(game, sources, from_index):
+    """(names_addresses, bases) for a SHORT_ADDR game's offset-alias rule; ({}, {}) otherwise. Fail
+    closed on a stale base: one no module offsets into another export through."""
+    if game not in SHORT_ADDR_GAMES:
+        return {}, {}
+    names_path = f"games/{game}/idiomatic/{NAMES_FILE}"
+    try:
+        names = names_addresses(_read(names_path, from_index))
+    except (GitError, OSError):
+        return {}, {}
+    path = f"games/{game}/idiomatic-bases.txt"
+    try:
+        text = _read(path, from_index)
+    except (GitError, OSError):
+        return names, {}
+    bases = parse_bases(text, path, names)
+    used = {b for p, t in sources for b, *_ in offset_alias_sites(
+        canon_literals(strip_comments(t)), names, p, game, bases)}
+    stale = sorted(set(bases) - used)
+    if stale:
+        raise GitError(f"stale entry in {path}: {', '.join(stale)}")
+    return names, bases
+
+
+def _layer_counts(game, sources, from_index):
+    """[(path, counts)] for a game's layer sources [(path, text)]: names.js reduced to its code
+    (names_code) first; rule C slots, rule M sizes and the offset-alias bases computed over the layer."""
+    sources = [(p, names_code(t) if _is_names(p, game) else t) for p, t in sources]
+    texts = [t for _, t in sources]
+    slots, sizes = _game_slots(game, texts, from_index), _game_sizes(game, texts, from_index)
+    names, bases = _game_bases(game, sources, from_index)
+    if game in TIGHT_GAMES:
+        probs = verify_import_allowlist(game, from_index)
+        if probs:
+            raise GitError("import allowlist: " + "; ".join(probs))
+    return [(p, counts(t, game, slots, sizes, p, names, bases)) for p, t in sources]
 
 
 def _game_slots(game, texts, from_index):
@@ -645,15 +940,13 @@ def count_in_index(game):
     where stack (m.ret/m.pop*) is a closure-only addend the caller applies, not part of total()."""
     agg = {k: 0 for k in CATEGORIES}
     stk = 0
-    blobs = []
+    sources = []
     for path in _modules_in_index(game):
         try:
-            blobs.append(git(["show", f":{path}"]))
+            sources.append((path, git(["show", f":{path}"])))
         except GitError:
             continue
-    slots, sizes = _game_slots(game, blobs, True), _game_sizes(game, blobs, True)
-    for blob in blobs:
-        c = counts(blob, game, slots, sizes)
+    for _, c in _layer_counts(game, sources, True):
         for k in CATEGORIES:
             agg[k] += c[k]
         stk += c["stack"]
@@ -818,21 +1111,19 @@ def check():
 
 def worklist(game):
     """Per-module, per-category breakdown from the WORKING TREE (the burndown view)."""
-    idir = os.path.join("games", game, "idiomatic")
     closure = game in CLOSURE_GAMES
     rows = []
-    paths = [p for p in sorted(glob.glob(os.path.join(idir, "*.js"))) if os.path.basename(p) != "names.js"]
-    texts = [open(p, encoding="utf-8").read() for p in paths]
+    idir = f"games/{game}/idiomatic/"
+    sources = [(p, open(p, encoding="utf-8").read()) for p in _modules_in_tree(game)]
     try:
-        slots, sizes = _game_slots(game, texts, False), _game_sizes(game, texts, False)
+        per_module = _layer_counts(game, sources, False)
     except GitError as e:
         print(f"idiomatic_gate: BLOCK — {game}: {e}")
         return 1
-    for path, text in zip(paths, texts):
-        per = counts(text, game, slots, sizes)
+    for path, per in per_module:
         disp_tot = total(per) + (per["stack"] if closure else 0)
         if disp_tot:
-            rows.append((disp_tot, os.path.basename(path), per))
+            rows.append((disp_tot, path[len(idir):], per))
     rows.sort(reverse=True)
     grand = {k: 0 for k in CATEGORIES}
     gstk = 0
@@ -1038,6 +1329,93 @@ def selftest():
     want("page fold opt-in", counts("mem8[lo | (0xad << 8)] = 1;", lg)["addrs"], 0)
     want("pop/ret are pushes for TIGHT", counts("m.pop16(); m.pop8(); m.ret();", tg)["pushes"], 3)
     want("pop/ret not pushes for legacy", counts("m.pop16(); m.ret();", lg)["pushes"], 0)
+    # SCOPE (R40 tp-r40i OPEN 1): every .js under idiomatic/ but test/ is in the layer, names.js included
+    for path, n in (("games/timeplt/idiomatic/foo.js", True), ("games/timeplt/idiomatic/lib/evil.js", True),
+                    ("games/timeplt/idiomatic/names.js", True), ("games/timeplt/idiomatic/test/x.test.js", False),
+                    ("games/timeplt/idiomatic/test/lib/h.js", False), ("games/timeplt/machine.js", False),
+                    ("core/z80ops_tmp.js", False), ("games/galaxian/idiomatic/lib/a.js", False)):
+        want(f"in_layer {path}", in_layer(path, tg), n)
+    # the auditor's subdirectory mutant (idiomatic/lib/evil.js) is counted like any module
+    evil = "export function evil(m) {\n  m.call(0x1234); m.push16(0xad30);\n  return m.regs.a;\n}\n"
+    c = counts(evil, tg, path="games/timeplt/idiomatic/lib/evil.js")
+    want("lib/evil.js mutant", (c["calls"], c["pushes"], c["registers"], c["addrs"]), (1, 1, 1, 2))
+    # names.js: data consts (and comment/string hex) are not code; an appended function is held to the rules
+    names_src = ('/** cell 0xad30 [seen] */\nexport const PLAY_ACTIVE = 0xad30; // see 0x1234\n'
+                 'export const STACK_SCRATCH = { lo: 0x01e0, hi: 0x0200 };\nexport const T = [0xad30, PLAY_ACTIVE];\n'
+                 'export const ROUTINES = {\n  0x0ff1: { name: "f", why: "a // b at 0x4c99 (x) => y" },\n};\n')
+    want("names.js data is no code", names_code(names_src).strip(), "")
+    want("names.js data counts 0", total(counts(names_code(names_src), tg, path="games/timeplt/idiomatic/names.js")), 0)
+    evil2 = names_src + "export function evil2(m) { m.call(0x1234); return m.regs.a + 0xad30; }\n"
+    c = counts(names_code(evil2), tg, path="games/timeplt/idiomatic/names.js")
+    want("names.js evil2 mutant", (c["calls"], c["registers"], c["addrs"]), (1, 1, 2))
+    for code_src, cat in (("export const h = (m) => m.call(0x1234);", "calls"),
+                          ("export const K = mk(0xad30);", "addrs"),
+                          ("export const O = { get a() { return 0xad30; } };", "addrs"),
+                          ("export class C { f(m) { m.push16(1); } }", "pushes"),
+                          ("let L = 0xad30;", "addrs")):
+        want(f"names.js code counted: {code_src!r}", counts(names_code(names_src + code_src), tg)[cat] >= 1, True)
+    want("strip_js keeps code after an in-string //", strip_js('const u = "a // b"; m.call(1);'), 'const u = ""; m.call(1);')
+    # IMPORTS (TIGHT): the layer, names.js and the reviewed allowlist pass; anything else counts
+    mp = "games/timeplt/idiomatic/advanceAttractTowardGameStart.js"
+    for src, n in (('import { a } from "./a.js";', 0), ('import { X } from "./names.js";', 0),
+                   ('import { h } from "./lib/h.js";', 0), ('import { u8, u16 } from "../../../core/int.js";', 0),
+                   ('import { h } from "./lib/h.mjs";', 1), ('import { h } from "./h.cjs";', 1),
+                   ('import { bcdAddByte } from "../../../core/bcd.js";', 0),
+                   ('import { F_Z, F_PV as P } from "../../../core/cpu/z80.js";', 0),
+                   ('import { NotImplemented } from "../../../boards/timeplt/io.js";', 0),
+                   ('import { helper } from "../../../core/z80ops_tmp.js";', 1),         # the auditor's core mutant
+                   ('import { Regs } from "../../../core/cpu/z80.js";', 1),
+                   ('import { F_Z, Z80 } from "../../../core/cpu/z80.js";', 1),
+                   ('import * as z from "../../../core/cpu/z80.js";', 1),
+                   ('import { LATCH_NMI_ENABLE } from "../../../boards/timeplt/io.js";', 1),
+                   ('import { NotImplemented } from "../../../boards/dkong/io.js";', 1),
+                   ('import { loc_15b6 } from "../translated/loc_15b6.js";', 1),
+                   ('import { poison } from "./test/_deadAtExit.js";', 1),
+                   ('import { x } from "../machine.js";', 1), ('import fs from "node:fs";', 1),
+                   ('import "../../../core/side-effect.js";', 1), ('export * from "../../../core/frame-stepped.js";', 1),
+                   ('const z = await import("./a.js");', 1), ('const z = require("./a.js");', 1),
+                   ('import {\n  helper,\n} from "../../../core/z80ops_tmp.js";', 1)):
+        want(f"imports {tg}: {src!r}", counts(src, tg, path=mp)["imports"], n)
+    want("imports opt-in: legacy game", counts('import { h } from "../../../core/z80ops_tmp.js";', lg,
+                                               path="games/galaxian/idiomatic/a.js")["imports"], 0)
+    want("imports need a path", counts('import { h } from "../../../core/z80ops_tmp.js";', tg)["imports"], 0)
+    want("reviewed import allowlist holds", verify_import_allowlist(tg, False), [])
+    real = lambda path: _read(path, False)
+    for path, extra, n in (("core/int.js", "export const peek = (m) => m.regs.a;\n", 1),
+                           ("core/bcd.js", "export function h(m) { m.ldirAt(1, 2); }\n", 1),
+                           ("core/bcd.js", 'import { Z80 } from "./cpu/z80.js";\n', 1),
+                           ("core/cpu/z80.js", "export function F_ZZ() {}\n", 0),
+                           ("boards/timeplt/io.js", "", 0)):
+        fake = lambda p, path=path, extra=extra: real(p) + extra if p == path else real(p)
+        want(f"allowlist re-check: {path} + {extra!r}", len(verify_import_allowlist(tg, False, fake)), n)
+    swapped = lambda p: real(p).replace("export const F_Z = 0x40;", "export function F_Z() {}") if p == "core/cpu/z80.js" else real(p)
+    want("allowlist re-check: F_Z turned executable", len(verify_import_allowlist(tg, False, swapped)), 1)
+    # OFFSET ALIAS (SHORT_ADDR, R40 tp-r40i OPEN 2): NAME +/- lit landing on ANOTHER names.js export counts
+    nm = names_addresses("export const PLAY_ACTIVE = 0xad30;\nexport const PLAYER_ONE_ERA_INDEX = 0xad14;\n"
+                         "export const STEP = 0xa9f0;\nexport const TICK = 0xa9f1;\nexport const CUR = 0xa9f7;\n"
+                         "export const POS = 0xa9e3;\nexport const CELL = 0xa9e4;\nexport const NEXT = 0xa9e5;\n")
+    imp = 'import { PLAY_ACTIVE, STEP, POS, CUR as C } from "./names.js";\n'
+    for src, n in (("mem8[PLAY_ACTIVE - 0x1c] = 1;", 1),            # the auditor's mutant: 0xAD14
+                   ("mem8[STEP + 0x1] = 0;", 1), ("mem8[STEP + 1] = 0;", 1), ("mem8[(STEP + 1)] = 0;", 1),
+                   ("f(m, 1 + STEP);", 1), ("f(m, STEP + 1);", 1), ("const p = STEP + 1;", 1),
+                   ("return STEP + 1;", 1), ("mem8[C - 7] = 0;", 1), ("mem8[u16(STEP + 1)] = 0;", 1),
+                   ("mem8[STEP + 5] = 0;", 0),                       # 0xA9F5: no export there
+                   ("mem8[STEP + 0] = 0;", 0), ("mem8[STEP + 1 + i] = 0;", 0), ("mem8[i + STEP + 1] = 0;", 0),
+                   ("f(m, 2 * STEP + 1);", 0), ("mem8[CUR + 1] = 0;", 0),   # CUR not imported under that name
+                   ("mem8[POS + 1] = 0;", 1), ("mem8[POS + 2] = 0;", 1)):
+        want(f"offset alias {sg}: {src!r}", counts(imp + src, sg, names=nm)["addrs"], n)
+    for src, n in (("mem8[POS + 1] = 0;", 0), ("mem8[POS + 2] = 0;", 1)):   # a declared 2-byte word base
+        want(f"offset alias word base: {src!r}", counts(imp + src, sg, names=nm, bases={"POS": 2})["addrs"], n)
+    want("offset alias opt-in: legacy game", counts(imp + "mem8[STEP + 1] = 0;", lg, names=nm)["addrs"], 0)
+    want("subdir module's ../names.js import", counts('import { STEP } from "../names.js";\nmem8[STEP + 1] = 0;', sg,
+                                                    path="games/timeplt/idiomatic/lib/a.js", names=nm)["addrs"], 1)
+    for bad in ("POS\n", "POS 2\n", "POS 1 a byte\n", "NOPE 2 not an export\n", "POS x reason\n"):
+        try:
+            parse_bases(bad, "x", nm)
+            want(f"malformed base entry blocks: {bad!r}", "parsed", "GitError")
+        except GitError:
+            pass
+    want("base entry parsed", parse_bases("# c\nPOS  2  a word\n", "x", nm), {"POS": 2})
     # closure parsing: a translated-registry row and a ROUTINES key are recognised; a plain const is not
     want("registry-row", bool(REG_ENTRY.match("  [0x0ff1, loc_0ff1],")), True)
     want("routine-key", bool(ROUTINE_KEY.match('  0x0ff1: { name: "renderX" },')), True)

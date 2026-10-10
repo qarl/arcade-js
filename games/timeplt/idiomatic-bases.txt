@@ -1,0 +1,6 @@
+# Reviewed record/word bases for idiomatic_gate's offset-alias rule (tools/idiomatic_gate.py, SHORT_ADDR_GAMES).
+# `NAME  SPAN  reason`: NAME + k (0 <= k < SPAN) may reach another names.js cell without counting, because
+# the code at that site writes ONE multi-byte value through its base. Any other offset alias counts.
+# A line no site still needs is stale and blocks.
+PEN_ROW_POS     2  the 8.8 row position word; drawInterpolatedPenRun reseats the whole word (fraction 0, whole part = the leg's start row) as its low then high byte, so +1 (PEN_ROW_CELL) is that word's high byte, not a separate write
+PEN_COLUMN_POS  2  the 8.8 column position word; drawInterpolatedPenRun reseats it the same way, so +1 (PEN_COLUMN_CELL) is that word's high byte

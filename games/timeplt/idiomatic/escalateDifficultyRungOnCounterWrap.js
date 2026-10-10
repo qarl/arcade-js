@@ -12,15 +12,16 @@
  * scatters the chosen row over the spawner caps, aim windows, cooldowns and thresholds. The rung
  * climbs once every ERA_RUNG_PERIOD x 60 passes (mechanisms.md, the escalation rung).
  *
- * The counter is LIFE_TICKS_LOW 0xAD05 [seen] and the two places above it (0xAD06, 0xAD07), each a
- * packed-decimal byte that rolls over at 60. It is NOT a clock (names.js LIFE_TICKS_LOW): it counts
- * passes of this service, and other subsystems read its low place as a phase.
+ * The counter is LIFE_TICKS_LOW 0xAD05 [seen] and the two places above it (LIFE_TICKS_MID 0xAD06,
+ * LIFE_TICKS_HIGH 0xAD07), each a packed-decimal byte that rolls over at 60. It is NOT a clock
+ * (names.js LIFE_TICKS_LOW): it counts passes of this service, and other subsystems read its low
+ * place as a phase.
  * LIVE-OUT: memory. */
 
 import { u8 } from "../../../core/int.js";
 import { advanceSexagesimalDigit } from "./advanceSexagesimalDigit.js";
 import { applyEraRungSettings } from "./applyEraRungSettings.js";
-import { ERA_RUNG, ERA_RUNG_PERIOD, ERA_RUNG_TIMER, LIFE_TICKS_LOW } from "./names.js";
+import { ERA_RUNG, ERA_RUNG_PERIOD, ERA_RUNG_TIMER, LIFE_TICKS_LOW, LIFE_TICKS_MID, LIFE_TICKS_HIGH } from "./names.js";
 
 // The highest rung: `cp 0x10` / `ld a,0x0f` at 0x4D5B-0x4D5F clamp the climb here.
 const TOP_RUNG = 0x0f;
@@ -36,7 +37,7 @@ export function escalateDifficultyRungOnCounterWrap(m) {
    * ever touched once every sixty passes. */
   // carry into the next place only while a place rolls over; a place that holds ends the whole pass
   if (!advanceSexagesimalDigit(m, LIFE_TICKS_LOW)) return;
-  if (advanceSexagesimalDigit(m, LIFE_TICKS_LOW + 1)) advanceSexagesimalDigit(m, LIFE_TICKS_LOW + 2);
+  if (advanceSexagesimalDigit(m, LIFE_TICKS_MID)) advanceSexagesimalDigit(m, LIFE_TICKS_HIGH);
 
   /* Step 2 -- count one wrap off the rung timer (0x4D4B-0x4D52). ERA_RUNG_TIMER 0xA9D7 [seen]
    * holds how many more wraps before the rung climbs. A timer already at zero is idle and stays

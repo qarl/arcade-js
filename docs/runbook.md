@@ -475,8 +475,12 @@ feeds the next batch's targets.
   it stays; it is exempt from the count.) **Enforced by `tools/idiomatic_gate.py` (pre-commit)** — the
   single gate that counts ALL idiomatic-layer cruft (register refs + `m.call` + `m.push*` + raw `0xHHHH` in any
   case or padding; for `SHORT_ADDR_GAMES` also a short address in address position or of address
-  magnitude, minus reviewed sizes in `games/<game>/idiomatic-sizes.txt`; and for `TIGHT_GAMES` any Machine CPU
-  primitive in any spelling or receiver, and any machine member outside its sanctioned surface)
+  magnitude, minus reviewed sizes in `games/<game>/idiomatic-sizes.txt`, and a cell reached as ANOTHER names.js
+  cell plus an offset (`NAME ± literal` landing on a different export) unless NAME is a reviewed record/word base
+  in `games/<game>/idiomatic-bases.txt`; and for `TIGHT_GAMES` any Machine CPU
+  primitive in any spelling or receiver, any machine member outside its sanctioned surface, and any import
+  from outside the layer not on the gate's reviewed allowlist), over every `.js` under `idiomatic/` at any
+  depth except `test/` (names.js too, minus its data consts),
   and holds every `games/*/idiomatic/` to a per-game budget (implicit 0), so a NEW game is fail-closed from
   its first module and an author literally cannot commit new cruft. Each game's own
   `games/<game>/idiomatic-budget.txt` (a single integer — game-local config, NOT in common `tools/`) is a
