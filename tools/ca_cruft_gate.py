@@ -7,8 +7,11 @@ construction (it never opens translated/ or idiomatic/*.js except names.js), but
 GLOSSES in ca-lines.md are hand/agent-authored, so port language can leak in through them. This gate
 greps the authored/emitted text for that language and FAILS CLOSED on any hit.
 
-Usage:  ca_cruft_gate.py <file> [<file> ...]      -> exit 0 iff clean; nonzero + offender list otherwise
+Usage:  ca_cruft_gate.py [--game <g>] <file> [<file> ...]  -> exit 0 iff clean; nonzero + offender list otherwise
         ca_cruft_gate.py --selftest                -> null-mutant proof: every pattern must catch injected cruft
+
+`--game` names the game the pages belong to, so the wrong-game pattern does not fire on that game's OWN
+title and cast (Donkey Kong's pages may say "Kong"; every other game's may not).
 
 Each pattern targets language that would NEVER appear in a plain game-fact gloss but DOES trace to our RE
 (so a "no fabrication" check misses it). Deliberately NOT forbidden: "poke"/"cycle"/"cell" etc. -- those are
@@ -16,6 +19,11 @@ legitimate game-fact words (frogger's own glosses use "poke it into the cell").
 """
 import re
 import sys
+
+WRONG_GAME = "wrong-game leftover (Donkey Kong / dk template)"
+# The wrong-game pattern, as it applies to a game whose OWN cast it names: Donkey Kong's pages legitimately
+# say "Donkey Kong"/"Kong"/"Pauline"; only the dk.asm template header ("dk maincpu") is still a leftover there.
+OWN_GAME_WRONG_GAME = {"dkong": re.compile(r"\bdk\s+maincpu\b", re.I)}
 
 # (label, compiled regex). Case-insensitive unless the token is genuinely case-bearing.
 PATTERNS = [
@@ -33,7 +41,7 @@ PATTERNS = [
     ("port-architecture jargon (born-live / spine / clock-free)", re.compile(r"\bborn-?live\b|\bspine\b|\bclock-?free\b", re.I)),
     ("our-methodology section refs (§)", re.compile(r"§")),
     ("first-person / port voice", re.compile(r"\b(we|our|we've|we're|we'll|ours)\b", re.I)),
-    ("wrong-game leftover (Donkey Kong / dk template)", re.compile(r"\bdonkey\b|\bkong\b|\bpauline\b|\bdk\s+maincpu\b", re.I)),
+    (WRONG_GAME, re.compile(r"\bdonkey\b|\bkong\b|\bpauline\b|\bdk\s+maincpu\b", re.I)),
     ("T-state / cycle-timing modelling", re.compile(r"\bT-?states?\b|\bt-?cycles?\b|\bwait\s?states?\b(?!.*\bpaces?\b)", re.I)),
 ]
 
@@ -50,11 +58,19 @@ CLEAN_SAMPLES = [
 ]
 
 
-def scan(text):
+def patterns_for(game=None):
+    """PATTERNS as they apply to `game`'s own pages (the wrong-game pattern narrowed for the game it names)."""
+    if game not in OWN_GAME_WRONG_GAME:
+        return PATTERNS
+    return [(label, OWN_GAME_WRONG_GAME[game] if label == WRONG_GAME else rx) for label, rx in PATTERNS]
+
+
+def scan(text, game=None):
     """Return a list of (lineno, label, matched) for every forbidden hit in `text`."""
     hits = []
+    pats = patterns_for(game)
     for i, line in enumerate(text.splitlines(), 1):
-        for label, rx in PATTERNS:
+        for label, rx in pats:
             m = rx.search(line)
             if m:
                 hits.append((i, label, m.group(0)))
@@ -91,6 +107,16 @@ def selftest():
         if h:
             print(f"SELFTEST FAIL: gate false-positived a CLEAN gloss: {line!r} -> {h}")
             ok = False
+    # Game-awareness: Donkey Kong's own pages may name Kong; any other game's may not.
+    if scan("9999\tKong throws a barrel", game="dkong"):
+        print("SELFTEST FAIL: wrong-game pattern fired on Donkey Kong's own cast under --game dkong")
+        ok = False
+    if not scan("9999\tKong throws a barrel", game="timeplt"):
+        print("SELFTEST FAIL: wrong-game pattern missed 'Kong' on another game's page")
+        ok = False
+    if not scan("9999\tverified against MAME", game="dkong"):
+        print("SELFTEST FAIL: --game dkong narrowed a pattern other than the wrong-game one")
+        ok = False
     if ok:
         print(f"ca_cruft_gate selftest: OK ({len(injections)} injected-cruft lines all caught, {len(CLEAN_SAMPLES)} clean lines all pass)")
         return 0
@@ -100,8 +126,14 @@ def selftest():
 def main(argv):
     if argv and argv[0] == "--selftest":
         return selftest()
+    game = None
+    if argv and argv[0] == "--game":
+        if len(argv) < 2:
+            print("usage: ca_cruft_gate.py [--game <g>] <file> [...] | --selftest", file=sys.stderr)
+            return 2
+        game, argv = argv[1], argv[2:]
     if not argv:
-        print("usage: ca_cruft_gate.py <file> [...] | --selftest", file=sys.stderr)
+        print("usage: ca_cruft_gate.py [--game <g>] <file> [...] | --selftest", file=sys.stderr)
         return 2
     total = 0
     for path in argv:
@@ -110,7 +142,7 @@ def main(argv):
         except OSError as e:
             print(f"ca_cruft_gate: cannot read {path}: {e}", file=sys.stderr)
             return 2
-        hits = scan(text)
+        hits = scan(text, game)
         for lineno, label, matched in hits:
             print(f"{path}:{lineno}: PORT-CRUFT [{label}] -> {matched!r}")
         total += len(hits)

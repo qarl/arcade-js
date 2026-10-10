@@ -109,6 +109,27 @@ writes `RAMUse.md` + `Code.md`, cleaning each role for the routine header (it dr
 evidence tags, `§`, and "grounded in MAME" citations). It never opens the port. `Hardware.md` and
 `README.md` stay hand-authored per game.
 
+`names.js` legitimately keeps its grounding evidence (capture notes, PCs, "under MAME", `§` refs) — that
+evidence belongs in the repo, not on the page. So the generator strips it on the way out, keyed on the leak
+scan's OWN patterns (`tools/ca_cruft_gate.py`): a parenthetical that trips the scan is dropped whole (unless
+the grounding strip alone cleans it), then a `--` / em-dash / `;` clause that does, then any sentence that
+still does. Text the scan passes is emitted unchanged, and nothing is reworded; but a game fact that shares a
+flagged parenthetical, clause or sentence with evidence is dropped with it (Time Pilot's `0xA8C6` row once lost
+its spawner-count range this way; `names.js` now states the range — corrected to 0 to 3 — outside its evidence
+parenthetical), so check a regeneration's diff for a lost fact and move it out of the evidence wrapper in
+`names.js`. Do not delete the
+evidence itself to appease the page; fix the strip if a new evidence shape leaks.
+
+**Gated at ship.** `tools/done_gate.py`'s **disasm** subsystem fails a game whose pages carry a leak-scan hit,
+or whose committed `Code.md`/`RAMUse.md` differ from what the generator emits now (re-traced from the ROM into
+a scratch dir via `gen_ca_contrib.py <game> <out_dir> --asm <path>`), or whose generator run trips its own
+fail-closed checks. So a `names.js` rename or role edit is not finished until the pages are regenerated. With
+no ROM present the staleness half is skipped loudly and the leak scan still runs. The check binds only games
+listed in `DISASM_GAMES` (opt-in, like `STRICT_TAG_GAMES`). Enroll a game in the same reviewed unit that makes
+its pages pass, never before; an unenrolled game's result prints as info and leaves its verdict unchanged. The scan is game-aware
+(`--game`): Donkey Kong's own pages may name Kong. `README.md` and `Hardware.md` are not scanned, because the
+provenance paragraph below must name MAME.
+
 The pages reference a game screenshot (`![<Game>](<game>.jpg)` + the README's `>>> deploy:
 +<game>.jpg`). Produce it with `tools/screenshot.py <game> --golden <dir>` from the pixel-gate golden
 (a representative attract/gameplay frame, ROT applied) — see runbook §5. Commit it (fair use) BOTH at
@@ -201,12 +222,18 @@ catch the *obvious* mis-decoded tables (ramp and pointer). What no static method
 into *plausible* code with no tell (a parameter table reading as sensible `ld`/`jp` with no pointer/ramp
 signature). The only definitive code-vs-data oracle is a **MAME instruction-fetch (M1) trace** — addresses
 the CPU never executes are data. That exceeds the bar the shipped dkong/thepit contribs met (they accept the
-recursive-descent over-approximation); do the M1 trace only when the extra rigor is called for. **Root cause:**
+recursive-descent over-approximation); do the M1 trace only when the extra rigor is called for. A named routine
+that MAME executes but the static trace never reaches (a table- or ring-dispatched handler) renders as unlabelled
+data; seed it in `games/<game>/entrypoints.json` with the capture as provenance (Time Pilot seeds its
+dispatch-only routines and the fall-throughs after their calls this way). **Root cause:**
 these mis-decodes are trace.py limitations (RST-$28 table sizing, following fake jumps); fixing them there
 would help every future port, but trace.py is shared with finished games — treat that as a separate call.
 
-`FORCE_DATA`, `CRASH_SITE_OK` and `FORCE_CODE` live at the top of `tools/gen_ca_contrib.py`. Examples: Time
-Pilot's misaligned `$459B`/`$49FA` anti-tamper entries; pooyan's `$5119` checksum sentinel, its `$0799`/`$07D0`
+`FORCE_DATA`, `CRASH_SITE_OK` and `FORCE_CODE` live at the top of `tools/gen_ca_contrib.py`. A `FORCE_DATA` span
+that ends inside an UNREACHED block emits the block's remaining bytes as data (or as the `FORCE_DATA` entry that
+starts right after it), so no byte is lost. Examples: Time Pilot's misaligned `$459B`/`$49FA` anti-tamper
+entries, its three velocity tables (`$08FA`/`$2E3E`/`$59D7`, each 256 heading-indexed words and each also a
+derail landing), and the caption record at `$0AFA`; pooyan's `$5119` checksum sentinel, its `$0799`/`$07D0`
 derail-crash tables, its `$2F93` fall-through value-ramp table, and its `$0083`/`$0247`/`$08A8`/`$30ED`/`$339B`
 dispatch/pointer tables (all `FORCE_DATA`); the three routines those tables buried — `$0092` (the boot entry),
 `$0254`, `$08B3` — recovered via `FORCE_CODE`; vs the `$6DF9`/`$7071` code clones and `$0018`/`$020F`

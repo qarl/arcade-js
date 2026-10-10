@@ -2,7 +2,7 @@
 """Generic "Computer Archeology" contrib emitter: emit a game's data-driven CA
 pages (RAMUse.md + Code.md) into games/<game>/contrib/computerarcheology/, in
 the committed The-Pit format. Design notes, format spec and ship posture live in
-tools/README-ca-contrib.md. Usage: gen_ca_contrib.py <game> [out_dir]."""
+tools/README-ca-contrib.md. Usage: gen_ca_contrib.py <game> [out_dir] [--asm PATH]."""
 
 import json
 import os
@@ -12,6 +12,7 @@ import textwrap
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from z80_decode import decode as _z80_decode  # noqa: E402  (same decoder tools/trace.py uses)
+import ca_cruft_gate  # noqa: E402  (the zero-tolerance leak scan; its patterns drive strip_process)
 
 try:
     from m6502_decode import decode as _m6502_decode  # noqa: E402  (6502 games; tools/trace6502.py)
@@ -65,6 +66,88 @@ def strip_grounding(s):
     s = re.sub(r"\s+([);.,])", r"\1", s)
     return s.strip()
 
+GAME = None  # the game being emitted (main sets it); narrows the wrong-game leak pattern for its own pages
+
+
+def _has_cruft(s):
+    return any(rx.search(s) for _label, rx in ca_cruft_gate.patterns_for(GAME))
+
+
+def _drop_cruft_parens(s, keep_if=None):
+    """Remove every balanced (...) group whose text (nested groups included) trips the leak scan --
+    the names registry parks its evidence in parentheticals ("(MAME default)", "(MAME: written 308x
+    by ...)"). The registry truncates a long evidence note with an ellipsis that can swallow an inner
+    group's close ("(MAME: ... (EAGLE_X, MAME…) game fact"), so a group left unclosed ends at the first
+    "…)" after its opener; with no such mark it runs to the end of the text. `keep_if(group)` spares a
+    group the caller's next stage can clean in place."""
+    out, i = [], 0
+    while i < len(s):
+        if s[i] != "(":
+            out.append(s[i])
+            i += 1
+            continue
+        depth, j = 0, i
+        while j < len(s):
+            depth += {"(": 1, ")": -1}.get(s[j], 0)
+            if depth == 0:
+                break
+            j += 1
+        if j >= len(s):                            # unclosed: the truncation mark closes it, if present
+            k = s.find("…)", i)
+            if k != -1:
+                j = k + 1
+        group = s[i:j + 1]
+        if _has_cruft(group) and not (keep_if and keep_if(group)):
+            while out and out[-1] == " ":
+                out.pop()                          # take the space before the group with it
+        else:
+            out.append(group[0])                   # keep "(" and rescan inside (a nested group may be cruft)
+            j = i
+        i = j + 1
+    return "".join(out)
+
+
+def _grounding_cleans(group):
+    """True when strip_grounding alone leaves `group` clean -- it keeps the game fact tangled with a
+    grounding note ("(NOT a generic counter -- grounded ...)"), so such a group is not dropped whole."""
+    return not _has_cruft(strip_grounding(group))
+
+
+_CLAUSE_SPLIT = re.compile(r"(\s+--\s+|\s+[—–]\s+|;\s+)")
+
+
+def strip_process(s):
+    """Clean-room the registry prose with the leak scan's OWN patterns (tools/ca_cruft_gate.py): drop a
+    parenthetical that carries evidence/process words, then any `--` / em-dash / `;` clause that does,
+    then any sentence that still does. Text the scan passes is returned unchanged, so a clean role or
+    cell row never moves; nothing is reworded, but a game fact sharing a flagged parenthetical/clause/
+    sentence with evidence is dropped along with it."""
+    if not s or not _has_cruft(s):
+        return s
+    s = _drop_cruft_parens(s)
+    kept = []
+    for sent in _split_sentences(s):
+        if not _has_cruft(sent):
+            kept.append(sent)
+            continue
+        m = re.search(r"[.!?]$", sent)
+        end = m.group(0) if m else ""
+        body = sent[:-1] if end else sent
+        parts = _CLAUSE_SPLIT.split(body)            # [clause, delim, clause, delim, ...]
+        clauses = [(parts[k - 1] if k else "", parts[k]) for k in range(0, len(parts), 2)]
+        clauses = [(d, c) for d, c in clauses if not _has_cruft(c)]
+        if not clauses:
+            continue                                 # the whole sentence was process text
+        rebuilt = clauses[0][1] + "".join(d + c for d, c in clauses[1:])
+        rebuilt = rebuilt.strip() + end
+        if not _has_cruft(rebuilt):
+            kept.append(rebuilt)
+    s = " ".join(kept)
+    s = re.sub(r"\s{2,}", " ", s)
+    s = re.sub(r"\s+([);.,])", r"\1", s)
+    return s.strip()
+
+
 # Per-game intro paragraph for the Code.md ```code block. Falls back to a line
 # built from the manifest when a game is absent here.
 GAME_DESC = {
@@ -95,6 +178,33 @@ FORCE_DATA = {
         (0x49fa, 0x4a0e, "misaligned anti-tamper entry",
          'reached only via the "wrong-glyph" derail ($19E6); the bytes run as harmless NOPs and '
          "stray-stack POPs. The real routine is at $4A0F.",
+         None),
+        # Velocity tables: 256 little-endian words each (512 bytes), indexed by a heading byte (2*h, plus a
+        # quarter-turn offset for the second axis -- the reader at $58BC keeps every fetch inside base..base+$1FF).
+        # Each base is also an anti-tamper derail landing, so the descent decoded the table as code. Bounds:
+        # MAME's velocity readers touch exactly base..base+$1FF; the byte after each is real code or other data.
+        (0x08fa, 0x0af9, "velocity table (fastest pace)",
+         "256 velocity words (peak 331) indexed by heading: the pace for era 3 and up. A failed image "
+         "checksum jumps here, so the table also serves as a crash pad.",
+         None),
+        (0x0afa, 0x0b05, "caption record",
+         "Caption record 14 of the caption table at $0C50: destination cell $A677, a colour byte, then "
+         "the glyph run up to its terminating code.",
+         None),
+        (0x2e3e, 0x303d, "velocity table (second-fastest pace)",
+         "256 velocity words (peak 306) indexed by heading: the era 1 and 2 pace. A tamper trap in the "
+         "credit-line routine jumps here.",
+         None),
+        # LDIR source at $4BA5 (ld hl,$4BB1 / ld bc,$0028): 40 bytes, ends inclusive like every entry here;
+        # $4BD9 after it is real code (a jp). Also the target of a tamper derail (jp nz,$4BB1 at $4DAB).
+        (0x4bb1, 0x4bd8, "default high-score table",
+         "The five default high-score records (8 bytes each: rank, three score bytes, three initials, a "
+         "pad) copied into the high-score table at $AB08 by the routine at $4BA5. A tamper check also "
+         "jumps here.",
+         None),
+        (0x59d7, 0x5bd6, "velocity table (slowest pace)",
+         "256 velocity words (peak 206) indexed by heading. The whole-image checksum at power-up jumps "
+         "here on a mismatch.",
          None),
     ],
     "tempest": [
@@ -195,6 +305,13 @@ FORCE_CODE = {
 # stay CODE (they emit no DEFB and are correct); listing an addr here suppresses the crash-site flag for
 # it. FORCE_DATA is for the DATA ones. See docs/contributing-disassembly.md "Anti-tamper crash sites".
 CRASH_SITE_OK = {
+    "timeplt": [
+        0x0000,  # the reset entry (jp $07b1) -- real code; $0000 also appears as a null-word constant
+        0x014a,  # real code in the frame service (jr z,$014a at $0147); its only "pointer" is a word inside
+                 # the $08FA velocity table that the descent mis-decoded as `ld bc,$014a` (now FORCE_DATA)
+        0x0f8d,  # dual-use: the era pen-record table (read as data, indexed 2*era) whose bytes are ALSO the
+                 # tamper-trap routine that pops the caller chain -- valid code, so it stays code
+    ],
     "pooyan": [
         0x6DF9, 0x7071,                          # byte-for-byte anti-tamper code clones (dead on a good ROM)
         0x0BB5, 0x0BB9, 0x5328, 0x776B, 0x780E,  # dual-use real code that is also checksum-summed
@@ -230,7 +347,10 @@ def clean_desc(text, upper_name=None):
     s = re.sub(r"\*/\s*$", "", s)          # trailing */ (survives even after a tag)
     s = TAG_RE.sub("", s)                  # evidence tags anywhere
     s = re.sub(r"\s+", " ", s).strip()     # normalise inner whitespace
+    if _has_cruft(s):                      # evidence parentheticals go whole, before strip_grounding
+        s = _drop_cruft_parens(s, _grounding_cleans)  # trims inside them and loses a "…)" truncation mark
     s = strip_grounding(s)                 # drop RE-provenance method-language
+    s = strip_process(s)                   # drop any remaining evidence/process text the leak scan flags
     s = re.sub(r"\bloc_([0-9a-f]{4})\b", lambda mm: "$" + mm.group(1).upper(), s, flags=re.I)  # no raw label leaks
     if upper_name:                         # drop `NAME (0xADDR) —` / `NAME —` self-preamble
         s = re.sub(r"^" + re.escape(upper_name) +
@@ -434,7 +554,9 @@ def clean_role(text):
     t = re.sub(r"[;,]?\s*\blive-?out\b.*", "", t, flags=re.I)
     t = re.sub(r"\bloc_([0-9a-f]{4})\b", lambda mm: "$" + mm.group(1).upper(), t)
     t = re.sub(r"\s+", " ", t).strip()     # single-line before grounding strip's end-anchors
-    return strip_grounding(t)
+    if _has_cruft(t):
+        t = _drop_cruft_parens(t, _grounding_cleans)  # evidence parentheticals go whole (see clean_desc)
+    return strip_process(strip_grounding(t))
 
 
 def build_notes(gdir):
@@ -773,10 +895,14 @@ def gen_code(meta, raw_lines, routines, wr_lo, wr_hi, rom_hi, notes, rom=None):
                 # resumes exactly at the next region.
                 assert e - ROM_LO < len(rom), f"force-data 0x{s:04x}: end past ROM (0x{len(rom):04x})"
                 data = list(rom[s - ROM_LO:e + 1 - ROM_LO])  # rom file is base-relative; s/e are CPU addrs
+                uend = -1   # end of an UNREACHED block the span swallowed the header of
                 while j < n:
                     sa = _line_start_addr(raw_lines[j])
                     if sa is not None and sa > e:
                         break
+                    um2 = re.match(r"^; ==== UNREACHED 0x[0-9a-f]+-0x([0-9a-f]+) ", raw_lines[j])
+                    if um2:
+                        uend = int(um2.group(1), 16)
                     j += 1
             else:
                 # Fallback (no ROM): scrape from dk.asm instruction lines. Stop the
@@ -796,6 +922,23 @@ def gen_code(meta, raw_lines, routines, wr_lo, wr_hi, rom_hi, notes, rom=None):
             for w in textwrap.wrap(cmt, ROLE_WRAP):
                 body.append("; " + w)
             emit_data(body, s, e, data, lbl)
+            # The span ended INSIDE an UNREACHED block whose header it consumed: the block's tail
+            # (e+1..block end) has lost its header, so emit it here from the ROM -- as its own
+            # FORCE_DATA entry when one starts at e+1, else as plain data -- and skip its defb rows.
+            if rom is not None and uend > e:
+                t = force_start.get(e + 1)
+                ts, te, tl, tc = (t[0], t[1], t[2], t[3]) if t and t[1] <= uend else (e + 1, uend, "data", "")
+                sep()
+                for w in textwrap.wrap(tc, ROLE_WRAP):
+                    body.append("; " + w)
+                emit_data(body, ts, te, list(rom[ts - ROM_LO:te + 1 - ROM_LO]), tl)
+                if te < uend:
+                    emit_data(body, te + 1, uend, list(rom[te + 1 - ROM_LO:uend + 1 - ROM_LO]), "data")
+                while j < n:
+                    sa = _line_start_addr(raw_lines[j])
+                    if sa is not None and sa > uend:
+                        break
+                    j += 1
             # A buried real entry immediately after this data block: re-decode it from the ROM
             # (the mis-decode straddled it, so dk.asm has no line for it) and emit synthetic
             # instruction lines under its name label until the decode resyncs with dk.asm.
@@ -906,20 +1049,29 @@ def gen_code(meta, raw_lines, routines, wr_lo, wr_hi, rom_hi, notes, rom=None):
 
 # --------------------------------------------------------------------- driver
 def main():
-    if len(sys.argv) not in (2, 3):
-        sys.exit("usage: gen_ca_contrib.py <game> [out_dir]")
-    game = sys.argv[1]
+    args = sys.argv[1:]
+    asm = None
+    if "--asm" in args:                    # --asm PATH: read the raw disassembly from PATH, not out/dk.asm
+        k = args.index("--asm")            # (done_gate traces into a scratch dir so the tree is untouched)
+        if k + 1 >= len(args):
+            sys.exit("usage: gen_ca_contrib.py <game> [out_dir] [--asm PATH]")
+        asm, args = args[k + 1], args[:k] + args[k + 2:]
+    if len(args) not in (1, 2):
+        sys.exit("usage: gen_ca_contrib.py <game> [out_dir] [--asm PATH]")
+    game = args[0]
     gdir = os.path.join(REPO, "games", game)
     names_path = os.path.join(gdir, "idiomatic/names.js")
-    raw_path = os.path.join(gdir, "out/dk.asm")
+    raw_path = asm or os.path.join(gdir, "out/dk.asm")
     # Default output is the game's own contrib dir; an explicit out_dir lets a
     # caller emit elsewhere (e.g. a scratch dir) WITHOUT writing into a finished
-    # game's committed contrib -- used for the generalization diff.
-    out_dir = sys.argv[2] if len(sys.argv) == 3 else os.path.join(gdir, "contrib/computerarcheology")
+    # game's committed contrib -- used for the generalization diff and done_gate's staleness check.
+    out_dir = args[1] if len(args) == 2 else os.path.join(gdir, "contrib/computerarcheology")
     os.makedirs(out_dir, exist_ok=True)
 
     meta = parse_manifest(gdir)
     meta["_game"] = game
+    global GAME
+    GAME = game
 
     # Resolve the CPU config: the decoder for the FORCE_CODE re-decode path, the
     # branch/jump mnemonics the cross-ref builder keys on, the memory-operand

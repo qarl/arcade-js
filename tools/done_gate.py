@@ -16,6 +16,9 @@ subsystem with no gate guarding the done-claim. Subsystems:
   audio       - tools/audio_gate.py: a wired, tested audio layer.
   pixel       - the game's idiomatic pixel suite matches MAME golden.
   whole-game  - the standing whole-game tests (boot/attract, tape, transition) pass.
+  disasm      - a shipped Computer Archeology disassembly is clean-room (tools/ca_cruft_gate.py) and
+                current (equals what tools/gen_ca_contrib.py emits now; staleness skipped without the ROM).
+                Opt-in (DISASM_GAMES); a non-enrolled game's result is printed as info, never RED.
 Slow subsystems (pixel, suite) are fine: this is a ship-time gate, not per-commit. A subsystem whose
 tooling is absent or errors is reported RED (fail-closed), never silently skipped.
 
@@ -23,6 +26,7 @@ Subcommands: check --game <game>; selftest; strict-report --game <game> (read-on
 accounting for any game, enrolled in STRICT_TAG_GAMES or not).
 """
 import argparse
+import difflib
 import glob
 import json
 import os
@@ -435,6 +439,112 @@ def check_browser(game):
     return False, "games-boot FAILED (worker-form boot broke)"
 
 
+# Opt-in per game, like STRICT_TAG_GAMES: enrolling a game is a deliberate, reviewed step, and a game is enrolled
+# in the SAME unit that makes its pages pass -- never flip a DONE game's ship status red before its fix lands. A
+# non-enrolled game's measurement is still printed, as info, and does not change its verdict.
+DISASM_GAMES = {"centiped", "invaders", "tempest", "timeplt"}
+CA_DIR = "contrib/computerarcheology"
+CA_PAGES = ("Code.md", "RAMUse.md")   # the GENERATED pages; Hardware.md/README.md are hand-authored (below)
+
+
+def _ca_cpu(game, root):
+    try:
+        txt = open(os.path.join(root, "games", game, "manifest.js"), encoding="utf-8").read()
+    except OSError:
+        return "z80"
+    m = re.search(r'\bcpu:\s*"([^"]+)"', txt)
+    return (m.group(1) if m else "z80").lower()
+
+
+def _ca_trace_cmd(game, cpu, root, asm):
+    """The tracer invocation that builds games/<game>/out/dk.asm, aimed at `asm` instead (a scratch path)."""
+    if cpu == "6502":
+        return ["python3", "tools/trace6502.py", game, "--out", asm]
+    cmd = ["python3", "tools/trace.py", "--rom", os.path.join(root, "games", game, "rom", "maincpu.bin"),
+           "--out", os.path.dirname(asm), "--entrypoints", os.path.join(root, "games", game, "entrypoints.json")]
+    return cmd + (["--cpu", "8080"] if cpu == "8080" else [])
+
+
+def check_disasm(game, root="."):
+    """The Computer Archeology disassembly (games/<game>/contrib/computerarcheology/), when a game ships one,
+    must be clean-room AND current (docs/contributing-disassembly.md). Two checks, both fail-closed:
+      leak scan  - tools/ca_cruft_gate.py --game <game> over the generated pages (Code.md, RAMUse.md) and the
+                   per-instruction glosses (games/<game>/ca-lines.md): zero hits. The hand-authored README.md /
+                   Hardware.md are not scanned: the doc REQUIRES their provenance paragraph to name MAME.
+      staleness  - re-trace the ROM into a scratch dir, run tools/gen_ca_contrib.py into another, and the
+                   committed pages must equal what it emits now, AND the generator's own fail-closed checks
+                   (DEFB, crash-site, byte round-trip, dangling cross-ref, straddle-bury) must pass. This needs
+                   the ROM (out/dk.asm is ROM-derived, never committed): with no games/<game>/rom/maincpu.bin
+                   (a ROM-less clone) the staleness half is SKIPPED with a loud notice, and the leak scan still runs.
+    Wired because the R40 timeplt audit found the pages stale against names.js and failing their own scan while
+    every other subsystem read OK -- no gate looked at them."""
+    import tempfile
+    gdir = os.path.join(root, "games", game)
+    cdir = os.path.join(gdir, CA_DIR)
+    if not os.path.isdir(cdir):
+        return True, "no Computer Archeology pages (nothing to check)"
+    missing = [p for p in CA_PAGES if not os.path.exists(os.path.join(cdir, p))]
+    if missing:
+        return False, "CA pages missing: " + ", ".join(missing)
+    problems = []
+    scan = [os.path.join(cdir, p) for p in CA_PAGES]
+    if os.path.exists(os.path.join(gdir, "ca-lines.md")):
+        scan.append(os.path.join(gdir, "ca-lines.md"))
+    rc, out = run(["python3", "tools/ca_cruft_gate.py", "--game", game, *scan])
+    hits = [ln for ln in out.splitlines() if "PORT-CRUFT" in ln]
+    if rc != 0:
+        problems.append(f"leak scan: {len(hits)} hit(s)" + (" e.g. " + hits[0].split(": ", 1)[-1][:70] if hits
+                                                            else " (gate errored: " + out.strip()[-60:] + ")"))
+    rom = os.path.join(gdir, "rom", "maincpu.bin")
+    if not os.path.exists(rom):
+        note = "STALENESS SKIPPED -- no ROM (games/%s/rom/maincpu.bin): regenerate where the ROM is present" % game
+        return (not problems), "; ".join(problems + [note]) if problems else "leak scan clean; " + note
+    with tempfile.TemporaryDirectory() as tmp:
+        asm = os.path.join(tmp, "trace", "dk.asm")
+        os.makedirs(os.path.dirname(asm))
+        trc, tout = run(_ca_trace_cmd(game, _ca_cpu(game, root), root, asm))
+        if trc != 0 or not os.path.exists(asm):
+            problems.append("re-trace failed: " + (tout.strip().splitlines() or [""])[-1][:70])
+            return False, "; ".join(problems)
+        regen = os.path.join(tmp, "pages")
+        grc, gout = run(["python3", "tools/gen_ca_contrib.py", game, regen, "--asm", asm])
+        if grc != 0:
+            lines = gout.splitlines()        # the failing check's *** banner + its first listed item
+            k = next((i for i, ln in enumerate(lines) if ln.startswith("***") and "WARNING" not in ln), None)
+            if k is None:
+                why = gout.strip()[-70:]
+            else:
+                items = []
+                for ln in lines[k + 1:]:
+                    if not ln.startswith("      "):
+                        break
+                    items.append(ln.strip())
+                why = lines[k].strip("* ").split(" (")[0].rstrip(":") + (" -> " + ", ".join(items[:8]) if items else "")
+            problems.append("generator self-check failed: " + why[:160])
+        for p in CA_PAGES:
+            try:
+                want = open(os.path.join(regen, p), encoding="utf-8").read().splitlines()
+            except OSError:
+                problems.append(f"generator emitted no {p}")
+                continue
+            have = open(os.path.join(cdir, p), encoding="utf-8").read().splitlines()
+            if have != want:
+                n = sum(1 for ln in difflib.ndiff(have, want) if ln[:1] in "+-")
+                first = next((i for i, (a, b) in enumerate(zip(have, want)) if a != b), min(len(have), len(want)))
+                problems.append(f"{p} STALE vs gen_ca_contrib ({n} line(s) differ, first at line {first + 1})")
+    if problems:
+        return False, "; ".join(problems)
+    return True, "leak scan clean; pages match gen_ca_contrib (re-traced from the ROM)"
+
+
+def check_disasm_enrolled(game):
+    """The disasm subsystem as done_gate runs it: binding for DISASM_GAMES, info-only for every other game."""
+    ok, detail = check_disasm(game)
+    if game in DISASM_GAMES or ok:
+        return ok, detail
+    return True, "info only, not enrolled in DISASM_GAMES (would be RED): " + detail
+
+
 SUBSYSTEMS = [
     ("idiomatic", check_idiomatic),
     ("wiring", check_wiring),
@@ -445,6 +555,7 @@ SUBSYSTEMS = [
     ("pixel", check_pixel),
     ("whole-game", check_wholegame),
     ("browser", check_browser),
+    ("disasm", check_disasm_enrolled),
 ]
 
 
@@ -620,8 +731,99 @@ def selftest():
             os.chdir(cwd)
     if not ok_none:
         print("selftest FAIL: check_distant red for a game with no distant_suite.py", file=sys.stderr); ok = False
+    ok = _selftest_disasm() and ok
     print("selftest OK" if ok else "selftest FAILED")
     return 0 if ok else 1
+
+
+def _selftest_disasm():
+    """check_disasm over a synthetic game: the REAL leak scan (tools/ca_cruft_gate.py) runs; the tracer and
+    generator are faked through `run` so each case controls what "regenerate now" emits. Mutants: a planted
+    'MAME' in a committed page, a stale routine label, a generator self-check failure -- each must go RED,
+    against a clean+current control that must stay OK; a ROM-less clone must SKIP staleness loudly."""
+    import tempfile
+    global run
+    real_run, ok = run, True
+    code = ("```code\n0000: C3 10 00        JP      $0010               ; {code.resetEntry}\n"
+            "resetEntry:\n0010: AF              XOR     A                   ; clear the accumulator\n```\n")
+    ramuse = "| Address | Name | Description |\n| --- | --- | --- |\n| 8000 | frameTick | frame counter |\n"
+    with tempfile.TemporaryDirectory() as root:
+        gdir = os.path.join(root, "games", "sg")
+        cdir = os.path.join(gdir, CA_DIR)
+        os.makedirs(cdir)
+        os.makedirs(os.path.join(gdir, "rom"))
+
+        def plant(c, r):
+            for name, txt in (("Code.md", c), ("RAMUse.md", r)):
+                with open(os.path.join(cdir, name), "w") as fh:
+                    fh.write(txt)
+
+        def fake(gen_code, gen_rc=0, gen_out=""):
+            def f(cmd):
+                if any("ca_cruft_gate.py" in c for c in cmd):
+                    return real_run(cmd)
+                if any(c.startswith("tools/trace") for c in cmd):
+                    out = cmd[cmd.index("--out") + 1]
+                    asm = out if out.endswith(".asm") else os.path.join(out, "dk.asm")
+                    open(asm, "w").close()
+                    return 0, ""
+                if any("gen_ca_contrib.py" in c for c in cmd):
+                    od = cmd[cmd.index("tools/gen_ca_contrib.py") + 2]
+                    os.makedirs(od, exist_ok=True)
+                    for name, txt in (("Code.md", gen_code), ("RAMUse.md", ramuse)):
+                        with open(os.path.join(od, name), "w") as fh:
+                            fh.write(txt)
+                    return gen_rc, gen_out
+                return -1, "unexpected command"
+            return f
+
+        open(os.path.join(gdir, "rom", "maincpu.bin"), "wb").close()
+        cases = [
+            ("clean + current (control)", code, ramuse, fake(code), True, "pages match"),
+            ("planted 'MAME' in Code.md", code + "; verified against MAME\n", ramuse,
+             fake(code + "; verified against MAME\n"), False, "leak scan"),
+            ("planted [seen] tag in RAMUse.md", code, ramuse + "| 8001 | x | a counter [seen] |\n",
+             fake(code), False, "leak scan"),
+            ("stale routine label", code.replace("resetEntry", "loc_0010"), ramuse, fake(code), False, "Code.md STALE"),
+            ("generator self-check fails", code, ramuse,
+             fake(code, 1, "\n*** Suspected anti-tamper CRASH SITES (x) -- AUDIT:\n      0x0010\n"), False, "0x0010"),
+        ]
+        try:
+            for label, c, r, f, want_ok, want_txt in cases:
+                plant(c, r)
+                run = f
+                got_ok, det = check_disasm("sg", root=root)
+                if got_ok != want_ok or want_txt not in det:
+                    print(f"selftest FAIL: check_disasm {label} -> {got_ok} {det!r}", file=sys.stderr); ok = False
+            os.remove(os.path.join(gdir, "rom", "maincpu.bin"))     # ROM-less clone: staleness skipped, loudly
+            plant(code.replace("resetEntry", "loc_0010"), ramuse)
+            run = fake(code)
+            got_ok, det = check_disasm("sg", root=root)
+            if not got_ok or "STALENESS SKIPPED" not in det:
+                print(f"selftest FAIL: check_disasm ROM-less skip -> {got_ok} {det!r}", file=sys.stderr); ok = False
+            plant(code + "; verified against MAME\n", ramuse)
+            if check_disasm("sg", root=root)[0]:
+                print("selftest FAIL: check_disasm ROM-less clone skipped the leak scan too", file=sys.stderr); ok = False
+            # opt-in: the same red measurement is binding for an enrolled game, info-only for a non-enrolled one
+            real_cd, real_enr = check_disasm, set(DISASM_GAMES)
+            globals()["check_disasm"] = lambda g, root=root: real_cd(g, root=root)
+            try:
+                DISASM_GAMES.discard("sg")
+                ok_n, det_n = check_disasm_enrolled("sg")
+                DISASM_GAMES.add("sg")
+                ok_e, det_e = check_disasm_enrolled("sg")
+            finally:
+                globals()["check_disasm"] = real_cd
+                DISASM_GAMES.clear(); DISASM_GAMES.update(real_enr)
+            if not ok_n or "not enrolled" not in det_n or "leak scan" not in det_n:
+                print(f"selftest FAIL: check_disasm non-enrolled game went RED / hid it -> {ok_n} {det_n!r}", file=sys.stderr); ok = False
+            if ok_e:
+                print(f"selftest FAIL: check_disasm enrolled game with hits not RED -> {det_e!r}", file=sys.stderr); ok = False
+            if check_disasm("nogame", root=root) != (True, "no Computer Archeology pages (nothing to check)"):
+                print("selftest FAIL: check_disasm red for a game with no CA pages", file=sys.stderr); ok = False
+        finally:
+            run = real_run
+    return ok
 
 
 def main():

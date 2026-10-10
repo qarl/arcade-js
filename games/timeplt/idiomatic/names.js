@@ -91,7 +91,7 @@ export const COINAGE_SETTINGS = 0xa9b1;
 // credits into the shared packed-BCD CREDIT_COUNT; a per-slot ACCEPTED count drives the mechanical
 // coin counter (an LS259 line) through a pulse-width TIMER. IN0 bit 2 (service) awards one credit.
 export const COIN_ACCEPTED_SLOT_2 = 0xa982; // slot-2 twin of COIN_ACCEPTED (0xa981) [seen]
-export const SERVICE_CREDIT_DEBOUNCE = 0xa983; // IN0 bit-2 (MAME 'Service 1') debounce; a clean edge awards one credit [seen]
+export const SERVICE_CREDIT_DEBOUNCE = 0xa983; // IN0 bit-2 service-credit input (MAME 'Service 1') debounce; a clean edge awards one credit [seen]
 export const COIN_PULSE_TIMER_SLOT_2 = 0xa985; // slot-2 twin of COIN_PULSE_TIMER (0xa984) [seen]
 export const CREDIT_COUNT = 0xa986; // packed-BCD on-screen credit total (saturates at 0x99) [seen]
 export const COIN_SLOT_1_DEBOUNCE = 0xa9c7; // slot-1 coin-line debounce shift register [seen]
@@ -1547,7 +1547,7 @@ export const BANK_LAUNCH_HEADING_HALF_WIDTH = 0xa837;
 export const BANK_LAUNCH_SLOT_COUNT = 0xa844;
 
 /**
- * Per-era count of enemy slots the attacker / craft-bank spawner fields -- §3's "spawner cap 0, 1, 2". [seen]
+ * Per-era-and-rung count of enemy slots the attacker / craft-bank spawner fields, 0 to 3: byte +6 of the era/rung settings row ERA_RUNG_SETTINGS_POINTER_TABLE (0x1B04) selects, rising with the rung (MAME writes 0, 1, 2 and 3 in play). [seen]
  *
  * A hard gate (zero disables the arm) and the sweep loop bound, read by spawnAimedEnemyIntoEraBankWhenInWindow, launchAttackerIntoFreeSlot and the
  * era-bank sweep. Distinct from ROUND_CRAFT_COUNT (the wave quota): this is the era bank's size.

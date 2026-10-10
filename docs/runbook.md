@@ -1017,6 +1017,16 @@ distinct phase, gated on a flag, and runs in this order.
   the same frame as a smaller `.jpg` in **two** spots for the CA pages — `games/<game>/<game>.jpg` and a
   copy at `games/<game>/contrib/computerarcheology/<game>.jpg` (so `![<Game>](<game>.jpg)`, a path relative
   to the `.md`, resolves on GitHub). Do NOT commit a full-res sheet or the raw frames.
+- **A Computer-Archaeology disassembly is gated, not just present.** When `games/<game>/contrib/computerarcheology/`
+  exists, `done_gate`'s **disasm** subsystem FAILS unless the generated pages (`Code.md`, `RAMUse.md`) and
+  `ca-lines.md` pass `tools/ca_cruft_gate.py --game <game>` with zero hits AND the committed pages equal what
+  `tools/gen_ca_contrib.py` emits now from a fresh re-trace of the ROM (with its own fail-closed checks
+  passing). Any `names.js` change that touches a routine name/role or a work-RAM cell therefore needs the pages
+  regenerated in the same unit. Without the ROM (a ROM-less clone) the staleness half is skipped with a loud
+  notice; the leak scan still runs. The subsystem is **opt-in** (`DISASM_GAMES` in `tools/done_gate.py`): a
+  game is enrolled in the SAME reviewed unit that makes its pages pass, never ahead of its fix, so a DONE
+  game's ship status never flips red on a new check. A non-enrolled game's result prints as info only.
+  Method: [contributing-disassembly.md](contributing-disassembly.md).
 - **Deploy: the live site is a re-deploy, not per-game work.** The games appear from `games/registry.js`,
   so `https://www.qarl.com/arcade-js/` is refreshed by re-deploying the current `main` HEAD — coordinate
   with Jimmy-www.qarl.com (she owns the docroot + the live write); do not push the server yourself. After a

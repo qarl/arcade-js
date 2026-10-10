@@ -103,5 +103,110 @@
     "addr": "0x15fe",
     "why": "head of an executed run $15FE-$1639 the static descent never reached",
     "provenance": "MAME instruction-fetch trace, boot+attract"
+  },
+  {
+    "addr": "0x0c0f",
+    "why": "drawCaptionInPenColour entry (reached via a table/ring dispatch the tracer does not follow)",
+    "provenance": "MAME read capture: pc 0x0c0f executed (attract.r.csv)"
+  },
+  {
+    "addr": "0x0c23",
+    "why": "drawCaptionTenPastSharedColour entry (reached via a table/ring dispatch the tracer does not follow)",
+    "provenance": "MAME read capture: pc 0x0c23 executed (attract.r.csv)"
+  },
+  {
+    "addr": "0x0c39",
+    "why": "eraseTextRunByIndex entry (reached via a table/ring dispatch the tracer does not follow)",
+    "provenance": "MAME read capture: pc 0x0c39 executed (attract.r.csv)"
+  },
+  {
+    "addr": "0x0c90",
+    "why": "awardScoreToPlayer entry (reached via a table/ring dispatch the tracer does not follow)",
+    "provenance": "MAME read capture: pc 0x0c90 executed (attract.r.csv)"
+  },
+  {
+    "addr": "0x0d57",
+    "why": "paintPlayerOneScoreReadout entry (reached via a table/ring dispatch the tracer does not follow)",
+    "provenance": "MAME read capture: pc 0x0d57 executed (deep.r.csv)"
+  },
+  {
+    "addr": "0x0d61",
+    "why": "paintPlayerTwoScoreReadout entry (reached via a table/ring dispatch the tracer does not follow)",
+    "provenance": "MAME read capture: pc 0x0d61 executed (deep.r.csv)"
+  },
+  {
+    "addr": "0x0eac",
+    "why": "drawRoundNumberCaption entry (reached via a table/ring dispatch the tracer does not follow)",
+    "provenance": "MAME read capture: pc 0x0eac executed (deep.r.csv)"
+  },
+  {
+    "addr": "0x0eeb",
+    "why": "paintDigitDroppingLeadingZero entry (reached via a table/ring dispatch the tracer does not follow)",
+    "provenance": "MAME read capture: pc 0x0eeb executed (deep.r.csv)"
+  },
+  {
+    "addr": "0x1f55",
+    "why": "negateVelocityIntoWorldScrollThenDressSprite entry (reached via a table/ring dispatch the tracer does not follow)",
+    "provenance": "MAME read capture: pc 0x1f55 executed (attract.r.csv)"
+  },
+  {
+    "addr": "0x2c31",
+    "why": "driveObjectAppearanceByPhaseBand entry (reached via a table/ring dispatch the tracer does not follow)",
+    "provenance": "MAME read capture: pc 0x2c31 executed (attract.r.csv)"
+  },
+  {
+    "addr": "0x3421",
+    "why": "drawCaptionFivePastSharedColour entry (reached via a table/ring dispatch the tracer does not follow)",
+    "provenance": "MAME read capture: pc 0x3421 executed (attract.r.csv)"
+  },
+  {
+    "addr": "0x4d72",
+    "why": "drawEmblemStripThenGuardImage entry (reached via a table/ring dispatch the tracer does not follow)",
+    "provenance": "MAME read capture: pc 0x4d72 executed (deep.r.csv)"
+  },
+  {
+    "addr": "0x4daf",
+    "why": "stampTwoByTwoTileBlock entry (reached via a table/ring dispatch the tracer does not follow)",
+    "provenance": "MAME read capture: pc 0x4daf executed (deep.r.csv)"
+  },
+  {
+    "addr": "0x4dcf",
+    "why": "paintGlyphOverBlankInColourThenStepCursor entry (reached via a table/ring dispatch the tracer does not follow)",
+    "provenance": "MAME read capture: pc 0x4dcf executed (deep.r.csv)"
+  },
+  {
+    "addr": "0x0ce3",
+    "why": "fall-through after a call into a routine whose shared tail the tracer credits to a sibling entry, so it reads the callee as never returning",
+    "provenance": "MAME full-span read capture, opcode fetches included (an instruction-fetch trace): pc 0x0ce3 executed (deep.r.csv)"
+  },
+  {
+    "addr": "0x0cf8",
+    "why": "fall-through after a call into a routine whose shared tail the tracer credits to a sibling entry, so it reads the callee as never returning",
+    "provenance": "MAME full-span read capture, opcode fetches included (an instruction-fetch trace): pc 0x0cf8 executed (deep.r.csv)"
+  },
+  {
+    "addr": "0x0d12",
+    "why": "fall-through after a call into a routine whose shared tail the tracer credits to a sibling entry, so it reads the callee as never returning",
+    "provenance": "MAME full-span read capture, opcode fetches included (an instruction-fetch trace): pc 0x0d12 executed (deep.r.csv)"
+  },
+  {
+    "addr": "0x0ed5",
+    "why": "fall-through after a call into a routine whose shared tail the tracer credits to a sibling entry, so it reads the callee as never returning",
+    "provenance": "MAME full-span read capture, opcode fetches included (an instruction-fetch trace): pc 0x0ed5 executed (deep.r.csv)"
+  },
+  {
+    "addr": "0x2bab",
+    "why": "fall-through after a call into a routine whose shared tail the tracer credits to a sibling entry, so it reads the callee as never returning",
+    "provenance": "MAME full-span read capture, opcode fetches included (an instruction-fetch trace): pc 0x2bab executed (attract.r.csv)"
+  },
+  {
+    "addr": "0x4d8d",
+    "why": "fall-through after a call into a routine whose shared tail the tracer credits to a sibling entry, so it reads the callee as never returning",
+    "provenance": "MAME full-span read capture, opcode fetches included (an instruction-fetch trace): pc 0x4d8d executed (deep.r.csv)"
+  },
+  {
+    "addr": "0x4d9d",
+    "why": "fall-through after a call into a routine whose shared tail the tracer credits to a sibling entry, so it reads the callee as never returning",
+    "provenance": "MAME full-span read capture, opcode fetches included (an instruction-fetch trace): pc 0x4d9d executed (deep.r.csv)"
   }
 ]
