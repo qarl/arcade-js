@@ -46,3 +46,4 @@ mame-src
 
 # pixel_gate_required romset waivers: local, single-use, bound to one staged diff
 .pixelgate-waivers/
+.batchsize-waivers/

@@ -1,0 +1,30 @@
+#!/bin/sh
+# hooks/commit-msg — install to ~/arcade-js/hooks/commit-msg, chmod +x
+#
+# Two rules, both mechanical. Karl, 2026-08-08.
+#
+# 1. LENGTH: 10 lines. Measured at the time of the change: the last 25 commit messages ran 7 to
+#    109 lines, median ~45; twelve were over 40. Errors concentrate in the elaboration, and
+#    "three false claims in COMMIT-MSG" was a real blocker on 2026-08-08.
+# 2. CLAIMS: runs tools/check_message.py, which already existed and was wired to NOTHING. Its own
+#    docstring: every fabrication caught before review was caught by running this check; every one
+#    that reached a reviewer was a message where it was skipped. Intention had no effect on the rate.
+root=$(git rev-parse --show-toplevel) || exit 1
+msg="$1"
+
+# Ignore comment lines and the trailing blanks git adds.
+n=$(grep -v '^#' "$msg" | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' | wc -l | tr -d ' ')
+if [ "$n" -gt 10 ]; then
+  echo "commit-msg: BLOCKED — $n lines, cap is 10." >&2
+  echo "  Cut the message; do not raise the cap. State the measurement, not the inference," >&2
+  echo "  and never a fact a command already yields." >&2
+  exit 1
+fi
+
+python3 "$root/tools/check_message.py" "$msg" || exit 1
+
+# R1 [D]: no two DECOMPILE commits without an UNDERSTANDING commit between them.
+# Prose drifted past 3x on 2026-08-09; this is the hard enforcer. Fails closed.
+python3 "$root/tools/r1_gate.py" "$msg" || exit 1
+
+echo "commit-msg: OK ($n lines)"
