@@ -652,7 +652,7 @@ When a life or round begins, resetPlayfieldAndArmNewRound [seen] writes the play
 
 The motion lives in two 16-bit cells, WORLD_SCROLL_Y 0xA808 [seen] and WORLD_SCROLL_X 0xA80A [seen]. Both are 8.8 fixed point, so 256 means one pixel per step. Only two routines write them. resetPlayfieldAndArmNewRound [seen] zeroes them. negateVelocityIntoWorldScrollThenDressSprite [seen] takes the ship's velocity pair for this frame, negates each component as a 16-bit quantity, stores the results, and then dresses the ship's sprite. Neither of those writers remembers the ship's velocity anywhere else. The ship has no position and no stored velocity of its own: the scroll pair is its motion. The only other thing the game keeps about the ship is which way it points.
 
-The consequence is easy to miss: nothing reverts the scroll between frames. dispatchPlayerFrameByState [seen] returns at once when PLAYER_STATE is zero. While the state byte is counting through an animation it hands off to the animation strip, and that path doesn't touch the scroll either. So while the ship is exploding, and until the next playfield reset, WORLD_SCROLL_Y and WORLD_SCROLL_X keep the last value they were given, and the world goes on drifting at the dead ship's last speed and direction [code].
+The consequence is easy to miss: nothing reverts the scroll between frames. dispatchPlayerFrameByState [seen] returns at once when PLAYER_STATE is zero. While the state byte is counting through an animation it hands off to the animation strip, and that path doesn't touch the scroll either. So WORLD_SCROLL_Y and WORLD_SCROLL_X keep the last value they were given until the next playfield reset zeroes them, and while the ship is exploding the world goes on drifting at the dead ship's last speed and direction [seen]. The drift ends with the countdown, not with the reset: when PLAYER_STATE reaches zero, loseLifeAndHandOver [seen] hides every sprite, and from then until the reset the scenery's coordinates stand still even though the scroll still holds the dead ship's velocity [seen].
 
 ### From stick to heading: the turn
 
@@ -723,7 +723,7 @@ The scenery occupies eight sprite slots starting at SCENERY_RECORD_SLOT0 0xA900 
 
 Any index other than 0 or 4 falls to the middle order and is not rejected. The scenery's era split is therefore {0}, {1,2,3}, {4}, which is different from both the pace split and the turn split. There are three independent readings of one era cell, and none of them agrees with the others on where the boundaries are.
 
-Nothing retires a scenery object when it leaves the picture. Its byte coordinates just wrap round the 256-wide space and come back in on the other side [code].
+Nothing retires a scenery object when it leaves the picture. Both of its byte coordinates just wrap round the 256-wide space, in every era, and its slot keeps its shape byte; the shape bytes change only when a playfield reset seats a new era row [seen].
 
 The scenery is laid out again at every playfield reset. resetPlayfieldAndArmNewRound [seen] calls seatEraSceneryRowThenClearAndRunScenery [seen], which copies eight bytes from the era's row of ERA_SCENERY_ROW_TABLE 0x3176 [seen] into the shape bytes of the eight slots, SCENERY_SPRITE_CODE_SLOT0 0xAA31 [seen] at stride 2. It then hands clearSceneryEntriesThenRunEraScenery [seen] a fill byte, 0xCC, or 0x28 in the fifth era. That routine writes the fill byte into the eight attribute bytes from SCENERY_SPRITE_ATTRIBUTE_SLOT0 0xAA60 [seen] at stride 2, and then sets the starting positions:
 
@@ -1069,7 +1069,7 @@ The same routine finishes by calling dressPlayerSpriteForHeading. The two scroll
 
 The directions are consistent throughout. Heading 0 gives a positive sample on the native-Y axis, so WORLD_SCROLL_Y goes negative. On this ROT90 board that slides the world right on the glass, which reads as the ship flying left, the same direction the stick table assigns to heading 0.
 
-Apart from bulk RAM clears (the power-on wipe of work RAM, and armRoundStartThenStepSequence [seen], which zeroes 0xA800-0xA97F, both words included, when it runs with PLAY_ACTIVE clear), only this routine and the life-start routine write the scroll words. As a result, **while the ship is exploding the world keeps drifting at the last velocity it had**, because the explosion path never reaches the scroll routine. The drift stops only when the next life's playfield reset zeroes both words.
+Apart from bulk RAM clears (the power-on wipe of work RAM, and armRoundStartThenStepSequence [seen], which zeroes 0xA800-0xA97F, both words included, when it runs with PLAY_ACTIVE clear), only this routine and the life-start routine write the scroll words. As a result, **while the ship is exploding the world keeps drifting at the last velocity it had** [seen], because the explosion path never reaches the scroll routine. Both words keep that velocity until the next life's playfield reset zeroes them, but the drift itself stops when the countdown ends and loseLifeAndHandOver hides the sprites [seen].
 
 ### Firing
 
@@ -1626,8 +1626,7 @@ These are the questions the routines do not settle on their own, grouped by the 
 
 ### The world
 
-- The world keeps drifting at the last scroll value while the ship explodes. This is [code] only: apart from the bulk RAM clears, the scroll has two writers, and neither runs while PLAYER_STATE is animating or cleared. It has not been seen in play.
-- Scenery objects wrap round the 256-wide byte space and are never retired. This is [code] only. Where on the glass the wrapped pass shows up has not been checked.
+- Scenery objects wrap round the 256-wide byte space and are never retired [seen]. Where on the glass the wrapped pass shows up has not been checked.
 - The scenery seed tables hold starting positions, not appearance. seedSceneryEntriesThenRunScenery's own names call the packed bytes 'tint' and 'shape'. names.js describes SCENERY_SEED_TABLE as a (native-Y, native-X) starting-position table [seen], because the bytes land at sprite entry +0x31 and +0x00, the native-Y and native-X coordinates that driftWithWorldScroll moves. ERA4_SCENERY_SEED_TABLE is the same. The routine's local names need re-deriving.
 - Which colours and flips the scenery attribute fill bytes select on screen has not been checked: 0xCC in eras 0–3 and 0x28 in era 4.
 - ROUND_NUMBER is one byte. After 255 rounds it would wrap, and startNextRound would fall back to the rounds-1–5 start rung. This follows from the code and has not been observed. Poking ROUND_NUMBER to 0xFF under MAME and clearing a round would show it.
