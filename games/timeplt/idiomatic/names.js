@@ -2006,12 +2006,38 @@ export const DEMO_AUTOPILOT_SCRIPT_THIRD = 0x22fa; // ROM heading-command script
 export const TRANSITION_SOUND_CODE_CELL_167C = 0x167c; // program-image byte read as a sound code (enqueueTransitionSoundBurst) [seen]
 /**
  * program-image byte read as a sound code (enqueueTransitionSoundBurst) [seen] (MAME read-tap: pc
+ * 0x563A ld a,(0x0a9c) reads 0x9c, passed to enqueueSoundUnconditional; sound-queue store 0x5631
+ * writes 0x9c)
+ */
+export const TRANSITION_SOUND_CODE_CELL_0A9C = 0x0a9c;
+/**
+ * program-image byte read as a sound code (enqueueTransitionSoundBurst) [seen] (MAME read-tap: pc
  * 0x5640 ld a,(0x1484) reads 0x9d, passed to enqueueSoundUnconditional; sound-queue store 0x5631
  * writes 0x9d)
  */
 export const TRANSITION_SOUND_CODE_CELL_1484 = 0x1484;
+/**
+ * program-image byte read as a sound code (enqueueTransitionSoundBurst) [seen] (MAME read-tap: pc
+ * 0x5646 ld a,(0x0c78) reads 0x9e, passed to enqueueSoundUnconditional; sound-queue store 0x5631
+ * writes 0x9e)
+ */
+export const TRANSITION_SOUND_CODE_CELL_0C78 = 0x0c78;
+/**
+ * program-image byte read as a sound code (enqueueTransitionSoundBurst) [seen] (MAME read-tap: pc
+ * 0x564C ld a,(0x07d3) reads 0x9f, passed to enqueueSoundUnconditional; sound-queue store 0x5631
+ * writes 0x9f)
+ */
+export const TRANSITION_SOUND_CODE_CELL_07D3 = 0x07d3;
 export const TRANSITION_SOUND_CODE_CELL_33B4 = 0x33b4; // program-image byte read as a sound code (enqueueTransitionSoundBurst) [seen]
 export const BAND_SCRIPT_START = 0x56f1; // ROM start of the band animation's script, stored into BAND_SCRIPT_CURSOR when a won round's band animation is set up (armRoundWonBandAnimationThenStepSequence) [seen]
+/**
+ * ROM table of three four-byte records {source cell lo, hi, keep lo, hi} that
+ * copyThreeTilemapCellsFromBothPlanes walks: each record names a tilemap cell to read on both planes and
+ * the two-byte keep the pair goes into [seen] (MAME read-tap: pcs 0x4B35/0x4B37/0x4B40/0x4B42 read
+ * 0x0D1B-0x0D26 as 3c a2 c7 ac / 7c a2 43 ab / fc a1 be ac, i.e. 0xA23C->0xACC7, 0xA27C->0xAB43,
+ * 0xA1FC->0xACBE; stores 0x4B44/0x4B47 then write those keeps)
+ */
+export const TILEMAP_CELL_KEEP_RECORD_TABLE = 0x0d1b;
 export const DIFFICULTY_RECORD_TABLE = 0x186a; // base of the fixed 4-byte-record difficulty table copied into the in-force settings cells (loadDifficultyRecord) [seen]
 export const COLOUR_FLOOD_FIRST_CELL = 0xa044; // first (top-left inset) cell of the colour-plane flood rectangle (floodColourPlaneWithSavedPlayerColour) [seen]
 
@@ -2690,8 +2716,9 @@ export const ROUTINES = {
   },
   0x3deb: {
     name: "serviceSlotByHeadByte",
-    role: "service one slot, splitting three ways on the head byte of its record: zero does nothing at all, all-ones flies the object one step along the velocity it carries and retires it into the shared cooldown only once that step has put it on a retire line, and any OTHER value retires it on the spot without moving it first (that last arm is a code-level reading: no capture wrote the head byte with any value but zero or all-ones)",
+    role: "service one slot, splitting three ways on the head byte of its record: zero does nothing at all, all-ones flies the object one step along the velocity it carries and retires it into the shared cooldown only once that step has put it on a retire line, and any OTHER value retires it on the spot without moving it first",
     cert: "seen",
+    why: "that last arm is a code-level reading: no capture wrote the head byte with any value but zero or all-ones",
   },
   0x3e6c: {
     name: "flyAndRetireSlotCyclingShapeInEra4",
@@ -3903,7 +3930,7 @@ export const ROUTINES = {
   },
   0x15e2: {
     name: "startTheWholePlaneWipeAndFoldAnImageBlockIntoThePhase",
-    role: "the first arm of the sequence machine's outer phase zero: arm the whole-plane wipe, then hand the inner index the step that actually runs that wipe, then subtract a 256-byte block of the program image from the outer phase and exclusive-or a fixed key into the difference. Neither number lands as an immediate -- the inner index is read out of a program byte that is the low half of an address inside an instruction, and the phase is never assigned, only folded -- so it is a tamper test that CORRUPTS the sequence rather than refusing to run. ★ The dispatch that reaches it masks with `and 0x03`, so arrival proves only that the phase is congruent to zero modulo four, which is less than it looks like: 0x04, 0x08 and 0x0C are not fixed points of the fold. That the phase is left standing rests on SEQUENCE_PHASE's own recorded range of four values and not on anything this arrival establishes",
+    role: "the first arm of the sequence machine's outer phase zero: arm the whole-plane wipe, then hand the inner index the step that actually runs that wipe, then subtract a 256-byte block of the program image from the outer phase and exclusive-or a fixed key into the difference. Neither number lands as an immediate -- the inner index is read out of a program byte that is the low half of an address inside an instruction, and the phase is never assigned, only folded -- so it is a tamper test that CORRUPTS the sequence rather than refusing to run. ★ The dispatch that reaches it masks with `and 0x03`, so arrival proves only that the phase is congruent to zero modulo four, which is less than it looks like: 0x04, 0x08 and 0x0C are not fixed points of the fold. That the phase is left standing rests on the phase arriving here as 0, as it does in normal running, and not on anything this arrival establishes",
     cert: "seen",
     why: "'start' is the weakest word in the name and it survives, because the scheduling store is this entry's own: armWholePlaneWipeThenDerailOnATamperedImage only ARMS -- its own name says so -- and this entry arms and then picks the step that consumes what was armed. Read end to end off the image: the frame service's phase table at 0x015F is `15c2 1651 17fe 0f1f`, so phase 0 goes to 0x15C2; 0x15C2 is `ld a,(0xa9ac) / and 0x07 / rst 0x30` with an inline word table at 0x15C8 whose entry 0 is this address; ROM[0x1749] = 0x06 and 0x1748 is `cd 06 0b`, so the index really is the low half of a call operand; and entry 6 of that same table is 0x15FE, which opens `call 0x01c2 / ret nz` -- blankNextLine, the step that runs the wipe. The fold recomputed here: sum(0x5648,256) = 0xB2 and the key is 0x4E, so the phase becomes ((phase - 0xB2) & 0xFF) ^ 0x4E, whose fixed points are the sixteen values of 256 that share no bit with 0x4E -- 0 and 1 among them, 2 and 3 not. ★ A reader who assumes eight live arms in the 0x15C8 table will be wrong six times: only entries 0 and 6 are arms, and the bytes from 0x15D6 are CAPTION RECORD 5 -- destination 0xA660, colour 0x14, eight glyphs and a 0xB9 terminator at 0x15E1, the byte immediately before this entry. Parking caption text where a table or a trap points is this ROM's standing idiom",
   },

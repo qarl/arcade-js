@@ -11,7 +11,9 @@ IDIOMATIC (a hard done requirement):
   - m.call(...) — dissolve to a direct JS call (or `yield*`). m.push16/* — Z80 stack trampolines.
     (m.ret / m.pop* are Z80 stack primitives too, but counted CLOSURE-only — like `unlifted` below —
     so a frozen legacy game's budget is not re-baselined by the gate newly seeing them.)
-  - raw 0xHHHH — a bare address; use a named import from names.js.
+  - raw 0xHHHH — a bare address; use a named import from names.js. For a SHORT_ADDR_GAMES game (e.g.
+    timeplt) an address written short (0xd1b, decimal) is counted too, but only in address position: the
+    whole index of a memory access, or a literal-only table const that reaches one (short_addr_hits).
   - mem.read8/write8/read16/write16(...) — the low-level API; idiomatic is the indexed view `mem8[addr]`.
   - a redundant width-mask on a mem assignment (`mem8[x]=..&0xff` / `mem16[x]=..&0xffff`): the write already
     truncates, so it's noise. Counted with it: a non-canonical `const foo=m.mem8` alias that would hide one.
@@ -57,6 +59,73 @@ MASK16 = re.compile(r"\bmem16\[[^\]]*\]\s*=[^;=]*&\s*0x[fF]{4}\s*;")
 # A non-canonical whole-view alias (`const foo = m.mem8;`) would hide `foo[x]=..&0xff` masks; forbid it.
 # The `const {mem8,mem16} = m` destructure and byte reads `const v = m.mem8[x]` do not match.
 ALIAS = re.compile(r"\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*m\.mem(?:8|16)\s*;")
+
+# --- a raw address written SHORT (1-3 hex digits, or decimal), which ADDR's 4-digit form cannot see ---
+# Dropping a leading zero (0x0d1b -> 0xd1b) must not hide an address, but a bare "any short hex" rule
+# would count every mask, count, size and plane offset (0x7f, 0x100, 0x400 ...: timeplt alone holds
+# twenty-odd such sizes/offsets >= 0x100). So a short literal is counted only in ADDRESS POSITION,
+# decided by where the value goes, never by its magnitude:
+#   (A) it IS the whole index of a memory access: mem8[0xd1b], mem16[907], mem.read8(0x7d3, ..);
+#   (B) it is a constant TABLE entry -- the initializer of a const/let is nothing but literals and names
+#       (`const RECORDS = 0xd1b`, `const SOURCES = [CELL_A, 0xa9c, 0x7d3]`) -- and that name reaches a
+#       whole memory index, directly (mem8[NAME], mem8[NAME[i]]) or through one plain alias
+#       (`let p = NAME; ... mem16[p]`, `for (const s of NAME) mem8[s]`).
+# Arithmetic is never an address position: an offset added to a named base (mem8[BASE + 0x400]), a mask
+# (x & 0x7f), a loop bound, a size or an initializer like `BASE + 8` is not counted. A 4-digit hex literal
+# is ADDR's, so it is excluded here (no double count). Opt-in per game (SHORT_ADDR_GAMES), like TIGHT_GAMES.
+_NUM = r"(?:0x[0-9a-fA-F]{1,3}(?![0-9a-fA-F])|\d+)(?![\w$.])"
+_SHORT_LIT = re.compile(r"(?<![\w$.])(?:0x[0-9a-fA-F]{1,3}|\d+)(?![\w$.])")
+_IDX_LIT = re.compile(r"\bmem(?:8|16)\[\s*(" + _NUM + r")\s*\]"
+                      r"|\b(?:mem|m)\.(?:read|write)(?:8|16)\(\s*(" + _NUM + r")\s*[,)]")
+_DECL = re.compile(r"\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=(?!=)")
+_TABLE_INIT = re.compile(r"^[\s\w$\[\],]*$")   # literals, names, commas and brackets only -- no operator
+
+
+def _idx_use(code, name):
+    """True when `name` (or name[...]) is the WHOLE index of a memory access somewhere in `code`."""
+    n = re.escape(name)
+    return bool(re.search(r"\bmem(?:8|16)\[\s*" + n + r"\s*(?:\]|\[[^\]]*\]\s*\])", code)
+                or re.search(r"\b(?:mem|m)\.(?:read|write)(?:8|16)\(\s*" + n + r"\s*(?:[,)]|\[)", code))
+
+
+def _reaches_index(code, name):
+    """`name` reaches a whole memory index directly, or through one plain alias binding."""
+    if _idx_use(code, name):
+        return True
+    n = re.escape(name)
+    alias = (r"\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?:=(?!=)\s*" + n + r"\s*[;,\n]"
+             r"|\s+of\s+" + n + r"\s*\))")
+    return any(_idx_use(code, m.group(1)) for m in re.finditer(alias, code))
+
+
+def _initializer(code, i):
+    """End index of the initializer starting at code[i]: the first top-level `;`, `,` or newline."""
+    depth = 0
+    while i < len(code):
+        c = code[i]
+        if c in "'\"`":
+            i = _skip_str(code, i)
+            continue
+        depth += (c in _OPEN) - (c in _CLOSE)
+        if depth < 0 or (depth == 0 and c in ";,\n"):
+            return i
+        i += 1
+    return i
+
+
+def short_addr_hits(code):
+    """Short-written raw addresses in comment-stripped `code` (rules A and B above): list of literals."""
+    hits = [m.group(1) or m.group(2) for m in _IDX_LIT.finditer(code)]
+    for d in _DECL.finditer(code):
+        init = code[d.end():_initializer(code, d.end())]
+        lits = _SHORT_LIT.findall(init)
+        if lits and _TABLE_INIT.match(init) and _reaches_index(code, d.group(1)):
+            hits.extend(lits)
+    return hits
+
+
+# Games whose `addrs` count also includes short-written addresses (short_addr_hits). Opt-in per game.
+SHORT_ADDR_GAMES = {"timeplt"}
 
 CATEGORIES = ("registers", "calls", "pushes", "addrs", "mem", "masks")
 
@@ -257,7 +326,7 @@ def counts(text, game=None):
         "registers": len(register_hits(code, tight=game in TIGHT_GAMES)),
         "calls": len(CALL.findall(code)),
         "pushes": len(PUSH.findall(code)),
-        "addrs": len(ADDR.findall(code)),
+        "addrs": len(ADDR.findall(code)) + (len(short_addr_hits(code)) if game in SHORT_ADDR_GAMES else 0),
         "mem": len(MEM.findall(code)),
         "masks": (len(MASK8.findall(code)) + len(MASK16.findall(code))
                   + sum(1 for n in ALIAS.findall(code) if n not in ("mem8", "mem16"))),
@@ -562,6 +631,23 @@ def selftest():
     adr = "const K = 0x8040; // see 0x1234 and 0x2673\nmem8[0xa808] = 0x0f;"
     a = counts(adr)
     want("addrs", a["addrs"], 2)  # 0x8040 + 0xa808; 0x0f is 2-digit; the comment ones stripped
+    # short-written addresses (SHORT_ADDR_GAMES only): counted in address position, never as a mask/size/offset
+    sg = "timeplt"
+    want("SHORT_ADDR_GAMES holds timeplt", sg in SHORT_ADDR_GAMES, True)
+    for src, n in (("mem8[0xd1b] = 1;", 1),                                   # whole index, leading zero dropped
+                   ("const v = mem16[0x7d3];", 1),
+                   ("const w = m.mem.read8(0xc78);", 1),
+                   ("const RECORDS = 0xd1b;\nlet r = RECORDS;\nconst s = mem16[r];", 1),   # table const via alias
+                   ("const SRC = [CELL_A, 0xa9c, 0xc78, 0x7d3];\nfor (const s of SRC) f(m, mem8[s]);", 3),
+                   ("const T = 0x7d3;\nconst x = mem8[T];", 1),
+                   ("mem8[0x0d1b] = 1;", 1),                                  # 4-digit: ADDR's alone, no double count
+                   ("const y = x & 0x7f;", 0),                                # mask
+                   ("mem8[BASE + 0x400] = 1;", 0),                            # plane offset off a named base
+                   ("const N = 0x800;\nfor (let i = 0; i < N; i++) mem8[BASE + i] = 0;", 0),   # size
+                   ("const c = BASE + 8;\nmem8[c] = 1;", 0),                 # arithmetic initializer
+                   ("const K = 0x100;\nlet p = K + BASE;\nmem8[p] = 0;", 0)):   # not a plain alias
+        want(f"short addr {sg}: {src!r}", counts(src, sg)["addrs"], n)
+    want("short addr opt-in: legacy game not counted", counts("mem8[0xd1b] = 1;", lg)["addrs"], 0)
     # closure parsing: a translated-registry row and a ROUTINES key are recognised; a plain const is not
     want("registry-row", bool(REG_ENTRY.match("  [0x0ff1, loc_0ff1],")), True)
     want("routine-key", bool(ROUTINE_KEY.match('  0x0ff1: { name: "renderX" },')), True)

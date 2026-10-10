@@ -17,9 +17,8 @@
  * LIVE-OUT: memory, six bytes. */
 
 import { u8, u16 } from "../../../core/int.js";
+import { TILEMAP_CELL_KEEP_RECORD_TABLE } from "./names.js";
 
-// The ROM table of three four-byte records {source lo, source hi, keep lo, keep hi} (`ld hl,0x0d1b`).
-const RECORDS = 0xd1b;
 // Three records (`ld b,0x03`).
 const CELLS = 3;
 // The gap between a cell and its twin in the other plane is 0x0400, i.e. 4 added to the high byte
@@ -28,7 +27,8 @@ const PLANE_GAP_HIGH = 4;
 
 export function copyThreeTilemapCellsFromBothPlanes(m) {
   const { mem8, mem16 } = m;
-  let record = RECORDS;
+  // The ROM table of three four-byte records {source lo, source hi, keep lo, keep hi} (`ld hl,0x0d1b`).
+  let record = TILEMAP_CELL_KEEP_RECORD_TABLE;
   for (let i = 0; i < CELLS; i++) {
     /* Read the record: the source cell's address, then the keep's address, and step to the next
      * record four bytes on. */

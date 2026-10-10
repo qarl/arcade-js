@@ -3632,8 +3632,8 @@ loc_15ca:
 ; masks with `and 0x03`, so arrival proves only that the phase is
 ; congruent to zero modulo four, which is less than it looks like: 0x04,
 ; 0x08 and 0x0C are not fixed points of the fold. That the phase is left
-; standing rests on SEQUENCE_PHASE's own recorded range of four values and
-; not on anything this arrival establishes
+; standing rests on the phase arriving here as 0, as it does in normal
+; running, and not on anything this arrival establishes
 startTheWholePlaneWipeAndFoldAnImageBlockIntoThePhase:
 15E2: CD 9A 01        CALL    $019A               ; {code.armWholePlaneWipeThenDerailOnATamperedImage} arm the whole-plane wipe -- derailing if the image was altered
 15E5: 3A 49 17        LD      A,($1749)           ; {hard.rom+1749} read a program byte -- the low half of a call operand, so an edit moves it
@@ -8078,8 +8078,7 @@ serviceFixedSlotInEra1:
 ; zero does nothing at all, all-ones flies the object one step along the
 ; velocity it carries and retires it into the shared cooldown only once
 ; that step has put it on a retire line, and any OTHER value retires it on
-; the spot without moving it first (that last arm is a code-level reading:
-; no capture wrote the head byte with any value but zero or all-ones)
+; the spot without moving it first
 serviceSlotByHeadByte:
 3DEB: DD 7E 00        LD      A,(IX+$00)          ; read the slot's head byte
 3DEE: A7              AND     A                   

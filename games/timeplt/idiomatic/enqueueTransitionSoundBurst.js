@@ -19,16 +19,30 @@
  */
 
 import { enqueueSoundUnconditional } from "./enqueueSoundUnconditional.js";
-import { ERA_INDEX, TRANSITION_SOUND_CODE_CELL_167C, TRANSITION_SOUND_CODE_CELL_1484, TRANSITION_SOUND_CODE_CELL_33B4 } from "./names.js";
+import {
+  ERA_INDEX,
+  TRANSITION_SOUND_CODE_CELL_167C,
+  TRANSITION_SOUND_CODE_CELL_0A9C,
+  TRANSITION_SOUND_CODE_CELL_1484,
+  TRANSITION_SOUND_CODE_CELL_0C78,
+  TRANSITION_SOUND_CODE_CELL_07D3,
+  TRANSITION_SOUND_CODE_CELL_33B4,
+} from "./names.js";
 import { u8 } from "../../../core/int.js";
 
 /*
  * The six image bytes read as sound codes, in the ROM's order. The frozen lift records what each holds
  * on a genuine image: 0x167C = 0x86, 0x0A9C = 0x9C, 0x1484 = 0x9D, 0x0C78 = 0x9E, 0x07D3 = 0x9F and
- * 0x33B4 = 0xA0. Three carry names.js names (TRANSITION_SOUND_CODE_CELL_*); the other three have no
- * names.js entry and so stay as raw addresses.
+ * 0x33B4 = 0xA0. Each is a names.js cell (TRANSITION_SOUND_CODE_CELL_*).
  */
-const FIXED_CODE_SOURCES = [TRANSITION_SOUND_CODE_CELL_167C, 0xa9c, TRANSITION_SOUND_CODE_CELL_1484, 0xc78, 0x7d3, TRANSITION_SOUND_CODE_CELL_33B4];
+const FIXED_CODE_SOURCES = [
+  TRANSITION_SOUND_CODE_CELL_167C,
+  TRANSITION_SOUND_CODE_CELL_0A9C,
+  TRANSITION_SOUND_CODE_CELL_1484,
+  TRANSITION_SOUND_CODE_CELL_0C78,
+  TRANSITION_SOUND_CODE_CELL_07D3,
+  TRANSITION_SOUND_CODE_CELL_33B4,
+];
 /* The base the era index is added to for the seventh code: the ROM's `add a,0x8c`. */
 const ERA_CODE_BASE = 140;
 

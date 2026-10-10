@@ -263,7 +263,7 @@ There are three ways to start a game, and all of them end by writing phase 3, st
 3. sets PLAY_ACTIVE to 0xFF;
 4. loads PLAYER_ONE_LIVES from STARTING_LIVES;
 5. subtracts one from CREDIT_COUNT in packed decimal and repaints the credit digits;
-6. copies three tilemap cells into their keeps from the record table at 0x0D1B, using `copyThreeTilemapCellsFromBothPlanes` (0x4B30) [seen].
+6. copies three tilemap cells into their keeps from the record table TILEMAP_CELL_KEEP_RECORD_TABLE 0x0D1B [seen], using `copyThreeTilemapCellsFromBothPlanes` (0x4B30) [seen].
 
 **`startTwoPlayerGame` (0x189E) [seen]**:
 
@@ -368,7 +368,7 @@ advanceRoundWhenFieldCleared [seen] acts only when three things are true at once
 - ROUND_TRANSITION_HOLD 0xACC6 [seen] is non-zero, meaning the Mother-Ship's closing sequence has raised it (0xFE at the formation rebuild, 0xFF when the warp finishes);
 - all fifteen object records from ACTOR_RECORD_SLOT0 0xA810 [seen], at a stride of 16 bytes, read empty.
 
-Any one of them failing is a silent return, so the round simply keeps running until the field has drained. When all three hold, it requests the seven-sound transition burst (enqueueTransitionSoundBurst [seen]).
+Any one of them failing is a silent return, so the round simply keeps running until the field has drained. When all three hold, it requests the seven-sound transition burst (enqueueTransitionSoundBurst [seen]). Six of its seven codes are bytes fetched from the program image, TRANSITION_SOUND_CODE_CELL_167C 0x167C, TRANSITION_SOUND_CODE_CELL_0A9C 0x0A9C, TRANSITION_SOUND_CODE_CELL_1484 0x1484, TRANSITION_SOUND_CODE_CELL_0C78 0x0C78, TRANSITION_SOUND_CODE_CELL_07D3 0x07D3 and TRANSITION_SOUND_CODE_CELL_33B4 0x33B4 [seen]; the seventh is ERA_INDEX 0xAD04 [seen] plus 0x8C.
 
 In the demo it then puts the machine back at the top of the attract sequence. It reloads ROUND_TRANSITION_HOLD from ROUND_TRANSITION_HOLD_SEED 0x07D1 (which reads 0), hides the sprites, clears PLAY_ACTIVE and ACTIVE_PLAYER, sets SEQUENCE_PHASE to 1 and clears the sub-step.
 
@@ -723,7 +723,7 @@ The scenery occupies eight sprite slots starting at SCENERY_RECORD_SLOT0 0xA900 
 
 Any index other than 0 or 4 falls to the middle order and is not rejected. The scenery's era split is therefore {0}, {1,2,3}, {4}, which is different from both the pace split and the turn split. There are three independent readings of one era cell, and none of them agrees with the others on where the boundaries are.
 
-Nothing retires a scenery object when it leaves the picture. Both of its byte coordinates just wrap round the 256-wide space, in every era, and its slot keeps its shape byte; the shape bytes change only when a playfield reset seats a new era row [seen].
+Nothing retires a scenery object when it leaves the picture. Both of its byte coordinates just wrap round the 256-wide space, in every era, and its slot keeps its shape byte. The shape bytes change only when a playfield reset seats a new era row [seen], in a game and in the attract demo alike, with two exceptions outside play: the boot clear zeroes them, and slot 7's shape byte is the same cell as TAMPER_FOLD_FLAG 0xAA3F [seen], and foldImageBlockIntoSignatureThenAdvanceSequence [seen] sets it to 0xFF among the attract sequence's image checks (steps 7–11 above), each time the attract cycle passes them, including the attract that follows a game, with no reset. The same routine then banks its image signature into TAMPER_IMAGE_SIGNATURE 0xAA6F [seen], which is slot 7's Y byte. The next playfield reset seats the era row and fresh positions over both [seen].
 
 The scenery is laid out again at every playfield reset. resetPlayfieldAndArmNewRound [seen] calls seatEraSceneryRowThenClearAndRunScenery [seen], which copies eight bytes from the era's row of ERA_SCENERY_ROW_TABLE 0x3176 [seen] into the shape bytes of the eight slots, SCENERY_SPRITE_CODE_SLOT0 0xAA31 [seen] at stride 2. It then hands clearSceneryEntriesThenRunEraScenery [seen] a fill byte, 0xCC, or 0x28 in the fifth era. That routine writes the fill byte into the eight attribute bytes from SCENERY_SPRITE_ATTRIBUTE_SLOT0 0xAA60 [seen] at stride 2, and then sets the starting positions:
 

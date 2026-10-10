@@ -42,6 +42,13 @@ PATTERNS = [
     ("our-methodology section refs (§)", re.compile(r"§")),
     ("first-person / port voice", re.compile(r"\b(we|our|we've|we're|we'll|ours)\b", re.I)),
     (WRONG_GAME, re.compile(r"\bdonkey\b|\bkong\b|\bpauline\b|\bdk\s+maincpu\b", re.I)),
+    # How WE came to know a fact (our cert grade, our captures), never the fact itself: "a code-level
+    # reading", "no capture wrote ...", "observed in a capture". A plain game-fact gloss never cites a capture.
+    ("evidence process (code-level reading / capture)", re.compile(
+        r"\bcode-?level\s+(?:reading|read|only|claim)\b|\bno\s+captures?\b"
+        r"|\bcaptures?\s+(?:wrote|writes|read|reads|saw|sees|showed|shows|recorded|records|observed)\b"
+        r"|\b(?:observed|seen|watched)\s+(?:in|under|by)\s+(?:a|the|any|every|each|one)\s+capture\b"
+        r"|\b(?:in|under|across)\s+(?:a|the|any|every|each|one|both)\s+captures?\b", re.I)),
     ("T-state / cycle-timing modelling", re.compile(r"\bT-?states?\b|\bt-?cycles?\b|\bwait\s?states?\b(?!.*\bpaces?\b)", re.I)),
 ]
 
@@ -55,6 +62,8 @@ CLEAN_SAMPLES = [
     "06e1\tread the play sub-state gate and cycle to the next state",
     "5607\tRepaint the player-status column while latching the mode gate: when mode is set",
     "0a3b\tshot already airborne -- return, don't re-arm",
+    "4b30\tread the cell level with the player and capture its glyph",
+    "3deb\tany other value retires it on the spot without moving it first",
 ]
 
 
@@ -96,6 +105,10 @@ def selftest():
         "9999\tcharge the exact T-states here",
         "9999\tGATE: RAM-minus-stack",
         "9999\tLIVE-OUT: A and the flags",
+        "9999\tthe spot without moving it (that last arm is a code-level reading:",
+        "9999\tno capture wrote the head byte with any value but zero or all-ones)",
+        "9999\tthe value was observed in a capture of the attract demo",
+        "9999\tthe capture showed it only during play",
     ]
     ok = True
     for line in injections:
