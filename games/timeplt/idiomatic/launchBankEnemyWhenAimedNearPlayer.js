@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** launchBankEnemyWhenAimedNearPlayer — one gated attempt to launch an enemy into the object bank. Four gates guard it: a
- * phase key that only lets one bank phase through, an arm flag, a non-empty flight count, and a
+ * phase key that only lets one bank phase through, a launch cooldown that must have run out, a non-zero scan bound, and a
  * free record in the bank being found by a strided upward scan. When all pass, three window tests
  * follow: the craft must NOT sit near the player's fixed screen position on both axes, its heading
  * must lie near the player's heading, and the heading toward the aim point must lie near its own;
  * only then
  * does it request the launch sound, copy the launching craft's (caller's) two coordinates into the found record's
  * paired entry, look a velocity pair up from the heading (one of two tables, chosen by a select
- * cell), stock the record with that velocity, stamp two entry constants, re-arm the flag from its
+ * cell), stock the record with that velocity, stamp two entry constants, reload the cooldown from its
  * source, and count the record head down one. The scan cursors, the margin scratch and the found
  * pointers are JS locals; the craft's record and sprite-entry pointers ride in on ix/iy and are never disturbed, so both
  * stay seated as the only register live-outs (the sprite/steer callees downstream read them). The
  * heading passes into the velocity shims as an argument. LIVE-OUT: the found
- * record and its entry, the pointer cells, the arm flag; and ix/iy held. Nothing is returned. */
+ * record and its entry, the pointer cells, the cooldown; and ix/iy held. Nothing is returned. */
 //
 // ROM 0x3ED6-0x3F92, plus the detached block 0x3F9E-0x3FAE (lift: translated/loc_3ed6.js). Grounding
 // tag in names.js ROUTINES: [seen].
@@ -61,7 +61,7 @@ export function launchBankEnemyWhenAimedNearPlayer(m, ixEntry = m.regs.ix, iyEnt
   if (((mem8[FRAME_TICK] & 0x07) + 0x05) !== mem8[u16(ixEntry + PHASE_KEY)]) return; // wrong bank phase this frame
   // GATE 2 -- COOLDOWN (0xA817). Non-zero means a recent launch is still cooling down (a vblank timer
   // winds it to zero); it is re-armed at the end of a successful launch.
-  if (mem8[BANK_LAUNCH_COOLDOWN] !== 0) return; // launch already armed
+  if (mem8[BANK_LAUNCH_COOLDOWN] !== 0) return; // still cooling down
 
   // GATE 3 -- A FREE SHOT SLOT (0x3EE9-0x3EFE). BANK_LAUNCH_SLOT_COUNT (0xA844) bounds how many of the
   // shot slots may be used; zero disables firing altogether. Walk records from 0xA810 (stride 0x10) and

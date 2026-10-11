@@ -31,7 +31,7 @@ export function dispatchCollisionPassByEra(m) {
   if (era === 4) return dispatchEra4CollisionByFrameParity(m);
   if (era === 1) return splitCollisionWorkByFrameParity(m);
   // Any other era: odd frames sweep the player's shots against targets (0x4F35); even frames run
-  // every collision sweep (0x4E63).
+  // the contact sweeps plus one shot sweep against the era-object slots (0x4E63).
   if (mem8[FRAME_TICK] & 0x01) return dispatchShotSweepByMotherShipArmed(m);
   return runAllCollisionSweepsThisFrame(m);
 }

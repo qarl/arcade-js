@@ -11,7 +11,7 @@
 // ROLE IN THE MACHINE. It is the "no kills owed" arm of the enemy-craft spawner. Once KILLS_REMAINING
 // reaches zero the spawner stops sizing its search by the round's craft count and instead walks a fixed
 // run of five slots. names.js records spawnEnemyCraftWhenBandUnderTwo (0x379F) transferring here when
-// KILLS_REMAINING is zero; gateTheFreeSlotSearchAndPickItsRun stages the same run inline.
+// KILLS_REMAINING is zero; gateTheFreeSlotSearchAndPickItsRun (0x37BD) reaches the same `jr z,0x3793` at 0x37C8 and stages only the other arm, the owed-kills run, inline at 0x37CA.
 //
 // It reads nothing and writes nothing itself: all three values are constants chosen here, and control
 // does not come back. LIVE-OUT: memory only -- whatever slot the search fills.

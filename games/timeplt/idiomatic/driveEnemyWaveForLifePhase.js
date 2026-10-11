@@ -92,7 +92,7 @@ export function driveEnemyWaveForLifePhase(m) {
   do {
     // Only an empty slot (record head 0) gets a new craft.
     if (mem8[record] === 0) {
-      // Position: 2 * (descriptor byte + heading bias) indexes the two-byte table at 0x38E9, whose 64
+      // Position: 2 * (descriptor byte + heading bias) indexes the two-byte table at 0x38E9, whose
       // pairs trace the edge of the screen. The first byte goes to the sprite entry's +0x31 byte (Y),
       // the second to its +0x00 byte (X), so the pair is a spawn position on the edge, not a shape.
       const positionIndex = u8(2 * (mem8[descriptor] + bias));

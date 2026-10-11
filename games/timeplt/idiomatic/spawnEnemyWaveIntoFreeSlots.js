@@ -44,7 +44,7 @@ export function spawnEnemyWaveIntoFreeSlots(m) {
   // Step 2 -- walk the band from its first slot, record and sprite entry in lockstep.
   let slot = CRAFT_RECORD_SLOT0;
   let entry = CRAFT_ENTRY_SLOT0;
-  // A count of zero walks the whole bank 256 times, not none: the loop steps then wraps at 8 bits.
+  // A count of zero walks 256 slots, not none: the loop steps then wraps at 8 bits.
   let remaining = count;
   do {
     // A head byte of zero means the slot is free; a busy slot is skipped untouched.

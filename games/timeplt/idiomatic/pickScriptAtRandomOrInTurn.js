@@ -7,7 +7,7 @@
  * ROM 0x382D-0x3846 (frozen lift translated/loc_382d.js). Grounding: [seen] (names.js ROUTINES 0x382D).
  *
  * Role in the machine: chooses the movement script a freshly spawned enemy craft will follow. Its
- * two callers, driveEnemyWaveForLifePhase and spawnEnemyIntoFreeSlotElseStepSearch, store the answer
+ * two callers, driveEnemyWaveForLifePhase and spawnEnemyIntoFreeSlotElseStepSearch, store the answer (the first after adding 9)
  * at the new object's +0x0A, and stepShapeAnimation later uses that byte to pick a run from the word
  * table at 0x3438 and walk it (names.js "why"). SCRIPT_PICK_THRESHOLD (0xACC4) is set per round by
  * the era/rung configuration, so a higher threshold biases the game toward the ordered cycle.

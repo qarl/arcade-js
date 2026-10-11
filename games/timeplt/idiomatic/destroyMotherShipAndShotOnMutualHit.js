@@ -5,7 +5,7 @@
  * WHAT IT IS. The collision test between the player's bullets and the Mother-Ship, the large
  * two-slot craft whose record starts at MOTHER_SHIP_STATE (0xA8A0) and whose sprite entry is
  * MOTHER_SHIP_ENTRY (0xAA24). The bullets are the six 16-byte shot records at PLAYER_SHOT_ARRAY
- * (0xAA80). Its caller is dispatchEra4CollisionByFrameParity.
+ * (0xAA80). dispatchEra4CollisionByFrameParity jumps here (507B jp 0x4fe0), and destroyCraftAndMotherShipHitByShots (0x4FBF) falls into it.
  *
  * ROLE. Sweep the six shot slots for one that has reached the Mother-Ship and destroy both. The
  * Mother-Ship's state must be live or the sweep doesn't run. Each slot must be live too, with both

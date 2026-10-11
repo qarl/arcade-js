@@ -52,7 +52,7 @@ export function advanceHitSoakingObjectThenAnimateDeath(m, record = m.regs.ix, e
     mem8[entry + 0x32] = 0x3d;
   }
 
-  /* Every death frame (`dec (ix+0x00)` at 0x3BBD): step the countdown. At zero the object and its
+  /* Every death pass (`dec (ix+0x00)` at 0x3BBD): step the countdown. At zero the object and its
    * partner slot are taken out of play by retireObjectAndHold (0x3C0D, a tail transfer). */
   mem8[record] = mem8[record] - 1;
   if (mem8[record] === 0) return retireObjectAndHold(m, record, entry);

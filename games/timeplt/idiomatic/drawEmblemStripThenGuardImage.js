@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** drawEmblemStripThenGuardImage — stamp a row of award emblems, then blank the rest of that row.
  * The enable cell gates the whole routine. The caller's count, clamped to six, sets how many
- * two-by-two emblems to stamp leftward from a fixed cursor; the cursor then carries on and the row
+ * two-by-two emblems to stamp from a fixed cursor; the cursor then carries on and the row
  * is blanked down to a fixed floor. A running XOR over a fixed program span guards the image last.
  *
  * ROM 0x4D72-0x4DAE. Grounding: [seen] (names.js ROUTINES 0x4D72).

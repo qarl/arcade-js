@@ -2,8 +2,8 @@
 /** spawnAimedEnemyIntoEraBankWhenInWindow — spawn one aimed enemy, but only when the spawn slot is free, the cooldown at
  * ATTACKER_SPAWN_COOLDOWN is clear, the era count is live, and some object in the caller's two-slot bank passes
  * the doubled-window test (step 2 below). Draws a heading toward the player at ENEMY_STANDOFF_AIM_MAIN, alternates the aim's
- * side each spawn via ATTACKER_SPAWN_AIM_SIDE_TOGGLE, then seats coords, the doubled velocity pair, a script and a
- * shape into the era's fixed record+sprite bank and reloads the cooldown. LIVE-OUT: memory. The routine is a
+ * side each spawn via ATTACKER_SPAWN_AIM_SIDE_TOGGLE, then seats coords, the doubled velocity pair, a shape code and an
+ * attribute byte into the era's fixed record+sprite bank and reloads the cooldown. LIVE-OUT: memory. The routine is a
  * pure writer — its sole caller (advanceTwoTileObjectThenTryAimedSpawn) tail-returns and reads no register it
  * leaves, and that whole dispatch chain up to serviceEra1BomberObject is memory-only — so the search pointers,
  * the window bound and the loop count all live here as JS locals. The aimed heading passes into the velocity
@@ -52,7 +52,7 @@ const TURN = 0x18;
 const NEW_SCRIPT = 0x4d;
 const NEW_SHAPE = 0x62;
 
-// era count != 1 with the scan flag clear selects the second bank; the guard and the seat both ask.
+// era count != 1 with bank B's head byte clear selects the second bank; the guard and the seat both ask.
 const useSecondBank = (m) => m.mem8[ATTACKER_SPAWN_SLOT_COUNT] !== 1 && m.mem8[ERA_OBJECT_RECORD_SLOT2] === 0;
 
 export function spawnAimedEnemyIntoEraBankWhenInWindow(m, record = m.regs.ix, entry = m.regs.iy) {

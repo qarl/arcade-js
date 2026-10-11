@@ -7,7 +7,7 @@
  * ROM 0x2511-0x252F. [seen]
  *
  * Role in the machine: the fourth stage of the cold start. Power-on (0x07B1) settled the control
- * latch, 0x0069 zeroed work RAM and the sprite banks, 0x5866 filled the screen and verified the
+ * latch, 0x0069 zeroed work RAM and the sprite run at 0xB410, 0x5866 filled the screen and verified the
  * image, and it tail-jumps here. This stage puts the few structures that must NOT start at zero into
  * their empty/default state, then hands on to seedGameConfigFromDipSwitches (0x52AA), which reads the
  * DIP switches and carries the rest of the cold start.

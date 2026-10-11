@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** setUpTwoPlayerStartObjectOnce — fire once when a watched pair of cells stops agreeing: step a shared counter down,
- * seat two vertical bytes and two glyph bytes into one object slot, ask for a sound when the trigger
+ * seat two shape codes and two attribute bytes (read as a sprite entry) into one object slot, ask for a sound when the trigger
  * cell is armed, and queue one display command. When the pair still agrees it does nothing.
  * LIVE-OUT: memory.
  *

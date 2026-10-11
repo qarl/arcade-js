@@ -2,7 +2,7 @@
 /** loc_1f2e — sixteen direction-table bytes decoded as instructions rather than a hand-written routine.
  * The ADDRESS is a live data table (turnShipTowardTargetHeading's stick lookup, `ld hl,0x1f2e / rst 0x08` at 0x1F01, reads it as DATA); only this ROUTINE,
  * decoding those bytes as CODE, is a dead arm. It is reached as code only through a copyright-glyph
- * tamper divert in the per-frame animation step: the divert fires only when the sampled copyright
+ * tamper divert in the player's animation-strip step: the divert fires only when the sampled copyright
  * glyph/colour departs from its genuine value — i.e. only on a tampered image — so a good image never
  * takes it. Decoded as code the bytes add B into A and take two early returns on the result (`ret nz`, `ret po`); only A = B = 0x80 gets past them, masks with B (the `jr nz,0x1f99` on that mask is not taken) and falls through into the heading snap.
  * Unreachable in real play,

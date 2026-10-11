@@ -16,7 +16,7 @@
  * losing one of its hits, because MOTHER_SHIP_HITS_TO_ABSORB 0xA8A4 [seen] -- the hits it can still
  * absorb -- is zeroed here.
  *
- * THE BOX. Every collision test in this game compares two sprite entries' whole-part coordinates
+ * THE BOX. This test compares the two sprite entries' coordinates
  * on the board's two native axes (the entry's +0x00 byte and its +0x31 byte) as a wrapped byte
  * difference. Adding a "reach" to the difference and requiring the result to be below a "span"
  * accepts differences from -reach up to span-reach-1, so the box can be lopsided.

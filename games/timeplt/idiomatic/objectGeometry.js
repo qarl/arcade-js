@@ -14,7 +14,7 @@
  * it by the box's reach and compares the result unsigned against the box's span (`sub / add a,l /
  * cp h`), which accepts a difference from -reach to span - reach - 1.
  *
- * Object records are sixteen bytes apart, and the sweeps step a record cursor by adding to its low
+ * Object records are sixteen bytes apart, and several sweeps step a record cursor by adding to its low
  * byte only, so the cursor never leaves its page.
  *
  * LIVE-OUT: storeCoordinate and addToCoordinate write the two coordinate bytes; the rest only compute.

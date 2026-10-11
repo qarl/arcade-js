@@ -4,7 +4,7 @@
  *
  * WHAT IT IS. One round-engine pass's full collision-and-destruction work. dispatchCollisionPassByEra
  * sends here on even FRAME_TICK values in eras 0, 2 and 3, and dispatchEra4CollisionByFrameParity on
- * even ticks in era 4 (mechanisms.md, collision). Every sweep compares positions in sprite entries
+ * even ticks in era 4 (mechanisms.md, collision). Every sweep compares positions (sprite entries; for the player's shots, the shot record's +6/+4 against the target's entry)
  * and, on a touch, writes the destroyed code 0xF0 into state bytes; the object handlers act on it
  * later in their own frames.
  *

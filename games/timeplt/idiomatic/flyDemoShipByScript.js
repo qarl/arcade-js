@@ -11,8 +11,8 @@
 // convincingly. dispatchPlayerFrameByState (0x1EDF) sends a live ship (state byte 0xFF) here while
 // PLAY_ACTIVE (0xAD30) is clear, instead of reading the controls. The pilot follows a byte-coded
 // script in ROM, chosen before the demo starts (mechanisms.md, "Flying"); each script byte says
-// "for this many frames, turn this way" (or hold). When it turns, it moves the heading directly by 3
-// steps per frame,
+// "for this many passes of the player's handler, turn this way" (or hold). When it turns, it moves
+// the heading directly by 3 steps per pass,
 // and then ends in the same world-scroll routine the live ship uses.
 //
 // LIVE-OUT: DEMO_SCRIPT_DWELL (0xADF2), the script cursor DEMO_SCRIPT_POINTER_LO/HI (0xADF3/0xADF4),
@@ -22,9 +22,9 @@ import { u8, u16 } from "../../../core/int.js";
 import { scrollWorldAtTheEraPace } from "./scrollWorldAtTheEraPace.js";
 import { DEMO_SCRIPT_DWELL, DEMO_SCRIPT_POINTER_LO, PLAYER_HEADING } from "./names.js";
 
-// Low six bits of the dwell byte: the frame count (`and 0x3f` at 0x2150).
+// Low six bits of the dwell byte: the pass count (`and 0x3f` at 0x2150).
 const DWELL_BITS = 0x3f;
-// How far one frame's turn moves the heading, out of 256 steps round the circle (`sub 0x03` /
+// How far one pass's turn moves the heading, out of 256 steps round the circle (`sub 0x03` /
 // `add a,0x03`).
 const TURN_STEP = 3;
 

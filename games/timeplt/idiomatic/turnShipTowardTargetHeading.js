@@ -24,7 +24,7 @@ import { PLAYER_HEADING, ERA_INDEX, STICK_HEADING_TABLE } from "./names.js";
 
 // `cp 0x03` on ERA_INDEX's low nibble (0x1F13): from era 3 on the ship turns faster.
 const FAST_DIGIT = 3;
-// The two turn rates in heading steps per frame (`ld d,0x04` / `ld d,0x03`).
+// The two turn rates in heading steps per call (`ld d,0x04` / `ld d,0x03`).
 const FAST_STEP = 4;
 const SLOW_STEP = 3;
 // `add a,0x01 / cp 0x03` (0x1F1E-0x1F22): difference + 1 below 3 means one step either side.

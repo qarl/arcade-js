@@ -34,7 +34,8 @@ export function awardOneCreditOnDebouncedInputEdge(m) {
   if ((history & LOW3) !== EDGE) return;
   /* On the edge (0x48F8-0x48FD): blip the coin sound (0x57F1), then hand C = 1 to the shared credit
    * tail at 0x496E, which (outside free play) adds it to the packed-decimal credit count at 0xA986,
-   * clamped at 99, repaints that field and pulses the coin counter. */
+   * clamped at 99, repaints that field and then runs the coin-counter step. That step pulses only for
+   * slot-1 coins still owed (COIN_ACCEPTED 0xA981), which this path never adds, so it brings no pulse of its own. */
   requestCoinSound(m);
   return awardCoinCreditThenPulseCoinCounter(m, ONE_CREDIT);
 }

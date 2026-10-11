@@ -9,8 +9,9 @@
  * Grounding: [seen] (names.js ROUTINES 0x1271; only the 0xAD10 copy destination was watched under
  * MAME, the 0xAD20 copy is code-level).
  *
- * ROLE IN THE MACHINE. Called once per pass of the round engine's service list,
- * serviceRoundThenResolvePlayerState. Most passes it returns at the first gate. The three gates are:
+ * ROLE IN THE MACHINE. Reached at the end of a pass of the round engine's service list,
+ * serviceRoundThenResolvePlayerState, only on passes where the player state reads 0xFF (alive)
+ * (`jp z,0x1271` at 0x11E8). Most such passes it returns at the first gate. The three gates are:
  *   - KILLS_REMAINING (0xAD02) [seen] is zero: the round's quota of enemy craft has been destroyed;
  *   - ROUND_TRANSITION_HOLD (0xACC6) [seen] is non-zero: the Mother-Ship's destruction has raised the
  *     transition hold (names.js: "The round advances only when this is set, the kill quota ...");

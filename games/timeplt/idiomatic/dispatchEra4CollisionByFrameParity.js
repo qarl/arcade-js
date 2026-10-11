@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** dispatchEra4CollisionByFrameParity — the era-4 per-frame collision dispatch, split by frame parity. On even frames run the
- * whole player-versus-object collision-and-destruction pass. On odd frames stage one shot-versus-
+ * whole collision-and-destruction pass: the player-contact sweeps plus one shot sweep against the era-object slots. On odd frames stage one shot-versus-
  * target sweep over a run of object slots and hand it the shared destruction body: while the mother
  * ship is armed the run is nine long and a following mother-ship mutual-kill pass runs after it;
  * while it is clear the run is eleven long and no mother-ship pass follows. The two cursor cells the
@@ -35,7 +35,7 @@ export function dispatchEra4CollisionByFrameParity(m) {
   if ((mem8[FRAME_TICK] & 0x01) === 0) return runAllCollisionSweepsThisFrame(m);
 
   /* Odd frame (0x5032): the run length depends on MOTHER_SHIP_ARMED (0xAD0D), which stays raised for
-   * the rest of the round once this round's Mother-Ship has been armed. */
+   * the rest of the round or life once the Mother-Ship has been armed. */
 
   const armed = mem8[MOTHER_SHIP_ARMED] !== 0;
   const targets = armed ? ARMED_TARGETS : OPEN_TARGETS;

@@ -10,7 +10,7 @@
  * back along a line of text.
  *
  * ROLE IN THE MACHINE: it is the exact inverse of advanceCharCursor on the same axis.
- * paintDigitDroppingLeadingZero calls it on a blanked digit and returns, so the caller's following
+ * paintDigitDroppingLeadingZero calls it on a dropped leading zero and returns, so the caller's following
  * advance nets to zero and a suppressed leading zero consumes no cell.
  *
  * PARAMETERS: `cursor` is the current cell address (the ROM keeps it in DE).

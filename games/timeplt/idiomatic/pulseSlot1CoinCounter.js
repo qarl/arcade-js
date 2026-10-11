@@ -12,7 +12,7 @@
  * the timer's period gives its on-time; each owed coin becomes a separate on-then-off pulse, so two
  * quick coins give two distinct clicks (mechanisms.md). The coin path bumps COIN_ACCEPTED 0xA981 [seen] once per coin; this
  * routine pays that debt off one pulse at a time. Its twin for the second slot, pulseSlot2CoinCounter
- * (0x49D6), is byte-identical but for three operands. mechanisms.md notes that the shared crediting
+ * (0x49D6), is byte-identical but for the three addresses it uses. mechanisms.md notes that the shared crediting
  * tail (awardCoinCreditThenPulseCoinCounter) ends by falling into THIS slot's driver whichever input
  * the credit came from, so on a frame that completes a credit this driver runs twice.
  */
@@ -25,7 +25,7 @@ const PULSE_FRAMES = 48;
 const LINE_DROPS_AT = 24;
 
 // The counter line: COIN_COUNTER_0_LATCH 0xC30A, bit 5 of the board's LS259 addressable latch
-// (the driver's LATCH_COIN_COUNTER_0). Write-only hardware; 1 energises the counter, 0 releases it.
+// (the board's LATCH_COIN_COUNTER_0, boards/timeplt/io.js). Write-only hardware; 1 energises the counter, 0 releases it.
 const drive = (m, level) => {
   m.mem8[COIN_COUNTER_0_LATCH] = level;
 };

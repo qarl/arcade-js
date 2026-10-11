@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** loc_43f0 — one frame of the Mother-Ship, a deep state machine seated on a fixed
+/** loc_43f0 — one round-engine pass of the Mother-Ship, a deep state machine seated on a fixed
  * record/sprite pair. The record's lead byte is the phase: idle counts a delay down and, once spent,
  * seeds a fresh launch placed by the player heading; once its hits are spent the dying phase counts
  * the head down and, at one exact value, sweeps the fifteen object records (each live one gets a
@@ -114,7 +114,7 @@ export function loc_43f0(m) {
   return flyMotherShipOneFrame(m, MOTHER_SHIP_STATE, MOTHER_SHIP_ENTRY); // live
 }
 
-// ── LIVE (0x4403): move the ship one frame, dress it, then look for a chance to fire.
+// ── LIVE (0x4403): move the ship one step, dress it, then look for a chance to fire.
 // Each coordinate is glued from its whole byte (entry) and fraction (record), has the ship's own
 // velocity word and the world's scroll word added, and is split back -- so sub-pixel speeds build up in
 // the fraction. The ship moves with the scrolling sky, as every object does.
@@ -157,7 +157,7 @@ export function countDownIdleDelayThenLaunchMotherShip(m, record, entry) {
 // ── Any head other than 0x00 and 0xFF (0x4540). `phase` is the head plus one (the ROM's C).
 // A collision sweep marks a hit by writing 0xF0 into the head. While MOTHER_SHIP_HITS_TO_ABSORB (+0x04)
 // is non-zero the hit is ABSORBED: spend one, put the head back to 0xFF (live), request the pair of hit
-// sounds (requestTwoSounds, 0x5683 [seen]) and run the live step this same frame. Armed with 7, the
+// sounds (requestTwoSounds, 0x5683 [seen]) and run the live step in this same pass. Armed with 7, the
 // ship survives seven hits and the eighth, finding the counter at zero, starts its death. From then on
 // the counter stays zero, so every later step of the dying countdown also passes straight through here.
 export function absorbMotherShipHitElseStepItsDeath(m, phase, record, entry) {
@@ -180,7 +180,7 @@ export function sweepFieldOnMotherShipDeathElseStepWreck(m, phase, record, entry
   if (phase !== FIELD_SWEEP_TRIGGER) return stepMotherShipWreckCountdown(m, record, entry);
 
   // The Mother-Ship's death clears HITS_REMAINING (0xA8DC) [seen] -- the bomber's hit counter -- and
-  // queues the transition sound bursts (0x5634 and 0x56D2).
+  // queues the transition sound burst (0x5634) and the destruction sound burst (0x56D2).
   mem8[HITS_REMAINING] = 0x00;
   enqueueTransitionSoundBurst(m);
   requestDestructionSoundBurst(m);
@@ -289,7 +289,7 @@ export function flashMotherShipWreckAndPayThreeThousand(m, record, entry) {
 
 // ── The end (0x4646), the step the head reaches zero: release ROUND_TRANSITION_HOLD to 0xFF, which hands
 // over to the round advance, and go back to idle. Then the anti-tamper check: TAMPER_GLYPH_COPY
-// (0xAB43) [seen] holds a glyph copied from the screen during attract, and the next byte its colour.
+// (0xAB43) [seen] holds a glyph copied from the screen (during attract, and again at every credited one-player start), and the next byte its colour.
 // A genuine image reads 0x7C with colour 0x10 or 0x05 (`cp 0x7c`, `cp 0x10`, `cp 0x05`, 0x4653-0x465D)
 // and simply returns. Anything else is a patched caption, and the ROM jumps into
 // stepMotherShipWarpFlashFrame (0x459B) [code] through a misaligned prologue that pops the stack out

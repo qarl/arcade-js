@@ -13,8 +13,8 @@ whose role is only partly pinned, carry a terse caveat.
 | a800 | playerState | State byte of the player's own record, which begins at this address. |
 | a801 | playerRecordSpareByte | work-RAM byte after PLAYER_STATE (0xA800): zeroed at every life start by resetPlayfieldAndArmNewRound (`ld (0xa801),a` at 0x1A1F) and by the block wipes, and read by no code -- the only reads of it are the wipes' own LDIR source fetches |
 | a802 | playerHeading | The heading the player's ship is flying, a full byte = 256 steps of the circle. |
-| a808 | worldScrollY | Per-frame world scroll, the component that lands in a sprite entry's NATIVE-Y byte. |
-| a80a | worldScrollX | Per-frame world scroll, the component that lands in a sprite entry's NATIVE-X byte. |
+| a808 | worldScrollY | World scroll, the component that lands in a sprite entry's NATIVE-Y byte. |
+| a80a | worldScrollX | World scroll, the component that lands in a sprite entry's NATIVE-X byte. |
 | a810 | actorRecordSlot0 | Actor slot 0's record head -- first of the four actor/target object slots (array slots 1-4). |
 | a811 | waveKillCountdown | How many more qualifying kills until the current wave's shared claim fires. |
 | a812 | waveClaimTimer | Frame-countdown window during which a spawned wave's shared claim is armed. |
@@ -49,12 +49,12 @@ whose role is only partly pinned, carry a terse caveat.
 | a8f6 | attackerSpawnCooldownPeriod | Reload period (interval constant) for ATTACKER_SPAWN_COOLDOWN; never decremented. |
 | a8f7 | parachutistRung | How many rescue awards this life has already been paid, which is the rung the next one takes. |
 | a900 | sceneryRecordSlot0 | Scenery record base, scenery slot 0 (array slot 16); the record cursor runSceneryForEra starts from (paired with SCENERY_ENTRY_SLOT0). |
-| a97f | playerStateBlockEnd | inclusive top of the player/actor-state RAM block cleared from PLAYER_STATE on a fresh round |
+| a97f | playerStateBlockEnd | inclusive top of the player/actor-state RAM block cleared from PLAYER_STATE when armRoundStartThenStepSequence sets up an attract-demo round (PLAY_ACTIVE clear) |
 | a980 | frameTick | Frame counter, advanced once per vblank service. |
 | a981 | coinAccepted | Coin-counter pulses the machine still OWES the mechanical counter. |
 | a982 | coinAcceptedSlot2 | slot-2 twin of COIN_ACCEPTED (0xa981) |
 | a983 | serviceCreditDebounce | IN0 bit-2 service-credit input debounce; a clean edge awards one credit |
-| a984 | coinPulseTimer | Pulses coin slot 1's mechanical counter still owes, counted down one frame at a time. |
+| a984 | coinPulseTimer | Frames left in coin slot 1's current mechanical-counter pulse, counted down one frame at a time. |
 | a985 | coinPulseTimerSlot2 | slot-2 twin of COIN_PULSE_TIMER (0xa984) |
 | a986 | creditCount | packed-BCD on-screen credit total (saturates at 0x99) |
 | a987 | screenUnflipped | Whether the picture is the right way up for whoever is playing: 1 upright, 0 turned round. |
@@ -69,7 +69,7 @@ whose role is only partly pinned, carry a terse caveat.
 | a996 | initialsForwardPressHistory | press history of the facing panel's RIGHT control during initials entry: a fresh press steps the letter forward (26 wraps to 0), at 0xFF it is emptied through rearmHeldControlRepeat so a held RIGHT auto-repeats; zeroed when the entry opens |
 | a997 | initialsCommitPressHistory | press history of the facing panel's FIRE button during initials entry: a fresh press locks the shown letter into the next slot; never re-armed, so a held FIRE commits once; zeroed when the entry opens |
 | a998 | initialsAltCommitPressHistory | press history of the panel's bit-0x20 control (not bound in this cabinet's input map) during initials entry: a fresh press locks the letter exactly like FIRE and is tested first; zeroed when the entry opens |
-| a999 | initialsLetterIndex | index (0..26) of the letter shown at the initials cursor, selecting its glyph from INITIALS_LETTER_GLYPH_TABLE: zeroed when the entry opens, stepped by forward/back, reset to 0 after each committed letter |
+| a999 | initialsLetterIndex | index (0..26) of the letter shown at the initials cursor, selecting its glyph from INITIALS_LETTER_GLYPH_TABLE: zeroed when the entry opens, stepped by forward/back, reset to 0 after each committed letter except the last |
 | a99a | initialsSlotsLeft | count of initials still to enter: set to 3 when the entry opens, decremented on each committed letter; reaching 0 finishes the entry |
 | a99c | initialsCursorFlashTimer | initials cursor blink counter: incremented every odd frame of the entry, bit 4 picks the cursor cell's colour (0x14 over 0x10); zeroed whenever the cursor letter is redrawn |
 | a99d | chainWindow | How much longer a hit still counts as part of the current chain. |
@@ -77,7 +77,7 @@ whose role is only partly pinned, carry a terse caveat.
 | a9ab | sequencePhase | OUTER phase of the two-level sequence machine: the machine's top-level MODE. |
 | a9ac | sequenceSubstep | INNER index of the two-level sequence machine. |
 | a9ad | dip1Mirror | inverted mirror of DSW 0xC200 (the gameplay dip bank) |
-| a9ae | in0Mirror | Mirror of the IN0 input port, rewritten every frame from the port itself. |
+| a9ae | in0Mirror | Complemented mirror of the IN0 input port, rewritten every frame from the port itself. |
 | a9af | in1Mirror | inverted mirror of IN1 0xC320 (main / player-1 controls) |
 | a9b0 | in2Mirror | inverted mirror of IN2 0xC340 (cocktail / player-2 controls) |
 | a9b1 | coinageSettings | The two coinage DIP settings, as the machine sees them: the complement of the DSW0 port. |
@@ -113,7 +113,7 @@ whose role is only partly pinned, carry a terse caveat.
 | a9e9 | penColumnStep | Signed 8.8 per-step column increment, added to PEN_COLUMN_POS each step. |
 | a9eb | sequenceDelay | The sequence machine's shared one-shot delay: frames still to wait before its next step. |
 | a9f0 | introAnimationStep | Step selector (0..5) of the between-eras band animation that plays after a round is won and before the next round: stepRoundStartIntroAnimation dispatches on it, and each sub-animation writes the step it hands off to (flash->1, band-to-2->2, colour-cycle->3, band-to-4->4, flood->5). |
-| a9f1 | playerFlashTick | Frame tick of the player-ship white flash (intro step 0/1): bit 0 alternates the sprite colour; at tick 8 it advances INTRO_ANIMATION_STEP and requests the spawn-flash sound. |
+| a9f1 | playerFlashTick | Tick of the player-ship white flash (intro step 0/1): bit 0 alternates the sprite colour; at tick 8 it advances INTRO_ANIMATION_STEP and requests the spawn-flash sound. |
 | a9f2 | bandTo2PassCountdown | Per-pass countdown for advanceScriptedCharPlaneBandTo2 (bit 0 selects a blank vs draw pass), decremented each pass and zeroed at the script's end, which sets INTRO_ANIMATION_STEP to 2. |
 | a9f3 | spriteColourCycleCountdown | Countdown driving a sprite's colour field during the colour-cycle step: seeded 4 and stepped down once per call, so bit 2 is set only on the first call (colour 0x37) and clear for the rest (0x3F); when it reads zero the step sets INTRO_ANIMATION_STEP to 3, and the counter then wraps below zero. |
 | a9f4 | bandTo4PassCountdown | Per-pass countdown for advanceScriptedCharPlaneBandTo4 (bit 0 selects blank vs draw), zeroed at the script's end, which sets INTRO_ANIMATION_STEP to 4. |
@@ -140,18 +140,18 @@ whose role is only partly pinned, carry a terse caveat.
 | aa31 | scenerySpriteCodeSlot0 | Scenery sprite code/shape byte, scenery slot 0 (= SCENERY_ENTRY_SLOT0 +1); base of the era-keyed 8-slot code fill (stride 2). |
 | aa36 | sceneryEntrySlot3 | Scenery sprite-entry X seat, scenery slot 3 (array slot 19); base of publishSpriteShadow's 10-byte bank-0 tail run (slots 19-23). |
 | aa3f | tamperFoldFlag | work-RAM flag set 0xff before the image-signature fold, no routine reads it back by address (foldImageBlockIntoSignatureThenAdvanceSequence) |
-| aa40 | playerSpriteAttribute | The player's sprite attribute byte (colour + flip bits), and the base of the second bank's 32-byte colour/flip run publishSpriteShadow copies to hardware. |
-| aa41 | playerSpriteY | The player's sprite Y (vertical) byte, and the base of the Y band hideAllSprites / hideCaptionSprites zero to park every sprite off-screen. |
+| aa40 | playerSpriteAttribute | The player's sprite attribute byte (colour + flip bits), and the base of the second bank's 32-byte attribute/Y run publishSpriteShadow copies to hardware. |
+| aa41 | playerSpriteY | The player's sprite Y (vertical) byte, and the base of the Y band hideAllSprites zeroes (hideCaptionSprites zeroes only its first four entries) to park every sprite off-screen. |
 | aa43 | actorSpriteYSlot0 | Actor slot 0's sprite Y (array slot 1; = ACTOR_ENTRY_SLOT0 +0x31, one step of the PLAYER_SPRITE_Y band). |
 | aa55 | motherShipSpriteY | The Mother-Ship's sprite Y (array slot 10; = MOTHER_SHIP_ENTRY +0x31); read as a scalar in the contact/collision windows. |
 | aa59 | eraObjectSpriteYSlot0 | Era-object bank slot 0's sprite Y (array slot 12; = ERA_OBJECT_ENTRY_SLOT0 +0x31); read as a scalar in fixed-target collision. |
 | aa60 | scenerySpriteAttributeSlot0 | Scenery attribute (colour+flip) band base, scenery slot 0 (= SCENERY_ENTRY_SLOT0 +0x30); base of publishSpriteShadow's 6-byte bank-1 head run. |
 | aa66 | scenerySpriteAttributeSlot3 | Scenery attribute band, scenery slot 3 (array slot 19); base of publishSpriteShadow's 10-byte bank-1 tail run. |
-| aa6f | tamperImageSignature | The folded byte-signature of a program-image block (the self-check's checksum); written by the image-fold step and read once at ROM 0x2730 as cp 0x76, which jumps to 0x2530 (off the genuine path) on mismatch -- an anti-tamper cell. |
+| aa6f | tamperImageSignature | The folded byte-signature of a program-image block (the self-check's checksum); written by the image-fold step and read by address only at ROM 0x2730 as cp 0x76, which jumps to 0x2530 (off the genuine path) on mismatch -- an anti-tamper cell. |
 | aa80 | playerShotArray | Base of the player's six-slot shot record array. |
 | aa81 | shotBurstPending | Countdown of shots still owed from the current fire press. |
-| aa82 | shotSpawnCooldown | Inter-shot fire-rate cooldown: frames left before the next player shot may seed. |
-| aadf | playerShotArrayEnd | inclusive top of the player-shot RAM block cleared from PLAYER_SHOT_ARRAY on a fresh round |
+| aa82 | shotSpawnCooldown | Inter-shot fire-rate cooldown: shot-engine passes left before the next player shot may seed. |
+| aadf | playerShotArrayEnd | inclusive top of the player-shot RAM block cleared from PLAYER_SHOT_ARRAY when armRoundStartThenStepSequence sets up an attract-demo round (PLAY_ACTIVE clear) |
 | ab08 | highScoreTableBase | base of the five 8-byte high-score records (+0 rank, +1..+3 score lo/mid/hi, +4..+6 initials, +7 0xF1 pad) |
 | ab0b | highScoreRec0ScoreHi | record 0 score high byte (rank +0, score lo/mid/hi +1..+3): the insertion compare's starting point |
 | ab10 | highScoreRec1Base | record 1 base (rank byte) |
@@ -199,7 +199,7 @@ whose role is only partly pinned, carry a terse caveat.
 | ad10 | playerOneLives | Player one's lives, in their saved sixteen-byte context block at 0xAD10. |
 | ad11 | playerOneRoundNumber | Player one's copy of ROUND_NUMBER (0xAD01), the unwrapped round ordinal. |
 | ad12 | playerOneKillsRemaining | Player one's copy of KILLS_REMAINING (0xAD02): craft still to destroy this round, seeded from KILL_QUOTA (0xA9CD). |
-| ad13 | playerOneBonusLifeLatch | Player one's copy of the bonus-life award one-shot latch (active 0xAD03, bit 0, set by awardBonusLifeAtScoreMark once the score mark is passed). |
+| ad13 | playerOneBonusLifeLatch | Player one's copy of the bonus-life award one-shot latch (active 0xAD03, bit 0, set by awardBonusLifeAtScoreMark when the score's top byte reaches a mark, and cleared by it once that byte is off every mark). |
 | ad14 | playerOneEraIndex | Player one's copy of ERA_INDEX (0xAD04): which era/round is in force -- the key setSavedPenFromEra and seatCaptionPenFromEraFoldingTamperIntoPhase use for the caption pen. |
 | ad16 | playerOneLifeTicksMid | Player one's copy of LIFE_TICKS_MID (0xAD06). |
 | ad1a | playerOneStartRung | Player one's copy of the round start rung (active 0xAD0A) -- the difficulty rung the round opens on, later copied into ERA_RUNG. |

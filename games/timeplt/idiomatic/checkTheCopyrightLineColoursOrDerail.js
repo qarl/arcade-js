@@ -14,8 +14,8 @@
  * ROM 0x19DA-0x19EF (frozen lift translated/loc_19da.js). Grounding: [seen].
  *
  * Role in the machine: an anti-tamper check on the copyright caption. Two static call sites reach
- * it (`call 0x19da` at 0x176A and at 0x1797), from holdCopyrightThenVerifyGlyphAndSeatWitnessOrDerail
- * and paintReadoutsThenSampleWitnessOrDerail.
+ * it (`call 0x19da` at 0x176A and at 0x1797), from paintReadoutsThenSampleWitnessOrDerail
+ * and holdCopyrightThenVerifyGlyphAndSeatWitnessOrDerail respectively.
  *
  * Why these cells and these two colours (names.js "why"): the copyright line's record, reached
  * through the caption table at 0x0C50 (first word 0x086B), paints thirteen glyphs from 0xA6BC with a

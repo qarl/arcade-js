@@ -25,7 +25,7 @@ import { fetchWideTableWord } from "./fetchWideTableWord.js";
 import { queueTileStampForObject } from "./queueTileStampForObject.js";
 import { FIRE_BUTTON_EDGE_SHIFT, PLAYER_HEADING, PLAYER_SHOT_ARRAY, PLAYER_STATE, PLAY_ACTIVE, ROUND_TRANSITION_HOLD, SHOT_BURST_PENDING, SHOT_SPAWN_COOLDOWN, WORLD_SCROLL_X, WORLD_SCROLL_Y, PLAYER_SHOT_SLOT_STRIDE_WORD, PLAYER_SHOT_SPAWN_POSITION_TABLE } from "./names.js";
 
-// Six shot records of 16 bytes each (`ld b,0x06`, `ld de,0x0010` in the sweep at 0x24A4/0x24F6).
+// Six shot records of 16 bytes each (`ld b,0x06`, `ld de,0x0010` in the sweep at 0x24A4/0x24F3).
 const SLOT_COUNT = 6;
 const RECORD_STRIDE = 16;
 

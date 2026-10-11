@@ -23,7 +23,8 @@
  *
  * END OF SCRIPT. A drawing pass whose current script byte has any bit above bit 0 set (ROM `and 0xfe`)
  * is the terminator: it zeroes the countdown, sets INTRO_ANIMATION_STEP to 4, asks for the inter-round
- * sound pair, steps the cursor past the terminator and returns WITHOUT the final decrement.
+ * sound pair, steps the cursor up one byte off the terminator (this half reads the script downward)
+ * and returns WITHOUT the final decrement.
  *
  * LIVE-OUT: memory-only (the caller returns the instant this does).
  */

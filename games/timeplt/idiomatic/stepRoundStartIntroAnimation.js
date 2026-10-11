@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** stepRoundStartIntroAnimation — run one frame of the sub-step-14 band animation, and only on alternate frames. The
+/** stepRoundStartIntroAnimation — run one frame of the sub-step-14 band animation, and only on two frames of every four. The
  * animation's own step cell picks the arm: the early steps flash the player ship and advance two character-plane
  * animations, the last step hides every sprite, sets up the active player's turn and reloads the inner
  * sequence index to its reload sub-step. LIVE-OUT: memory.

@@ -8,12 +8,12 @@
  * bank (records from ERA_OBJECT_RECORD_SLOT0 0xA8C0, sprite entries from ERA_OBJECT_ENTRY_SLOT0
  * 0xAA28). This is the gate in front of that launch. It runs for the craft whose slot the caller is
  * servicing, but acts only on that craft's own turn of an eight-frame round, only once a shared spawn
- * cooldown has run out, only when a bank slot is free, and only when the craft is not too close to
+ * cooldown has run out, only when a bank slot is free, and not when the craft is close to both of
  * two fixed lines (0x78 on one sprite coordinate, 0x84 on the other).
  *
  * ROLE IN THE MACHINE. Called from the per-slot enemy-craft services of eras 0, 2, 3 and 4
- * (serviceEra0/2/3/4EnemyCraftSlot). On success it stashes the free slot's record and sprite-entry
- * addresses in SCRATCH_PTR_A / SCRATCH_PTR_B (0xA991 / 0xA993) and tails into a launcher: in era 0
+ * (serviceEra0/2/3/4EnemyCraftSlot). Once a free slot is found it stashes the free slot's record and sprite-entry
+ * addresses in SCRATCH_PTR_A / SCRATCH_PTR_B (0xA991 / 0xA993) and, past the proximity test, tails into a launcher: in era 0
  * the aim-window launcher (0x429C, setTheLaunchFacingInsideOneAimWindow), in any other era the
  * heading-follows launcher (0x42B7, commissionStagedAttackerByEra), which is handed the craft's
  * heading byte (record +0x02) as the new object's facing.

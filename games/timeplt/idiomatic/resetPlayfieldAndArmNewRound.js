@@ -87,7 +87,7 @@ export function resetPlayfieldAndArmNewRound(m) {
   retireSlotIntoCooldown(m, PARACHUTIST_RECORD, PARACHUTIST_ENTRY);
 
   // Then seven records from the parachutist's onward -- the ROM's IX/IY are still on it -- are
-  // fully zeroed, occupancy byte, sub-pixel remainders and sprite coordinates
+  // cleared of their occupancy byte, sub-pixel remainders (+3, +5) and sprite coordinates
   // (retireSlotAndSubPixel, 0x2BDE), one 16-byte record / two-byte entry apart.
   let record = PARACHUTIST_RECORD;
   let entry = PARACHUTIST_ENTRY;

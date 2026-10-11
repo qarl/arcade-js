@@ -2,7 +2,7 @@
 /** commissionStagedAttackerByEra — commission the object the slot-finder staged, whose record and paired-entry pointers
  * wait in two fixed cells. Copies the spawner's two coordinate pairs and the caller's facing byte
  * across into the new slot, then fits it out one of four ways chosen by the current era: era zero
- * an unaimed drift with a mirror flag and a slow-fall marker; eras one and two a heading toward a
+ * an unaimed throw with a fixed shape, flip bits from a mirror flag and a seeded velocity word; eras one and two a heading toward a
  * fixed screen point skewed a quarter turn to one side or the other, picked by a stored bit; era three a velocity vector for a heading
  * offset a fixed step either side of the facing; era four a straight aim at that same point, with
  * one extra byte seeded. Every way winds the new slot's active count down, re-arms the spawn
@@ -82,9 +82,9 @@ export function commissionStagedAttackerByEra(m, spawnerRecord = m.regs.ix, spaw
   };
 
   // ERA 0 (0x42EC-0x4310): a thrown object, flown later along a ballistic arc (mechanisms.md). No heading
-  // is aimed: the sprite entry's +0x01 gets 0x4F (names.js: the mirror flag), its +0x30 byte is 0x0B
-  // plus bits 7-6 both copied from the facing's bit 0 (`rrca` / `sra a` / `and 0xc0`), and record bytes
-  // +0x07/+0x08 are seeded 0x00 and 0xFF (names.js: the slow-fall marker). Sound: requestAttackerSpawnSoundEra0 (0x5664).
+  // is aimed: the sprite entry's +0x01 gets the fixed shape code 0x4F, its +0x30 attribute is 0x0B
+  // plus its flip bits 7-6 both copied from bit 0 of C (`rrca` / `sra a` / `and 0xc0`), and record bytes
+  // +0x07/+0x08 are seeded 0x00 and 0xFF (names.js: the velocity word, 0xFF00). Sound: requestAttackerSpawnSoundEra0 (0x5664).
   if (era === 0) {
     mem8[entry + 0x01] = 0x4f;
     let mirror = ((facing >> 1) | (facing << 7)) & 0xff; // rrca

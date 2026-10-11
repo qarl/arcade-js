@@ -2,7 +2,7 @@
 /**
  * runParachutistSlot — ROM 0x47B3 [seen]
  *
- * WHAT IT IS. The per-frame manager of the single parachutist -- the rescue object that drifts
+ * WHAT IT IS. The per-pass manager of the single parachutist -- the rescue object that drifts
  * across the sky and pays a bonus when the player's ship touches it (grounded under MAME as the
  * canopy + bonus object, removed by a negative control; names.js). Its state record is
  * PARACHUTIST_RECORD 0xA8F0 and its sprite entry PARACHUTIST_ENTRY 0xAA2E (both [seen]); the ROM
@@ -74,7 +74,7 @@ export function runParachutistSlot(m) {
   // In flight (0xFF): one step along the velocity stored in its record, which also carries it with the
   // world (flyAlongStoredVelocity, 0x3E05 [seen]). On reaching a retire line (hasReachedRetireLine,
   // 0x2B83 [seen], carry set in the ROM) it is taken out into its cooldown; otherwise its sprite takes
-  // the next of eight flight shapes from PARACHUTIST_FLIGHT_SHAPE_TABLE (0x47EA), chosen by bits 4-6
+  // the next of the eight entries (shapes 0-3 and back) from PARACHUTIST_FLIGHT_SHAPE_TABLE (0x47EA), chosen by bits 4-6
   // of FRAME_TICK 0xA980 [seen] -- four `rrca`s and `and 0x07`, so the shape changes every 16 frames.
   flyAlongStoredVelocity(m, PARACHUTIST_RECORD, PARACHUTIST_ENTRY);
   if (hasReachedRetireLine(m, PARACHUTIST_ENTRY)) return retireSlotIntoCooldown(m, PARACHUTIST_RECORD, PARACHUTIST_ENTRY);

@@ -12,12 +12,13 @@
  *      clean leading edge;
  *   2. tallyCoinSlot1AndAwardCredit (0x4941) -- debounce coin slot 1, count the coin and convert
  *      coins to credits by the coinage setting;
- *   3. meterCoinageTowardCreditOnEdge (0x4911) -- the phase-gated credit drip;
+ *   3. meterCoinageTowardCreditOnEdge (0x4911) -- debounce coin slot 2, count the coin and convert
+ *      coins to credits by the coinage setting;
  *   4. pulseSlot1CoinCounter (0x4984) and
  *   5. pulseSlot2CoinCounter (0x49D6) -- drive each mechanical counter through one pulse per coin
  *      it is still owed.
  *
- * Every call rotates the debounce histories; crediting and pulsing fire only on an edge or a debt,
+ * The three input calls rotate the debounce histories; crediting and pulsing fire only on an edge or a debt,
  * so on an ordinary frame with no coin activity nothing but those histories changes.
  *
  * ROLE IN THE MACHINE. Called from the vertical-blank service (serviceVerticalBlankInterrupt), so it

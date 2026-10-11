@@ -6,7 +6,7 @@
  * chain as arguments; the cursor is the era-object entry its one caller has just cleared through (the
  * original leaves it standing in IY), and the chain writes through it only if the scenery guard fails.
  * LIVE-OUT: memory (the seated band and whatever the scenery chain leaves); control leaves through the
- * tail and does not return. */
+ * tail and does not come back here. */
 
 /*
  * ROM 0x30A5-0x30D0 (then into 0x30D1 / 0x3156), grounding [seen] (names.js ROUTINES 0x30a5).

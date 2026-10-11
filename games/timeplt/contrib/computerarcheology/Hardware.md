@@ -76,7 +76,7 @@ The inputs are active-low: idle reads `0xFF`, and a pressed control clears its b
 | 3 | 0x08 | Down (8-way) |
 | 4 | 0x10 | Fire (BUTTON1) |
 
-(Bits 5–7 are unused.)
+(Bits 5–7 have no control assigned, though the initials entry tests bit 5 as a second commit button.)
 
 ## IN2 — player-2 / cocktail controls (read at 0xC340, active-low, idle 0xFF)
 

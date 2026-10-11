@@ -7,10 +7,12 @@
 // ROM 0x496E-0x4983, falling through into 0x4984 (pulseSlot1CoinCounter); lift: translated/loc_496e.js,
 // which carries both stretches as one body. Grounding tag in names.js ROUTINES: [seen].
 //
-// ROLE IN THE MACHINE. This is the shared tail of the coin/credit pipeline. names.js records two
-// entries into it: awardOneCreditOnDebouncedInputEdge (0x48E7), which hands in C = 1 on a clean edge
-// of IN0 bit 2 to award exactly one credit, and meterCoinageTowardCreditOnEdge (0x4911), which hands
-// in C = the whole slot-2 coinage byte (COIN_SLOT_2_RATIO, 0xA9CC) when its metering step pays out. Either way the
+// ROLE IN THE MACHINE. This is the shared tail of the coin/credit pipeline. Three entries reach it:
+// awardOneCreditOnDebouncedInputEdge (0x48E7, `jp 0x496e`), which hands in C = 1 on a clean edge
+// of IN0 bit 2 to award exactly one credit; meterCoinageTowardCreditOnEdge (0x4911, `jr 0x496e`), which hands
+// in C = the whole slot-2 coinage byte (COIN_SLOT_2_RATIO, 0xA9CC) when its metering step pays out; and
+// tallyCoinSlot1AndAwardCredit (0x4941), which falls straight through into it with C = the slot-1
+// coinage byte (COIN_SLOT_1_RATIO, 0xA9C9) when its metering step pays out. Every way the
 // number of credits to add arrives in the low decimal digit of C.
 //
 // LIVE-OUT: CREDIT_COUNT (0xA986) and its on-screen field; the coin-counter pulse state and the

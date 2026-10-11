@@ -64,8 +64,8 @@ export function armMotherShipOrStep(m) {
   if ((mem8[KILLS_REMAINING] | mem8[MOTHER_SHIP_STATE] | mem8[CRAFT_RECORD_SLOT6]) !== 0) return;
 
   // Arm it: raise the armed flag, give the lead record its seven hits, then tail into the
-  // entry-pair retire (ROM 0x46DB), which clears the record and both sprite entries and arms the
-  // record's delay -- the cooldown after which loc_43f0 launches it.
+  // entry-pair retire (ROM 0x46DB), which zeroes the record's head byte and both sprite entries' X and Y
+  // and arms the record's delay (+0x0E = 0x5F) -- the cooldown after which loc_43f0 launches it.
   mem8[MOTHER_SHIP_ARMED] = HELD;
   mem8[MOTHER_SHIP_HITS_TO_ABSORB] = HITS_WHEN_ARMED;
   return retireEntryPairIntoCooldown(m, MOTHER_SHIP_STATE, MOTHER_SHIP_ENTRY);

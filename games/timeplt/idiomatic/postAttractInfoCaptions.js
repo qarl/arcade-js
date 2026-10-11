@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** postAttractInfoCaptions — one arm of the two-level sequence machine: stamps the copyright strip,
  * flashes the copyright line, then posts a fixed run of caption codes to the command ring as
- * (1, code) pairs, two of them chosen by two work cells, then bumps the sequence counter twice on the
+ * (1, code) pairs, three of them chosen by two work cells, then bumps the sequence counter twice on the
  * high branch and once on the low.
  *
  * ROM 0x1830-0x1869 (lift: translated/loc_1830.js). Grounding: [seen] (names.js ROUTINES 0x1830).

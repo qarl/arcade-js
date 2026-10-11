@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** stepSlotApproachThenBreakawayRetire — the per-frame handler for one slot in an object sweep. The record byte at +4 is an
  * approach countdown: while it runs, count it down by one and drive the object through its full
- * chased-object frame. The tick it reaches zero, fly the object at double velocity, animate its
+ * chased-object frame. Once it reads zero, fly the object at double velocity, animate its
  * shape, and retire the slot only if it has drifted onto a retire line. Either way step the sweep
  * onto the next slot. The record, its sprite entry and the sweep's turns left are arguments, handed
  * on to the turn-closer. LIVE-OUT: memory.

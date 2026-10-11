@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** spawnEnemyIntoFreeSlotElseStepSearch — work one object slot in a downward search for a free one. A slot whose head byte is
  * already taken is left untouched and the turn is handed to the tail that steps to the next slot;
- * a free slot is claimed and stocked. Stocking draws a heading from the scroll angle jittered by a
+ * a free slot is claimed and stocked. Stocking draws a spawn direction from the player's heading jittered by a
  * random amount, reads a starting position (the sprite entry's two coordinate bytes) from two chained
  * tables through it, and seeds the record and
  * its paired entry with facing, script and a fresh animation. LIVE-OUT: memory. Every register the

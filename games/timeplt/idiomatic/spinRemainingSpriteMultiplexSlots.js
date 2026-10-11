@@ -59,7 +59,7 @@ export function spinRemainingSpriteMultiplexSlots(m, held = m.regs.a, firstSlotR
     if (m.beamPlan) m.beamPlan.push({ y: SPRITE_BANK1_SLOT19_Y, x: SPRITE_BANK0_SLOT19_X }); // beam-sync render
   }
   // Sprites 20-23: each block reads its own Y byte; bit 7 clear (value below 128) means no
-  // request and the block is stepped over, else the request is cleared and the X byte takes 128.
+  // request and the block is stepped over, else the request is cleared and the X byte gains 128.
   for (const slot of TAIL_SLOTS) {
     const request = mem8[slot.request];
     if (request < HALF_RANGE) continue;

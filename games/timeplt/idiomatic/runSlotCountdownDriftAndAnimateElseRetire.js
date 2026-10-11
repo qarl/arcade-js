@@ -10,9 +10,9 @@
  *
  * ROLE IN THE MACHINE. Only the last era treats such a head as a countdown animation
  * (mechanisms.md, retiring and hiding). Outside era 4 the slot is retired on the spot. In era 4 a
- * head of 1 retires it; any other value drops by one this frame, a count that came in at 60 or more
- * first clamps the head to 59 and asks for two sounds, and the object drifts with the world. While
- * the count (re-read after the clamp) is 28 or more, the sprite takes one of eight shapes from
+ * head of 1 retires it; any other value drops by one this pass, then a count that came in at 60 or more
+ * has the head clamped to 59 (overwriting the drop) and asks for two sounds, and the object drifts with the world. While
+ * the count (re-read after the clamp) is 28 or more, the sprite takes one of the eight table entries from
  * COUNTDOWN_SLOT_SHAPE_TABLE (0x3EC3), each held for four counts and repeating, with a fixed 3 in
  * its attribute byte. Retiring is the ROM block at 0x40AB (retireSlot [seen]): zero the head and
  * both sprite coordinates, which takes the object off the screen.

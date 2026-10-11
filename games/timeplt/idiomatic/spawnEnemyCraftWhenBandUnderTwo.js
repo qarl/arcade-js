@@ -12,7 +12,7 @@
 // and picks its arm from the middle digit of the life's work counter; this is the arm for phase 8 (the
 // caller's `phase < 9` test after the lower phases). It tops the band up only when it is nearly empty
 // (fewer than two busy records), and only on the ticks its gate opens. The pointer the caller passes is LIFE_TICKS_LOW
-// (0xAD05) [seen], the low packed-decimal digit pair of that counter (00..60), so the gate below opens
+// (0xAD05) [seen], the low packed-decimal digit pair of that counter (00..59), so the gate below opens
 // twice per pass of that byte.
 //
 // Which search runs depends on KILLS_REMAINING (0xAD02) [seen], the manual's kill quota before the

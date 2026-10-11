@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** meterCoinageTowardCreditOnEdge — one tick of a phase-gated credit drip. A selector bit is rotated into a phase cell;
- * unless its low three bits read 1 the tick does nothing. When they do it requests a sound, bumps a
- * counter, and steps a low/high byte pair: the low byte climbs by sixteen, and only while the high
- * byte trails it is the low byte pulled back and the credit-and-coin tail run. LIVE-OUT: memory. */
+/** meterCoinageTowardCreditOnEdge — one tick of coin slot 2's debounced coin accept. The slot's input bit is rotated into a debounce
+ * history; unless its low three bits read 0b001 (a fresh leading edge) the tick does nothing. When they
+ * do it requests a sound, bumps the slot's accepted-coin counter, and steps the slot's accumulator by
+ * sixteen; only once that exceeds the coinage setting byte is the accumulator pulled back and the
+ * credit-and-coin tail run. LIVE-OUT: memory. */
 //
 // ROM 0x4911-0x4940, ending in a `jr 0x496e` tail into awardCoinCreditThenPulseCoinCounter;
 // lift: translated/loc_4911.js. Grounding tag in names.js ROUTINES: [seen].
@@ -35,7 +36,7 @@ const READY = 0x01;
 export function meterCoinageTowardCreditOnEdge(m) {
   const { mem8 } = m;
 
-  // Sample the coin line. IN0_MIRROR (0xA9AE) [seen] is this frame's copy of the IN0 input port; the
+  // Sample the coin line. IN0_MIRROR (0xA9AE) [seen] is this frame's inverted (`cpl`) copy of the IN0 input port; the
   // ROM's two `rrca` put its bit 1 into carry and `rl (hl)` shifts that carry into the bottom of the
   // debounce history at 0xA9CA, so the history holds one sample per call, newest in bit 0.
   const selectorBit = (mem8[IN0_MIRROR] >> 1) & 1; // two rrca land IN0 bit 1 in carry
@@ -57,7 +58,7 @@ export function meterCoinageTowardCreditOnEdge(m) {
   // Enough coins: take the coins just paid for back out of the accumulator -- the setting's
   // coins-minus-one plus the one, i.e. (high nibble) + 0x10 (`and 0xf0 / add a,0x10 / neg / add a,(hl)`
   // at 0x4936-0x493E) -- so the next coin starts a fresh count. Then hand the whole setting byte
-  // to the shared credit tail, which adds its low nibble (the credits per payout) to the credit count.
+  // to the shared credit tail, which, unless free play is set, adds its low nibble (the credits per payout) to the credit count.
   mem8[COIN_SLOT_2_ACCUMULATOR] = (stepped - ((mem8[COIN_SLOT_2_RATIO] & 0xf0) + STEP));
   return awardCoinCreditThenPulseCoinCounter(m, mem8[COIN_SLOT_2_RATIO]);
 }

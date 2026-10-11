@@ -51,8 +51,8 @@ export function flyRoundIntroFlashingEraYearThenEraseIntroCaptions(m) {
   for (let i = 0; i < FOLD_BYTES; i++) fold = u8(fold - mem8[ROUND_INTRO_CHECKSUM_BASE + i]);
   mem8[SEQUENCE_PHASE] = fold ^ FOLD_KEY;
 
-  // Fly the ship over the scenery: the player's frame and the era scenery between two sprite
-  // fixup passes, closed by the sprite multiplex. No enemy or collision service runs.
+  // Fly the ship over the scenery: the player's frame between two sprite fixup passes, then the
+  // era scenery, closed by the sprite multiplex. No enemy or collision service runs.
   multiplexSpriteSlotsSkipping(m);
   dispatchPlayerFrameByState(m);
   multiplexSpriteSlotsSkipping(m);

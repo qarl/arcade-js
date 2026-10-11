@@ -7,7 +7,7 @@
  * ROM 0x1F55-0x1F67 (frozen lift translated/loc_1f55.js). Grounding: [seen] (names.js ROUTINES 0x1f55).
  *
  * ROLE IN THE MACHINE. In Time Pilot the player's ship stays fixed at the centre of the screen and
- * the world moves past it. The ship has no position of its own: once a frame
+ * the world moves past it. The ship has no position of its own: once a pass
  * scrollWorldAtTheEraPace looks up the velocity pair its heading calls for (at the era's pace) and
  * hands it here, and apart from bulk RAM clears this routine is one of only two writers of the scroll
  * cells (the other, resetPlayfieldAndArmNewRound, zeroes them — mechanisms.md). World-fixed objects then add

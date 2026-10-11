@@ -11,8 +11,8 @@
  * Role in the machine: sub-step 6 of sequence phase 0 (the power-on wipe phase), the arm that hands the machine on to the attract phase. The countdown it ticks is a screen wipe —
  * blankNextLine (0x01C2) blanks one line of the character plane per call and counts the lines still
  * owed — so the new screen is only drawn once the old one has been wiped clean. The screen it
- * builds shows the high score: captions posted to the command ring, a pair of marker glyphs, six
- * patched cells and the high-score digits. */
+ * builds shows the high score: captions posted to the command ring, a pair of marker glyphs and the
+ * high-score digits. The six patched cells are work-RAM cells (0xA800 and up), not screen cells. */
 
 import { paintHighScoreReadout } from "./paintHighScoreReadout.js";
 import { postCommand } from "./postCommand.js";

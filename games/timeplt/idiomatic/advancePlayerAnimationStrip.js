@@ -20,7 +20,7 @@
 //   * opening frame (0xB4 or more): clamp to 0xB4, hide the ship's sprite, request the opening-frame
 //     sound cues (which sounds they are is unidentified, mechanisms.md), and check two anti-tamper
 //     witnesses;
-//   * every frame: count down by one, and on seven keyframe values paint a 6-row by 5-cell block of
+//   * every pass of the player's handler: count down by one, and on seven keyframe values paint a 6-row by 5-cell block of
 //     character tiles over the ship's pinned screen position -- a fireball drawn in the background
 //     plane, growing and then shrinking;
 //   * between keyframes nothing is drawn; the count runs on silently until the round engine sees it
@@ -115,7 +115,7 @@ export function advancePlayerAnimationStrip(m, record = m.regs.ix, entry = m.reg
     if (drawState !== STATE_DRAW_A && drawState !== STATE_DRAW_B) return loc_1f2e(m);
   }
 
-  // STEP 2 -- COUNT DOWN (`dec (ix+0x00)` at 0x2040). Every frame, the opening one included.
+  // STEP 2 -- COUNT DOWN (`dec (ix+0x00)` at 0x2040). Every pass, the opening one included.
   // step the phase down; a strip draws only when it lands on one of seven keyframes
   const phaseAddr = X(PHASE);
   mem8[phaseAddr] = u8(mem8[phaseAddr] - 1);
