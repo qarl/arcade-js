@@ -7860,14 +7860,15 @@ retireObjectAndHold:
 3C24: C9              RET                         
 
 ; on even frames tick a slot's arming countdown at ix+0x0e; when it fires
-; and MOTHER_SHIP_ARMED (0xad0d) is clear, arm the slot -- pick a shape
-; record from PLAYER_HEADING (0xa802) via the table at 0x3c84, snap the
-; heading to a facing bit, look up the velocity pair, write
-; shape/facing/velocity into the record, set HITS_REMAINING (0xa8dc)=3,
-; and mark the slot live (ix+0=0xff). Its sole caller
-; serviceEra1BomberObject dispatches it only in era 1, so this is the 1940
-; bomber (absorbs three hits, dies on the fourth), not the Mother-Ship,
-; whose hit counter is seeded with seven
+; and MOTHER_SHIP_ARMED (0xad0d) is clear, arm the slot -- index the
+; screen-edge position table at 0x3c84 by PLAYER_HEADING (0xa802) and seat
+; its coordinate pair in the sprite entry (first byte to +0x31, native Y;
+; second to +0x00, native X), snap the heading to a facing bit, look up
+; the velocity pair, write facing and velocity into the record, set
+; HITS_REMAINING (0xa8dc)=3, and mark the slot live (ix+0=0xff). Its sole
+; caller serviceEra1BomberObject dispatches it only in era 1, so this is
+; the 1940 bomber (absorbs three hits, dies on the fourth), not the
+; Mother-Ship, whose hit counter is seeded with seven
 armBomberSlotWhenTimerFires:
 3C25: 3A 80 A9        LD      A,($A980)           ; {hard.workRam+180} read the frame counter
 3C28: E6 01           AND     $01                 ; odd frame?
@@ -7884,20 +7885,20 @@ loc_3c32:
 3C3A: 47              LD      B,A                 
 3C3B: C6 08           ADD     A,$08               ; bias by 8
 3C3D: E6 7F           AND     $7F                 ; within the half-circle
-3C3F: FE 10           CP      $10                 ; near a quadrant edge?
-3C41: 38 32           JR      C,$3C75             ; {code.loc_3c75} near the edge: nudge the heading toward the axis
+3C3F: FE 10           CP      $10                 ; within eight steps of heading 0x00 or 0x80?
+3C41: 38 32           JR      C,$3C75             ; {code.loc_3c75} near it: shift the lookup heading sixteen steps, forward or back by a frame-counter bit
 3C43: 78              LD      A,B                 ; take the heading
 
 loc_3c44:
 3C44: 0F              RRCA                        ; rotate the heading down two
 3C45: 0F              RRCA                        
-3C46: E6 3E           AND     $3E                 ; to an even shape-table offset
-3C48: 21 84 3C        LD      HL,$3C84            ; point at the bomber shape/velocity table
-3C4B: CF              RST     $08                 ; fetch the shape byte
-3C4C: FD 77 31        LD      (IY+$31),A          ; write the shape into the sprite entry
+3C46: E6 3E           AND     $3E                 ; to an even offset into the edge-position table
+3C48: 21 84 3C        LD      HL,$3C84            ; point at the screen-edge position table
+3C4B: CF              RST     $08                 ; fetch the pair's first coordinate
+3C4C: FD 77 31        LD      (IY+$31),A          ; seat it as the sprite entry's native-Y coordinate
 3C4F: 23              INC     HL                  
-3C50: 7E              LD      A,(HL)              ; read the paired attribute byte
-3C51: FD 77 00        LD      (IY+$00),A          ; write it to the entry head
+3C50: 7E              LD      A,(HL)              ; read the pair's second coordinate
+3C51: FD 77 00        LD      (IY+$00),A          ; seat it as the entry's native-X coordinate
 3C54: 78              LD      A,B                 ; take the heading again
 3C55: C6 C0           ADD     A,$C0               ; rotate three quarters
 3C57: E6 80           AND     $80                 ; keep the facing bit
@@ -7915,14 +7916,14 @@ loc_3c44:
 loc_3c75:
 3C75: 3A 80 A9        LD      A,($A980)           ; {hard.workRam+180} read the frame counter
 3C78: 4F              LD      C,A                 
-3C79: 3E 10           LD      A,$10               ; a quarter-step nudge
+3C79: 3E 10           LD      A,$10               ; a sixteen-step nudge
 3C7B: CB 59           BIT     3,C                 ; pick the nudge direction from the frame counter
 3C7D: 20 02           JR      NZ,$3C81            ; {code.loc_3c81} one way: keep +0x10
 3C7F: ED 44           NEG                         ; the other way: negate to -0x10
 
 loc_3c81:
 3C81: 80              ADD     A,B                 ; nudge the heading
-3C82: 18 C0           JR      $3C44               ; {code.loc_3c44} back to the shape lookup
+3C82: 18 C0           JR      $3C44               ; {code.loc_3c44} back to the edge-position lookup
 
 ; ---- $3C84-$3CC3: data ----
 3C84: EC 80 EC 88 EC 90 EC A0 EC B0 EC C0 EC D0 EC E0
@@ -9503,7 +9504,7 @@ loc_4663:
 4663: 3A C6 AC        LD      A,($ACC6)           ; {hard.workRam+4C6} is a round transition holding?
 4666: A7              AND     A                   
 4667: C0              RET     NZ                  ; yes: wait
-4668: 3A 02 A8        LD      A,($A802)           ; {hard.workRam+2} take the world angle
+4668: 3A 02 A8        LD      A,($A802)           ; {hard.workRam+2} take the player heading
 466B: 47              LD      B,A                 
 466C: 3A 80 A9        LD      A,($A980)           ; {hard.workRam+180} take the frame counter
 466F: 4F              LD      C,A                 

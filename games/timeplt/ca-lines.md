@@ -3171,16 +3171,16 @@
 3C37	read the player heading
 3C3B	bias by 8
 3C3D	within the half-circle
-3C3F	near a quadrant edge?
-3C41	near the edge: nudge the heading toward the axis
+3C3F	within eight steps of heading 0x00 or 0x80?
+3C41	near it: shift the lookup heading sixteen steps, forward or back by a frame-counter bit
 3C43	take the heading
 3C44	rotate the heading down two
-3C46	to an even shape-table offset
-3C48	point at the bomber shape/velocity table
-3C4B	fetch the shape byte
-3C4C	write the shape into the sprite entry
-3C50	read the paired attribute byte
-3C51	write it to the entry head
+3C46	to an even offset into the edge-position table
+3C48	point at the screen-edge position table
+3C4B	fetch the pair's first coordinate
+3C4C	seat it as the sprite entry's native-Y coordinate
+3C50	read the pair's second coordinate
+3C51	seat it as the entry's native-X coordinate
 3C54	take the heading again
 3C55	rotate three quarters
 3C57	keep the facing bit
@@ -3193,12 +3193,12 @@
 3C6D	set the hits-remaining count to three
 3C70	mark the slot live
 3C75	read the frame counter
-3C79	a quarter-step nudge
+3C79	a sixteen-step nudge
 3C7B	pick the nudge direction from the frame counter
 3C7D	one way: keep +0x10
 3C7F	the other way: negate to -0x10
 3C81	nudge the heading
-3C82	back to the shape lookup
+3C82	back to the edge-position lookup
 3CC4	read the object's heading
 3CC7	rotate a quarter turn
 3CC9	which half of the compass?
@@ -4018,7 +4018,7 @@
 4660	run the warp/flash stepper again
 4663	is a round transition holding?
 4667	yes: wait
-4668	take the world angle
+4668	take the player heading
 466C	take the frame counter
 4670	base step
 4672	test a frame-counter bit

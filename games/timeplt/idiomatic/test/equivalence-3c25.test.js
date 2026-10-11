@@ -25,7 +25,7 @@ const FRAME_TICK = 0xa980;
 const PLAYER_HEADING = 0xa802;
 const MOTHER_SHIP_ARMED = 0xad0d;
 const HITS_REMAINING = 0xa8dc;
-const SHAPE_TABLE = 0x3c84;
+const EDGE_POSITION_TABLE = 0x3c84;
 const COUNTDOWN = 0x0e;
 
 // Every game cell this routine touches sits at or below here; the stack seats well above it, so
@@ -114,7 +114,7 @@ function scenarios() {
 // ── the twins ─────────────────────────────────────────────────────────────────────────────
 
 /** The rewrite with one deliberate defect each; every knob matches armBomberSlotWhenTimerFires by default. */
-function twin({ hits = 3, live = 0xff, table = SHAPE_TABLE, snap = true, nudge = true, velocity = true } = {}) {
+function twin({ hits = 3, live = 0xff, table = EDGE_POSITION_TABLE, snap = true, nudge = true, velocity = true } = {}) {
   return (m) => {
     const { regs, mem8 } = m;
     if (mem8[FRAME_TICK] & 0x01) return;

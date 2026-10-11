@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** loc_43f0 — one frame of the Mother-Ship, a deep state machine seated on a fixed
  * record/sprite pair. The record's lead byte is the phase: idle counts a delay down and, once spent,
- * seeds a fresh launch aimed by the player angle; a mid-phase counts a hold down and, at one exact
- * value, tears down and rebuilds the whole fifteen-slot formation; the live phase drifts the pair
+ * seeds a fresh launch placed by the player heading; once its hits are spent the dying phase counts
+ * the head down and, at one exact value, sweeps the fifteen object records (each live one gets a
+ * staggered dying code and pays 200 points, each held one is freed); the live phase drifts the pair
  * with the world, dresses it, and — while off cooldown, with a tile on screen but outside the near
  * band around the player — hands a free slot a homing spawn whose heading and stage-vector are
  * computed here. Every callee, the

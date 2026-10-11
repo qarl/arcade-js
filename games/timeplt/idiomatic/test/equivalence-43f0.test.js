@@ -62,7 +62,7 @@ const WRITING = [
   ["idle-spawn-neg", 0x00, (c) => { c.mem8[RECORD + 0x0e] = 0; c.mem8[0xacc6] = 0; c.mem8[0xa980] = 0x00; c.mem8[RECORD + 0x04] = 0x0a; c.mem8[0xad04] = 0x01; }],
   ["idle-spawn-keep", 0x00, (c) => { c.mem8[RECORD + 0x0e] = 0; c.mem8[0xacc6] = 0; c.mem8[0xa980] = 0x08; c.mem8[RECORD + 0x04] = 0x02; c.mem8[0xad04] = 0x00; }],
   ["countdown", 0x05, (c) => { c.mem8[RECORD + 0x04] = 0x03; }],
-  ["rebuild", 0xef, (c) => { c.mem8[RECORD + 0x04] = 0; c.mem8[0xa810] = 0xff; c.mem8[0xa820] = 0xfe; c.mem8[0xa830] = 0x05; }],
+  ["field-sweep", 0xef, (c) => { c.mem8[RECORD + 0x04] = 0; c.mem8[0xa810] = 0xff; c.mem8[0xa820] = 0xfe; c.mem8[0xa830] = 0x05; }],
   ["flash-warp", 0xb4, (c) => { c.mem8[RECORD + 0x04] = 0; c.mem8[0xa800] = 0xff; }],
   ["below-trigger", 0x30, (c) => { c.mem8[RECORD + 0x04] = 0; }],
   ["above-trigger", 0xc4, (c) => { c.mem8[RECORD + 0x04] = 0; }],
@@ -174,9 +174,9 @@ test("INFORMATIVE: writing arms move memory, the early-ret arm writes nothing", 
 test("PATHS: the arms move different cells, so a twin confusing them is not invisible", { skip }, () => {
   const foot = (label) => footprint(craft(bases()[0], ...pick(label)));
   const eq = (x, y) => x.size === y.size && [...x].every((v) => y.has(v));
-  assert.ok(!eq(foot("rebuild"), foot("live-spawn")), "the rebuild and live-spawn arms touch the same cells");
+  assert.ok(!eq(foot("field-sweep"), foot("live-spawn")), "the field-sweep and live-spawn arms touch the same cells");
   assert.ok(!eq(foot("idle-delay"), foot("countdown")), "the idle and countdown arms touch the same cells");
-  console.log(`  PATHS: rebuild ${foot("rebuild").size}, live-spawn ${foot("live-spawn").size}, idle ${foot("idle-delay").size} cells`);
+  console.log(`  PATHS: field-sweep ${foot("field-sweep").size}, live-spawn ${foot("live-spawn").size}, idle ${foot("idle-delay").size} cells`);
 });
 function pick(label) {
   const row = WRITING.find((r) => r[0] === label);
