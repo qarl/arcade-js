@@ -87,17 +87,17 @@
 0103	player two on a cocktail cabinet: clear the mark, turning the screen round
 0106	take the frame's flip decision
 0109	drive the screen-flip latch line
-010C	read the dip-switch bank
+010C	read the gameplay dip-switch bank
 010F	invert it -- the ports read active-low
-0110	store the mirror the game reads instead of the live port
+0110	store an inverted copy of it
 0113	read the IN0 port -- coins and start buttons
-0117	store the IN0 mirror
+0117	store the inverted IN0 copy
 011A	read the next input port
-011E	store its mirror
+011E	store its inverted copy
 0121	read the next input port
-0125	store its mirror
-0128	read the last input port
-012C	store its mirror
+0125	store its inverted copy
+0128	read the coinage dip-switch bank
+012C	store its inverted copy
 0132	bump the plain binary frame counter
 0137	step the decimal frame counter
 0138	keep it counting in decimal
@@ -269,9 +269,9 @@
 0640	read its second byte
 0641	step it on by one -- the flipped transform for Y
 0642	store it -- the run carries on this way, one attribute pair at a time
-065B	move the source on to the player's attribute block
+065B	move the source on to the object band's attribute pairs, the player's first
 070E	move the source on to scenery slot three's attributes
-0748	go raise the eight sprites, then return
+0748	go raise the eight scenery sprites if the sequence is in their window, then return
 074B	two hundred fifty-six program bytes to fold -- a zero count means the full round
 074D	point at the program run to be checksummed
 0750	clear the running total
@@ -292,14 +292,14 @@
 077E	add the genuine total's complement -- zero only when the fold matches
 0780	step the sequence phase when the fold does not match -- the image-tamper response
 0783	read the play-active flag
-0787	nothing set: skip to the shared tail
+0787	nothing set: skip to command two, argument two, and the tail
 0789	read a fixed command pair from the program image
 078D	read which player is up
 0791	player one: leave the argument as is
 0793	player two: bump the command argument
 0794	post the command pair to the ring
 0795	read the round-armed flag
-0799	clear: skip to the shared tail
+0799	clear: skip to command two, argument two, and the tail
 079B	set the command to number seven
 079D	post that command to the ring
 079E	skip command two and join the tail at the kill-meter repaint
@@ -331,7 +331,7 @@
 07E2	step back one plane row
 07E6	re-stamp the copyright caption strip
 07E9	re-request the flashing copyright line
-07EC	point at the title cell to sample
+07EC	point at the copyright-line cell to sample
 07EF	and where to stash its glyph and colour
 07F2	sample the cell
 07F5	read the IN0 mirror -- coins and start buttons
@@ -375,9 +375,9 @@
 084D	skip an argument
 084E	five more captions to post
 0850	post this caption command
-0854	the twentieth caption argument
+0854	caption argument twenty
 0856	post it
-0857	step to the twenty-first caption argument
+0857	step to caption argument twenty-one
 0858	post it
 0859	point at the program block to verify
 085C	twenty-four bytes to fold
@@ -455,7 +455,7 @@
 0B98	point at the cell it names
 0B99	take that cell's command byte
 0B9A	rotate its top bit out
-0B9B	top bit set means the cell is empty: wait a frame and look again
+0B9B	top bit set means the cell is empty: go back and look again
 0B9E	keep the command
 0B9F	free the cell so it can be filled again
 0BA1	step to the argument cell
@@ -902,7 +902,7 @@
 11C6	another sprite-doubling pass
 11C9	service the era-0 ballistic object bank
 11CC	run the collision pass for this era
-11CF	ask for a sound while the formation is clear
+11CF	from the third era on, on a pass whose frame tick is a multiple of 32, ask for a sound unless a record of the era-2-and-up bank is live
 11D2	another sprite-doubling pass
 11D5	grant a bonus life at the score mark
 11D8	expire the hit chain
@@ -1162,19 +1162,19 @@
 145A	row stride 32
 145D	point at the cell beside the column, row 15
 1460	nudge it up
-1462	nudge the counter one row below
+1462	nudge the cell one row below too
 1463	point at the cell on the column's other side, row 15
 1466	nudge it up
-1468	nudge the counter one row below
+1468	nudge the cell one row below too
 1469	load the cursor
 146C	read the next script byte
 146D	take its low bit
 1470	step the cursor past it
 1473	bit clear -- skip this nudge
 1475	row stride 32
-1478	point at a column counter
+1478	point at the column's centre cell, row 15
 147B	nudge it up
-147D	nudge the counter one row below
+147D	nudge the centre cell one row below too
 147E	direction bits 2 -- shapes step forward, cells climb the plane
 1480	column of glyph cells
 1483	step thirteen scripted glyph cells forward a shape, climbing the column from row 14
@@ -1235,9 +1235,9 @@
 150D	step the cursor back
 1510	bit clear -- skip this nudge
 1512	row stride 32
-1515	point at a lead counter
+1515	point at the column's centre cell, row 15
 1518	lower it
-151A	lower the counter one row below
+151A	lower the centre cell one row below too
 151B	load the cursor
 151E	read the next script byte
 151F	take its low bit
@@ -1246,10 +1246,10 @@
 1527	row stride 32
 152A	point at the cell beside the column, row 15
 152D	lower it
-152F	lower the counter one row below
+152F	lower the cell one row below too
 1530	point at the cell on the column's other side, row 15
 1533	lower it
-1535	lower the counter one row below
+1535	lower the cell one row below too
 1536	gather the column back into its saved run
 1539	on to the decrement
 153B	the blank tile
@@ -1324,7 +1324,7 @@
 15BE	skip two cells to the next slot's Y byte
 15BF	over all twenty-four slots
 15C2	take the inner sequence sub-step
-15C5	keep its low three bits -- eight arms
+15C5	keep its low three bits -- one of eight table words, only two of them arms
 15C7	jump to the selected arm through the inline word table
 15E2	arm the whole-plane wipe -- derailing if the image was altered
 15E5	read a program byte -- the low half of a call operand, so an edit moves it
@@ -1351,13 +1351,13 @@
 1610	seed it into one cell
 1613	and into another
 1616	point at the six-entry patch list that follows
-1619	six cells to patch
+1619	six records to apply
 161B	read the destination address low byte
 161D	and its high byte
 161F	read the value
-1620	write it into the destination cell
+1620	write the record's glyph into the first cell of the pair
 1621	the cell beside it
-1623	stamp marker 5 next to it
+1623	and colour 5 into the cell beside it
 1626	next patch entry
 1627	over all six
 1629	print the six-digit high-score readout
@@ -1658,8 +1658,8 @@
 1988	fetch the cursor cell pointer
 198B	aim at the colour plane
 1990	is the counter's slow bit set? -- picks the flash phase
-1994	one phase: paint the cursor its bright colour
-1998	the other phase: paint it its dim colour
+1994	one phase: paint the cursor cell in colour 0x14
+1998	the other phase: paint it colour 0x10
 199A	point at player two's life count
 199D	take player one's life count
 19A0	fold in player two's
@@ -1692,8 +1692,8 @@
 19E2	yes: on to the next cell
 19E4	is it the second accepted colour?
 19E6	anything else: the line has been tampered -- transfer away and never return
-19E9	the stride back one cell along the line
-19EC	step back to the previous cell
+19E9	the stride on to the next cell along the line
+19EC	step on to the next cell
 19ED	loop over all thirteen
 19EF	thirteen good cells: return having changed nothing
 19F0	clear the value to write
@@ -1714,9 +1714,9 @@
 1A2E	seat the player's sprite entry to its start column
 1A31	dress the player sprite for its heading
 1A34	free every shot slot
-1A3F	retire the first object slot into hold
+1A3F	retire the era-object bank's first pair, holding the first
 1A42	seven sub-pixel slots to retire
-1A54	retire the next object slot into shared cooldown
+1A54	retire the bank's third slot into shared cooldown
 1A5F	retire the parachutist slot into cooldown
 1A62	retire this slot and clear its sub-pixel fraction
 1A65	the sixteen-byte record stride
@@ -1765,8 +1765,8 @@
 1EDF	point at the player record
 1EE3	and its paired sprite entry
 1EE7	read the player state
-1EEB	state clear: nothing to do this frame
-1EED	mid-count: run the multi-frame animation
+1EEB	state clear: nothing to do this pass
+1EED	mid-count: run the multi-pass explosion animation
 1EF0	read the play-active flag
 1EF4	not in play: fly the attract-demo pilot
 1EF7	read the panel controls
@@ -1881,9 +1881,9 @@
 2150	isolate the dwell in the low six bits
 2152	dwell spent -- step to the next script entry
 2155	a single remaining tick counts as spent too -- step the script
-2157	tick the dwell down one frame
+2157	tick the dwell down one pass
 2158	store the counted-down command byte back
-2159	act on this frame's turn command
+2159	act on this pass's turn command
 215B	step to the script pointer that follows the countdown byte
 215C	read the script pointer low
 215E	read the script pointer high
@@ -1895,10 +1895,10 @@
 2167	write it into the countdown byte
 2168	re-examine the countdown
 216A	take the command byte
-216B	switch to the alternate register bank the world-scroll mover runs on
+216B	swap to the alternate register bank before the world-scroll mover
 216D	rotate the two turn-command bits down to the bottom
 216E	isolate the turn command
-2170	no turn this frame -- hand straight to the world-scroll mover
+2170	no turn this pass -- hand straight to the world-scroll mover
 2174	turn command one steers one way -- branch off to turn the heading down
 2176	otherwise steer the other way: read the ship heading
 2179	turn it by three
@@ -1915,14 +1915,14 @@
 23F1	read the player controls
 23F4	rotate the fire-button bit out into carry -- four turns bring it around
 23F8	point at the fire-button edge history
-23FB	shift the fire bit into the two-frame history
-23FE	keep just the last two frames of it
-2400	a value of one is a fresh press -- up last frame, down now
+23FB	shift the fire bit into the press history
+23FE	keep just the last two samples of it
+2400	a value of one is a fresh press -- up last sample, down now
 2402	point at the pending-shot-burst count
 2405	no fresh press -- skip arming a burst
 2407	fire pressed -- arm a burst of three shots
 2409	read the play-active flag
-240D	attract/idle -- spawn a shot regardless
+240D	attract/idle -- skip the pending-burst test
 240F	in play: read the pending-burst count
 2411	nothing pending -- just sweep the live shots
 2414	step to the spawn cooldown
@@ -1939,11 +1939,11 @@
 244F	read the world scroll in Y
 2453	negate it
 2456	scale it up four times
-2457	seed the shot's per-frame step from it
+2457	seed the shot's per-pass step from it
 2460	read the world scroll in X
 2464	negate it
 2467	scale it up four times
-2468	seed the shot's other per-frame step
+2468	seed the shot's other per-pass step
 246E	read the ship heading
 2471	round the heading
 2473	shift it down toward a direction index
@@ -1955,22 +1955,22 @@
 248C	set the whole part of the shot's X
 248F	point at the pending-burst count
 2492	one shot fired -- count the burst down
-2494	reset the spawn cooldown to six frames
+2494	reset the spawn cooldown to six sweeps
 2496	read the spawn cooldown
 249A	already zero -- skip the tick
-249C	count the cooldown down one frame
+249C	count the cooldown down one sweep
 24A0	point at the six-slot shot bank
 24A4	six slots to sweep
 24A7	read the slot's head byte
 24AB	empty slot -- on to the next
 24AE	head is stale, not the live marker -- cull this shot
-24B0	read the shot's per-frame step in Y
+24B0	read the shot's per-pass step in Y
 24B6	add the world scroll to it
 24BB	add the shot's current position
 24C3	bias the high byte for the edge test
 24C7	off the field edge -- cull this shot
 24CA	store the advanced coordinate back
-24D0	read the shot's per-frame step in X
+24D0	read the shot's per-pass step in X
 24D6	add the world scroll to it
 24DB	add the shot's current position
 24E3	bias for the edge test
@@ -2038,12 +2038,12 @@
 281A	seed the checksum to zero
 281B	fold each byte in with exclusive-or
 281D	over all two hundred fifty-six
-281F	bias the sum by one
+281F	bias the fold by one
 2821	drive the result into a control latch
 2824	take the start rung
 2827	set player 1's start rung
 282A	set player 2's start rung
-282F	arm the sequence delay with 0x96 frames
+282F	arm the sequence delay with 0x96 ticks
 2832	step the attract/round sequence
 2835	point at the 1..3 stage counter
 2838	read it
@@ -2072,13 +2072,13 @@
 2882	seed the fold with the sequence phase
 2885	subtract each byte in turn
 2888	over all two hundred fifty-six
-288A	scramble the sum
+288A	cancel the genuine block's 0x90 -- a phase of 0-3 comes back unchanged
 288C	store the result back as the sequence phase
 288F	point at the sixteen-byte aim-coordinate block
 2892	sixteen cells to seat
 2894	seat an aim-coordinate cell to 0x80
 2897	all sixteen
-289B	arm the sequence delay with 0x5A frames
+289B	arm the sequence delay with 0x5A ticks
 289E	step the attract/round sequence
 28A1	service object slot 0
 28A4	service object slot 1
@@ -2103,12 +2103,12 @@
 28E7	point at slot 4's sprite entry
 28EB	run the era-keyed handler over it
 28EE	read the mother-ship armed cell
-28F2	armed -- leave this slot unserviced this frame
+28F2	armed -- leave this slot unserviced this pass
 28F3	point at the mother-ship object record
 28F7	point at its sprite entry
 28FB	run the era-keyed handler over it
 28FE	read the mother-ship armed cell
-2902	armed -- leave this slot unserviced this frame
+2902	armed -- leave this slot unserviced this pass
 2903	point at slot 6's object record
 2907	point at its sprite entry
 290B	run the era-keyed handler over it
@@ -2150,7 +2150,7 @@
 2990	otherwise step the dying object
 2993	read the frame phase counter
 2996	keep its low two bits
-299A	steer toward the aim heading -- on three frames of every four
+299A	steer toward the aim heading -- unless the tick's low two bits read 3
 299D	fly at the slowest speed
 29A0	reached the retire line?
 29A3	yes -- retire the slot
@@ -2159,7 +2159,7 @@
 29AC	try to launch an attacker into a free slot
 29B0	read the slot's lifecycle byte
 29B3	is the slot free?
-29B4	free: nothing to do this frame
+29B4	free: nothing to do this pass
 29B5	bump -- the live code 0xff wraps to zero here
 29B6	live: steer and service this slot
 29B8	bump again -- the held code 0xfe wraps to zero here
@@ -2171,21 +2171,21 @@
 29C8	yes: take the slot out of play
 29CB	when aimed near the ship, try the bank launch
 29CE	dress the sprite to face its heading
-29D1	launch an attacker into a free slot
+29D1	try to launch an attacker into a free slot
 29D5	read the slot's lifecycle byte
 29D8	is the slot free?
-29D9	free: nothing to do this frame
+29D9	free: nothing to do this pass
 29DA	bump -- the live code 0xff wraps to zero here
 29DB	live: steer and service this slot
 29DD	bump again -- the held code 0xfe wraps to zero here
 29DE	held: run its release-delay countdown
 29E1	any other value: step its dying animation
-29E4	steer toward the ship, then fly a step
+29E4	steer toward its aim, then fly a step
 29E7	has it drifted onto a retire line?
 29EA	yes: take the slot out of play
 29ED	advance its shape's animation cycle
 29F0	when aimed near the ship, try the bank launch
-29F3	launch an attacker into a free slot
+29F3	try to launch an attacker into a free slot
 29F7	first reference point on the screen (0x78)
 29F9	distance from the slot's screen-position probe
 29FC	bias by half the window
@@ -2301,7 +2301,7 @@
 2BB4	count the object's state byte down one
 2BB7	fly it on at the slowest table speed
 2BBA	ask for the pair of death sounds
-2BBD	point at the round's kill quota
+2BBD	point at the kills still owed this round
 2BC1	already at zero?
 2BC2	yes: leave it -- floor, do not wrap
 2BC4	else take one kill off the quota
@@ -2330,7 +2330,7 @@
 2BFA	yes: stop turning
 2BFB	hold the current heading
 2BFE	the difference again
-2BFF	is the aim more than half a turn away?
+2BFF	is the aim half a turn or more ahead?
 2C01	yes: the short way round is backward
 2C03	point at the turn-rate table
 2C06	the era index -- it keys the turn-rate table
@@ -2346,7 +2346,7 @@
 2C25	...stack it as the return, so whichever move runs next falls straight on into it
 2C26	read this object's state byte
 2C29	is it thirty-two or more?
-2C2B	yes -- count the state byte down one frame and fly on at the slowest table speed
+2C2B	yes -- count the state byte down one and fly on at the slowest table speed
 2C2E	no -- only drift with the world scroll, leaving the state byte alone
 2CBC	seat the scenery record cursor on the first slot
 2CC0	seat the sprite-entry cursor on the first slot
@@ -2519,7 +2519,7 @@
 307C	step both cursors onto the entry just written
 307F	store the coordinate through the pointer
 3080	fold it into the accumulator
-3081	more slots to place: loop back
+3081	count not spent: branch back into the placer above, which does not return here
 3083	fetch the two-byte entry A selects from the table at the pointer
 3084	step the byte past the entry
 3088	drop a word off the stack into the accumulator and flags
@@ -2633,23 +2633,23 @@
 31E3	read the record's head byte
 31E6	is the head 0xFF?
 31E7	any other head: leave
-31E8	advance the craft's shape animation
-31EB	read its state byte
-31EE	held?
-31F0	held: nothing more to do
-31F1	the re-aim-then-hold state?
-31F3	yes: aim at the table base and latch to held
-31F5	state x 2 to index the aim table
+31E8	step the craft along its flight script
+31EB	read its steering order
+31EE	hold the heading?
+31F0	hold: nothing more to do
+31F1	the turn-away order?
+31F3	yes: turn directly away from the anchor, then hold
+31F5	order x 2 to index the aim table
 31F6	point at the aim-point table
-31F9	index it by the state
+31F9	index it by the order
 31FA	compute the heading toward that aim point
 31FD	store it as the craft's heading
 3201	point at the aim-point table base
 3204	compute the heading toward it
 3207	turn it a half-circle
 3209	store as the craft's heading
-320C	set the record to the held state
-3210	clear its step timer
+320C	set the order to hold
+3210	clear its script position
 3215	park the caption sprites off-screen
 3218	zero
 3219	clear the two-player-game flag
@@ -2666,18 +2666,18 @@
 3231	repaint the credit count on the panel
 3234	copy three tilemap cells from both planes into their keeps
 3237	send the sequence machine to its last phase
-323A	read the record's step timer
+323A	read the craft's script position
 323D	is it already zero?
-323E	yes: leave the animation stopped
-323F	count the timer down one
+323E	yes: the script has run out -- write nothing
+323F	count the position down one
 3240	store it
-3243	hold the new count as the step index
-3244	read the record's run selector
-3247	point at the table of shape-run pointers
-324A	fetch this record's run pointer
-324C	recall the step index
-324D	fetch the shape byte for this step
-324E	store it as the record's shape
+3243	hold the new position as the script index
+3244	read the craft's script selector
+3247	point at the table of flight-script pointers
+324A	fetch this craft's script pointer
+324C	recall the script index
+324D	fetch the steering order at that position
+324E	store it as the craft's steering order
 3252	768 bytes to fold
 3255	starting at the program image
 3258	clear the running exclusive-or
@@ -2867,13 +2867,13 @@
 36BF	read the life-phase byte
 36C2	keep its low nibble -- the phase
 36C4	phase 7?
-36C6	phase 7: settle the five slot animations
+36C6	phase 7: turn five craft away
 36C9	below 7: gate the free-slot search and pick its run
 36CC	phase 8?
 36CE	phase 8: spawn a craft while the band is under two
 36D1	read the low life-tick
 36D2	test it
-36D3	not spent yet: wait
+36D3	non-zero: no wave this pass
 36D4	draw a random byte
 36D7	roll its low bit into carry
 36D8	read the era number
@@ -2920,20 +2920,20 @@
 373B	offset the script number by nine
 373D	store the script index
 3740	advance to the descriptor's second field
-3741	read the descriptor tail byte
-3742	store it as the slot's tail
+3741	read the descriptor's delay byte
+3742	store it as the slot's release delay
 3745	advance the descriptor pointer for the next slot
 3746	clear the sub-position
 374A	clear the second sub-position
-374E	prime the step counter
-3752	set the working registers aside across the animation step
-3753	step the shape animation once
+374E	start the flight script at its top
+3752	set the working registers aside across the script step
+3753	step the flight script once
 3756	restore them
-3757	mark the slot live (0xFE)
-375B	read the slot's tail byte
+3757	mark the slot held (0xFE)
+375B	read the slot's delay byte
 375E	test it
-375F	non-zero tail: leave the slot at 0xFE
-3761	clear tail: bump the head to 0xFF -- fully settled
+375F	non-zero delay: leave the slot held at 0xFE
+3761	no delay: bump the head to 0xFF -- live at once
 3764	point at the filled-slot counter
 3767	count this filled slot
 3769	a sixteen-byte record stride
@@ -3015,8 +3015,8 @@
 3816	clear the spare byte nothing reads
 3819	clear the sub-position
 381D	clear the second sub-position
-3821	prime the step counter
-3825	step the shape animation once
+3821	start the flight script at its top
+3825	step the flight script once
 3828	clear the slot's tail byte
 382D	draw a random byte
 3830	point at the script-pick threshold
@@ -3044,11 +3044,11 @@
 3857	non-zero: touch nothing
 3858	point at the first craft record
 385C	the record stride
-385F	five records to settle
-3861	set the resting shape
-3865	clear the step timer -- freeze the animation
+385F	five records to turn away
+3861	set the turn-away order
+3865	clear the script position -- no script step replaces the order
 3869	step to the next record
-386B	settle all five
+386B	turn all five away
 386E	point at the first craft record
 3872	point at its sprite entry
 3876	read the round's craft count
@@ -3068,23 +3068,23 @@
 3893	write it into the sprite entry
 3897	read the record's X
 3898	write it to the entry head
-389C	read the slot field byte
+389C	read the record's heading byte
 389D	store it as the heading
 38A0	and as the facing
 38A3	read the round's craft count
 38A6	subtract the remaining count -- the ordinal within the pass
 38A7	point at the ordinal table
-38AA	fetch this slot's per-slot byte
-38AB	store the script index
-38AE	prime the step counter
-38B2	step the shape animation once
+38AA	fetch this slot's flight-script selector
+38AB	store the script selector
+38AE	start the flight script at its top
+38B2	step the flight script once
 38B5	set the slot's active flag
 38B9	clear the slot's tail byte
 38BD	mark the slot live -- head to 0xFF
 38C0	the record stride
 38C3	step to the next record
 38C5	step to the next sprite entry
-38C9	restore the count and ordinal
+38C9	restore the slot count
 38CA	walk the counted run of slots
 38CE	stamp the wave-claim timer ready (0xE4)
 3B5F	read the era number
@@ -3134,7 +3134,7 @@
 3BD3	read the record head
 3BD6	measure it past 0x40
 3BD8	exactly at 0x40: post the score command
-3BDB	below 0x40: nothing more this frame
+3BDB	below 0x40: nothing more this pass
 3BDD	on an eight-step boundary?
 3BDF	not a boundary: wait
 3BE0	take the distance past 0x40
@@ -3285,7 +3285,7 @@
 3D8D	take the object's X
 3D90	read the era bank's slot count again
 3D93	count exactly one?
-3D95	then seat into the primary era bank
+3D95	then seat into the primary attacker record
 3D98	read era-object slot 2's record head
 3D9C	free -- seat into the second era bank
 3D9F	point at the primary attacker record
@@ -3319,7 +3319,7 @@
 3E01	stock the retired record's delay byte with it
 3E05	take the object's stored Y velocity, high byte
 3E08	and its low byte
-3E0B	read the shared per-frame world scroll (Y)
+3E0B	read the shared world scroll (Y)
 3E0F	add the scroll onto the velocity
 3E10	take the object's whole Y
 3E13	and its Y fraction
@@ -3328,7 +3328,7 @@
 3E1A	store the new Y fraction
 3E1D	take the object's stored X velocity, high byte
 3E20	and its low byte
-3E23	read the shared per-frame world scroll (X)
+3E23	read the shared world scroll (X)
 3E27	add the scroll onto the velocity
 3E28	take the object's whole X
 3E2B	and its X fraction
@@ -3498,7 +3498,7 @@
 4023	non-zero: a fixed negative step in Y
 4028	a fixed positive step in Y
 402B	add the step onto the object's position
-402C	the frame's world scroll in Y
+402C	the world scroll in Y
 4030	carry the object along with the world too
 4031	store the new position back -- whole to the entry, fraction to the record
 4037	take the object's accumulated speed's low byte from the record
@@ -3547,7 +3547,7 @@
 40BD	yes: ask for nothing
 40BE	read the free-running frame counter
 40C1	keep its low five bits
-40C3	not the one frame in thirty-two: do nothing
+40C3	low five bits not all zero: do nothing
 40C4	first of the three era-object records
 40C8	holds a live object (0xFF): ask for nothing
 40C9	second era-object record
@@ -3565,9 +3565,9 @@
 40E9	use the count as the sweep's turn count
 40EA	read this slot's marker byte
 40EE	empty: skip to the next slot
-40F1	test for the ballistic marker (0xFF)
+40F1	test for the live marker (0xFF)
 40F2	any other marker: handle the drifting-countdown object
-40F4	ballistic slot -- read the era index
+40F4	live slot -- read the era index
 40F7	the final era (index 4)?
 40F9	yes: run the approach-then-breakaway handler
 40FC	read the slot's own countdown at +0x0e
@@ -3639,7 +3639,7 @@
 41B8	save the sweep's turn count
 41B9	read the free-running frame counter
 41BC	its low four bits
-41BE	not the sixteenth frame: skip re-aiming
+41BE	low four bits not zero: skip re-aiming
 41C0	the default aim point
 41C3	test bit 0 of the slot's identity byte
 41C7	set: keep that point
@@ -3657,7 +3657,7 @@
 41E2	move the object
 41E5	animate its shape
 41E9	answer whether it reached a retire line
-41EC	zero the approach countdown at +0x04, so the slot breaks away next frame
+41EC	zero the approach countdown at +0x04, so the slot breaks away on its next turn
 41F1	read the free-running frame counter
 41F4	halve it
 41F5	keep three bits -- a frame 0..7
@@ -3766,7 +3766,7 @@
 42F8	store it
 42FB	clear the velocity word's low byte
 42FF	seed its high byte to $FF -- a starting velocity of minus one
-4303	wind the new slot's active count down -- brings it live
+4303	count the new slot's head byte down from free 0x00 to live 0xFF
 4306	read the spawn-cooldown reload
 4309	re-arm the shared spawn cooldown
 430C	restore the spawner's entry pointer
@@ -3933,14 +3933,14 @@
 4540	keep the raised state value
 4541	read its remaining hit count
 4544	any hits left?
-4545	none: it is destroyed -- run the round-clear
+4545	none: the killing hit or a dying step -- on to the death sequence
 4547	take one off the hit count
 454A	keep it in flight
 454E	play its hit sound
 4551	and fly it on
 4554	recall the state value
 4555	is the head 0xEF -- the step after the killing hit?
-4557	not yet: step the warp/flash frame
+4557	not the sweep step: step the wreck countdown
 455A	clear HITS_REMAINING
 455E	queue the transition sound burst
 4561	cue the destruction sound burst for the Mother-Ship
@@ -3983,7 +3983,7 @@
 45E2	the trigger step: fire the warp/flash
 45E4	below the trigger: skip the shape step
 45E6	turn the sequence count into a 0-7 shape index
-45EE	point at the eight-frame warp animation
+45EE	point at the eight-entry warp shape table
 45F1	read this frame's shape
 45F2	seat it as one shape
 45F5	seat the next code as the other shape
@@ -4059,7 +4059,7 @@
 46F5	is the bank-launch cooldown still running?
 46F9	yes: hold fire
 46FA	two entry slots to consider
-46FC	read the fire-window half-width
+46FC	read the near-band half-width
 4700	double it to the full window
 4702	is this sprite within the X band?
 4709	off that band: skip this slot
@@ -4150,8 +4150,8 @@
 484C	queue it and return
 4853	is the mother ship armed?
 4857	yes: hold this spawn off
-4858	only act on alternate frames
-485D	this frame: skip
+4858	only act when the frame tick's bit 0 is set
+485D	bit clear: skip this pass
 485E	tick the slot's spawn delay down
 4861	not yet zero: wait
 4862	take the player's heading, rounded
@@ -4238,7 +4238,7 @@
 4988	nothing owed -- do nothing
 4989	point at the pulse timer
 498E	a pulse already under way -- fall through to its countdown
-4990	arm the pulse for its full length (48 frames)
+4990	arm the pulse for its full length (48 steps)
 4993	drive the coin-counter line high
 4997	count the pulse timer down one frame
 4998	timer expired -- retire one coin from the debt
@@ -4262,8 +4262,8 @@
 49CA	add this byte into the sum
 49CC	over all 256 bytes
 49CE	compare the sum against its expected total (0xC5)
-49D0	a tampered image derails into the frame handler
-49D3	a good image cold-starts the machine and does not return
+49D0	a tampered total runs the frame handler once out of turn, then carries on
+49D3	cold-start the machine either way -- this does not return
 49D6	read how many coins slot 2 still owes its mechanical counter
 49DA	nothing owed -- do nothing
 49DB	point at the slot-2 pulse timer
@@ -4278,7 +4278,7 @@
 49F5	point at the slot-2 debt count
 49F8	take one coin off it so the next pulse can start
 4A0F	take the animation's starting step from the program image
-4A12	drop it into the head of an eight-byte display control block
+4A12	drop it into the head of the animation's control block
 4A17	clear the next field
 4A1C	fixed field
 4A21	fixed field
@@ -4291,7 +4291,7 @@
 4A39	the fill value
 4A3B	lay one character cell
 4A3D	fill all thirteen
-4A41	then one blank cell -- the run continues in the shared band painter
+4A41	then one 0x00 cell -- the run continues in the shared band painter
 4A43	lay the lead byte over one cell
 4A45	a thirteen-cell run
 4A47	fill each with the body byte
@@ -4590,7 +4590,7 @@
 4D38	then clear it -- carry clear says not below
 4D3A	point at the ones place of the base-sixty tick counter
 4D3D	step it on by one
-4D40	no roll-over: the whole pass ends here
+4D40	no roll-over: nothing more this call
 4D41	move to the next place
 4D42	step it on by one
 4D45	it did not roll over: skip the top place
@@ -4802,8 +4802,8 @@
 4FCF	six shots to sweep through the run
 4FD1	stash the target-record pointer so each shot pass reloads it
 4FD5	stash the sprite-entry pointer likewise
-4FD9	box half-reach 7 in X
-4FDB	box span 15 in X
+4FD9	box half-reach 7 on both axes
+4FDB	box span 15 on both axes
 4FDD	sweep the six shots against the five craft, destroying and scoring each hit -- then fall into the mother-ship sweep
 4FE0	read the era index
 4FE3	era 0?
@@ -5308,7 +5308,7 @@
 56B2	advance the player's shots
 56B5	multiplex the sprite slots once more
 56B8	the sequence delay counter
-56BB	count down one frame
+56BB	count it down by one
 56BC	not expired yet: done
 56BF	a second block of the program image
 56C2	the sequence phase again
@@ -5398,14 +5398,14 @@
 58D7	reach the perpendicular sample
 58D8	read its high byte
 58DA	read its low byte -- the X component
-58DB	take the shared per-frame Y world-scroll
+58DB	take the shared Y world-scroll
 58DE	add this object's Y component
 58DF	read the fraction of the Y coordinate
 58E2	read its whole part from the sprite entry
 58E5	add the displacement onto the coordinate
 58E6	store the new fraction
 58E9	store the new whole part into the sprite entry
-58EC	take the shared per-frame X world-scroll
+58EC	take the shared X world-scroll
 58EF	add this object's X component
 58F0	read the fraction of the X coordinate
 58F3	read its whole part from the sprite entry
@@ -5424,7 +5424,7 @@
 5919	reach the perpendicular sample
 591A	read its high byte
 591C	read its low byte -- the X component
-591D	take the shared per-frame Y world-scroll
+591D	take the shared Y world-scroll
 5920	add this object's Y component
 5921	add it again -- twice this object's own speed
 5922	read the fraction of the Y coordinate
@@ -5432,7 +5432,7 @@
 5928	add the displacement onto the coordinate
 5929	store the new fraction
 592C	store the new whole part into the sprite entry
-592F	take the shared per-frame X world-scroll
+592F	take the shared X world-scroll
 5932	add this object's X component
 5933	add it again -- twice this object's own speed
 5934	read the fraction of the X coordinate
@@ -5486,7 +5486,7 @@
 59D1	point at a velocity table
 59D4	take that table's doubled velocity for the heading in A
 5BD7	blank a fixed run of fourteen character cells
-5BDA	advance the interpolated pen run one step
+5BDA	draw and advance one interpolated pen run
 5BDD	return unless the pen run reseated at row zero
 5BDE	point at a 256-byte program block to fold
 5BE1	clear the running fold

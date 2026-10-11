@@ -7,8 +7,8 @@
  * Between 10 and 41 the phase is halved into a step that picks a shape from a sixteen-entry table
  * (one fixed tint), so shapes advance at half the phase's speed.
  * Below 10 the object lives only while CLAIM_TOKEN names it — top bit set and low seven bits
- * matching this record's number, else it is retired; while named the phase advances seven frames in
- * eight, a fixed shape and tint hold, and only its first phase posts a command and clears the token,
+ * matching this record's number, else it is retired; while named the phase advances unless FRAME_TICK's low three bits
+ * are zero, a fixed shape and tint hold, and only its first phase posts a command and clears the token,
  * consuming it once. LIVE-OUT: memory-only.
  *
  * ROM 0x2C31-0x2C93 (frozen lift loc_2c31). Grounding: [seen] (names.js ROUTINES 0x2C31).
@@ -16,7 +16,7 @@
  * Role in the machine: the "phase" is the object's state byte, the first byte of its object
  * record. names.js places this routine on the path a slot takes once that byte is neither free,
  * live nor held — in practice a craft that has been shot down, whose state byte is a death
- * countdown that stepDyingObjectState steps down each frame (mechanisms.md). So this is the wreck's
+ * countdown that stepDyingObjectState steps down each pass (mechanisms.md). So this is the wreck's
  * animation: high counts flicker through tints, mid counts step through a sixteen-entry
  * explosion shape table, and below ten the wreck is removed at once — except for the one wreck
  * that holds the wave's claim token.
@@ -24,8 +24,8 @@
  * The claim token: the kill that empties the wave's kill countdown writes its own slot ordinal,
  * top bit set, into CLAIM_TOKEN (0xA821) [seen]. The record numbered to match is the formation
  * bonus wreck: it holds a fixed shape and tint, and because this routine bumps its count back up
- * seven frames in eight while stepDyingObjectState steps it down every frame, it lingers on
- * screen. On the frame its count reads 1 it posts command 4 with argument 12 — score award
+ * on most passes while stepDyingObjectState steps it down every pass, it lingers on
+ * screen. On the pass its count reads 1 it posts command 4 with argument 12 — score award
  * index 12, 2,000 points (mechanisms.md, scoring) — and clears the token so the award is paid once.
  *
  * Parameters: `object` is the object record (IX in the ROM); `sprite` is its sprite entry (IY in
@@ -97,8 +97,8 @@ export function driveObjectAppearanceByPhaseBand(m, object = m.regs.ix, sprite =
     return;
   }
 
-  /* The named wreck. Bump its count on seven frames in eight (inc (ix+0x00) unless FRAME_TICK's
-   * low three bits are zero) — against the per-frame decrement elsewhere this makes it linger —
+  /* The named wreck. Bump its count on most passes (inc (ix+0x00) unless FRAME_TICK's
+   * low three bits are zero) — against the per-pass decrement elsewhere this makes it linger —
    * and hold the fixed shape 0xFC with tint 0x6C (ROM 0x2C50-0x2C62). */
   if ((mem8[FRAME_TICK] & HOLD_ONE_FRAME_IN) !== 0) mem8[object + PHASE] = u8(phase + 1);
   mem8[sprite + SHAPE] = HELD_SHAPE;

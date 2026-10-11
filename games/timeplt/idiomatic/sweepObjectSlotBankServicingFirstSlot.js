@@ -9,7 +9,7 @@
  * (names.js ROUTINES 0x4008).
  *
  * ROLE IN THE MACHINE. Part of the era-0 three-slot object bank that the round engine runs once per
- * frame (mechanisms.md, "Era 0"). The bank's slots are ERA_OBJECT_RECORD_SLOT0..2 (0xA8C0, 0xA8D0,
+ * pass of its service list (mechanisms.md, "Era 0"). The bank's slots are ERA_OBJECT_RECORD_SLOT0..2 (0xA8C0, 0xA8D0,
  * 0xA8E0) with sprite entries ERA_OBJECT_ENTRY_SLOT0..2 (0xAA28, 0xAA2A, 0xAA2C). In the ROM this
  * address is not a separate routine but a mid-loop entry point of the sweep whose head is 0x3FF9
  * (sweepObjectSlotBankByHead): the point reached once a slot's marker has been found to be a

@@ -14,7 +14,8 @@
  *              step its flight shape;
  *   0x10       post the next bonus rung;
  *   0x3C..0xFE show the award (the pickup mark written by the collision pass is 0xF0);
- *   anything else a countdown, drifting with the world, retired when it reaches zero.
+ *   anything else a countdown, retired when it reaches zero.
+ * Every state but 0x00 and 0xFF first drifts with the world.
  * In era 4 there is no parachutist at all, and the routine returns at once.
  *
  * LIVE-OUT: memory.

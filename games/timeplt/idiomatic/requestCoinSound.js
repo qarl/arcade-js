@@ -12,7 +12,7 @@
  * queue").
  *
  * The code is COIN_SOUND (0x322E), a byte of the program ROM read as data (0x01 on a genuine
- * image). The frame service later sends it to the audio board, one queued code per frame.
+ * image). The frame service later sends it to the audio board, one queued code per run.
  */
 
 import { enqueueSoundUnconditional } from "./enqueueSoundUnconditional.js";

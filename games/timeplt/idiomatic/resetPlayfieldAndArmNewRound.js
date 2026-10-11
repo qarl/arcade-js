@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** resetPlayfieldAndArmNewRound — reset the whole playfield for a fresh round: clear the scroll and control cells, seat
- * the ship sprite and shot slots, retire every object slot in its own way, clear four sprite
- * entries, seat the era's scenery band, then scatter one era-selected ten-byte record from a word
+ * the ship sprite and shot slots, retire particular object slots in their own ways, free and renumber every slot, clear four sprite
+ * entries, seat the era's scenery band, then scatter one era-and-rung-selected ten-byte record from a word
  * table into the cells that arm the round. LIVE-OUT: memory-only. */
 
 /*
@@ -43,7 +43,7 @@ export function resetPlayfieldAndArmNewRound(m) {
   // World and life counters. Zero both world-scroll words (WORLD_SCROLL_Y 0xA808, WORLD_SCROLL_X
   // 0xA80A) so the world starts unscrolled, and the life's base-sixty work counter (LIFE_TICKS_MID
   // as a word with the high place, LIFE_TICKS_LOW). Clear MOTHER_SHIP_ARMED (0xAD0D) -- it stays up
-  // after the mother ship is destroyed until a round or life turns over, and this is one of the two
+  // after the mother ship is destroyed until a round or life turns over, and this is one of the
   // places that lower it -- and PARACHUTIST_RUNG (0xA8F7), so this life's first rescue award is paid
   // at the bottom rung.
   mem16[WORLD_SCROLL_Y] = 0;

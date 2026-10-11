@@ -6,13 +6,13 @@
  *
  * WHAT IT IS. Every era of Time Pilot ends with a Mother-Ship: once the player has destroyed the
  * era's kill quota (KILLS_REMAINING 0xAD02, the manual's 56), the big ship appears; it absorbs
- * seven hits and the eighth destroys it. This routine decides, frame by frame, whether the
+ * seven hits and the eighth destroys it. This routine decides, pass by pass, whether the
  * Mother-Ship is already on the field (in which case its own state machine runs) or whether it is
  * time to bring it on.
  *
  * ROLE IN THE MACHINE. Called once per dispatch of the round engine's service list
  * (serviceRoundThenResolvePlayerState, phase-3 sub-step 7). While the Mother-Ship is
- * live it simply hands the frame to loc_43f0 (ROM 0x43F0). Otherwise it arms the Mother-Ship
+ * armed it simply hands the pass to loc_43f0 (ROM 0x43F0). Otherwise it arms the Mother-Ship
  * at most once every eight frames, and only when the quota is spent and its two-slot record bank
  * (MOTHER_SHIP_STATE 0xA8A0 and the record one stride on, 0xA8B0) is empty. Arming raises
  * MOTHER_SHIP_ARMED (0xAD0D), seeds the lead record's hit counter with seven, and retires the record
@@ -52,7 +52,7 @@ export function armMotherShipOrStep(m) {
   if (mem8[ROUND_TRANSITION_HOLD] === HELD) return;
 
   // Already armed: the Mother-Ship is on the field (or on its way), so its own deep state
-  // machine runs every frame. This is a tail transfer to ROM 0x43F0.
+  // machine runs every pass. This is a tail transfer to ROM 0x43F0.
   if (mem8[MOTHER_SHIP_ARMED] !== 0) return loc_43f0(m);
 
   // Not armed: consider arming only on one frame in eight (frame-tick phase 5).

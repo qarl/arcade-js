@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * serviceEra1BomberObject — one frame of the 1940 era's bomber.
+ * serviceEra1BomberObject — one round-engine pass of the 1940 era's bomber.
  *
  * ROM 0x3B5F-0x3B76 (the live arm falls through into 0x3B77). Grounding: [seen]
  * (names.js ROUTINES 0x3b5f).

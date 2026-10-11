@@ -36,6 +36,6 @@ export function restartAnimationCounterThenDressFlutterSprite(m, counter = m.reg
    * sprite pointer both take the fixed code 0x51. */
   for (const slot of ATTRIBUTE_SLOTS) mem8[u16(sprite + slot)] = ATTRIBUTE;
   /* The ROM runs straight on into 0x44DC, dressSpriteFlutterShapesByFrameTickBit [seen], which
-   * picks the two shapes of a two-frame flutter from one bit of a counter cell. */
+   * picks the two shapes of a two-pose flutter from one bit of a counter cell. */
   return dressSpriteFlutterShapesByFrameTickBit(m, sprite);
 }

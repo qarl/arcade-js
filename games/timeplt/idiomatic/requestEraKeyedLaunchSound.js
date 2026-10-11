@@ -9,7 +9,7 @@
  *
  * ROLE IN THE MACHINE. Its one caller, launchBankEnemyWhenAimedNearPlayer, has just found a free
  * slot and written a fresh record, so this request is one-to-one with an object appearing: it is
- * the sound of a craft launching. Both arms go through the play-gated sound door
+ * the sound of a craft's shot launching. Both arms go through the play-gated sound door
  * (enqueueSoundIfGameInProgress), so the attract demo stays silent.
  */
 

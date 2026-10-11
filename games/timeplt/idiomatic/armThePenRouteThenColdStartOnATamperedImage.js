@@ -5,9 +5,9 @@
  *
  * ROM 0x01E1-0x0200 (loc_01e1). Grounding: [seen] (names.js ROUTINES 0x01E1).
  *
- * What it is: some captions are drawn by a "pen" — a cursor that walks a fixed L-shaped route one
- * leg at a time, interpolating toward each leg's target and stamping a character cell at every
- * step (drawInterpolatedPenRun moves it, plotPenCell stamps). Three cells hold where it has got
+ * What it is: the playfield is swept by a "pen" — a cursor that runs one leg at a time from each start
+ * point of a fixed route (a rectangle of start points) toward one fixed target cell, interpolating
+ * and stamping a character cell at every step (drawInterpolatedPenRun moves it, plotPenCell stamps). Three cells hold where it has got
  * to: PEN_ROUTE_LEG (0xA9E2) [seen], the leg it is on, and PEN_ROW_POS (0xA9E3) [seen] and
  * PEN_COLUMN_POS (0xA9E5) [seen], each an 8.8 fixed-point word — a whole-cell index in the high
  * byte and a fraction below it. This entry sends the pen back to leg zero at the route's first

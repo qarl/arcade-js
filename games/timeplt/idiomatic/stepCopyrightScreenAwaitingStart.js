@@ -42,7 +42,7 @@ export function stepCopyrightScreenAwaitingStart(m) {
   // Nothing here checks it; the player's death animation (advancePlayerAnimationStrip) later requires
   // glyph 0xA5 with colour 0x05 or 0x10 and derails otherwise, so a patched caption bites in play.
   sampleCellGlyphAndColour(m, COPYRIGHT_GLYPH_SAMPLE_CELL, TAMPER_GLYPH_STRIP);
-  // 1-player start held (IN0_MIRROR, 0xA9AE [seen], this frame's copy of the IN0 port): start a
+  // 1-player start held (IN0_MIRROR, 0xA9AE [seen], this frame's complemented copy of the IN0 port): start a
   // one-player game (`jp nz,0x3215`), which takes the credit.
   if (mem8[IN0_MIRROR] & ONE_PLAYER_START) return startOnePlayerGame(m);
   // Still exactly one credit (CREDIT_COUNT, 0xA986, packed decimal; `dec a / ret z`): keep waiting.

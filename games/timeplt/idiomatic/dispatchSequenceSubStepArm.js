@@ -2,7 +2,7 @@
 /** dispatchSequenceSubStepArm — inner level of the two-level sequence machine for the round-engine
  * mode: the low nibble of the sub-step picks one of sixteen arms out of a fixed inline word table,
  * that arm runs, then the fixed continuation every arm returns into. Each case is the slot's literal
- * target, called directly; the nibble mask means every one of the sixteen slots is reachable and
+ * target, called directly; the nibble mask means every sub-step value lands on one of the sixteen slots and
  * every one names a transcribed arm, so no index can fall off the table. No arm reads a register the
  * dispatch would have left standing — each opens on a cell read or a fixed-argument call — so the arm
  * is entered directly, with no return slot parked for it and no table word carried in on a register

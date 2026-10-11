@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
  * stampGridBox — stamp a block of four fixed character codes at the cursor: two into the pair of cells
- * the cursor names, and two into the pair one place further along the line, which is thirty-two
+ * the cursor names, and two into the pair in the next native row, which is thirty-two
  * addresses on. The four codes are constants chosen here, so this reads nothing and lays down the
  * same block wherever it is pointed, and the cursor is left exactly where it was found.
  *

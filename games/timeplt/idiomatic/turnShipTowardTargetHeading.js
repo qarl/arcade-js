@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** turnShipTowardTargetHeading — turn the ship one notch toward a wanted heading, then scroll the world to match.
+/** turnShipTowardTargetHeading — turn the ship one turn step toward a wanted heading, then scroll the world to match.
  * The wanted heading comes from a fixed table indexed by the value handed in. The live heading in
  * PLAYER_HEADING is left alone when it already matches, snapped on when one notch either side would
  * reach it, and otherwise stepped the short way round the compass by three notches — four once the

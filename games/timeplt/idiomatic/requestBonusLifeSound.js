@@ -10,7 +10,7 @@
  *
  * The code is BONUS_LIFE_SOUND (0x2D4E), a byte of the program ROM read as data, not an immediate
  * operand. It goes through enqueueSoundIfGameInProgress, so it is queued only while PLAY_ACTIVE is
- * set; the frame service later sends it to the audio board, one queued code per frame.
+ * set; the frame service later sends it to the audio board, one queued code per run.
  */
 
 import { enqueueSoundIfGameInProgress } from "./enqueueSoundIfGameInProgress.js";

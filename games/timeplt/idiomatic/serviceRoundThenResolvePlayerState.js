@@ -58,7 +58,7 @@ const ALIVE = 0xff;
 export function serviceRoundThenResolvePlayerState(m) {
   // The service list (ROM 0x1199-0x11E4): twenty-five calls, in exactly the ROM's order.
   //
-  // The ship and its opponents: re-aim/animate at most one enemy craft on its tick; the player's
+  // The ship and its opponents: step the flight script and re-aim of at most one enemy craft on its tick; the player's
   // frame (fly, turn toward the stick, or run the dying animation) and the world scroll it sets; the
   // player's shots; the enemy-wave driver, which spawns craft by era and phase.
   reaimEnemyCraftByFlightScriptOnPhaseTick(m);
@@ -84,7 +84,7 @@ export function serviceRoundThenResolvePlayerState(m) {
   stepFourActorSlots(m);
   multiplexSpriteSlotsSkipping(m);
   // Era 0's three-slot ballistic-object bank; then, with everything moved, the collision pass (chosen
-  // by era); then a sound request made on every thirty-second frame from the third era on, only
+  // by era); then a sound request made on a pass whose FRAME_TICK is a multiple of 32, from the third era on, only
   // while none of three fixed object records reads 0xFF (live).
   serviceEra0BallisticObjectBank(m);
   dispatchCollisionPassByEra(m);

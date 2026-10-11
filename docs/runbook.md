@@ -824,6 +824,20 @@ shows only stage A (the renames + the map) and silently omits stage B.
   made in the cleanup sweep (roles unchanged, right after the cleanup milestone's whole regen/currency
   check), which threads too — see the cleanup phase's "(1) RENAME". (Codified 2026-09-18 on the thepit RAM-naming
   pass; runbook rule-1 novel-decision.)
+- **Exception — a CORRECTING rename the map already gets right THREADS it too.** When a done-audit finds an
+  identifier that encodes a false reading (timeplt's record +8 "shape animation" that the ROM shows is a
+  steering order) while `mechanisms.md` already states the true mechanism, the identifier rename lands first
+  as its own value-identical, rename-only commit (equivalence-tested, map citations threaded), and the next
+  commit corrects every other surface (names.js role/why, module headers and local field consts, ca-lines,
+  the CA pages) to the map's reading; the map is threaded, not blind-regenerated: the ROM behaviour is
+  unchanged, and a regen would re-roll prose the audits have already verified. The new names still take
+  three looks (two blind derivers + an adversarial judge). (Codified 2026-10-11, timeplt; runbook rule-1
+  novel decision.)
+- **Prose truth is checked ACROSS surfaces, not claim by claim.** A sweep that checks each statement in
+  isolation passes a name that contradicts the map, because each surface is self-consistent. For every routine
+  and cell, put its names.js role/why, module header, every map sentence citing it and its ca-lines glosses
+  side by side, and settle any disagreement against the ROM. (timeplt 2026-10-11: an exhaustive per-claim sweep
+  left the steering-script misnomer that a cross-surface pass then found.)
 
 ### The clock-free block — handle these four together
 

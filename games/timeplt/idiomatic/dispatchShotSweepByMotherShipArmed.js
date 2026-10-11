@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** dispatchShotSweepByMotherShipArmed — run this stretch of a round's shot sweep against the full run of seven targets.
+/** dispatchShotSweepByMotherShipArmed — choose this pass's shot sweep, and on the clear arm run it against the full run of seven targets.
  * MOTHER_SHIP_ARMED picks which of two sweeps runs: while set, the sweep that also covers the standing
  * object runs (staging its own runs); while clear, this stages the shared sweep's two cursor cells and
  * hands it the seven-target run (both counts seven). LIVE-OUT: memory only. */
 //
 // ROM 0x4F35-0x4F5C (lift: translated/loc_4f35.js). Grounding tag in names.js ROUTINES: [seen].
 //
-// ROLE IN THE MACHINE. Time Pilot splits its per-frame collision work across two frames. names.js
+// ROLE IN THE MACHINE. Time Pilot splits each round-engine pass's collision work by frame parity. names.js
 // records dispatchCollisionPassByEra (0x4E4F) sending odd frames here (outside eras 1 and 4), and the
 // era-1 frame-parity splitter doing the same: on those frames the player's shots are tested against
 // the enemy craft. This entry decides WHICH shot sweep runs, and for one of the two it also sets the

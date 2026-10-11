@@ -9,7 +9,7 @@
  * enqueue body at 0x562A (appendSoundCommandToQueue here), the same body the two gated entries,
  * enqueueSoundIfGameInProgress and enqueueSoundIfGameOrAttract, branch into once their test
  * passes. The body steps SOUND_QUEUE_COUNT (0xAC43) [seen] on and stores the code at the new
- * tail; once per frame the frame service sends the oldest queued code to the audio board.
+ * tail; each run of the frame service sends the oldest queued code to the audio board.
  *
  * Its producers in the image are the six call sites in enqueueTransitionSoundBurst
  * (0x5634), that routine's tail-jump, which carries its last code, and requestCoinSound (0x57F1),

@@ -63,7 +63,7 @@ export function stepDriftingCountdownObjectByEraFrames(m, object = m.regs.ix, sp
 
   /* Step 3 — pick and draw this frame's shape (0x4153-0x4182).
    * The part of the count above the window floor, divided by four (`sub 0x1c / rrca / rrca /
-   * and 0x07`), gives a frame index 0-7, so each shape holds for four frames. ERA_INDEX chooses
+   * and 0x07`), gives a frame index 0-7, so each shape holds for four counts. ERA_INDEX chooses
    * which inline ROM table the index reads through fetchTableByte (rst 0x08): the near-era table at
    * 0x416E for eras 0-3, the far-era table at 0x4183 for era 4. The fetched byte becomes the
    * entry's tile, and a fixed attribute byte per table sets its colour. */

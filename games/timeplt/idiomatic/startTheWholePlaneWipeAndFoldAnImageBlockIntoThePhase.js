@@ -18,7 +18,7 @@
  *
  * Note that the dispatch masks the phase with 0x03, so arriving here proves only that the phase
  * is a multiple of four; 0x04, 0x08 and 0x0C are not fixed points of the fold below. That the
- * phase is left standing rests on SEQUENCE_PHASE's recorded range of four values (names.js).
+ * phase is left standing rests on the phase arriving here as 0, as it does in normal running (names.js); the one genuine corner that arrives with phase 4 (mechanisms.md) leaves 0x1C, whose low two bits still select phase 0.
  *
  * LIVE-OUT: memory -- the wipe cells armed by the call, SEQUENCE_SUBSTEP, SEQUENCE_PHASE. */
 

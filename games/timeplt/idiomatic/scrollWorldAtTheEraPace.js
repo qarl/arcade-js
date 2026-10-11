@@ -11,7 +11,7 @@
  * Grounding: [seen] (names.js ROUTINES 0x1f42).
  *
  * ROLE IN THE MACHINE. The player's ship never moves on screen -- its sprite stays pinned while
- * the world scrolls past it. So "flying" is this routine: every frame the live ship runs, the
+ * the world scrolls past it. So "flying" is this routine: on every pass of the live ship's handler, the
  * ship's velocity is looked up and applied, reversed, to the world. It is reached from
  * dispatchPlayerFrameByState (stick centred), turnShipTowardTargetHeading, snapHeadingOntoTheTurnTarget
  * and the demo autopilot flyDemoShipByScript. There is no throttle: pace changes only with the era.

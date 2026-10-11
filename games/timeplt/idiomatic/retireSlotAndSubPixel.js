@@ -7,7 +7,7 @@
  * that marks the object occupied, the two sub-pixel remainders carrying the fractional part of its
  * motion, and both coordinates of its sprite entry.
  *
- * ROLE IN THE MACHINE: one of two per-family retire helpers. Its sibling retireSlot leaves the
+ * ROLE IN THE MACHINE: one of the two retire helpers that leave the delay at +0x0E alone. Its sibling retireSlot leaves the
  * sub-pixel remainders standing; this one clears them too. No file calls both, and spawn paths differ
  * on whether they reinitialise those cells, so which helper retired a slot can still be visible to its
  * next occupant.

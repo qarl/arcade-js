@@ -27,8 +27,8 @@ import { FRAME_TICK, HITS_REMAINING, MOTHER_SHIP_ARMED, PLAYER_HEADING, HEADING_
 export function armBomberSlotWhenTimerFires(m, record = m.regs.ix, entry = m.regs.iy) {
   const { mem8 } = m;
 
-  // Pace: FRAME_TICK (0xA980) counts vblanks, so testing its low bit runs the countdown on every
-  // other frame only (ROM 0x3C25: and 0x01 / ret nz).
+  // Pace: FRAME_TICK (0xA980) counts vblanks; testing its low bit runs the countdown only on passes
+  // that find it even (ROM 0x3C25: and 0x01 / ret nz).
   if (mem8[FRAME_TICK] & 0x01) return;
 
   // The idle bomber's arming delay lives at record +0x0E. Tick it; until it reaches zero the
@@ -67,7 +67,7 @@ export function armBomberSlotWhenTimerFires(m, record = m.regs.ix, entry = m.reg
 
   // loc_5942 looks that facing up in the bottom-rung velocity table (0x59D7) and hands back a
   // pair of 16-bit components; they are stored little-endian at record +0x0A/+0x0B and
-  // +0x0C/+0x0D, the bomber's per-frame motion (ROM 0x3C5C-0x3C6B).
+  // +0x0C/+0x0D, the bomber's per-step motion (ROM 0x3C5C-0x3C6B).
   const [alongFirstAxis, alongSecondAxis] = loc_5942(m, facing);
   mem8[u16(record + 0x0a)] = alongFirstAxis;
   mem8[u16(record + 0x0b)] = alongFirstAxis >> 8;

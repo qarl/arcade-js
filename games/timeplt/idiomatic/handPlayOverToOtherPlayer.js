@@ -6,8 +6,8 @@
  *
  * ROM 0x1226-0x123A (lift: translated/loc_1226.js). Grounding: [seen].
  *
- * Role in the machine: in a two-player game, when a turn ends, passTurnToOtherPlayerIfLivesElseStepSequence
- * comes here only if the first byte of the save block the index does NOT select is non-zero — a
+ * Role in the machine: in a two-player game, when a turn ends -- loseLifeAndHandOver falling through from 0x1224 after a death, or
+ * passTurnToOtherPlayerIfLivesElseStepSequence (jp nz,0x1226 at 0x12F5) after a game over -- control comes here only if the first byte of the save block the index does NOT select is non-zero — a
  * one-player start writes zero there, so a one-player
  * game never reaches it (under MAME: nine dispatches with a two-player start, zero with one).
  * ACTIVE_PLAYER (0xAD32) is the whole of the two-player machinery: the save blocks, the score

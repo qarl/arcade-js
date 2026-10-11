@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** setUpTwoPlayerStartObjectOnce — fire once when a watched pair of cells stops agreeing: step a shared counter down,
- * seat two shape codes and two attribute bytes (read as a sprite entry) into one object slot, ask for a sound when the trigger
- * cell is armed, and queue one display command. When the pair still agrees it does nothing.
+/** setUpTwoPlayerStartObjectOnce — fire once when a watched pair of cells stops agreeing: step a counter the caller points at down,
+ * seat two shape codes and two attribute bytes (read as a sprite entry) into one object slot, ask for the Mother-Ship warp
+ * sound while the player is live, and post a 3,000-point score award (ring command 4, award entry 13). When the pair still agrees it does nothing.
  * LIVE-OUT: memory.
  *
  * ROM 0x460E-0x4645. Grounding: [seen] (names.js ROUTINES 0x460e).
@@ -29,10 +29,10 @@ import { NotImplemented } from "../../../boards/timeplt/io.js";
 // Offsets into the slot the caller's IY points at. Read as a sprite entry, +0x01 and +0x03 are the
 // two tiles' shape codes and +0x30 and +0x32 their attribute bytes -- the same four stores, with the
 // same values (0xFE/0xFD, 0x6C/0x6C), as the Mother-Ship's flash at 0x4623, where this arm lands.
-const SLOT_VERTICAL_A = 0x01;
-const SLOT_VERTICAL_B = 0x03;
-const SLOT_GLYPH_A = 0x30;
-const SLOT_GLYPH_B = 0x32;
+const SLOT_SHAPE_A = 0x01;
+const SLOT_SHAPE_B = 0x03;
+const SLOT_ATTRIBUTE_A = 0x30;
+const SLOT_ATTRIBUTE_B = 0x32;
 
 export function setUpTwoPlayerStartObjectOnce(m, counterBase = m.regs.ix, slotBase = m.regs.iy) {
   const { mem8 } = m;
@@ -50,10 +50,10 @@ export function setUpTwoPlayerStartObjectOnce(m, counterBase = m.regs.ix, slotBa
     );
   }
   mem8[counterBase] = mem8[counterBase] - 1;
-  mem8[u16(slotBase + SLOT_VERTICAL_A)] = 0xfe;
-  mem8[u16(slotBase + SLOT_VERTICAL_B)] = 0xfd;
-  mem8[u16(slotBase + SLOT_GLYPH_A)] = 0x6c;
-  mem8[u16(slotBase + SLOT_GLYPH_B)] = 0x6c;
+  mem8[u16(slotBase + SLOT_SHAPE_A)] = 0xfe;
+  mem8[u16(slotBase + SLOT_SHAPE_B)] = 0xfd;
+  mem8[u16(slotBase + SLOT_ATTRIBUTE_A)] = 0x6c;
+  mem8[u16(slotBase + SLOT_ATTRIBUTE_B)] = 0x6c;
 
   // Step 3 -- only while the player is live (PLAYER_STATE 0xA800 [seen] = 0xFF) ask for the sound
   // whose code is the program byte at 0x49EE, then queue command 0x04 with argument 0x0D in the

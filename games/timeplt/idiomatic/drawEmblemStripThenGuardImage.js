@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** drawEmblemStripThenGuardImage — stamp a row of award emblems, then blank the rest of that row.
+/** drawEmblemStripThenGuardImage — stamp a row of reserve-ship emblems, then blank the rest of that row.
  * The enable cell gates the whole routine. The caller's count, clamped to six, sets how many
  * two-by-two emblems to stamp from a fixed cursor; the cursor then carries on and the row
  * is blanked down to a fixed floor. A running XOR over a fixed program span guards the image last.

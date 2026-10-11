@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** spawnAtEdgeAhead — on a cooldown, and only on alternate frames, place a free slot at the
- * field-edge position the player's current heading selects, clear its sub-pixel remainders and
- * mark it live.
+/** spawnAtEdgeAhead — on a cooldown, and only on passes that find the frame tick's bit 0 set, place a free slot at the
+ * field-edge position the player's current heading selects, zero one velocity word and seed the
+ * other with 0x40, and mark it live.
  *
  * ROLE. A singleton spawner: its caller seats one dedicated object record (IX) and that object's
  * sprite entry (IY) before calling this (mechanisms.md derives it as the parachutist's manager).
  * Three things hold it off:
  * MOTHER_SHIP_ARMED must read zero (the parachutist spawn refuses outright while the Mother-Ship
- * is up), bit 0 of FRAME_TICK must be set (so it acts only every other frame), and the record's own
- * delay byte is counted down on each frame it does act and only lets the placing happen when it
+ * is up), bit 0 of FRAME_TICK must be set (so it acts only on passes that find that bit set), and the record's own
+ * delay byte is counted down on each pass it does act and only lets the placing happen when it
  * reaches zero. The heading is rounded to the nearer of sixteen equal sectors and selects a
  * coordinate pair from EDGE_SPAWN_COORD_TABLE -- positions near a field border, lying roughly in
  * the direction the player is flying, so the object appears ahead of the ship. The pair goes to
@@ -53,8 +53,8 @@ export function spawnAtEdgeAhead(m, record = m.regs.ix, entry = m.regs.iy) {
   // Gate 2: act only on frames where FRAME_TICK is odd (ROM `and 0x01 / ret z`).
   if ((mem8[FRAME_TICK] & EVERY_OTHER_FRAME) === 0) return;
 
-  // Gate 3: the cooldown. `dec (ix+0x0e)` -- the byte is stored decremented every acting frame,
-  // and the spawn goes ahead only on the frame it hits zero.
+  // Gate 3: the cooldown. `dec (ix+0x0e)` -- the byte is stored decremented every acting pass,
+  // and the spawn goes ahead only on the pass it hits zero.
   const delay = u8(mem8[u16(record + DELAY)] - 1);
   mem8[u16(record + DELAY)] = delay;
   if (delay !== 0) return;

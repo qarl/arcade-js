@@ -14,7 +14,7 @@
  *
  * ROLE. The common tail of every per-slot craft entry (seatCraftSlot0..4ThenDispatchByEra and the two
  * gated siblings): the entry seats a slot's record and sprite entry, and this picks HOW that slot
- * behaves this frame from the era the player is in. Time Pilot's five eras (A.D. 1910, 1940, 1970,
+ * behaves this pass from the era the player is in. Time Pilot's five eras (A.D. 1910, 1940, 1970,
  * 1982/83 and 2001 in gameplay.md) each fly their enemy craft differently, and ERA_INDEX (0xAD04, [seen]) is the
  * number of the current one.
  *

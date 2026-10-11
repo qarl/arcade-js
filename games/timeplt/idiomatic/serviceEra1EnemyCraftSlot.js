@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * serviceEra1EnemyCraftSlot — one frame of one enemy-craft slot in era 1 (1940).
+ * serviceEra1EnemyCraftSlot — one round-engine pass of one enemy-craft slot in era 1 (1940).
  *
  * ROM 0x294C. Grounding: [seen] (names.js ROUTINES 0x294c).
  *
  * WHAT IT IS. Enemy craft live in object slots: a sixteen-byte record whose first
  * byte is the slot's status, paired with a sprite entry. This routine services one such slot for one
- * frame, branching on the status byte:
+ * pass, branching on the status byte:
  *   - 0x00 (empty): nothing to do;
  *   - 0xFE (held): count the hold down and release the craft when it expires (releaseHeldObject);
  *   - any value other than 0xFF: the craft is dying, so step its death sequence (stepDyingObjectState);

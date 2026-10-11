@@ -3,9 +3,9 @@
  * arm, and a genuine image never arms it. The sole caller folds a fixed run of the program image
  * into an eight-bit total, subtracts the value a genuine image folds to, and hands control here ONLY
  * when the two miss; the bytes then decode as instructions, drop two words off the stack that leave
- * the frame unwinding one word out of step, and return to a value that is not an address — control
- * destroyed rather than reported. So the mismatch arm has no faithful transcription as a routine:
- * raise where it would land instead of transcribing junk. Reaching this is a tampered-image derail;
+ * the frame unwinding one word out of step, and return to a saved register value rather than a return address — control
+ * destroyed rather than reported. The bytes have no meaning as a routine, so this entry raises
+ * where the original derails. Reaching this is a tampered-image derail;
  * on a genuine image it is dead.
  * ROM 0x0167-0x0173, falling through into 0x0174. Grounding: [code] (names.js ROUTINES 0x0167). */
 

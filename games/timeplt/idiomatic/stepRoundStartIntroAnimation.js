@@ -22,7 +22,7 @@ import { advanceScriptedCharPlaneBandTo4 } from "./advanceScriptedCharPlaneBandT
 import { loadActivePlayerContextAndPostRoundHud } from "./loadActivePlayerContextAndPostRoundHud.js";
 import { FRAME_TICK, INTRO_ANIMATION_STEP, SEQUENCE_DELAY, SEQUENCE_SUBSTEP, INTRO_SUBSTEP_RELOAD } from "./names.js";
 
-// `ld a,0x5a` at 0x1355: the sequence machine's one-shot delay (90 frames) armed on the way out.
+// `ld a,0x5a` at 0x1355: the sequence machine's one-shot delay (90 ticks, which arm 5 counts down on odd frames only) armed on the way out.
 const WIND_DELAY = 90;
 
 export function stepRoundStartIntroAnimation(m) {
@@ -59,7 +59,7 @@ export function stepRoundStartIntroAnimation(m) {
       return;
     default:
       /* Any later step (5, written by the flood): the animation is over — hand back to the sequence
-       * machine (0x1355-0x1366). Arm SEQUENCE_DELAY (0xA9EB) for 90 frames; hide every sprite by
+       * machine (0x1355-0x1366). Arm SEQUENCE_DELAY (0xA9EB) at 90 for the round-intro hold; hide every sprite by
        * parking the vertical shadow band (hideAllSprites, 0x15B6); load the active player's saved
        * context and post the round HUD (0x4C75); then reload the inner sequence index SEQUENCE_SUBSTEP
        * (0xA9AC) from the ROM byte at 0x2750, which holds 3. */

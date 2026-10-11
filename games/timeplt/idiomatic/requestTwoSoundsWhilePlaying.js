@@ -7,7 +7,8 @@
  *
  * ROLE IN THE MACHINE. Its caller is commissionStagedAttackerByEra. The permission is
  * enqueueSoundIfGameInProgress, which drops a request while no game is being played; its
- * structural twin requestTwoSounds differs only in using the door that also admits the demo.
+ * structural twin requestTwoSounds differs, apart from the two program bytes it reads (0x07A6, 0x4CDA),
+ * only in using the door that also admits the demo.
  */
 
 import { enqueueSoundIfGameInProgress } from "./enqueueSoundIfGameInProgress.js";

@@ -9,12 +9,12 @@
  * ROM 0x0201-0x026E. Grounding: [seen] (names.js ROUTINES 0x0201).
  *
  * ROLE IN THE MACHINE. The sequence machine's "pen" walks a fixed route as an 8.8 fixed-point
- * interpolator (names.js, the pen route block 0xA9E2-0xA9F7): each frame one arm calls this
- * routine to draw one leg. blankCaptionThenAdvancePenRunStep (phase 3, the round engine, step 2) and
- * advancePenRunAnimationStep both do, and both stay on their step until the route reseats on row
+ * interpolator (names.js, the pen route block 0xA9E2-0xA9EA): each frame one arm calls this
+ * routine to draw one leg. blankCaptionThenAdvancePenRunStep (phase 3, the round engine, step 2),
+ * advancePenRunAnimationStep and erasePenRouteThenOpenInitialsEntry all do, and all stay on their step until the route reseats on row
  * zero -- the live-out below (mechanisms.md). What a leg leaves on screen is whatever the pen
  * pair holds: plotPenCell stamps PEN_GLYPH into the character plane and PEN_COLOUR into the colour
- * plane, so with a blank pen glyph the same walk erases instead of draws.
+ * plane, and each of the image's pen seats stores the blank glyph 0xF1, so what a walk changes is the colour of the cells it crosses.
  *
  * Cells (all [seen] unless noted, names.js): PEN_ROW_POS 0xA9E3 / PEN_COLUMN_POS 0xA9E5 are the
  * pen's 8.8 row and column; PEN_ROW_STEP 0xA9E7 / PEN_COLUMN_STEP 0xA9E9 their signed per-step

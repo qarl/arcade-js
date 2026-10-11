@@ -2,8 +2,8 @@
 /** loadActivePlayerContextAndPostRoundHud — set up the active player's turn and guard the picture on a program-image checksum.
  * Blank a run of character cells and copy the active player's saved sixteen-byte context into the
  * live block. When play is inactive, just step the sequence sub-index; otherwise also post the round
- * number and the lives-less-one as commands and fold a fixed program span into an XOR whose low bit,
- * less one, drives the picture-enable latch — darkening the screen if it changed.
+ * number and the lives-less-one as commands and fold a fixed program span into an XOR and write it,
+ * less one, to the picture-enable latch, which takes bit 0 — darkening the screen if the fold comes out odd.
  *
  * ROM 0x4C75-0x4CB3 (frozen lift translated/loc_4c75.js). Grounding: [seen] (names.js ROUTINES 0x4c75).
  *

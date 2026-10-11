@@ -3,7 +3,7 @@
  * walking back across the square, and leave the cursor past it.
  *
  * ROLE. Ring command 5's handler (names.js, word-table slot 5 at 0x0BBC) calls this to draw its row
- * of 2x2 award emblems. The character plane (from 0xA400) holds one shape code per cell; the colour
+ * of 2x2 reserve-ship emblems. The character plane (from 0xA400) holds one shape code per cell; the colour
  * plane sits a fixed 0x400 bytes below it (from 0xA000) with one colour byte per cell. The monitor
  * is rotated, so a line of text on the glass runs through the plane in steps of -0x20 (one native
  * row), and +/-1 is the same place on the neighbouring line (see advanceCharCursor).

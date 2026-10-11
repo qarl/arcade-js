@@ -9,7 +9,7 @@
  *
  * ROLE. Word 3 of the era table at 0x2914 that dispatchSeatedSlotByEraIndex runs when ERA_INDEX's low
  * three bits are 3 -- the fourth era (A.D. 1982/83, jet fighters, in gameplay.md, whose enemies are
- * "as fast and manoeuvrable as you"). Called once per frame per seated enemy-craft slot. Same
+ * "as fast and manoeuvrable as you"). Called once per round-engine pass per seated enemy-craft slot. Same
  * skeleton as the other era services; this era flies its craft with flyAtFastestSpeed and draws
  * them with dressSpriteForCoarseHeading.
  *
@@ -48,7 +48,7 @@ export function serviceEra3EnemyCraftSlot(m, record = m.regs.ix, entry = m.regs.
     if (state === HELD) return releaseHeldObject(m, record);
     return stepDyingObjectState(m, record, entry);
   }
-  // Live craft. Turn one step toward the aim heading every frame (steerTowardAimHeading, 0x2BEF),
+  // Live craft. Turn one step toward the aim heading on every call (steerTowardAimHeading, 0x2BEF),
   // then move one step on the top rung of the velocity tables (flyAtFastestSpeed, 0x58A4).
   steerTowardAimHeading(m, record);
   flyAtFastestSpeed(m, record, entry);

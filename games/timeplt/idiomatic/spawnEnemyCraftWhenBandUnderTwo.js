@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** spawnEnemyCraftWhenBandUnderTwo — gate a spawning tick on the packed-decimal phase byte the caller points at, count the
+/** spawnEnemyCraftWhenBandUnderTwo — gate a spawning tick on the packed-decimal life-tick byte the caller points at, count the
  * busy heads across the enemy-craft band, and only when fewer than two are busy run the free-slot
  * search: the cleared run when the owed-kills cell is zero, else the owed run seated for as many
  * turns as the round asks. LIVE-OUT: memory. The count and the two cursors go to the search as
@@ -9,7 +9,7 @@
 //
 // ROLE IN THE MACHINE. The ordinary enemy craft live in a band of seven sixteen-byte records starting at
 // CRAFT_RECORD_SLOT0 (0xA850) [seen]. driveEnemyWaveForLifePhase runs the enemy-wave step of each life
-// and picks its arm from the middle digit of the life's work counter; this is the arm for phase 8 (the
+// and picks its arm from the units digit of the middle place of the life's work counter; this is the arm for phase 8 (the
 // caller's `phase < 9` test after the lower phases). It tops the band up only when it is nearly empty
 // (fewer than two busy records), and only on the ticks its gate opens. The pointer the caller passes is LIFE_TICKS_LOW
 // (0xAD05) [seen], the low packed-decimal digit pair of that counter (00..59), so the gate below opens
@@ -38,7 +38,7 @@ const OPEN_PHASE = 0x30;
 export function spawnEnemyCraftWhenBandUnderTwo(m, phaseCell = m.regs.hl) {
   const { mem8 } = m;
 
-  // run only when the phase byte the caller points at is idle or at OPEN_PHASE
+  // run only when the life-tick byte the caller points at reads zero or OPEN_PHASE
   const phase = mem8[phaseCell];
   if (phase !== 0x00 && phase !== OPEN_PHASE) return;
 

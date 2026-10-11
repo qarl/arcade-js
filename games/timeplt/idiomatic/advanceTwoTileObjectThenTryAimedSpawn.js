@@ -6,9 +6,9 @@
 // ROM 0x3B77-0x3B93 (lift: translated/loc_3b77.js). Grounding tag in names.js ROUTINES: [seen].
 //
 // ROLE IN THE MACHINE. This object is drawn as two sprite entries stacked one above the other, so
-// every frame both must be moved together. names.js records the caller as serviceEra1BomberObject
+// every step both must be moved together. names.js records the caller as serviceEra1BomberObject
 // (0x3B5F): in era 1 it dispatches the single object at record 0xA8C0 on its head byte, and a head of
-// 0xFF runs THIS routine -- the per-frame "fly it" arm of that object's life.
+// 0xFF runs THIS routine -- the per-pass "fly it" arm of that object's life.
 //
 // PARAMETERS. `record` is the object's work-RAM record (the ROM's IX) and `sprite` is its sprite entry
 // (the ROM's IY); both are seated by the caller and passed straight through to every step below.
@@ -48,7 +48,7 @@ export function advanceTwoTileObjectThenTryAimedSpawn(m, record = m.regs.ix, spr
 
   // STEP 3 -- OFF THE EDGE? (call 0x3CC4, answered in carry in the ROM). If the object has reached the
   // boundary band its heading selects, it is retired (tail `jp c,0x3C0D`) and nothing more happens
-  // this frame.
+  // this pass.
   if (hasReachedBoundaryBandSelectedByHeading(m, record, sprite)) return retireObjectAndHold(m, record, sprite);
   // STEP 4 -- STILL IN PLAY. Dress the two entries with the shape pair for its damage and heading
   // (call 0x3CE9), then tail into the aimed-spawn attempt (jp 0x3D25), which may launch one aimed

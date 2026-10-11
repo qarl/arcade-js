@@ -6,8 +6,8 @@
  * the cabinet has the picture. Of the four bank-and-orientation pairs, one (upright bank 0) passes both halves straight, two transform one half and pass the other
  * through; the fourth transforms both halves, differently. Every transform is byte-wide, so all of them wrap.
  *
- * Afterwards, and only inside one window of the sequence machine, eight of the twenty-four sprites have the top bit
- * of both their bytes raised — and only where the second half's is still clear, so a second pass changes nothing.
+ * Afterwards, and only inside one window of the sequence machine, eight of the twenty-four sprites have 0x80 added
+ * to both their bytes — and only where the second half's top bit is still clear, so a second pass changes nothing.
  * LIVE-OUT: memory.
  *
  * ROM: 0x0365. Tag [seen] (names.js). Role in the machine: the game never draws into the sprite hardware
@@ -16,7 +16,7 @@
  * 0xB010 (X and shape bytes) and bank 1 at SPRITE_BANK1_BASE 0xB410 (attribute and Y bytes), twenty-four
  * sprites each. Which way round the picture is comes from SCREEN_UNFLIPPED 0xA987 [seen]; the vertical-blank
  * service rewrites that cell only after this publish, so each frame's sprites use the previous frame's
- * orientation (mechanisms.md, "Publishing the shadow to the sprite banks").
+ * orientation (mechanisms.md, "Publishing to the sprite banks").
  */
 
 import { u8 } from "../../../core/int.js";
@@ -65,7 +65,7 @@ function publish(m, bank, [firstHalf, secondHalf]) {
   }
 }
 
-/** Raise the top bit of both bytes of the eight scenery sprites, inside the window only. The top
+/** Add 0x80 to both bytes of the eight scenery sprites, inside the window only. The top
  * bit of the bank-1 Y byte is a REQUEST that the doubling pass (multiplexSpriteSlots and its
  * siblings) acts on to show the sprite a second time half a screen away. A sprite whose request is
  * already up is left alone, so running the raise twice changes nothing. */

@@ -19,7 +19,7 @@
  * THE CHECK. XOR of the 24 program bytes at 0x176A (COPYRIGHT_IMAGE_CHECKSUM_BASE, the start of the routine
  * paintReadoutsThenSampleWitnessOrDerail) must be 0xC9 — it is on the genuine image (checked against the ROM
  * image). A mismatch jumps to loc_08fa, a checksum-failure landing whose bytes are really data; run as code it
- * always faults (names.js ROUTINES 0x08FA).
+ * derails the machine (names.js ROUTINES 0x08FA).
  *
  * LIVE-OUT: memory.
  */

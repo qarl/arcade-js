@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** serviceEra0EnemyCraftSlot — the era-0 per-object update, branched on the object's status byte: an empty slot is
  * left alone, a held object is released, a dying one is stepped, and an active craft is steered,
- * flown and refreshed then allowed to spawn, or retired the frame it reaches the line. LIVE-OUT: memory. */
+ * flown and refreshed then allowed to spawn, or retired on the pass it reaches the line. LIVE-OUT: memory. */
 
 /*
  * ROM 0x2927-0x294B, grounding [seen] (names.js ROUTINES 0x2927).
  *
  * ROLE. Word 0 of the era table at 0x2914 that dispatchSeatedSlotByEraIndex runs when ERA_INDEX's low
- * three bits are 0 -- the first era (A.D. 1910, biplanes, in gameplay.md). It is called once per frame
- * for each enemy-craft slot the seatCraftSlotNThenDispatchByEra entries seat, and does that one slot's
- * whole frame of work.
+ * three bits are 0 -- the first era (A.D. 1910, biplanes, in gameplay.md). It is called once per round-engine
+ * pass for each enemy-craft slot the seatCraftSlotNThenDispatchByEra entries seat, and does that one
+ * slot's whole pass of work.
  *
  * PARAMETERS. `record` is the slot's 16-byte object record (its first byte is the status byte below);
  * `entry` is the slot's two-byte sprite entry.
@@ -47,7 +47,7 @@ export function serviceEra0EnemyCraftSlot(m, record = m.regs.ix, entry = m.regs.
   if (status !== ACTIVE) return stepDyingObjectState(m, record, entry);
 
   // Active craft, movement. Turn the heading one step toward the aim heading, the short way round
-  // (steerTowardAimHeading, 0x2BEF) -- every frame in this era -- then fly one step at the slowest
+  // (steerTowardAimHeading, 0x2BEF) -- on every call in this era -- then fly one step at the slowest
   // of the velocity-table speeds (flyAtSlowestSpeed, 0x5840).
   steerTowardAimHeading(m, record);
   flyAtSlowestSpeed(m, record, entry);

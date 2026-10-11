@@ -2,10 +2,10 @@
 /**
  * flyTowardShipStandoffThenEndApproach — run one chased object through a frame of its approach.
  *
- * WHAT IT IS: ROM 0x41B8-0x41EB, tag [seen] (names.js ROUTINES 0x41b8). On every sixteenth frame it
+ * WHAT IT IS: ROM 0x41B8-0x41EB, tag [seen] (names.js ROUTINES 0x41b8). On passes that find FRAME_TICK's low four bits zero it
  * re-aims the object at one of two fixed standoff points near the ship, a bit in the object's record
  * choosing which; if the object has by then arrived at that point it cuts the record's approach
- * countdown to zero, so the record's handler takes its expired arm next frame. Then, every frame, it
+ * countdown to zero, so the record's handler takes its expired arm on its next dispatch. Then, on every call, it
  * turns the object toward its aim, moves it and dresses its sprite, and finally asks whether it has
  * reached a retire line.
  *
@@ -68,7 +68,7 @@ export function flyTowardShipStandoffThenEndApproach(m, record = m.regs.ix, entr
       Math.abs(mem8[(point & (0xff << 8)) | u8(point - 1)] - mem8[u16(entry + SECOND_COORD)]);
     /*
      * Arrived: both gaps under sixteen. endApproachNow (ROM 0x41EC) zeroes the record's countdown at
-     * +0x04, so its handler takes the expired arm next frame instead of counting the rest of the delay.
+     * +0x04, so its handler takes the expired arm on its next dispatch instead of counting the rest of the delay.
      */
     if (firstGap < ARRIVED && secondGap < ARRIVED) endApproachNow(m, record);
   }

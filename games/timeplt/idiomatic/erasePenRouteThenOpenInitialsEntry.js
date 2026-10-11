@@ -10,7 +10,7 @@
  * screen. The previous arm (arm 8,
  * fileScoreAfterGameOverHoldElsePassTurn) switched the pen to the blanking glyph 0xF1 and restarted
  * the route, so re-running the route now ERASES it. Once the erase finishes, this arm lays out the
- * initials-entry screen and seats every cell the next arm (stepHighScoreInitialsEntry, arm 10) reads
+ * initials-entry screen and seats the press histories, letter index, slot count and locked-letter colour the next arm (stepHighScoreInitialsEntry, arm 10) reads
  * as the player dials in three initials.
  *
  * ROLE IN THE MACHINE. Entry 9 of the phase-3 sub-step table at 0x0F29; the sequence machine calls it
@@ -25,8 +25,8 @@
  *   6. steps the sequence sub-index.
  *
  * The fold is an anti-tamper check. The block is program image, so on a genuine image it always folds to the
- * same byte and the mismatch arm is dead. On a tampered image the arm jumps into the vertical-blank service
- * from outside an interrupt, carrying this arm's live registers into that service's shadow-bank swap: a
+ * same byte and the mismatch arm is dead. On a tampered image the arm jumps into the middle of the vertical-blank service
+ * it is itself running under, carrying this arm's live registers into that service's shadow-bank swap: a
  * derail, not a behaviour. There is no faithful transcription of it as a routine, so this arm raises where it
  * would derail instead.
  *

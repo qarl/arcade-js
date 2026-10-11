@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * blankCaptionThenAdvancePenRunStep — a sequence arm that blanks a fixed caption run and advances the
+ * blankCaptionThenAdvancePenRunStep — a sequence arm that blanks the fourteen kill-meter cells and advances the
  * interpolated pen run; once the run has finished (reseated to a zero row integer) it runs two
  * anti-tamper folds and steps the sequence on.
  *
@@ -8,7 +8,7 @@
  *
  * ROLE IN THE MACHINE. Entry 2 of the sub-step arm table at 0x0F29, dispatched by
  * dispatchSequenceSubStepArm. Like advancePenRunAnimationStep it is re-entered frame after frame: each
- * frame re-blanks the caption run and draws one more pen run, and only the frame on which the pen run
+ * frame re-blanks the kill-meter cells and draws one more pen run, and only the frame on which the pen run
  * reseats to row zero goes on to the checks and steps SEQUENCE_SUBSTEP [seen].
  *
  * THE TWO FOLDS (both checked against the ROM image; on a genuine image neither changes anything):
@@ -38,7 +38,7 @@ const SUM_BIAS = 0x77;
 
 export function blankCaptionThenAdvancePenRunStep(m) {
   const { mem8 } = m;
-  // Blank the fixed fourteen-cell caption run (ROM call 0x07D2), every frame this arm runs.
+  // Blank the fixed fourteen-cell kill-meter run (ROM call 0x07D2), every frame this arm runs.
   blankFourteenCharCells(m);
   // Draw one interpolated pen run (ROM call 0x0201) and, as the ROM's `ret nz` does, stop here for this
   // frame unless the run just finished.

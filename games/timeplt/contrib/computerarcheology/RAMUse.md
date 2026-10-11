@@ -19,7 +19,7 @@ whose role is only partly pinned, carry a terse caveat.
 | a811 | waveKillCountdown | How many more qualifying kills until the current wave's shared claim fires. |
 | a812 | waveClaimTimer | Frame-countdown window during which a spawned wave's shared claim is armed. |
 | a814 | bankLaunchCooldownPeriod | Reload period (interval constant) that re-arms BANK_LAUNCH_COOLDOWN after a launch; never decremented. |
-| a817 | bankLaunchCooldown | Live per-vblank cooldown for the bank-launch arm (launchBankEnemyWhenAimedNearPlayer) and the Mother-Ship's homing spawn. |
+| a817 | bankLaunchCooldown | Live per-vblank cooldown for the bank-launch arm (launchBankEnemyWhenAimedNearPlayer) and the Mother-Ship's aimed shot. |
 | a820 | actorRecordSlot1 | Actor slot 1's record head. |
 | a821 | claimToken | The shared "last of the wave" token, holding one claimant at a time. |
 | a827 | bankLaunchNearHalfWidth | Near-band proximity half-width gating a bank launch, the same value on both axes. |
@@ -35,7 +35,7 @@ whose role is only partly pinned, carry a terse caveat.
 | a8a0 | motherShipState | State byte of the Mother-Ship's record, which begins at this address and runs two slots. |
 | a8a4 | motherShipHitsToAbsorb | Mother-Ship record +4: the hits it can still absorb. |
 | a8b0 | craftRecordSlot6 | Slot 6's record head (the last ordinary craft slot), with two extra duties. |
-| a8b4 | motherShipAimSideToggle | The Mother-Ship's homing-launch aim-side toggle: incremented each launch, bit 0 picks the +0x18 / -0x18 side of the aim. |
+| a8b4 | motherShipAimSideToggle | The Mother-Ship's aimed-shot aim-side toggle: incremented each launch, bit 0 picks the +0x18 / -0x18 side of the aim. |
 | a8c0 | eraObjectRecordSlot0 | Era-object bank slot 0's record head -- base of the three-slot per-era special-object bank (array 12-14). |
 | a8c6 | attackerSpawnSlotCount | Per-era-and-rung count of enemy slots the attacker / craft-bank spawner fields, 0 to 3: byte +6 of the era/rung settings row ERA_RUNG_SETTINGS_POINTER_TABLE (0x1B04) selects, rising with the rung. |
 | a8d0 | eraObjectRecordSlot1 | Era-object bank slot 1's record head (second of the grouped three). |
@@ -54,7 +54,7 @@ whose role is only partly pinned, carry a terse caveat.
 | a981 | coinAccepted | Coin-counter pulses the machine still OWES the mechanical counter. |
 | a982 | coinAcceptedSlot2 | slot-2 twin of COIN_ACCEPTED (0xa981) |
 | a983 | serviceCreditDebounce | IN0 bit-2 service-credit input debounce; a clean edge awards one credit |
-| a984 | coinPulseTimer | Frames left in coin slot 1's current mechanical-counter pulse, counted down one frame at a time. |
+| a984 | coinPulseTimer | Steps left in coin slot 1's current mechanical-counter pulse, counted down by its driver once a frame and once more on a frame where a coin or service input reaches the crediting tail. |
 | a985 | coinPulseTimerSlot2 | slot-2 twin of COIN_PULSE_TIMER (0xa984) |
 | a986 | creditCount | packed-BCD on-screen credit total (saturates at 0x99) |
 | a987 | screenUnflipped | Whether the picture is the right way up for whoever is playing: 1 upright, 0 turned round. |
@@ -96,7 +96,7 @@ whose role is only partly pinned, carry a terse caveat.
 | a9cb | coinSlot2Accumulator | slot-2 accumulator (+0x10/coin vs COIN_SLOT_2_RATIO 0xa9cc) |
 | a9cc | coinSlot2Ratio | The same for coin slot 2, from the OTHER nibble. |
 | a9cd | killQuota | The kill quota a round is armed with: how many enemies the next round will ask for. |
-| a9ce | bcdFrameCounter | free-running packed-decimal frame counter (inc+daa each vblank) |
+| a9ce | bcdFrameCounter | packed-decimal frame counter (inc+daa each vblank; zeroed at each attract-demo start) |
 | a9cf | scriptCycleCounter | 0..4 round-robin index for in-turn script selection (pickScriptAtRandomOrInTurn) |
 | a9d0 | attractStageCounter | attract-demo counter cycling 1->2->3->1; each demo starts in that era (PLAYER_ONE_ERA_INDEX) and round (+1) |
 | a9d3 | startRungRounds15 | The escalation rung a round STARTS on, for rounds one to five. |
@@ -111,7 +111,7 @@ whose role is only partly pinned, carry a terse caveat.
 | a9e6 | penColumnCell | The pen's whole-cell column -- the high byte of PEN_COLUMN_POS -- added within the row by plotPenCell. |
 | a9e7 | penRowStep | Signed 8.8 per-step row increment ((target - PEN_ROW_POS)/16, sign kept), added to PEN_ROW_POS each step. |
 | a9e9 | penColumnStep | Signed 8.8 per-step column increment, added to PEN_COLUMN_POS each step. |
-| a9eb | sequenceDelay | The sequence machine's shared one-shot delay: frames still to wait before its next step. |
+| a9eb | sequenceDelay | The sequence machine's shared one-shot delay: ticks still to wait before its next step. |
 | a9f0 | introAnimationStep | Step selector (0..5) of the between-eras band animation that plays after a round is won and before the next round: stepRoundStartIntroAnimation dispatches on it, and each sub-animation writes the step it hands off to (flash->1, band-to-2->2, colour-cycle->3, band-to-4->4, flood->5). |
 | a9f1 | playerFlashTick | Tick of the player-ship white flash (intro step 0/1): bit 0 alternates the sprite colour; at tick 8 it advances INTRO_ANIMATION_STEP and requests the spawn-flash sound. |
 | a9f2 | bandTo2PassCountdown | Per-pass countdown for advanceScriptedCharPlaneBandTo2 (bit 0 selects a blank vs draw pass), decremented each pass and zeroed at the script's end, which sets INTRO_ANIMATION_STEP to 2. |
@@ -228,7 +228,7 @@ whose role is only partly pinned, carry a terse caveat.
 | ad37 | player2ScoreMid | player 2 score, middle packed-BCD byte (thousands/hundreds) |
 | ad38 | player2ScoreHi | player 2 score, high packed-BCD byte (hundred-thousands/ten-thousands); the display, bonus-life and high-score compares start here |
 | ad39 | tamperWitness | A two-cell anti-tamper witness, glyph then colour, that one part of the machine seeds and another verifies. |
-| adf2 | demoScriptDwell | Attract-demo autopilot: the packed dwell/steer byte -- low 6 bits are the frame countdown, top 2 bits the steering command; reloaded from the next script byte when the dwell expires. |
+| adf2 | demoScriptDwell | Attract-demo autopilot: the packed dwell/steer byte -- low 6 bits are the pass countdown, top 2 bits the steering command; reloaded from the next script byte when the dwell expires. |
 | adf3 | demoScriptPointerLo | Attract-demo autopilot: low byte of the little-endian cursor into the ROM heading-command script. |
 | adf4 | demoScriptPointerHi | Attract-demo autopilot: high byte of the DEMO_SCRIPT_POINTER_LO cursor. |
 | adfb | tamperGlyphReadback | Tile-image tamper tripwire: the glyph read back from video cell 0xA5DC; the demo start derails into a data-run trap unless it reads 0xFD. |

@@ -9,8 +9,8 @@
  * Role in the machine: this is the hinge between boot and the running game. Everything before it is
  * the one-time cold start (clear memory, verify the image, seed the settings); everything after it is
  * the two halves the game lives in for ever -- the frame interrupt, which does the game's work once
- * per vertical blank, and the foreground loop, which draws whatever text the frame work asks for.
- * Boot wrote 0 into every latch line earlier, so the frame interrupt stays shut until THIS store.
+ * per vertical blank, and the foreground loop, which carries out the drawing and scoring requests the frame work posts.
+ * Boot wrote 0 into the first four latch lines earlier, line 0 among them, so the frame interrupt stays shut until THIS store.
  *
  * `setting` is the byte the caller carries in; names.js records that under MAME it is the program
  * byte at 0x4C87, which reads 0x01 -- so in practice this store switches the interrupt ON.

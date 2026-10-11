@@ -4,12 +4,12 @@
  * a free slot is claimed and stocked. Stocking draws a spawn direction from the player's heading jittered by a
  * random amount, reads a starting position (the sprite entry's two coordinate bytes) from two chained
  * tables through it, and seeds the record and
- * its paired entry with facing, script and a fresh animation. LIVE-OUT: memory. Every register the
+ * its paired entry with facing and a flight script started from its top. LIVE-OUT: memory. Every register the
  * body touches is dead-after-return scratch — the table walk holds its cursor and index in JS
  * locals, every arm hands on to a callee that reseats what it needs, and the four callers each
  * tail-return this result and read no register back, so nothing survives. The two cursors and the
  * count of turns still owed ride in as arguments and are handed on to the tail with the slot taken.
- * At most one slot is filled per turn.
+ * At most one slot is filled per search.
  *
  * ROM 0x37D6-0x382C. Grounding: [seen] (names.js ROUTINES 0x37d6).
  *
@@ -21,8 +21,8 @@
  * this arm returns instead of handing on to the tail.
  *
  * The record layout used here (mechanisms.md, "The record, byte by byte"): +0 head/life state,
- * +1 aim heading, +2 current heading, +3/+5 coordinate fractions, +9 animation step timer,
- * +0x0A animation run selector, +0x0E the slot's personal timer. The sprite entry holds the two
+ * +1 aim heading, +2 current heading, +3/+5 coordinate fractions, +9 flight-script position,
+ * +0x0A flight-script selector, +0x0E the slot's personal timer. The sprite entry holds the two
  * native-axis coordinate bytes at +0x00 and +0x31.
  */
 
@@ -74,9 +74,9 @@ export function spawnEnemyIntoFreeSlotElseStepSearch(m, record = m.regs.ix, entr
   mem8[record + 0x01] = facing;
   mem8[record + 0x02] = facing;
 
-  // Step 5 -- the animation run selector (+0x0A) from pickScriptAtRandomOrInTurn; zero the work
+  // Step 5 -- the flight-script selector (+0x0A) from pickScriptAtRandomOrInTurn; zero the work
   // cell SPAWN_CLEARED_SPARE_BYTE (0xACC5, which no code reads) and both coordinate fractions;
-  // start the step timer at 0x20 (32), take one animation step, and clear the personal timer.
+  // start the script position at 0x20 (32), take one script step, and clear the personal timer.
   mem8[record + 0x0a] = pickScriptAtRandomOrInTurn(m);
   mem8[SPAWN_CLEARED_SPARE_BYTE] = 0x00;
   mem8[record + 0x03] = 0x00;

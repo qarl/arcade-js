@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** serviceEra2EnemyCraftSlot — run one object slot, dispatched on its state byte (ix+0): the empty value does
- * nothing; the active value flies it — steered toward its aim three frames in four, moved at the
+ * nothing; the active value flies it — steered toward its aim unless FRAME_TICK's low two bits read 3, moved at the
  * slow speed, retired once it reaches a retire line, else its sprite is dressed and two launch
  * attempts run; the held value releases it; any other value steps its dying state. LIVE-OUT: memory. */
 
@@ -8,10 +8,10 @@
  * ROM 0x2984-0x29AF, grounding [seen] (names.js ROUTINES 0x2984).
  *
  * ROLE. Word 2 of the era table at 0x2914 that dispatchSeatedSlotByEraIndex runs when ERA_INDEX's low
- * three bits are 2 -- the third era (A.D. 1970, helicopters, in gameplay.md). Called once per frame
- * per seated enemy-craft slot; it does that slot's whole frame of work. It has the same skeleton as
- * the other era services and differs from era 0 in two places: steering is skipped one frame in
- * four, and the sprite is dressed by dressSpriteForFineHeading instead of refreshSpriteFromHeading.
+ * three bits are 2 -- the third era (A.D. 1970, helicopters, in gameplay.md). Called once per round-engine
+ * pass per seated enemy-craft slot; it does that slot's whole pass of work. It has the same skeleton as
+ * the other era services and differs from era 0 in two places: steering is skipped when
+ * FRAME_TICK's low two bits read 3, and the sprite is dressed by dressSpriteForFineHeading instead of refreshSpriteFromHeading.
  *
  * PARAMETERS. `record` is the slot's 16-byte object record (state byte at +0); `entry` is the
  * slot's two-byte sprite entry.
@@ -36,7 +36,7 @@ import { FRAME_TICK } from "./names.js";
 // State-byte values (record +0).
 const ACTIVE = 0xff;
 const HELD = 0xfe;
-// Low two bits of the frame counter: steering runs while they are below 3, i.e. three frames in four.
+// Low two bits of the frame counter: steering runs while they are below 3, i.e. on three of the four tick phases.
 const STEER_MASK = 3;
 
 export function serviceEra2EnemyCraftSlot(m, record = m.regs.ix, entry = m.regs.iy) {
@@ -48,8 +48,8 @@ export function serviceEra2EnemyCraftSlot(m, record = m.regs.ix, entry = m.regs.
   if (state === ACTIVE) {
     // Steering, throttled. FRAME_TICK (0xA980, [seen]) advances once per vblank; the ROM's
     // `and 0x03 / cp 0x03 / call c,0x2BEF` turns the heading one step toward the aim heading
-    // (steerTowardAimHeading) on frames whose low two bits are 0-2 and skips the fourth, so this
-    // era's craft turn more slowly than a craft steered every frame.
+    // (steerTowardAimHeading) on calls where the tick's low two bits are 0-2 and skips it when they read 3, so
+    // this era's craft turn more slowly than a craft steered on every call.
     if ((mem8[FRAME_TICK] & STEER_MASK) < STEER_MASK) steerTowardAimHeading(m, record);
     // Move one step at the slowest velocity-table speed (flyAtSlowestSpeed, 0x5840).
     flyAtSlowestSpeed(m, record, entry);

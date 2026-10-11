@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** armAttractScreenShowingHighScore — arm a fresh screen once a per-frame countdown lapses. Every call first ticks that
  * countdown; the rest runs only on the call that zeroes it — push four fixed commands onto the ring,
- * seed a marker into two cells, patch six cells from the record list that follows this routine (each
- * destination gets a value with a marker beside it), print the six-digit readout, set two sub-state
+ * seed a marker into two cells, seed six work-RAM cell pairs from the record list that follows this routine (each
+ * destination gets the record's glyph, with colour 0x05 beside it), print the six-digit readout, set two sub-state
  * cells, and push a fifth command only when the gate cell is non-zero. LIVE-OUT: memory.
  *
  * ROM 0x15FE-0x163E (frozen lift translated/loc_15fe.js); its patch list follows at 0x163F.

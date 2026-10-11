@@ -59,12 +59,12 @@ export function loseLifeAndHandOver(m) {
 
   /* Step 4 -- pass the turn (0x1216-0x122C). The OTHER player's saved lives decide: nonzero means
    * that player is still in the game, so ACTIVE_PLAYER flips. In a one-player game player two's
-   * block is zero and the flip never happens; in a two-player game the players alternate on
+   * saved lives byte is zero and the flip never happens; in a two-player game the players alternate on
    * every death until one runs out. */
   const other = mem8[ACTIVE_PLAYER] === 0 ? PLAYER_TWO_LIVES : PLAYER_ONE_LIVES;
   if (mem8[other] !== 0) mem8[ACTIVE_PLAYER] = (mem8[ACTIVE_PLAYER] + 1) & 1;
 
-  /* Step 5 -- rearm the sequence (0x122F-0x123A): SEQUENCE_DELAY 0xA9EB [seen] = 90 frames and
+  /* Step 5 -- rearm the sequence (0x122F-0x123A): SEQUENCE_DELAY 0xA9EB [seen] = 90 ticks and
    * SEQUENCE_SUBSTEP 0xA9AC [seen] from the program byte at 0x4B52 (HANDOVER_SUBSTEP_SEED). */
   mem8[SEQUENCE_DELAY] = STAMP_VALUE;
   mem8[SEQUENCE_SUBSTEP] = mem8[HANDOVER_SUBSTEP_SEED];

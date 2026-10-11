@@ -30,7 +30,7 @@ export function seedDemoAutopilotScript(m) {
     : DEMO_AUTOPILOT_SCRIPT_THIRD;
 
   /* Seat the autopilot. DEMO_SCRIPT_DWELL [seen] (0xADF2) is the packed dwell/steer byte: low six
-   * bits a frame count, top two bits the turn command; it is loaded with the script's first byte
+   * bits a pass count, top two bits the turn command; it is loaded with the script's first byte
    * plus one (`ld a,(hl) / inc a`). The cursor 0xADF3/0xADF4 [seen] is written low byte first
    * (`ld (hl),e / inc l / ld (hl),d`), pointing at that same first byte. */
   mem8[DEMO_SCRIPT_DWELL] = u8(mem8[script] + 1); // dwell counter, one past the script's leading byte
@@ -40,7 +40,7 @@ export function seedDemoAutopilotScript(m) {
   /* Tamper gate. TAMPER_GLYPH_READBACK [seen] holds the glyph read back from video cell 0xA5DC
    * and must be 0xFD; TAMPER_COLOUR_READBACK [seen] holds the colour read back from 0xA1DC and
    * must be 0x10 or 0x05. On any other value the ROM does `jp 0x2251` — into the second script's
-   * DATA, executed as code — loc_2251 [code], which ends in a faulting store or a halt, so an
+   * DATA, executed as code — loc_2251 [code], which stores A through whatever address BC holds and runs down to a halt, so an
    * altered tile image never gets a working demo. */
   // a genuine tile image returns; a failed readback drops into the trap, which faults
   if (mem8[TAMPER_GLYPH_READBACK] !== 0xfd) return loc_2251();

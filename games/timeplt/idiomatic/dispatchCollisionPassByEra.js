@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * dispatchCollisionPassByEra — pick this frame's collision work by era, then by frame parity.
+ * dispatchCollisionPassByEra — pick this pass's collision work by era, then by frame parity.
  *
  * ROM 0x4E4F-0x4E62 (the even-frame arm falls through into 0x4E63). Grounding: [seen]
  * (names.js ROUTINES 0x4e4f).
  *
  * WHAT IT IS. Collision detection (player shots against enemies, enemies against the player) is too
- * much work to do in full every frame on the Z80, so the game spreads it across alternate frames.
+ * much work to do in full on every pass on the Z80, so the game splits it by the parity of the frame counter.
  * This is the switch that chooses which slice runs now.
  *
  * ROLE IN THE MACHINE. Reached from the round engine's sub-step 7 dispatcher (ROM 0x1199) once per
- * frame of play. Era 4 (the last, 2001 era) and era 1 (1940) each have their own dispatch tail;
+ * round-engine pass of play. Era 4 (the last, 2001 era) and era 1 (1940) each have their own dispatch tail;
  * every other era splits on the low bit of FRAME_TICK
  * (0xA980): odd frames run the shot sweep, even frames the whole collision-and-destruction pass.
  *

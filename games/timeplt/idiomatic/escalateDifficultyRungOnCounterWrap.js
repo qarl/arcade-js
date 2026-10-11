@@ -35,7 +35,7 @@ export function escalateDifficultyRungOnCounterWrap(m) {
    * when the low one wrapped; the top place only when the middle one did. When the low place
    * did NOT wrap the whole routine is over (`ret c` at 0x4D40) -- the rung timer below is only
    * ever touched once every sixty passes. */
-  // carry into the next place only while a place rolls over; a place that holds ends the whole pass
+  // carry into the next place only while a place rolls over; a low place that holds ends the whole call
   if (!advanceSexagesimalDigit(m, LIFE_TICKS_LOW)) return;
   if (advanceSexagesimalDigit(m, LIFE_TICKS_MID)) advanceSexagesimalDigit(m, LIFE_TICKS_HIGH);
 
@@ -47,8 +47,8 @@ export function escalateDifficultyRungOnCounterWrap(m) {
   mem8[ERA_RUNG_TIMER] = u8(mem8[ERA_RUNG_TIMER] - 1);
   if (mem8[ERA_RUNG_TIMER] !== 0) return;
 
-  /* Step 3 -- the timer fired: rearm it from ERA_RUNG_PERIOD 0xA9D6 [seen] (a value written once,
-   * from a program byte), climb ERA_RUNG by one but never past 15, and hand on to
+  /* Step 3 -- the timer fired: rearm it from ERA_RUNG_PERIOD 0xA9D6 [seen] (copied from a program byte
+   * by the difficulty-record copy at each game and demo start), climb ERA_RUNG by one but never past 15, and hand on to
    * applyEraRungSettings (the ROM tail-jumps to 0x1A9A) so the new row takes effect at once. The
    * rung is held at 15 rather than wrapped, so a long life stays on the hardest row of its era. */
   mem8[ERA_RUNG_TIMER] = mem8[ERA_RUNG_PERIOD];

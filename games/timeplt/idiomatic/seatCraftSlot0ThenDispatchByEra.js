@@ -6,7 +6,7 @@
  *
  * WHAT IT IS. The enemy craft live in a band of seven 16-byte records starting at CRAFT_RECORD_SLOT0
  * (0xA850, [seen]), each with a two-byte sprite entry starting at CRAFT_ENTRY_SLOT0 (0xAA1A, [seen]).
- * Each frame the round engine services the band slot by slot through a family of tiny entries --
+ * Each pass the round engine services the band slot by slot through a family of tiny entries --
  * seatCraftSlot0..4ThenDispatchByEra, plus two more (seatMotherShipSlotThenDispatchByEraUnlessArmed,
  * seatCraftSlot6ThenDispatchByEraUnlessArmed) gated on the mother ship's armed cell -- and this is the
  * slot-0 member. Its pair of fixed addresses is the whole of what tells it apart from slots 1-4.

@@ -10,7 +10,7 @@
 //
 // ROLE IN THE MACHINE. Every object in play carries a state byte at the head of its record (0xFF live,
 // 0xF0 just hit -- mechanisms.md §6). Once the object is marked to die the byte becomes a death countdown
-// (from 0x3B after a collision hit, from a staggered code, 0x14 upward by slot, for a craft caught in the Mother-Ship's
+// (from 0x3B after a collision hit, from a staggered code, 0x3C upward by slot, for a craft caught in the Mother-Ship's
 // field sweep), and stepDyingObjectState steps it; while the count, once stepped, is below 0x3C and not yet zero, that routine hands
 // the frame's move to this entry. Per mechanisms.md §6, the wreck flies on at the slowest speed while
 // the count is high and afterwards only drifts with the world, while the appearance step animates it

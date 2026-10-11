@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** hideAllSprites — sweep every sprite off the picture at once. Every slot the display
- * scans carries a vertical position, and this zeros all of them; zero puts a slot above the
- * FIRST drawn line, clear of the picture entirely, so nothing of it appears. Every other byte of a slot stands, so none is
+ * scans carries a vertical position, and this zeros all of them; zero puts a slot outside the
+ * drawn lines (above the first when upright, below the last when turned round), clear of the picture entirely, so nothing of it appears. Every other byte of a slot stands, so none is
  * retired. LIVE-OUT: memory only — 24 bytes, evenly spaced and all inside one page.
  *
  * ROM 0x15B6-0x15C1 (frozen lift translated/loc_15b6.js): `ld hl,0xaa41 / ld b,0x18 / xor a`, then

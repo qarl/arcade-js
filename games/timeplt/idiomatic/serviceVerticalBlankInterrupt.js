@@ -17,7 +17,7 @@
  * its non-maskable interrupt at vertical blank, between one picture and the next, and this
  * service does the frame's work in a fixed order
  * (mechanisms.md, "The vertical-blank service"). The foreground loop (runCommandRingDrainLoop) only
- * draws the text this frame work asks for.
+ * carries out the drawing and scoring requests this frame work posts.
  */
 
 import { u8 } from "../../../core/int.js";

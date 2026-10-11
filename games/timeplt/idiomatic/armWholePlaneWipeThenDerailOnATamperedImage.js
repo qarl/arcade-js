@@ -2,7 +2,7 @@
 /** armWholePlaneWipeThenDerailOnATamperedImage — seat the whole-plane wipe's cursor and line count,
  * then fold a fixed run of the program image into one eight-bit total and hold it against a genuine
  * image's value. A mismatch hands control to a tail that unwinds the interrupt frame one word out of
- * step, returning to a non-address; the wipe is armed either way. LIVE-OUT: memory only.
+ * step, returning to a saved register value; the wipe is armed either way. LIVE-OUT: memory only.
  *
  * ROM 0x019A-0x01B4 (frozen lift translated/loc_019a.js). Grounding: [seen] (names.js ROUTINES).
  *

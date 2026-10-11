@@ -7,8 +7,8 @@
  * WHAT IT IS. Enemy craft arrive in waves. How they arrive depends on the era and on how long the
  * current life has lasted: the life-tick counter (LIFE_TICKS_LOW 0xAD05 / LIFE_TICKS_MID 0xAD06, the
  * low and middle places of a base-sixty counter stepped once per round-engine dispatch) is split into
- * "phases" by the low nibble of its middle place, and each phase runs a different spawner. Late in a
- * life (phase nine and up) this routine builds a fresh wave itself, inline: it fills free slots of
+ * "phases" by the low nibble of its middle place, and each phase runs a different spawner. At phase
+ * nine and up (a units digit, so it recurs every ten wraps of the low place) this routine builds a fresh wave itself, inline: it fills free slots of
  * the seven-slot enemy-craft band (records from CRAFT_RECORD_SLOT0 0xA850, sprite entries from
  * CRAFT_ENTRY_SLOT0 0xAA1A) with craft seated at points on the screen's edge. A ROM wave descriptor
  * picks each point from a table of edge positions, offset by the direction the player is flying,
@@ -40,7 +40,7 @@ const BOSS_ERA = 4;
 const DEFAULT_COUNT = 5;
 // One object record is sixteen bytes.
 const RECORD_STRIDE = 16;
-// Value seeded into each new craft's record +0x09 timer.
+// Value seeded into each new craft's record +0x09 flight-script position.
 const PRIMED_TIMER = 0x20;
 // Half a circle: the craft is aimed opposite the player's heading, i.e. back at the player.
 const AIM_OFFSET = 0x80;
@@ -54,7 +54,7 @@ export function driveEnemyWaveForLifePhase(m) {
   if (mem8[ERA_INDEX] === BOSS_ERA) return spawnEnemyWaveIntoFreeSlots(m);
 
   // Pick the life phase from the low nibble of the middle life-tick place, and hand the early
-  // phases to their spawners: 0-6 the free-slot search, 7 settles five slots' animations, 8 spawns
+  // phases to their spawners: 0-6 the free-slot search, 7 turns five craft away, 8 spawns
   // craft while fewer than two of the band are busy. Each is given the low life-tick cell to gate on.
   const phase = mem8[LIFE_TICKS_MID] & 0x0f;
   // the phase tails all read the low life-tick byte
@@ -111,15 +111,15 @@ export function driveEnemyWaveForLifePhase(m) {
       mem8[record + 0x0e] = mem8[descriptor + 1];
       descriptor = u16(descriptor + 2);
 
-      // Clear +0x03 and +0x05, prime the +0x09 timer, and step the shape animation once so the
-      // sprite shows a valid frame immediately.
+      // Clear +0x03 and +0x05, prime the +0x09 script position, and step the flight script once so
+      // the craft starts with an order from its script.
       mem8[record + 0x03] = 0;
       mem8[record + 0x05] = 0;
       mem8[record + 0x09] = PRIMED_TIMER;
       stepCraftFlightScript(m, record);
 
-      // Mark the slot live -- 0xFF when its +0x0E byte is clear, 0xFE otherwise -- and tally it.
-      mem8[record] = mem8[record + 0x0e] === 0 ? 0xff : 0xfe; // live, and settled when its tail is clear
+      // Mark the slot held (0xFE) while its +0x0E delay is non-zero, live (0xFF) when it is clear -- and tally it.
+      mem8[record] = mem8[record + 0x0e] === 0 ? 0xff : 0xfe; // held until its delay runs out; live at once when there is none
       mem8[WAVE_KILL_COUNTDOWN] = u8(mem8[WAVE_KILL_COUNTDOWN] + 1);
     }
     // Next slot: record +16, sprite entry +2.

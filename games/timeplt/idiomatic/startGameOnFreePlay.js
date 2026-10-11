@@ -4,7 +4,7 @@
  * started player's block with the lives setting, and charging no credit.
  *
  * ROLE. On a free-play cabinet no coin is needed, so the start buttons alone begin a game. All
- * three callers test the FREE_PLAY cell before tail-jumping here, which is why this path takes no
+ * three callers test the FREE_PLAY cell before reaching here (two by tail jump, one by falling through), which is why this path takes no
  * credit (the coin path, startTwoPlayerGame, subtracts two in packed BCD). With neither button
  * held it does nothing at all. The two-player button wins outright: it is tested first and its arm
  * never looks at the one-player bit. Both arms raise PLAY_ACTIVE and stock player one's lives from

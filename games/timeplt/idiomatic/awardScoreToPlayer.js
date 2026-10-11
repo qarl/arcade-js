@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** awardScoreToPlayer — the score-award command: add the award the argument picks to the current player's
  * packed-decimal score, lift that score into the high score when it now beats it, and repaint the
- * scores it touched. A zero argument takes a separate arm that only (re)paints the score labels
- * and, in a one-player game, blanks the absent second score. A flag can veto the whole command.
+ * scores it touched. A zero argument takes a separate arm that only (re)paints the score labels and scores
+ * and, in a one-player game, erases the absent second label and blanks its score. A flag can veto the whole command.
  * LIVE-OUT: memory.
  *
  * ROM 0x0C90-0x0D1A (frozen lift translated/loc_0c90.js). Grounding: [seen] in names.js.

@@ -24,7 +24,7 @@ import { MOTHER_SHIP_ARMED, MOTHER_SHIP_ENTRY, MOTHER_SHIP_STATE } from "./names
 export function seatMotherShipSlotThenDispatchByEraUnlessArmed(m) {
   /*
    * Step 1 -- the armed gate. ROM `ld a,(0xad0d)` / `and a` / `ret nz`: MOTHER_SHIP_ARMED (0xAD0D)
-   * is all-ones or zero. While it is up the slot is left unserviced for the frame. The flag is not
+   * is all-ones or zero. While it is up the slot is left unserviced on that pass. The flag is not
    * "the boss is on screen": it stays up after the boss is destroyed, until startNextRound or the
    * life-start playfield reset clears it (names.js).
    */

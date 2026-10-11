@@ -12,7 +12,7 @@
  * so that both keep pointing at the SAME slot index.
  *
  * Role in the machine: the scenery routines use it — placeAbuttingTile to step onto a further tile
- * of the sprite it has just placed, driftOneTileSceneryAtThreeQuarters and driftOneTileSceneryAtHalf
+ * of the sprite it has just placed, and every scenery drift step (driftOneTileSceneryAtThreeQuarters and driftOneTileSceneryAtHalf among them)
  * to reach a different entity. The callers disagree about what the next slot holds, so the unit
  * this advances is the slot index, not the object.
  *

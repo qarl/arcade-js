@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** serviceEra0BallisticObjectBank — in era zero only, run one frame of the three-slot ballistic-object bank from the top:
+/** serviceEra0BallisticObjectBank — in era zero only, run one pass of the three-slot ballistic-object bank from the top:
  * start the cursors at the first slot, then step an empty first slot, fly a ballistic (0xFF) first slot
  * before stepping it, or hand any other first-slot marker to the servicing sweep; outside era zero do
  * nothing. LIVE-OUT: memory; in era zero, returns where the bank's cursors stopped

@@ -8,7 +8,7 @@
  *
  * ROLE IN THE MACHINE. The other arms of the turn STEP the live heading by 3 or 4 (chosen from
  * ERA_INDEX's low nibble) toward a target taken from the direction table at 0x1F2E. Targets are 32
- * apart and 3 does not divide 32, so a walk of 3s lands 2 short, fails the guard and overshoots to
+ * apart and 3 does not divide 32, so a walk of 3s can land 2 short, fail the guard and overshoot to
  * one past. This arm is taken when the live heading is one either side of the target (live minus
  * target is 0xFF or 0x01), and writes the target itself -- a snap.
  * The one transfer that targets it is turnShipTowardTargetHeading's own `jp c,0x1f3e` at 0x1F22 (the

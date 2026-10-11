@@ -11,9 +11,9 @@
  * ROM 0x17B9-0x17E1 (frozen lift translated/loc_17b9.js). Grounding: [seen] (names.js ROUTINES 0x17b9).
  *
  * Role in the machine: an anti-tamper step of the sequence machine. It is the eighth entry of the
- * word table at 0x1659 that dispatchSequencePhase1SubStepArm dispatches, so a patched image stalls
- * the sequence here with a dark screen. The 51 bytes it adds are the start of stampCopyrightStrip's
- * own code (0x0B06), so the guard covers that routine; names.js records that the total over the
+ * word table at 0x1659 that dispatchSequencePhase1SubStepArm dispatches, so a patched image holds
+ * the attract sequence here with a dark screen until a credit or a free-play start moves the machine on. The 51 bytes it adds run
+ * from stampCopyrightStrip's entry (0x0B06) through the last byte of hideCaptionSprites (0x0B38), so the guard covers both routines; names.js records that the total over the
  * real image is exactly the value compared. The witness pair it writes on failure (TAMPER_WITNESS)
  * is the one seedSceneryEntriesThenRunScenery later checks.
  *

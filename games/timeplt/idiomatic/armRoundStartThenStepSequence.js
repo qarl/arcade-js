@@ -47,7 +47,7 @@ export function armRoundStartThenStepSequence(m) {
   requestRoundStartSound(m);
 
   // Seat the enemy aim anchor point (ENEMY_AIM_ANCHOR_Y 0xAC64 = 0x78, its X at 0xAC65 = 0x84, both
-  // [seen]) and clear both players' play-time counters (mid/high bytes, one 16-bit store each).
+  // [seen]) and clear both players' saved life-tick counters (mid/high places, one 16-bit store each).
 
   mem8[ENEMY_AIM_ANCHOR_Y] = 0x78;
   mem8[ENEMY_AIM_POINT_TABLE] = 0x84;

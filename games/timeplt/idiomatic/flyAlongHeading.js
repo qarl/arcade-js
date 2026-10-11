@@ -2,7 +2,7 @@
 /** flyAlongHeading — fly one object a single step along the heading it holds, while the world scrolls
  * underneath it. That heading picks a pair of perpendicular components out of the speed
  * table the caller chose; each of the object's two coordinates then gains its own component PLUS
- * a per-frame displacement held in a fixed pair of cells, shared by every object rather than read
+ * a displacement held in a fixed pair of cells, shared by every object rather than read
  * off this one. Each coordinate is 16 bits stored split: the whole part in the sprite entry, the
  * fraction in the record, so a component smaller than a pixel banks instead of vanishing.
  *

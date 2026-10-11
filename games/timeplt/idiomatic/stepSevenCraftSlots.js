@@ -8,12 +8,12 @@
  * and a `ret`. [seen]
  *
  * Role in the machine: the enemy craft on screen live in a bank of object slots, each a record in work
- * RAM paired with a hardware sprite entry. This routine is one frame's pass over seven of them. Each
+ * RAM paired with a hardware sprite entry. This routine is the round-engine pass's sweep over seven of them. Each
  * callee is a tiny entry that loads the two cursors -- the slot's record and its sprite entry -- as
  * fixed immediates and then runs the era-keyed dispatch, so the per-slot behaviour depends on which
  * era (1910, 1940, ...) the round is in, not on anything decided here.
  *
- * ★ Seven is the size of the set, not the per-frame count. The sixth and seventh entries test
+ * ★ Seven is the size of the set, not the per-pass count. The sixth and seventh entries test
  * MOTHER_SHIP_ARMED and return at once while it is set, because (per names.js) the mother ship
  * occupies the last two of the seven ordinary craft slots. So on that arm only five slots step.
  * names.js notes the five-slot arm is qualified from the code rather than observed: on the recorded
@@ -29,7 +29,7 @@ import { seatMotherShipSlotThenDispatchByEraUnlessArmed } from "./seatMotherShip
 import { seatCraftSlot6ThenDispatchByEraUnlessArmed } from "./seatCraftSlot6ThenDispatchByEraUnlessArmed.js";
 
 // The seven entries in the ROM's call order. Order matters: a later slot sees any cell an earlier
-// slot's service wrote this frame, exactly as on the real machine.
+// slot's service wrote this pass, exactly as on the real machine.
 const CHAIN = [
   seatCraftSlot0ThenDispatchByEra,
   seatCraftSlot1ThenDispatchByEra,

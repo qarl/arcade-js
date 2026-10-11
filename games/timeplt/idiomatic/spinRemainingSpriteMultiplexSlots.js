@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** spinRemainingSpriteMultiplexSlots — a caller's tail into the five-slot display pass, entered
+/** spinRemainingSpriteMultiplexSlots — a subroutine entry into the five-slot display pass, entered
  * inside the first slot.
  *
  * ROLE. Time Pilot shows some hardware sprites twice per frame (the sprite multiplex): a request

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** splitCollisionWorkByFrameParity — split the per-frame collision work by frame parity: on odd frames run the shot-versus-
+/** splitCollisionWorkByFrameParity — split one round-engine pass's collision work by frame parity: on odd frames run the shot-versus-
  * target sweeps; on even frames run the player-versus-object collision chain, adding the mother-ship
  * mutual-kill check only while the mother ship is armed.
  * LIVE-OUT: memory only. */
 //
 // ROM 0x4EBC-0x4F29; lift: translated/loc_4ebc.js. Grounding tag in names.js ROUTINES: [seen].
 //
-// ROLE IN THE MACHINE. Each frame of a round, dispatchCollisionPassByEra (0x4E4F) [seen] runs the
+// ROLE IN THE MACHINE. Once per round-engine pass, dispatchCollisionPassByEra (0x4E4F) [seen] runs the
 // collision pass for the current era; era 1 comes here. Collision work is split over two frames: odd
 // FRAME_TICK values run the player's shots against the targets, even values run everything that can
 // touch the player's own ship. Era 1 is the one era with a BOMBER -- a two-tile object in the

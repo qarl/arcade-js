@@ -46,7 +46,7 @@ and compares it against `0x55` to detect an expansion ROM that is not fitted.
 | c340 | in2 | R: IN2 — player-2 (cocktail) 8-way stick + fire, active-low |
 | c360 | dsw0 | R: DIP-switch bank SW1 — coinage |
 
-Every I/O block carries a MAME mirror mask (`0x0CFF` on `0xC000`/`0xC200`, `0x0C9F` on
+Every I/O block except the latch's write range (`0xC300`–`0xC30F`) carries a MAME mirror mask (`0x0CFF` on `0xC000`/`0xC200`, `0x0C9F` on
 the port group): the mask names *don't-care* address bits, not a range, so a block answers
 at every address that differs from its base only in those bits. Sprite RAM's `0x0B00`
 mask likewise leaves bit `0x0400` free to pick between the two banks across
@@ -114,7 +114,7 @@ largest routine in the game — copies two 48-byte shadow bands, `0xAA10`–`0xA
 `0xAA40`–`0xAA6F`, into the two hardware sprite banks at `0xB010` and `0xB410`. When the
 picture is not turned round (SCREEN_UNFLIPPED `0xA987` = 1, which includes player one on a
 cocktail table) it encodes Y as `~(Y + 0x0E)`; when it is turned round, X is encoded as
-`~(X + 0x0F)` instead. It also reorders the entries (entries 16–18
+`~(X + 0x0F)`, Y is written as `Y + 1`, and the attribute's two flip bits are toggled (`xor 0xC0`). It also reorders the entries (entries 16–18
 first, then 0–15, then 19–23), and the lowest hardware offsets paint last and so win
 overlaps.
 

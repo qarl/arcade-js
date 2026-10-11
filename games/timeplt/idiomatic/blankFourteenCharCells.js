@@ -7,7 +7,7 @@
  *
  * ROM 0x07D2-0x07E5 (frozen lift translated/loc_07d2.js). Grounding: [seen] -- under MAME a write
  * tap gated to this routine's program counters found exactly 0xA79F - 0x20k for k = 0..13, each
- * written only with the blanking glyph, and no other video address (names.js).
+ * written only with the blanking glyph, and in the colour plane only those cells' twins 0x400 below, each written with 0x16 (names.js).
  *
  * Role in the machine: a clean-up step run before the screen is redrawn. Its two callers are
  * blankCaptionThenAdvancePenRunStep and loadActivePlayerContextAndPostRoundHud, and each calls it

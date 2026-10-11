@@ -13,8 +13,8 @@
  * other cell of the slot blanked. Its one call site is the loop at 0x4D9A in
  * drawEmblemStripThenGuardImage (ring command 5, the reserve-ships HUD): after the emblems it clears
  * the rest of the row, from where the emblems end down to 0xA623, passing the blank glyph 0xF1 as the glyph — so
- * there BOTH cells come out blank. names.js records a MAME write tap of 126 dispatches, each a pair
- * one cell apart with the blank on the lower address.
+ * there BOTH cells come out blank. Its twin drawSlotWithOneGlyph (0x0E8D)
+ * writes the same pair but steps the cursor the other way along the line.
  *
  * The screen: the character plane (glyphs, based at 0xA400) and the colour plane (based at 0xA000)
  * hold the same grid at the same offsets, told apart only by address bit 10 (0x0400).

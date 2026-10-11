@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** serviceEra4EnemyCraftSlot — service one object slot by its lifecycle byte: idle when free, release when held,
- * step when dying, and when live steer it, retire it on the line, else animate and try a launch. */
+ * step when dying, and when live steer it, retire it on the line, else animate and try two launches. */
 
 /*
  * ROM 0x29D5-0x29F6, grounding [seen] (names.js ROUTINES 0x29d5).
  *
  * ROLE. Word 4 of the era table at 0x2914 that dispatchSeatedSlotByEraIndex runs when ERA_INDEX
  * (0xAD04) is 4 -- the fifth and last era (A.D. 2001, flying saucers, in gameplay.md). Called once per
- * frame per seated enemy-craft slot. Same skeleton as the other era services, with two differences:
+ * round-engine pass per seated enemy-craft slot. Same skeleton as the other era services, with two differences:
  * steering and flying are one call (steerEnemyTowardShip), and instead of pointing the sprite along a
  * heading it plays a four-frame shape cycle (animateSelectedShapeCycle).
  *

@@ -2,7 +2,7 @@
 /** stepHighScoreInitialsEntry — one frame of high-score initials entry. On even frames the facing panel's four
  * controls are rolled into their press histories; a fresh commit locks the shown letter into the
  * next slot (and, on the last slot, finishes the entry), a fresh forward/back press steps the
- * shown letter round its 27-value ring, and a history that has saturated is emptied so a held
+ * shown letter round its 27-value ring, and a forward or back history that has saturated is emptied so a held
  * control repeats. On odd frames the cursor cell's colour flashes. Every eighth frame the entry
  * clock ticks, and running out finishes the entry too. Finishing re-arms the clock, queues the
  * transition sounds and steps the sequence on. After the scan, once neither player has lives
@@ -13,10 +13,11 @@
 //
 // ROLE IN THE MACHINE. After a game over the phase-3 sub-step table runs a short run of arms: arm 8
 // (fileScoreAfterGameOverHoldElsePassTurn) files the score into the high-score table, arm 9
-// (erasePenRouteThenOpenInitialsEntry) lays out the entry screen and seeds every cell this routine
-// steps -- three slots left, letter 0, empty press histories -- and parks two cursors: SCRATCH_PTR_A
-// (0xA991) [seen] at the filed record's initials bytes in the high-score table, SCRATCH_PTR_B (0xA993)
-// [seen] at the on-screen cell where the next initial is drawn. This is arm 10, run every frame
+// (erasePenRouteThenOpenInitialsEntry) lays out the entry screen and seeds the press histories,
+// letter index and slot count this routine steps -- three slots left, letter 0, empty press
+// histories. Arm 8's filing has already parked two cursors: SCRATCH_PTR_A (0xA991) [seen] at the
+// filed record's initials bytes in the high-score table, SCRATCH_PTR_B (0xA993) [seen] at the
+// on-screen cell where the next initial is drawn. This is arm 10, run every frame
 // until the entry finishes, when it steps the sequence sub-step on.
 //
 // HOW A CONTROL IS READ. Each control is debounced by a PRESS HISTORY: a byte its bit is rolled into

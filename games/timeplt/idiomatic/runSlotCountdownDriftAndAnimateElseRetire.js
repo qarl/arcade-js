@@ -13,7 +13,7 @@
  * head of 1 retires it; any other value drops by one this pass, then a count that came in at 60 or more
  * has the head clamped to 59 (overwriting the drop) and asks for two sounds, and the object drifts with the world. While
  * the count (re-read after the clamp) is 28 or more, the sprite takes one of the eight table entries from
- * COUNTDOWN_SLOT_SHAPE_TABLE (0x3EC3), each held for four counts and repeating, with a fixed 3 in
+ * COUNTDOWN_SLOT_SHAPE_TABLE (0x3EC3), each held for four counts, with a fixed 3 in
  * its attribute byte. Retiring is the ROM block at 0x40AB (retireSlot [seen]): zero the head and
  * both sprite coordinates, which takes the object off the screen.
  *

@@ -7,7 +7,7 @@
  * ROM 0x4FBF-0x5031. Grounding: [seen] (names.js ROUTINES 0x4FBF). The second sweep is the code the ROM falls
  * into at 0x4FE0 (destroyMotherShipAndShotOnMutualHit); it is not called.
  *
- * ROLE IN THE MACHINE. dispatchShotSweepByMotherShipArmed sends the frame's shot sweep here while
+ * ROLE IN THE MACHINE. dispatchShotSweepByMotherShipArmed sends the pass's shot sweep here while
  * MOTHER_SHIP_ARMED is set, and to a seven-craft sweep otherwise. The Mother-Ship's record is the one at
  * MOTHER_SHIP_STATE (0xA8A0) [seen] and the one a stride on — the last two of the seven ordinary craft slots
  * from CRAFT_RECORD_SLOT0 (0xA850) [seen] (0xA850 plus five strides of 0x10 is 0xA8A0). So while it is out,
@@ -21,7 +21,7 @@
  * SWEEP 2 — the Mother-Ship. Runs only while its state byte reads 0xFF (live). Every live shot is tested
  * against the Mother-Ship's position on both axes; a shot inside the box sets BOTH the Mother-Ship's state and
  * the shot's state to 0xF0 ("just hit") and posts a score (postChainedHitScore, ROM 0x51DE). The loop does
- * not re-test the Mother-Ship's state after a hit, so several shots landing in one frame each score.
+ * not re-test the Mother-Ship's state after a hit, so several shots landing in one pass each score.
  * The box on the first axis depends on the era (ERA_INDEX [seen]): wider in eras 0 and 4.
  *
  * LIVE-OUT: memory-only.

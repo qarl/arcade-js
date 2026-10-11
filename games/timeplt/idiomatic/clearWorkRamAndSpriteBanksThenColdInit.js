@@ -4,7 +4,7 @@
  * the frame service out of band, and either way it hands off to the screen-RAM clear and verify.
  * LIVE-OUT: memory.
  *
- * ROM 0x0069-0x00A7, reached once at boot from 0x07B1. [seen]
+ * ROM 0x0069-0x00A7, reached once at boot from 0x07B1, and on a tampered image from the `call nz,0x0069` at 0x01FD. [seen]
  *
  * Role in the machine: the second stage of the cold start. RAM powers up holding garbage, so every
  * sprite and work cell is zeroed here before anything reads it. It ends with one of the game's
@@ -39,7 +39,7 @@ export function clearWorkRamAndSpriteBanksThenColdInit(m) {
   mem8[WATCHDOG_RESET] = 0;
 
   // Zero all 2 KB of work RAM from 0xA800. Every game-state cell starts at zero from here; the few
-  // structures that must not (the command ring, the high-score table) are set later in the cold start.
+  // structures that must not (the command ring and the high-score table among them) are set later in the cold start.
   for (let i = 0; i < WORK_RAM_BYTES; i++) mem8[u16(PLAYER_STATE + i)] = 0;
   mem8[WATCHDOG_RESET] = 0;
 

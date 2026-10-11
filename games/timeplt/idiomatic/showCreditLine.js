@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** showCreditLine — one sequence step that refreshes the panel and caption, then reads a guard byte that is
- * BANK_LAUNCH_COOLDOWN, borrowed here as the boot tamper-check result. While FREE_PLAY is set it only advances the
+ * BANK_LAUNCH_COOLDOWN, borrowed here as the tamper-check result the attract sequence parks there. While FREE_PLAY is set it only advances the
  * sequence's inner index; otherwise it repaints the panel from its packed-decimal count, queues one caption request,
  * then the guard decides. Zero stamps the caption strip, requests the caption line in this frame's colour, and folds
  * a twenty-byte image run into the tamper total. Nonzero has no routine to run, so it RAISES rather than guessing.
@@ -18,7 +18,7 @@
 // nothing but step on.
 //
 // It is also one link of the ANTI-TAMPER chain: its tail sums a run of the program image (the
-// copyright caption record) and hands the total on -- sumImageBlockForTheTamperCheck ->
+// sixteen-byte copyright caption record and the four bytes after it) and hands the total on -- sumImageBlockForTheTamperCheck ->
 // parkTheImageTotalForTheTamperVerdict -> advanceSequenceUnlessImageTampered, which compares it with
 // a baked-in constant and steps the sequence on only on a match; a mismatch goes to its tamper arm.
 //
@@ -60,8 +60,10 @@ export function showCreditLine(m) {
   // The guard byte. The ROM reads BANK_LAUNCH_COOLDOWN (0xA817) here and, if it is nonzero, jumps to
   // 0x2E3E -- which is not code but a sine sample table (the one scrollWorldAtTheEraPace hands to
   // velocityForHeading), i.e. a deliberate derail. There is no routine to run there, so the port
-  // raises instead of guessing; a genuine image never takes this path. What writes the byte at this
-  // point is not established.
+  // raises instead of guessing; a genuine image never takes this path. The step before this one,
+  // advancePenRunAnimationStep, stores into this byte (0x1742) the two's-complement sum of the 34
+  // bytes at 0x1748, zero on a genuine image; when the step before that (0x074B) finds 0xAD0C
+  // already at 5 it moves the index on twice, and that store does not happen on that cycle.
   if (mem8[BANK_LAUNCH_COOLDOWN] !== 0) {
     throw new NotImplemented(
       "showCreditLine: the banked image checksum is not zero, so the original jumps into a table of words " +

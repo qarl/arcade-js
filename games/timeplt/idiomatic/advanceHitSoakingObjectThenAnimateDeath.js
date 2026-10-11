@@ -41,7 +41,7 @@ export function advanceHitSoakingObjectThenAnimateDeath(m, record = m.regs.ix, e
     return advanceTwoTileObjectThenTryAimedSpawn(m, record, entry);
   }
 
-  /* Arm 2 — the death countdown. First frame (0x3BA9-0x3BBD): a head at 0x61 or above (a live
+  /* Arm 2 — the death countdown. First pass (0x3BA9-0x3BBD): a head at 0x61 or above (a live
    * object reads 0xFF) is clamped to 0x61, so the countdown always starts from the same point; the
    * pair of sounds is requested and both tiles' attribute bytes (+0x30, +0x32) are set to 0x3D, recolouring
    * the wreck. */
@@ -79,7 +79,7 @@ export function advanceHitSoakingObjectThenAnimateDeath(m, record = m.regs.ix, e
   }
   /* Below 0x40 the shapes set above simply hold until the count reaches zero. Above it, the shape
    * changes only on counts that are a multiple of eight above 0x40 (0x60 on the first death
-   * frame, then 0x58, 0x50, 0x48). */
+   * pass, then 0x58, 0x50, 0x48). */
   if (level < 0x40) return;
   if (((level - 0x40) & 0x07) !== 0) return;
 

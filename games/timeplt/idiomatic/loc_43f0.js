@@ -244,7 +244,7 @@ export function stepMotherShipWreckCountdown(m, record, entry) {
   }
 
   // The warp shapes: at exactly 0xB4 the flash (below). Above it, the ship's two sprite codes come from
-  // MOTHER_SHIP_WARP_SHAPE_TABLE (0x461B), an eight-entry cycle stepped by the head: (head - 0xB4)
+  // MOTHER_SHIP_WARP_SHAPE_TABLE (0x461B), an eight-entry table indexed by the falling head: (head - 0xB4)
   // rotated right three times, less one, masked to 0..7 (`and 0x07` at 0x45EC), then `rst 0x08` fetches
   // the entry. The second tile (+0x03) gets the shape and the first tile (+0x01) the shape plus one.
   const state = mem8[X(STATE)];

@@ -7,9 +7,10 @@
  * coordinate bytes go to zero -- which is retireSlot's body byte for byte, and the whole of taking the
  * object out of play -- and then record offset 14 is loaded with 0xF0.
  *
- * ROLE IN THE MACHINE: that offset-14 byte is a cooldown, not scratch. Elsewhere the per-slot handler
- * tests it and, while it is non-zero, diverts the whole slot to the routine that counts it down; two
- * routines decrement it. So the slot is not free the instant it is emptied. The arming is the entire
+ * ROLE IN THE MACHINE: that offset-14 byte is a cooldown, not scratch. Every caller retires the
+ * parachutist record 0xA8F0, whose handler sends the emptied slot to spawnAtEdgeAhead, and that
+ * routine counts this byte down and places the slot again only when it reaches zero. So the slot is
+ * not free the instant it is emptied. The arming is the entire
  * difference from retireSlot. retireObjectAndHold arms the same byte with 0x80 and
  * retireEntryPairIntoCooldown with 95; how long any of these lasts depends on the countdown's tick rate,
  * which nothing here fixes. Both bases are parameters, so WHICH slot goes out is the caller's.

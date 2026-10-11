@@ -12,8 +12,8 @@
  * ROM 0x421F-0x4242 (frozen lift translated/loc_421f.js). Grounding: [seen].
  *
  * Role in the machine: the turning half of an enemy's homing. Its caller
- * (flyTowardShipStandoffThenEndApproach) re-aims by writing the object's aim byte every sixteenth
- * frame, calls this, and then calls the flier, whose first act is to read the heading byte this
+ * (flyTowardShipStandoffThenEndApproach) re-aims by writing the object's aim byte on passes that find the
+ * frame tick's low four bits clear, calls this, and then calls the flier, whose first act is to read the heading byte this
  * routine just wrote — so the heading here is the one the object's motion follows. Under MAME it
  * did not run in eras 0-1 and ran thousands of times with the era held at 4. Its sibling steerTowardAimOneUnitAFrame is the same biased test with
  * a step of one and no frame gate.
@@ -27,7 +27,7 @@ import { u8 } from "../../../core/int.js";
 import { FRAME_TICK } from "./names.js";
 
 // The frame counter's low two bits (`and 0x03` at 0x4222): the one frame in four where both are
-// clear is the idle tick, which sets the turning rate at three steps per four frames.
+// clear is the idle tick, on which a dispatch does not turn.
 const IDLE_PHASE = 3;
 
 // Record bytes: the heading the object wants, and the heading it is flying on.

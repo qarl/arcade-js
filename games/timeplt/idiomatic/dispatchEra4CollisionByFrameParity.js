@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** dispatchEra4CollisionByFrameParity — the era-4 per-frame collision dispatch, split by frame parity. On even frames run the
+/** dispatchEra4CollisionByFrameParity — the era-4 collision dispatch for one round-engine pass, split by frame parity. On even frames run the
  * whole collision-and-destruction pass: the player-contact sweeps plus one shot sweep against the era-object slots. On odd frames stage one shot-versus-
  * target sweep over a run of object slots and hand it the shared destruction body: while the mother
  * ship is armed the run is nine long and a following mother-ship mutual-kill pass runs after it;

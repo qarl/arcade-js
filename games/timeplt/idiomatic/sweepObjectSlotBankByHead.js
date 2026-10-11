@@ -7,7 +7,7 @@
  * ROM 0x3FF9-0x4016. Grounding: [seen] (names.js ROUTINES 0x3ff9).
  *
  * ROLE IN THE MACHINE. In the ROM this is the loop head of the era-0 three-slot object bank
- * (mechanisms.md: "the loop head of the era-0 three-slot ballistic bank"). serviceEra0BallisticObjectBank
+ * (mechanisms.md: "the loop whose head is sweepObjectSlotBankByHead"). serviceEra0BallisticObjectBank
  * (0x3FEA) seats the cursors — record 0xA8C0 (ERA_OBJECT_RECORD_SLOT0), sprite entry 0xAA28
  * (ERA_OBJECT_ENTRY_SLOT0), count 3 — and its code runs straight on into 0x3FF9; the loop's `djnz`
  * at 0x4014 jumps back here for each further slot. The ROM also enters the same loop mid-way at 0x4008

@@ -3,7 +3,7 @@
  * sprite entry for that state. The shape comes from a four-entry table in the program image chosen
  * by a byte of the object's own record; an index at or past the end of that table does NOT read on
  * past it — a single fixed shape is used instead, which is what keeps the lookup inside the table.
- * Either way the entry's second byte takes one fixed value. LIVE-OUT: memory.
+ * Either way the entry's +0x30 byte takes one fixed value. LIVE-OUT: memory.
  *
  * ROM 0x4809-0x482C. Grounding: [seen] (names.js ROUTINES 0x4809).
  *

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** awardCoinCreditThenPulseCoinCounter — credit one coin's worth on screen, then pulse the mechanical counter. Outside free
+/** awardCoinCreditThenPulseCoinCounter — bank the credits the caller hands in, then pulse the mechanical counter. Outside free
  * play the low decimal digit arriving in C is folded into the packed-decimal credit count (decimal
  * add, saturated at 99) and its two-digit field repainted; then the coin-counter pulse runs either
  * way. LIVE-OUT: memory, plus the latched counter line. */
@@ -37,8 +37,8 @@ export function awardCoinCreditThenPulseCoinCounter(m, coins = m.regs.c) {
   if (mem8[FREE_PLAY] === 0) {
     // BCD-add the coin's low digit into the packed-BCD credit count; a carry out means it passed 99,
     // so it saturates at 0x99.
-    // In the ROM this is `add a,(hl)` + `daa` on CREDIT_COUNT (0xA986; the coin/credit group in
-    // names.js is tagged [code]); bcdAddByte performs the same decimal-adjusted add and reports the
+    // In the ROM this is `add a,(hl)` + `daa` on CREDIT_COUNT (0xA986, tagged [seen] in
+    // names.js); bcdAddByte performs the same decimal-adjusted add and reports the
     // carry the `jr nc` at 0x497D tests.
     const { value, carry } = bcdAddByte(mem8[CREDIT_COUNT], coins & DIGIT_MASK);
     mem8[CREDIT_COUNT] = carry ? CREDIT_CAP : value;

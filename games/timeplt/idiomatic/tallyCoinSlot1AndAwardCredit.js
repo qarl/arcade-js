@@ -3,7 +3,7 @@
  * shift register and only a clean rising edge (its low three bits reading 1) counts as a coin: it
  * blips the coin sound, bumps the tally, and adds a unit to the coins-inserted accumulator. Once the
  * accumulator passes the coinage threshold (coins-required-minus-one in the high nibble, credits awarded in
- * the low), the overshoot is carried forward and — unless the no-credit flag is set — the low nibble
+ * the low), the overshoot is carried forward and — unless the free-play flag is set — the low nibble
  * is added to the packed-decimal credit count (saturated at 99) and its panel repainted. Either way
  * the mechanical coin counter is pulsed. LIVE-OUT: memory, plus the latched counter line.
  *

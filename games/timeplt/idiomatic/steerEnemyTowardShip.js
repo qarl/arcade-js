@@ -7,7 +7,7 @@
  * ROM 0x29F7-0x2A2A. names.js tag: [seen].
  *
  * Role in the machine: the live (0xFF) arm of serviceEra4EnemyCraftSlot, the fifth era's (ERA_INDEX 4) entry in
- * the per-era slot-handler table at 0x2914. Every frame each live enemy craft in that era comes
+ * the per-era slot-handler table at 0x2914. Every round-engine pass each live enemy craft in that era comes
  * through here once: its heading is turned one notch toward the heading it aims at
  * (steerTowardAimHeading), and it is then moved one step along that heading.
  *

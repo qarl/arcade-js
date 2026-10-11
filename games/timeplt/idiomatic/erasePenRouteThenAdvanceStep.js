@@ -16,8 +16,8 @@
  *
  * Anti-tamper: like many arms in this ROM, it first sums a block of the program image and refuses
  * to continue on a modified image. The failure path does not report an error — it jumps into
- * loc_08fa [code], a landing whose bytes are really a data table and which, run as code, always
- * faults (names.js). On a genuine image the check does nothing.
+ * loc_08fa [code], a landing whose bytes are really a data table and which, run as code, derails
+ * the machine (names.js). On a genuine image the check does nothing.
  */
 
 import { u8, u16 } from "../../../core/int.js";

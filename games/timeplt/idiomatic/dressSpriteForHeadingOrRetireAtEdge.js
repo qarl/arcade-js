@@ -13,7 +13,7 @@
  * (live) moves the pair ... and dresses it").
  *
  * When the era cell holds one fixed value (ERA_INDEX 4, the last era) the object is given a plain
- * two-frame flutter and its wind-down counter is stepped, capped, or closed out once it overruns; on
+ * two-pose flutter and its wind-down counter is stepped, capped, or closed out once it overruns; on
  * any other era the record's +4 byte (folded to one of four steps; for its one caller, the Mother-Ship's remaining-hit count) with the era and a frame-tick bit picks a shape pair, and the era picks a colour, and one half of the
  * compass swaps the pair into the two entry slots in its own colour while the other half biases that
  * colour by half a page -- adding 0x80 flips bit 7, one of the two mirroring bits of the attribute
@@ -63,7 +63,7 @@ export function dressSpriteForHeadingOrRetireAtEdge(m, record = m.regs.ix, entry
 
   /* Step 1 -- the edge test (call 0x3CC4, jp c,0x46DB). hasReachedBoundaryBandSelectedByHeading
    * answers whether the object has reached a boundary band chosen by its heading; if so the object
-   * is not dressed at all but retired: retireEntryPairIntoCooldown clears both sprite entries and
+   * is not dressed at all but retired: retireEntryPairIntoCooldown clears both sprite entries' coordinates and
    * arms the record's delay, so the object leaves the field and waits before it can come back. */
   if (hasReachedBoundaryBandSelectedByHeading(m, record, entry)) return retireEntryPairIntoCooldown(m, record, entry);
 

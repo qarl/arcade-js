@@ -23,7 +23,7 @@ import { INTER_ROUND_SOUND_1, INTER_ROUND_SOUND_2 } from "./names.js";
 export function requestInterRoundSoundPair(m) {
   const { mem8 } = m;
   /* First code: ld a,(0x27cb) / call 0x5617. The queue keeps arrival order, so this one is sent
-   * to the audio board a frame ahead of the second. */
+   * to the audio board ahead of the second. */
   enqueueSoundIfGameOrAttract(m, mem8[INTER_ROUND_SOUND_1]);
   /* Second code: ld a,(0x33a0) / jp 0x5617 — a tail-jump, so the gate's return is ours. */
   enqueueSoundIfGameOrAttract(m, mem8[INTER_ROUND_SOUND_2]);

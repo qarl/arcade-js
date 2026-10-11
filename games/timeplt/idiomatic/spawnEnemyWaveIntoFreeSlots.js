@@ -3,9 +3,9 @@
  * wave size, or five while MOTHER_SHIP_ARMED is set, i.e. a large boss craft is present); the bank is then walked that many times and every
  * free slot is filled from a randomly-picked spawn record of ENEMY_SPAWN_RECORD_TABLE — its first two
  * bytes seat the sprite entry's two coordinates (a starting position) and its third both heading
- * bytes of the record — while an ordinal within the pass picks a per-slot byte, the step
- * counter is primed, the shape animation is stepped once, and the slot head is marked live. A fixed
- * status byte is stored when the pass ends. LIVE-OUT: memory.
+ * bytes of the record — while an ordinal within the pass picks the slot's flight script, the
+ * script position is primed, the script is stepped once, and the slot head is marked live. WAVE_CLAIM_TIMER
+ * (0xA812) is preloaded to 0xE4 when the pass ends. LIVE-OUT: memory.
  *
  * ROM 0x386E-0x38D1. Grounding: [seen] (names.js ROUTINES 0x386e).
  *
@@ -61,14 +61,14 @@ export function spawnEnemyWaveIntoFreeSlots(m) {
       mem8[slot + 0x01] = startHeading;
       mem8[slot + 0x02] = startHeading;
 
-      // Step 4 -- the animation run selector (+0x0A) comes from WAVE_RUN_SELECTOR_TABLE (ROM
+      // Step 4 -- the flight-script selector (+0x0A) comes from WAVE_RUN_SELECTOR_TABLE (ROM
       // 0x38D2) at this slot's ordinal, computed as the quota minus the slots still to walk (the
-      // ROM re-reads 0xACC1 here, so it uses the quota even on a five-slot walk). The step timer
-      // (+9) starts at 0x20 (32).
+      // ROM re-reads 0xACC1 here, so it uses the quota even on a five-slot walk). The script
+      // position (+9) starts at 0x20 (32).
       mem8[slot + 0x0a] = fetchTableByte(m, WAVE_RUN_SELECTOR_TABLE, u8(configuredCount - remaining));
       mem8[slot + 0x09] = 0x20;
 
-      // Step 5 -- take one animation step, set +4 to 1 (the byte animateSelectedShapeCycle reads to pick this craft's four-shape block), clear
+      // Step 5 -- take one flight-script step, set +4 to 1 (the byte animateSelectedShapeCycle reads to pick this craft's four-shape block), clear
       // the personal timer, and turn the head from 0 to 0xFF: live immediately.
       stepCraftFlightScript(m, slot);
       mem8[slot + 0x04] = 0x01;

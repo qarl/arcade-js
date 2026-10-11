@@ -26,7 +26,7 @@ export function seatCraftSlot6ThenDispatchByEraUnlessArmed(m) {
   /*
    * Step 1 -- the Mother-Ship gate. ROM `ld a,(0xad0d)` / `and a` / `ret nz`: MOTHER_SHIP_ARMED
    * (0xAD0D) is all-ones or zero. Non-zero means slot 6's record is the boss's second record, so the
-   * slot is left unserviced this frame. Note the flag stays up after the boss is destroyed, until
+   * slot is left unserviced this pass. Note the flag stays up after the boss is destroyed, until
    * startNextRound or the life-start playfield reset clears it (names.js), so the slot stays out of
    * the sweep for the rest of that round or life.
    */

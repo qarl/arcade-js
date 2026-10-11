@@ -17,7 +17,7 @@
  * (holdCopyrightThenEraseTheCoinInvitation_ADDR, read here as DATA, not called) and parks the result
  * in 0xA817. On a genuine image the sum is 0x00 (checked against the ROM image); an edited routine
  * leaves a non-zero value. names.js BANK_LAUNCH_COOLDOWN [seen] records that 0xA817 is MULTIPLEXED:
- * in boot/attract it carries this checksum verdict, which the credit line later reads; in play it is
+ * in the attract sequence it carries this checksum verdict, which the credit line later reads; in play it is
  * the bank-launch cooldown. The name imported here is the in-play name of the same cell.
  *
  * LIVE-OUT: memory only (0xA817 and, via the tail, SEQUENCE_SUBSTEP).

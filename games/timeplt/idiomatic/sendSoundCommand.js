@@ -10,9 +10,9 @@
  *
  * ROLE IN THE MACHINE: it is the one sender. Every write to the sound latch, across boot, attract, the
  * demo and driven play, comes from this routine's store. Game code does not call it directly: requests
- * go into a queue, and once per frame, at the end of the vertical-blank service,
+ * go into a queue, and at the end of every vertical-blank service,
  * sendOldestQueuedSoundCommand takes the oldest byte off the queue and sends it through here -- so a
- * burst of N requests is heard over N frames. Power-on is the one sender that goes around the queue: it
+ * burst of N requests is heard over N services. Power-on is the one sender that goes around the queue: it
  * sends 0 directly.
  *
  * ★ The latch address is split BY DIRECTION: written, it is the sound latch; read, it is the scanline

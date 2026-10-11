@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** cyclePlayerSpriteColourThenAdvanceStepAtZero — one frame of an animation that counts down and, while it does, drives a sprite
- * entry's colour field from a single bit of the count, so the colour holds for four frames at a
- * time; the top two bits of that byte, where the shape's mirroring lives, are left alone. The
+ * entry's colour field from bit 2 of the count (seeded at 4, so set on the first call only); the top two bits of that byte, where the shape's mirroring lives, are left alone. The
  * frame on which the count is found already at zero also moves the step cell on, and the count
  * still steps that frame, wrapping below zero.
  *

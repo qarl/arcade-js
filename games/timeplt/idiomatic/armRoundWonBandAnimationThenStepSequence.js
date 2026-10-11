@@ -4,19 +4,20 @@
  *
  * WHAT IT IS. The set-up for the between-eras band animation a won round plays (the time-warp
  * effect before the next era begins). It is sequence sub-step 13 of the round engine; the
- * animation itself is then run frame by frame by stepRoundStartIntroAnimation, which dispatches on
+ * animation itself is then run, on calls that find FRAME_TICK bit 1 clear, by
+ * stepRoundStartIntroAnimation, which dispatches on
  * INTRO_ANIMATION_STEP.
  *
- * ROLE. It stocks the animation's eight-byte control block (the step seed, the flash tick, the two
+ * ROLE. It stocks the animation's control block (0xA9F0-0xA9F8, all but 0xA9F5) (the step seed, the flash tick, the two
  * band pass countdowns, the colour-cycle and colour-flood countdowns and the band script's start),
  * lays the band's backing picture along the first row of the character plane, colours the band's
- * rows and stub cells by adding the pen colour to fixed offsets, seeds the active player's saved
+ * two thirteen-cell runs and stub cells by adding the pen colour to fixed offsets, seeds the active player's saved
  * pen from its era, and tail-steps the sequence sub-step.
  *
  * HARDWARE. The character (tilemap) RAM has two planes 0x400 apart: the tile codes at 0xA400-0xA7FF
  * and their colour attributes at 0xA000-0xA3FF. The ROM addresses a colour cell by taking the
  * tile cell's address and clearing bit 10 (`res 2,h`), which is what toColour does. One row of the
- * plane is 32 cells, so ROW_STEP (-32) moves one row up the address space.
+ * plane is 32 cells, so ROW_STEP (-32) moves back one row in the address space.
  *
  * LIVE-OUT: the block, the backing row, the coloured cells, the saved pen and the sub-step cell;
  * no register is live-out.

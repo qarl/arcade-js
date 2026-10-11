@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** dressSpriteFlutterShapesByFrameTickBit — give an object the two shapes of a two-frame flutter, picked by one bit of a counter
+/** dressSpriteFlutterShapesByFrameTickBit — give an object the two shapes of a two-pose flutter, picked by one bit of a counter
  * cell rather than by anything the object holds: one bit set selects one pair of shape codes,
  * clear selects the pair two higher. The two codes go into two slots of the same sprite entry, so a
  * single object is drawn from two shapes at once. Which pair is live changes only as fast as that

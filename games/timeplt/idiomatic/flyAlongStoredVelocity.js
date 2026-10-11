@@ -5,7 +5,7 @@
  * Each of the object's two coordinates is sixteen bits stored split: the whole part in the
  * sprite entry, the fraction in the record, so a step smaller than a pixel banks instead of
  * vanishing. Each coordinate gains its own velocity word — read out of the object's own record
- * rather than looked up from a heading — PLUS a per-frame displacement held in a fixed pair of
+ * rather than looked up from a heading — PLUS a world-scroll displacement held in a fixed pair of
  * cells that every object shares. The two are folded into one add, which is why nothing else may
  * drift this object: a separate drift beside this would apply that shared displacement twice.
  * LIVE-OUT: memory only — the four coordinate bytes; nothing is clamped and nothing returned.

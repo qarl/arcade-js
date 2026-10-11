@@ -6,7 +6,7 @@
  *
  * WHAT IT IS. When a round starts, the player gets a short stretch of flight with no enemies: the
  * ship flies and can fire over the era's scenery, but no enemy, object-slot, collision or
- * round-resolution service runs. This arm is that stretch. It runs once per frame and counts the
+ * round-resolution service runs. This arm is that stretch. It runs once per pass of the vertical-blank service and counts the
  * shared sequence delay down; when the delay expires it steps the sequence on into the round engine.
  *
  * ROLE IN THE MACHINE. Entry 6 of the phase-3 sub-step table, between the round-intro caption hold
@@ -15,7 +15,7 @@
  * runs in the attract demo.
  *
  * ANTI-TAMPER. Both ends of the arm fold a 256-byte program block into SEQUENCE_PHASE (0xA9AB): every
- * frame the block at LEAD_IN_CHECKSUM_BASE (0x0831) closed with XOR 0xC2, and on the expiry frame the
+ * pass the block at LEAD_IN_CHECKSUM_BASE (0x0831) closed with XOR 0xC2, and on the expiry pass the
  * block at LEAD_IN_EXPIRY_CHECKSUM_BASE (0x12A7) closed with XOR 0x59. On a genuine image the fold
  * nets out (names.js), leaving the phase as it was; changed program bytes would change the value
  * stored into the sequence machine's outer phase.
@@ -46,7 +46,7 @@ function foldIntoPhase(m, base, key) {
 
 export function flyEnemyFreeLeadInThenStepSequence(m) {
   const { mem8 } = m;
-  // Every frame: the first anti-tamper fold (block 0x0831, key 0xC2).
+  // Every pass: the first anti-tamper fold (block 0x0831, key 0xC2).
   foldIntoPhase(m, LEAD_IN_CHECKSUM_BASE, 0xc2);
 
   // The player-side services only, in the ROM's order: sprite fixup, the player's frame, sprite

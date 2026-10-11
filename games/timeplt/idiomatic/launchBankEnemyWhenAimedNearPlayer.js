@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** launchBankEnemyWhenAimedNearPlayer — one gated attempt to launch an enemy into the object bank. Four gates guard it: a
+/** launchBankEnemyWhenAimedNearPlayer — one gated attempt by a craft to fire a shot into a free enemy-shot slot. Four gates guard it: a
  * phase key that only lets one bank phase through, a launch cooldown that must have run out, a non-zero scan bound, and a
  * free record in the bank being found by a strided upward scan. When all pass, three window tests
  * follow: the craft must NOT sit near the player's fixed screen position on both axes, its heading
@@ -57,7 +57,7 @@ export function launchBankEnemyWhenAimedNearPlayer(m, ixEntry = m.regs.ix, iyEnt
   const { mem8, mem16 } = m;
 
   // GATE 1 -- THIS CRAFT'S TURN (0x3ED6-0x3EE0). FRAME_TICK's low three bits count 0-7, plus 5; only
-  // the craft whose +0x0F phase key matches may try this frame, so each craft gets one frame in eight.
+  // the craft whose +0x0F phase key matches may try on this pass, so each craft gets one FRAME_TICK value in eight.
   if (((mem8[FRAME_TICK] & 0x07) + 0x05) !== mem8[u16(ixEntry + PHASE_KEY)]) return; // wrong bank phase this frame
   // GATE 2 -- COOLDOWN (0xA817). Non-zero means a recent launch is still cooling down (a vblank timer
   // winds it to zero); it is re-armed at the end of a successful launch.

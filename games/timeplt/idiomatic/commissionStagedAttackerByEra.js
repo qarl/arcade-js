@@ -5,8 +5,8 @@
  * an unaimed throw with a fixed shape, flip bits from a mirror flag and a seeded velocity word; eras one and two a heading toward a
  * fixed screen point skewed a quarter turn to one side or the other, picked by a stored bit; era three a velocity vector for a heading
  * offset a fixed step either side of the facing; era four a straight aim at that same point, with
- * one extra byte seeded. Every way winds the new slot's active count down, re-arms the spawn
- * cooldown, and hands off to one era-specific sound request. The staged record/entry pointers ride
+ * one extra byte seeded. Every way counts the new slot's head byte down from free (0x00) to live (0xFF), re-arms the spawn
+ * cooldown, and hands off to a sound request (eras one and two share era three's). The staged record/entry pointers ride
  * in JS locals and are handed to each callee as arguments, so the spawner's own index registers are
  * never moved and stand at the spawner throughout. LIVE-OUT: memory; the two index registers, left
  * at the spawner; and whatever the sound request leaves. */

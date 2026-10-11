@@ -44,7 +44,7 @@ export function stepDyingObjectState(m, object = m.regs.ix, sprite = m.regs.iy) 
     return countTheKillAndGrantTheSharedToken(m, object);
   }
 
-  // At the threshold the kill is counted first; no reachable object wins a claim, so the count leaves the carry clear and every value at or above the threshold flies on.
+  // At the threshold the kill is counted first; every return from that step leaves the carry clear (the token grant adds 0x80 to the record's small slot ordinal), so every value at or above the threshold flies on.
   if (state === DEATH_BEGINS) countTheKillAndGrantTheSharedToken(m, object);
   if (state >= DEATH_BEGINS) return decrementObjectStateThenFlyAtSlowestSpeed(m, object, sprite);
 

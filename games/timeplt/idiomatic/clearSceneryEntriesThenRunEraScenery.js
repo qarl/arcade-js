@@ -72,7 +72,7 @@ export function clearSceneryEntriesThenRunEraScenery(m, fillByte = m.regs.a, era
    * data right after loc_315b's jump. Each two-byte record gives the entry's +0x31 byte (its Y, in
    * the entry layout) and then its +0x00 byte (its X); entries are two bytes apart from
    * SCENERY_ENTRY_SLOT0 (0xAA30). */
-  // era-four seed: eight packed pairs fill each entry cell and its shadow at +0x31
+  // era-four seed: eight packed pairs fill each entry's Y (+0x31) and then its X (+0x00)
   let src = ERA4_SCENERY_SEED_TABLE;
   let entry = SCENERY_ENTRY_SLOT0;
   for (let n = SEAT_COUNT; n !== 0; n--) {

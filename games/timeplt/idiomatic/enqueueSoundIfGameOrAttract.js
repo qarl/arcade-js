@@ -6,8 +6,8 @@
  * ROM 0x5617-0x5627 (frozen lift loc_5617). Grounding: [seen] (names.js ROUTINES 0x5617).
  *
  * Role in the machine: one of three gates in front of the pending-sound queue
- * (appendSoundCommandToQueue, the enqueue body at 0x562A); the frame service later sends one
- * queued code per frame to the audio board. Its siblings are enqueueSoundUnconditional (always)
+ * (appendSoundCommandToQueue, the enqueue body at 0x562A); each later run of the frame service sends one
+ * queued code to the audio board. Its siblings are enqueueSoundUnconditional (always)
  * and enqueueSoundIfGameInProgress (in play only). This one adds the attract case, so sounds
  * requested through it are heard in the attract demo too when the operator has enabled that.
  *

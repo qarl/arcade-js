@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** spawnAimedEnemyIntoEraBankWhenInWindow — spawn one aimed enemy, but only when the spawn slot is free, the cooldown at
  * ATTACKER_SPAWN_COOLDOWN is clear, the era count is live, and some object in the caller's two-slot bank passes
- * the doubled-window test (step 2 below). Draws a heading toward the player at ENEMY_STANDOFF_AIM_MAIN, alternates the aim's
+ * the doubled-window test (step 2 below). Draws a heading toward the standoff aim point ENEMY_STANDOFF_AIM_MAIN, alternates the aim's
  * side each spawn via ATTACKER_SPAWN_AIM_SIDE_TOGGLE, then seats coords, the doubled velocity pair, a shape code and an
  * attribute byte into the era's fixed record+sprite bank and reloads the cooldown. LIVE-OUT: memory. The routine is a
  * pure writer — its sole caller (advanceTwoTileObjectThenTryAimedSpawn) tail-returns and reads no register it
@@ -49,8 +49,8 @@ const Y_ORIGIN = 0x78;
 const TURN = 0x18;
 
 // Fixed bytes seated into the new attacker's sprite entry (+0x01 and +0x30).
-const NEW_SCRIPT = 0x4d;
-const NEW_SHAPE = 0x62;
+const NEW_SHAPE_CODE = 0x4d;
+const NEW_ATTRIBUTE = 0x62;
 
 // era count != 1 with bank B's head byte clear selects the second bank; the guard and the seat both ask.
 const useSecondBank = (m) => m.mem8[ATTACKER_SPAWN_SLOT_COUNT] !== 1 && m.mem8[ERA_OBJECT_RECORD_SLOT2] === 0;
@@ -66,7 +66,7 @@ export function spawnAimedEnemyIntoEraBankWhenInWindow(m, record = m.regs.ix, en
   if (mem8[ATTACKER_SPAWN_SLOT_COUNT] === 0) return;
   if (!useSecondBank(m) && mem8[ACTOR_RECORD_SLOT3] !== 0) return;
 
-  // scan the caller's two-slot bank for an object inside the doubled window; the record pointer walks
+  // scan the caller's two-slot bank for an object outside the doubled window; the record pointer walks
   // in lockstep with the entry pointer but its landing slot is discarded — the seat below is fixed.
   // Step 2 -- the window test, per axis: take the player's coordinate minus the object's, add the
   // half-width, and compare against twice the half-width, all in wrapping 8-bit arithmetic. The
@@ -120,8 +120,8 @@ export function spawnAimedEnemyIntoEraBankWhenInWindow(m, record = m.regs.ix, en
   mem8[recBank + 0x0b] = u8(alongFirstAxis >> 8);
   mem8[recBank + 0x0c] = alongSecondAxis;
   mem8[recBank + 0x0d] = u8(alongSecondAxis >> 8);
-  mem8[entBank + 0x01] = NEW_SCRIPT;
-  mem8[entBank + 0x30] = NEW_SHAPE;
+  mem8[entBank + 0x01] = NEW_SHAPE_CODE;
+  mem8[entBank + 0x30] = NEW_ATTRIBUTE;
   // The head byte was 0 (free) to get here, so the decrement makes it 0xFF: live.
   mem8[recBank] = u8(mem8[recBank] - 1);
   // Step 6 -- restart the shared cooldown so no attacker spawns again until it runs out.

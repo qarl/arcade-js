@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** runSceneryForEra — run a frame of the scenery. The first slot is handed to the opening step as its
+/** runSceneryForEra — run one pass of the scenery. The first slot is handed to the opening step as its
  * seed; from there each step advances both cursors and the next step inherits them, so nothing outside
  * chooses where the run starts. The era index then picks one of three fixed running orders: one for the
  * first era, one for the fifth, and one shared by everything between — including an index past the
@@ -10,7 +10,7 @@
  * ROLE IN THE MACHINE. The scenery (the clouds and other parallax objects) lives in eight sprite
  * slots, array slots 16-23, whose records start at SCENERY_RECORD_SLOT0 0xA900 [seen] and whose
  * sprite entries start at SCENERY_ENTRY_SLOT0 0xAA30 [seen]. This is their driver, separate from the
- * object handlers: the round engine and the pre-round lead-in arms call it each frame. Every step
+ * object handlers: the round engine calls it once per pass, and the pre-round lead-in arms and the life-start reset call it too. Every step
  * in a running order drifts one object by a fraction of the frame's world scroll -- half, three
  * quarters or five quarters -- so nearer objects move faster than farther ones, and lays any extra
  * tiles the object is made of. Each order fills exactly eight slots (mechanisms.md).

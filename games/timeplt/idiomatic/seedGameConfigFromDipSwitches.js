@@ -8,8 +8,10 @@
  * ROLE IN THE MACHINE. One link of the power-on chain (each routine jumps into the next; none
  * returns). Work RAM has just been cleared, so every setting is still zero; this is where the
  * operator's switch choices and two fixed defaults first reach RAM. It runs once per boot, so the
- * settings cells it fills are fixed until the next power-on (the frame service separately mirrors the
- * gameplay bank every frame into DIP1_MIRROR [seen]; that is a different cell).
+ * coin ratios, free-play flag and switch settings its chain derives are fixed until the next power-on.
+ * Not every cell it fills is: the frame service rewrites COINAGE_SETTINGS from the same port every frame,
+ * HIGH_SCORE_HI is promoted during play, and the frame service also mirrors the gameplay bank every frame
+ * into DIP1_MIRROR [seen], a different cell.
  *
  * THE SWITCHES. Both banks read active-low (a switch that is ON reads 0), so every read is
  * complemented before use. DSW0_PORT (0xC360) is the coinage bank; DSW1_PORT (0xC200, the read side

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** paintCaptionColourBandAndStepSequence — paint a caption's colour band from a base colour. Starting at the cursor the caller
  * leaves in HL it lays the caller's A over one cell, then a run of the caller's C, then a short
- * fixed tail; next it reads the base colour and fills two colour-RAM rows and six scattered colour
+ * fixed tail; next it reads the base colour and fills two thirteen-cell colour-RAM runs and six scattered colour
  * cells, every value the base plus a fixed offset. Last it seeds the saved pen from the era and
  * steps the sequence sub-step. LIVE-OUT: the cells written; A, C, HL and DE are left as scratch.
  *
@@ -10,7 +10,8 @@
  * ROLE IN THE MACHINE. This is the second half of the round-won band animation. names.js and
  * mechanisms.md record that on a genuine image the body runs only as the fall-through of
  * armRoundWonBandAnimationThenStepSequence, which seats the lead byte (A), the body byte (C) and
- * the cursor (HL) before arriving here; its own entry point is reached only by a tamper derail.
+ * the cursor (HL) before arriving here; its own entry point is reached by no transfer that can fire -- the one `jr c,0x4a42`, at 0x4A0C
+ * inside derail bytes, follows an `and l` that clears carry.
  *
  * HARDWARE BACKGROUND. The character plane is two parallel RAMs: tile codes in video RAM and a
  * colour attribute per cell in colour RAM, 0x400 bytes lower. Clearing bit 2 of the high address

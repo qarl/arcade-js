@@ -10,7 +10,7 @@
 // ROLE IN THE MACHINE. In the attract demo nobody holds the joystick, yet the ship must fly about
 // convincingly. dispatchPlayerFrameByState (0x1EDF) sends a live ship (state byte 0xFF) here while
 // PLAY_ACTIVE (0xAD30) is clear, instead of reading the controls. The pilot follows a byte-coded
-// script in ROM, chosen before the demo starts (mechanisms.md, "Flying"); each script byte says
+// script in ROM, chosen before the demo starts (mechanisms.md, "The demo autopilot"); each script byte says
 // "for this many passes of the player's handler, turn this way" (or hold). When it turns, it moves
 // the heading directly by 3 steps per pass,
 // and then ends in the same world-scroll routine the live ship uses.
@@ -46,7 +46,7 @@ export function flyDemoShipByScript(m) {
     // Spent (count 0 or 1): advance the little-endian script cursor by one and load the next script
     // byte PLUS ONE -- the same "+1" the demo start uses -- so that the tick taken when the loop goes
     // round again lands the stored byte back on the script's own value. A script byte whose low bits
-    // are zero reloads as 1, which is spent again at once, so it is skipped within this same frame.
+    // are zero reloads as 1, which is spent again at once, so it is skipped within this same pass.
     const next = u16(mem16[DEMO_SCRIPT_POINTER_LO] + 1);
     mem16[DEMO_SCRIPT_POINTER_LO] = next;
     mem8[DEMO_SCRIPT_DWELL] = u8(mem8[next] + 1);

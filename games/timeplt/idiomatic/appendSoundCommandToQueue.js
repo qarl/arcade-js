@@ -8,9 +8,9 @@
  * and exactly one store (pc 0x5631) of the code held at entry.
  *
  * What it is: the main processor never waits on the audio processor. A sound request is
- * appended to a queue in work RAM, and once per frame, at the very end of the vertical-blank
+ * appended to a queue in work RAM, and at the very end of every vertical-blank
  * service, sendOldestQueuedSoundCommand sends ONE byte from the head of it to the audio
- * processor. So a burst of N requests is heard over N frames.
+ * processor. So a burst of N requests is heard over N services.
  *
  * Queue layout: SOUND_QUEUE_COUNT (0xAC43) [seen] holds how many codes are waiting, and the codes
  * follow it from 0xAC44 (SOUND_QUEUE_HEAD). The count therefore doubles as the offset of the last

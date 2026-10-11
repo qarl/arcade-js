@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** advancePlayerAnimationStrip — advance a multi-frame tile animation driven by a phase byte in the record. On the
+/** advancePlayerAnimationStrip — advance a multi-pass tile animation driven by a phase byte in the record. On the
  * opening frame (phase at or past the cap) the phase is clamped, the paired entry is flagged, and
  * sound cues are requested — one burst always, one extra from ERA_INDEX 2 up — and then two
- * game-state cells may divert the frame into the tamper trap instead. Otherwise the phase is stepped
+ * tamper-witness cells may divert the frame into the tamper trap instead. Otherwise the phase is stepped
  * down and, when it lands on one of seven keyframe values, a shape strip is blitted tile-by-tile
  * into video and colour memory a row at a time; a phase between keyframes draws nothing.
  * LIVE-OUT: memory. The routine is a pure painter — its sole caller (dispatchPlayerFrameByState)
@@ -13,7 +13,7 @@
 // ROM 0x2010-0x20AE (lift: translated/loc_2010.js). Grounding tag in names.js ROUTINES: [seen].
 //
 // ROLE IN THE MACHINE. This is the player ship's EXPLOSION (mechanisms.md, "The explosion"). A kill
-// stores 0xF0 into PLAYER_STATE, the player record's head byte; from the next frame on,
+// stores 0xF0 into PLAYER_STATE, the player record's head byte; from the next pass on,
 // dispatchPlayerFrameByState (0x1EDF) sends any player state other than 0 or 0xFF here, with IX on
 // the player record (0xA800) and IY on its sprite entry (0xAA10). The routine uses that state byte
 // itself as its countdown:
@@ -97,7 +97,7 @@ export function advancePlayerAnimationStrip(m, record = m.regs.ix, entry = m.reg
   const Y = (d) => u16(entry + d);
 
   // STEP 1 -- OPENING FRAME (0x2010-0x203F). A fresh kill leaves the state at 0xF0, above the cap, so
-  // this runs exactly once per explosion: the clamp to 0xB4 makes every later frame skip it.
+  // this runs exactly once per explosion: the clamp to 0xB4 makes every later pass skip it.
   if (mem8[X(PHASE)] >= FIRST_FRAME) {
     // opening frame: clamp the phase, flag the paired entry, request the opening-frame sound cues
     mem8[X(PHASE)] = FIRST_FRAME;
@@ -105,7 +105,7 @@ export function advancePlayerAnimationStrip(m, record = m.regs.ix, entry = m.reg
     if (mem8[ERA_INDEX] >= EXTRA_CUE_LEVEL) requestLateEraProgressSound(m);
     requestDestructionSoundBurst(m);
 
-    // two game-state cells divert the frame into the tamper trap when either departs from its genuine value
+    // two tamper-witness cells divert the frame into the tamper trap when either departs from its genuine value
     // TAMPER_GLYPH_STRIP (0xABFE) holds a glyph sampled from the copyright caption and
     // TAMPER_COLOUR_STRIP (0xABFF) its colour, both [seen]. On a genuine image they always pass; a
     // patched caption sends the frame into loc_1f2e ([code]), a table whose bytes then run as code.

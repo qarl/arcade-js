@@ -2,7 +2,7 @@
 /** flyAlongHeadingAtDoubleVelocity — fly one object a DOUBLE step along the heading it holds, while the world scrolls
  * underneath it. The heading picks a pair of perpendicular components out of the speed table the
  * caller chose; each of the object's two coordinates then gains TWICE its own component plus the
- * per-frame displacement every object shares, which is added once rather than twice — so doubling
+ * scroll displacement every object shares, which is added once rather than twice — so doubling
  * moves the object faster through the world without moving the world. Each coordinate is 16 bits
  * stored split, the whole part in the sprite entry and the fraction in the record, so a component
  * smaller than half a pixel still banks.

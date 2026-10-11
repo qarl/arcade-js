@@ -11,7 +11,7 @@
  * Role in the machine: the insertion step of the high-score board, run once per finished game.
  * Its caller, fileScoreAfterGameOverHoldElsePassTurn, runs it when the GAME OVER hold expires and
  * branches on the answer: a filed score goes on to initials entry, a dropped one skips it. The table is five records of eight bytes at 0xAB08..0xAB2F (HIGH_SCORE_TABLE_BASE ..
- * HIGH_SCORE_TABLE_END), each record laid out +0 rank, +1..+3 score lo/mid/hi, +4..+7 name glyphs;
+ * HIGH_SCORE_TABLE_END), each record laid out +0 rank, +1..+3 score lo/mid/hi, +4..+6 name glyphs, +7 a pad byte;
  * scores are three packed-BCD bytes compared from the most significant end (isScoreBelow).
  *
  * The two saved pointers are what initials entry works through afterwards: SCRATCH_PTR_A is left

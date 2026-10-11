@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** fireAndSweepPlayerShots — on a fire-button rising edge arm a three-shot burst; while a shot is owed (in the attract demo,
  * whenever) and the fire-rate cooldown has run out, seed one shot into a free slot of the
- * six-slot player-shot bank, aimed along the ship heading; then move every live shot by the world scroll,
+ * six-slot player-shot bank, aimed along the ship heading; then move every live shot by its own velocity plus the world scroll,
  * dropping any that leaves the field or whose head byte is stale.
  *
  * ROM 0x23E3-0x2508 (lift: translated/loc_23e3.js). Grounding: [seen] (names.js ROUTINES 0x23E3).
@@ -11,11 +11,11 @@
  * also calls it), so a shot always moves by the scroll the ship
  * has just set. The player's shots are NOT sprites: each lives in a 16-byte record of
  * PLAYER_SHOT_ARRAY 0xAA80 [seen] holding its whole 8.8 position, and is drawn as a two-by-two
- * block of character cells by queueTileStampForObject (mechanisms.md, "The player's shots").
+ * block of character cells by queueTileStampForObject (mechanisms.md, "Player shots in the character plane").
  *
  * Shot record layout used here: +0 head byte (0 free, 0xFF live, anything else marked -- e.g. the
  * 0xF0 destroyTargetsHitByShots writes on a hit); +3/+4 the first coordinate as an 8.8 word
- * (fraction, whole); +5/+6 the second; +10/+11 and +12/+13 the two per-frame seeds.
+ * (fraction, whole); +5/+6 the second; +10/+11 and +12/+13 the two per-pass seeds.
  * LIVE-OUT: memory. */
 
 import { u8, u16 } from "../../../core/int.js";
@@ -47,14 +47,14 @@ export function fireAndSweepPlayerShots(m) {
 
   /* Step 2 -- rising-edge detect (0x23F1-0x2409). The fire bit (bit 4 of the control word
    * readPlayerControls hands back) is shifted into bit 0 of FIRE_BUTTON_EDGE_SHIFT 0xA98E [seen];
-   * its low two bits read 01 -- released last frame, pressed now -- only on the frame of a new
-   * press. That press loads SHOT_BURST_PENDING 0xAA81 [seen] with 3: one press owes a three-shot
+   * its low two bits read 01 -- released at the previous sample, pressed now -- only on the pass of
+   * a new press. That press loads SHOT_BURST_PENDING 0xAA81 [seen] with 3: one press owes a three-shot
    * burst, and holding the button does not re-arm it. */
   const controls = readPlayerControls(m);
   mem8[FIRE_BUTTON_EDGE_SHIFT] = u8((mem8[FIRE_BUTTON_EDGE_SHIFT] << 1) | ((controls >> 4) & 1));
   if ((mem8[FIRE_BUTTON_EDGE_SHIFT] & 0x03) === 1) mem8[SHOT_BURST_PENDING] = 3;
 
-  /* Step 3 -- may a shot leave this frame? (0x240C-0x241A) During credited play (PLAY_ACTIVE
+  /* Step 3 -- may a shot leave this pass? (0x240C-0x241A) During credited play (PLAY_ACTIVE
    * 0xAD30 [seen] set) a shot needs an owed burst; with PLAY_ACTIVE clear the burst count is not
    * consulted, so the attract demo fires whenever the cooldown allows. In both cases
    * SHOT_SPAWN_COOLDOWN 0xAA82 [seen] must have run out. */
@@ -98,7 +98,7 @@ function spawnIntoFreeSlot(m, slot) {
   mem8[slot + AXIS2] = 0;
   mem8[slot + AXIS2 + 1] = muzzle >> 8;
 
-  /* Spend one shot of the burst and start the six-frame fire-rate cooldown. */
+  /* Spend one shot of the burst and start the six-pass fire-rate cooldown. */
   mem8[SHOT_BURST_PENDING] = u8(mem8[SHOT_BURST_PENDING] - 1);
   mem8[SHOT_SPAWN_COOLDOWN] = 6;
 }
@@ -107,7 +107,7 @@ function spawnIntoFreeSlot(m, slot) {
 function sweepSlots(m) {
   const { mem8, mem16 } = m;
 
-  /* Wind the cooldown down by one. Counting the launch frame's own decrement, a new shot can
+  /* Wind the cooldown down by one. Counting the launch pass's own decrement, a new shot can
    * leave at most once every six calls (mechanisms.md). */
   if (mem8[SHOT_SPAWN_COOLDOWN] !== 0) mem8[SHOT_SPAWN_COOLDOWN] = u8(mem8[SHOT_SPAWN_COOLDOWN] - 1);
 

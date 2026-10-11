@@ -7,7 +7,7 @@
  *
  * Role in the machine: the main processor never talks to the audio processor directly when a
  * sound is wanted. It appends the sound code to a queue in work RAM (appendSoundCommandToQueue,
- * the enqueue body at 0x562A), and the frame service sends one queued code per frame to the audio
+ * the enqueue body at 0x562A), and each run of the frame service sends one queued code to the audio
  * board. Producers reach that queue through one of three gates, which differ only in when they
  * let a request through:
  *   - enqueueSoundUnconditional (0x5628): always;

@@ -24,9 +24,9 @@ import { ERA_OBJECT_ENTRY_SLOT1 } from "./names.js";
 const RECORD_STRIDE = 16;
 /** A sprite entry's two coordinates live in parallel tables forty-nine (0x31) bytes apart. */
 const SECOND_AXIS_OFFSET = 49;
-/** Record offset 14: the delay byte counted down every other frame. */
+/** Record offset 14: the delay byte counted down on passes that find FRAME_TICK even. */
 const HELD_BYTE = 14;
-/** The delay armed here (0x80): 128 counts at one per two frames. */
+/** The delay armed here (0x80): 128 decrements before 0x3C25 sees zero. */
 const HELD_AT = 128;
 
 export function retireObjectAndHold(m, record = m.regs.ix, entry = m.regs.iy) {
