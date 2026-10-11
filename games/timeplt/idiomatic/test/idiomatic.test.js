@@ -2,7 +2,7 @@
 //
 // idiomatic — the WHOLE-GAME gate for the coroutine runtime: the wired idiomatic layer under
 // runIdiomaticGame must reproduce the translated oracle byte for byte over game state, through
-// boot, attract, coin, start and play. This is what lets assembled-swap retire.
+// boot, attract, coin, start and play. This is what retired the assembled-swap gate.
 //
 // ⛔ THE ORACLE IS THE CYCLE-DRIVEN RUN. Under runCycleFree the drain takes one command per
 // interrupt and the ring backs up (26 of 64 cells against 0 here), so that comparand goes red for

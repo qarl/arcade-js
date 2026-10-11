@@ -52,7 +52,9 @@
  * against a fixed other axis, so a candidate that crossed the two axes is caught only by the
  * swapped-axes twin's own arm.
  * HOLE: this gate pins the candidate's pc but leaves sp inside the excluded set, so a rewrite that
- * leaked stack without writing memory would pass here. assembled-swap.test.js owns that.
+ * leaked stack without writing memory would pass here.
+ * No gate now owns that: the whole-game gate idiomatic.test.js compares memory only, outside the
+ * stack window, under an engine that leaves SP unused.
  *
  * Run: node --test games/timeplt/idiomatic/test/equivalence-4f35.test.js
  */

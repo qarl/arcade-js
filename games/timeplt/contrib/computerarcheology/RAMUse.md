@@ -97,14 +97,14 @@ whose role is only partly pinned, carry a terse caveat.
 | a9cc | coinSlot2Ratio | The same for coin slot 2, from the OTHER nibble. |
 | a9cd | killQuota | The kill quota a round is armed with: how many enemies the next round will ask for. |
 | a9ce | bcdFrameCounter | free-running packed-decimal frame counter (inc+daa each vblank) |
-| a9cf | scriptCycleCounter | 0..4 round-robin index for in-turn demo-script selection |
+| a9cf | scriptCycleCounter | 0..4 round-robin index for in-turn script selection (pickScriptAtRandomOrInTurn) |
 | a9d0 | attractStageCounter | attract-demo counter cycling 1->2->3->1; each demo starts in that era (PLAYER_ONE_ERA_INDEX) and round (+1) |
 | a9d3 | startRungRounds15 | The escalation rung a round STARTS on, for rounds one to five. |
 | a9d4 | startRungRounds610 | The same, for rounds six to ten. |
 | a9d5 | startRungRounds11Up | The same, for round eleven and up. |
 | a9d6 | eraRungPeriod | How many wraps of the base-sixty counter one rung of ERA_RUNG lasts. |
 | a9d7 | eraRungTimer | Wraps of the base-sixty counter still to go before ERA_RUNG climbs again. |
-| a9e2 | penRouteLeg | Leg index into the pen's fixed L-shaped route table; incremented each run to select the next leg. |
+| a9e2 | penRouteLeg | Leg index into the pen's fixed rectangular route table; incremented each run to select the next leg. |
 | a9e3 | penRowPos | The pen's row position as 8.8 fixed point (a 16-bit word at 0xA9E3; its whole-cell high byte is PEN_ROW_CELL at 0xA9E4). |
 | a9e4 | penRowCell | The pen's whole-cell row -- the high byte of PEN_ROW_POS -- which plotPenCell masks to five bits and multiplies by the 32-cell row stride to address the plane; that x32 stride is what makes it the ROW, not the column. |
 | a9e5 | penColumnPos | The pen's column position as 8.8 fixed point (a 16-bit word at 0xA9E5; whole-cell high byte PEN_COLUMN_CELL at 0xA9E6). |

@@ -23,7 +23,9 @@
  *
  * HOLE: one captured machine; the run's position and colour are constants that cannot be swept, so
  * the twins vary them instead. This gate pins pc but leaves sp in the excluded set, so a rewrite
- * that leaked stack without writing memory passes here — assembled-swap.test.js owns that.
+ * that leaked stack without writing memory passes here.
+ * No gate now owns that: the whole-game gate idiomatic.test.js compares memory only, outside the
+ * stack window, under an engine that leaves SP unused.
  *
  * Run: node --test games/timeplt/idiomatic/test/equivalence-0d57.test.js
  */

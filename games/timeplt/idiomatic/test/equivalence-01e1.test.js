@@ -93,7 +93,7 @@ const VALUES = 256;
  */
 const MOVED = ["a", "f", "b", "h", "l", "sp"];
 
-// Read at import, so it must be guarded the way assembled-swap.test.js guards its own: the ROMs
+// Read at import, so it must be guarded by romsPresent(): the ROMs
 // are gitignored, and an unguarded read throws before `skip` can spare a single test.
 const ROM_IMAGE = romsPresent() ? readFileSync(new URL("../../rom/maincpu.bin", import.meta.url)) : null;
 

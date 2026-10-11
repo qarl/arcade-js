@@ -5,7 +5,7 @@
 // an outside reader ever takes, since nobody outside owns the ROMs.
 //
 // EMPIRICAL by necessity: two guard idioms are live, and the shadow idiom (dkong, thepit, and
-// timeplt's own assembled-swap) wraps `test` conditionally, so its calls read as unguarded while
+// timeplt's idiomatic.test.js) wraps `test` conditionally, so its calls read as unguarded while
 // being guarded -- a `romsPresent` grep condemns every healthy dkong test file. A third idiom
 // invented later would break a static check silently.
 //

@@ -29,7 +29,9 @@
  * REGISTER alone — the marshalling leak a memory gate cannot see.
  *
  * HOLE: this gate pins pc but leaves sp in the excluded set, so a rewrite that leaked stack without
- * writing memory passes here — assembled-swap.test.js owns that.
+ * writing memory passes here.
+ * No gate now owns that: the whole-game gate idiomatic.test.js compares memory only, outside the
+ * stack window, under an engine that leaves SP unused.
  *
  * Run: node --test games/timeplt/idiomatic/test/equivalence-3215.test.js
  */

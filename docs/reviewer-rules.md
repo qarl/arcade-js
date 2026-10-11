@@ -409,8 +409,8 @@ Rules tagged [D]/[U]/[ALL] apply to that class.
 
   ★ **Do not replace this with a grep.** Two guard idioms are live: `romsPresent()` plus `{ skip }`,
   and *shadowing* `test` with a ROM-conditional wrapper — whose calls read `test(name, fn)` and look
-  unguarded while being guarded. Both dkong and thepit use the shadow, and so does timeplt's own
-  `assembled-swap.test.js`, so this is not one game's local habit. A grep for `romsPresent` condemns
+  unguarded while being guarded. Both dkong and thepit use the shadow, and so does timeplt's
+  `idiomatic.test.js`, so this is not one game's local habit. A grep for `romsPresent` condemns
   every healthy dkong test file, and an idiom invented later would break a static check silently.
 
 - **R27 [ALL]** **Before you measure, read what the tree already says. After you measure, do not

@@ -33,8 +33,9 @@
  *   7. TEETH — a twin for each way this could be wrong, each caught at a real cell.
  *
  * HOLE: the crafted arms force one cell for one dispatch, so they buy a real branch, not a realistic
- * session. HOLE: the stack pointer sits inside the excluded ceiling here; assembled-swap.test.js
- * owns SP over the whole run and this gate does not.
+ * session. HOLE: the stack pointer sits inside the excluded ceiling here, and no gate now owns it: the
+ * whole-game gate idiomatic.test.js compares memory only, outside the stack window, under an engine
+ * that leaves SP unused.
  *
  * Run: node --test games/timeplt/idiomatic/test/equivalence-0c90.test.js
  */

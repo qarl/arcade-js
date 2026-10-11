@@ -27,7 +27,9 @@
  * HOLE: one captured machine, and it is the sibling's dispatch, so the surrounding state is one
  * this entry is never really called with. Position and colour are constants; the twins vary them.
  * This gate pins pc but leaves sp in the excluded set, so a rewrite that leaked stack without
- * writing memory passes here — assembled-swap.test.js owns that.
+ * writing memory passes here.
+ * No gate now owns that: the whole-game gate idiomatic.test.js compares memory only, outside the
+ * stack window, under an engine that leaves SP unused.
  *
  * Run: node --test games/timeplt/idiomatic/test/equivalence-0d61.test.js
  */

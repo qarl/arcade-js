@@ -47,7 +47,9 @@
  * HOLE: nothing here says what the folded block IS, only where it starts, how long it is, and what
  * total the untampered image gives.
  * HOLE: this gate pins the candidate's pc but leaves sp inside the excluded set, so a rewrite that
- * leaked stack without writing memory would pass here. assembled-swap.test.js owns that.
+ * leaked stack without writing memory would pass here.
+ * No gate now owns that: the whole-game gate idiomatic.test.js compares memory only, outside the
+ * stack window, under an engine that leaves SP unused.
  *
  * Run: node --test games/timeplt/idiomatic/test/equivalence-2cdb.test.js
  */

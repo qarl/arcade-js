@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** paintDoubleTile — lay down a two-cell mark at the cursor and step the cursor past it. The pair of codes is consecutive:
  * the caller supplies the lower and the upper is one on from it, the upper going into the cell the cursor names and
- * the lower into the cell below it. Both cells then get the caller's colour, reached by clearing one bit of the
+ * the lower into the cell one address before it. Both cells then get the caller's colour, reached by clearing one bit of the
  * address, and the cursor comes back across that bit before it steps. Where the borrow or the carry crosses a plane,
  * the cells the mark and the colour land in part company; the arithmetic is written out so that they can.
  *

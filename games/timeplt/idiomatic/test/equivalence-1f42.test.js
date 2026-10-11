@@ -31,8 +31,9 @@
  * choice of table, the two boundaries, and the fact that the scroll step runs at all.
  *
  * WHERE THE STACK POINTER IS OWNED. sp sits inside the excluded ceiling here, so a rewrite that
- * leaked stack without writing memory would pass. assembled-swap.test.js owns that; this gate
- * does not, and says so rather than implying a coverage it does not have.
+ * leaked stack without writing memory would pass. No gate now owns that: the whole-game gate
+ * idiomatic.test.js compares memory only, outside the stack window, under an engine that leaves SP
+ * unused. This gate says so rather than implying a coverage it does not have.
  *
  * Run: node --test games/timeplt/idiomatic/test/equivalence-1f42.test.js
  */

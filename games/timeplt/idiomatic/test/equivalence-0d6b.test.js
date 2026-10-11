@@ -27,7 +27,9 @@
  * HOLE: one dispatch per session, at one point in the sequence, so nothing exercises the printer
  * against a different screen state. HOLE: nothing here establishes what the tally being printed IS.
  * This gate pins pc but leaves sp in the excluded set, so a rewrite that leaked stack without
- * writing memory passes here — assembled-swap.test.js owns that.
+ * writing memory passes here.
+ * No gate now owns that: the whole-game gate idiomatic.test.js compares memory only, outside the
+ * stack window, under an engine that leaves SP unused.
  *
  * Run: node --test games/timeplt/idiomatic/test/equivalence-0d6b.test.js
  */
