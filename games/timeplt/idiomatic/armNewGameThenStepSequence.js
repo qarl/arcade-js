@@ -36,7 +36,7 @@ import { ACTIVE_PLAYER, ATTRACT_STAGE_COUNTER, BCD_FRAME_COUNTER, DIFFICULTY_SET
 /** Saved-context cells both players start at 0: era, bonus-life latch, Mother-Ship armed, plus the
  * active-player index and the live pen colour (ROM 0x27D0-0x27E6, one `xor a` stored to each). */
 const ZERO_CELLS = [PLAYER_ONE_ERA_INDEX, PLAYER_TWO_ERA_INDEX, ACTIVE_PLAYER, PLAYER_ONE_BONUS_LIFE_LATCH, PLAYER_TWO_BONUS_LIFE_LATCH, PLAYER_ONE_MOTHER_SHIP_ARMED, PLAYER_TWO_MOTHER_SHIP_ARMED, PEN_COLOUR];
-/** Saved-context cells both players start at 1: round number and the round-armed gate (ROM 0x27E9-0x27F3). */
+/** Saved-context cells both players start at 1: round number and the round-intro-pending flag (ROM 0x27E9-0x27F3). */
 const ONE_CELLS = [PLAYER_ONE_ROUND_NUMBER, PLAYER_TWO_ROUND_NUMBER, PLAYER_ONE_ROUND_INTRO_PENDING, PLAYER_TWO_ROUND_INTRO_PENDING];
 
 export function armNewGameThenStepSequence(m) {

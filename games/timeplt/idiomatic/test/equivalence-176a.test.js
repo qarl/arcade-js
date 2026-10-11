@@ -18,7 +18,7 @@
  *   The window is MEASURED — the WINDOW arm instruments the oracle's own `push16` over this file's
  *   whole sweep — never assumed and never copied from another gate.
  *
- * ★ BOTH DERAILS ARE COMPARED AT THE TRANSFER. The wrong-glyph derail enters the warp/flash step's
+ * ★ BOTH DERAILS ARE COMPARED AT THE TRANSFER. The wrong-glyph derail enters the wreck countdown's
  *   misaligned prologue (0x459b) and the colour guard's enters a caption record run as code (0x49fa);
  *   neither has a routine form, so the rewrite raises NotImplemented where the transfer would begin.
  *   The oracle is stopped on entry to the landing (test/_tamperDerail.js), and the two sides must
@@ -34,7 +34,7 @@
  *                 caught, one INSIDE is masked. The third shows the first two are not the
  *                 instrument catching everything.
  *   4. DERAIL   — the glyph cell is forced OFF its expected value on a real captured machine; both
- *                 sides reach the warp/flash landing and agree outside the window up to it.
+ *                 sides reach the 0x459b derail landing and agree outside the window up to it.
  *   5. SAMPLE   — on the clean path the sampled glyph/colour pair is marked and read back out of
  *                 the tamper witness cells by value, and the sequence index is shown to step.
  *   6. TEETH    — broken twins with their exact catch counts.
@@ -354,7 +354,7 @@ test("BOUNDARY: the exclusion is exactly as wide as it declares", { skip }, () =
 test("DERAIL: a wrong glyph transfers into the mother-ship handler on both sides", { skip }, () => {
   const w = windowBytes();
   // Force the glyph off its expected value on a real captured machine: the oracle must reach the
-  // warp/flash landing (the probe proves the transfer, not merely a crash), and the rewrite must
+  // 0x459b derail landing (the probe proves the transfer, not merely a crash), and the rewrite must
   // raise there after the same work — see outcomeDiff.
   const badGlyphs = [0x00, 0x7d, 0xff, EXPECTED_GLYPH ^ 0x01];
   for (const bad of badGlyphs) {

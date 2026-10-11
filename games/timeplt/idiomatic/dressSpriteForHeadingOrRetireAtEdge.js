@@ -34,11 +34,11 @@ import { ERA_INDEX, FRAME_TICK, MOTHER_SHIP_SHAPE_PAIR_TABLE, ERA_SPRITE_COLOUR_
 
 // The era value on which the object flutters instead of facing its heading (`cp 0x04` at 0x4451).
 const FLUTTER_ERA = 0x04;
-// A quadrant seed of 7 skips the wind-down counter entirely (`cp 0x07` at 0x44A6).
+// A hits-to-absorb count of 7 (the armed value, no hit taken yet) skips the wind-down counter entirely (`cp 0x07` at 0x44A6).
 const HITS_WHEN_ARMED = 0x07;
 
-// Record offsets (mechanisms.md, object record layout): +2 the current heading, +4 the quadrant
-// seed in this routine, +6 this routine's wind-down counter.
+// Record offsets (mechanisms.md, object record layout): +2 the current heading, +4 the hits
+// still to absorb, +6 this routine's wind-down counter.
 const HEADING = 2;
 const HITS_TO_ABSORB = 4;
 const WIND_DOWN = 6;
@@ -70,10 +70,10 @@ export function dressSpriteForHeadingOrRetireAtEdge(m, record = m.regs.ix, entry
   const era = mem8[ERA_INDEX];
 
   /* Step 2 -- the last era (ERA_INDEX == 4) flutters instead of facing a heading (0x44A2-0x44C7).
-   * The record's +4 seed decides whether the wind-down counter at +6 runs: a seed of 7 leaves it
+   * The record's +4 hits-to-absorb count decides whether the wind-down counter at +6 runs: a count of 7 leaves it
    * alone. Otherwise the counter is stepped by one; once bit 7 is set it is closed out and
    * restartAnimationCounterThenDressFlutterSprite takes over the whole dressing. Below that, a
-   * counter that has overrun seed + 2 is forced to 0x80, so the NEXT call takes the close-out path.
+   * counter that has overrun the hits-to-absorb count + 2 is forced to 0x80, so the NEXT call takes the close-out path.
    * Either way both colour bytes take the fixed flutter code and dressSpriteFlutterShapesByFrameTickBit
    * picks the two shapes from a frame-tick bit (mechanisms.md: FRAME_TICK bit 2), so the object
    * holds each flutter pose for four frames (bit 2 flips every fourth tick) no matter which way it
@@ -96,8 +96,8 @@ export function dressSpriteForHeadingOrRetireAtEdge(m, record = m.regs.ix, entry
 
   /* Step 3 -- pick the shape pair and the colour (0x4456-0x447C). The index into
    * MOTHER_SHIP_SHAPE_PAIR_TABLE (0x44F1) is built as era * 16 (four `add a,a`), plus FRAME_TICK bit 1
-   * -- a two-frame pose, each pose two bytes -- plus 4 bytes per quadrant, where the quadrant is the
-   * record's +4 seed folded as ((7 - seed) >> 1) & 3. The two bytes there are the two tiles'
+   * -- a two-frame pose, each pose two bytes -- plus 4 bytes per damage stage, where the stage is the
+   * record's +4 hits-to-absorb count folded as ((7 - hits) >> 1) & 3. The two bytes there are the two tiles'
    * shapes. The colour is one byte per era from ERA_SPRITE_COLOUR_TABLE (0x4531). offsetAddress is
    * the ROM's `rst 0x18` (HL += A). */
   const index = u8(u8(era * 16) + (mem8[FRAME_TICK] & 0x02));

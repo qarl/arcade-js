@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** checkTamperGlyphCopyElseRunWreckFlash — fire once when a watched pair of cells stops agreeing: step a counter the caller points at down,
+/** checkTamperGlyphCopyElseRunWreckFlash — on any call that finds a watched pair of cells disagreeing, step a counter the caller points at down,
  * seat two shape codes and two attribute bytes (read as a sprite entry) into one object slot, ask for the Mother-Ship warp
  * sound while the player is live, and post a 3,000-point score award (ring command 4, award entry 13). When the pair still agrees it does nothing.
  * LIVE-OUT: memory.

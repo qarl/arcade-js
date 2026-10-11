@@ -1357,9 +1357,10 @@ loc_0556:
 ; dispatch from dispatchSequencePhase1SubStepArm): fold the fixed 256-byte
 ; run at 0x4AA0 into an eight-bit total and derail into the checksum-
 ; failure landing 0x08FA on any total but 0xB8; otherwise set the pen
-; colour 0xAD0C to 5 and the stamp glyph 0xAD0B to the blanking glyph 0xF1
-; (so the pen erases), re-arm the pen route via 0x01E1, then step the
-; sequence sub-step 0x0F1A -- twice when the pen colour already held 5
+; colour 0xAD0C to 5 and the stamp glyph 0xAD0B to the blank glyph 0xF1
+; (the glyph every era's pen pair already holds; nothing is plotted here),
+; re-arm the pen route via 0x01E1, then step the sequence sub-step 0x0F1A
+; -- twice when the pen colour already held 5
 armPenRouteInColour5ThenAdvanceStep:
 074B: 06 00           LD      B,$00               ; two hundred fifty-six program bytes to fold -- a zero count means the full round
 074D: 21 A0 4A        LD      HL,$4AA0            ; point at the program run to be checksummed
@@ -1377,7 +1378,7 @@ loc_0751:
 0760: 3E 05           LD      A,$05               
 0762: 32 0C AD        LD      ($AD0C),A           ; {hard.workRam+50C} set the pen colour to five
 0765: 3E F1           LD      A,$F1               
-0767: 32 0B AD        LD      ($AD0B),A           ; {hard.workRam+50B} set the stamp glyph to the blanking glyph, so the pen erases
+0767: 32 0B AD        LD      ($AD0B),A           ; {hard.workRam+50B} set the stamp glyph to the blank glyph -- the pen lays blank tiles
 076A: CD E1 01        CALL    $01E1               ; {code.armThePenRouteThenColdStartOnATamperedImage} arm the pen to the start of its route
 076D: F1              POP     AF                  
 076E: CC 1A 0F        CALL    Z,$0F1A             ; {code.advanceSequenceSubStep} step the sequence sub-step an extra time when the pen colour already held five
@@ -1385,7 +1386,7 @@ loc_0751:
 
 ; round-start arm of the phase-3 sub-step table (entry 4 of 0x0F29): post
 ; the round-start captions to the command ring, repaint the kill meter
-; (drawKillMeter), reset the playfield for the new round
+; (drawKillMeter), reset the playfield for the coming life
 ; (resetPlayfieldForLifeStart), then step the sequence sub-index
 ; (advanceSequenceSubStep). With PLAY_ACTIVE clear it posts caption 2 ('
 ; READY ') only. With PLAY_ACTIVE set it posts caption 9 or 10 ('PLAYER 1'
@@ -1416,7 +1417,7 @@ loc_077a:
 
 loc_0794:
 0794: FF              RST     $38                 ; post the command pair to the ring
-0795: 3A 0E AD        LD      A,($AD0E)           ; {hard.workRam+50E} read the round-armed flag
+0795: 3A 0E AD        LD      A,($AD0E)           ; {hard.workRam+50E} read the round-intro-pending flag
 0798: A7              AND     A                   
 0799: 28 05           JR      Z,$07A0             ; {code.loc_07a0} clear: skip to command two, argument two, and the tail
 079B: 16 07           LD      D,$07               ; set the command to number seven
@@ -1429,7 +1430,7 @@ loc_07a0:
 
 loc_07a4:
 07A4: CD 09 08        CALL    $0809               ; {code.drawKillMeter} repaint the kill meter
-07A7: CD F0 19        CALL    $19F0               ; {code.resetPlayfieldForLifeStart} reset the playfield and arm a new round
+07A7: CD F0 19        CALL    $19F0               ; {code.resetPlayfieldForLifeStart} reset the playfield for this life
 07AA: C3 1A 0F        JP      $0F1A               ; {code.advanceSequenceSubStep} step the sequence sub-step
 
 ; park the eight-bit total the image fold arrives with into B, where the
@@ -2920,7 +2921,7 @@ serviceRoundThenResolvePlayerState:
 
 ; process a player's death: hide the sprite band, start the next round
 ; when ROUND_TRANSITION_HOLD (0xACC6) is set, and queue the transition
-; sound burst; then decrement LIVES_REMAINING at the head of the live
+; sound stops; then decrement LIVES_REMAINING at the head of the live
 ; 16-byte context block and checkpoint that block into the active player's
 ; save slot — on lives reaching zero it tail-calls the game-over banner,
 ; otherwise it flips the active-player index when the other player's saved
@@ -2931,7 +2932,7 @@ loseLifeAndHandOver:
 11F0: 3A C6 AC        LD      A,($ACC6)           ; {hard.workRam+4C6} read the round-transition hold
 11F3: A7              AND     A                   ; is it set?
 11F4: C4 B8 2D        CALL    NZ,$2DB8            ; {code.startNextRound} set -- start the next round
-11F7: CD 34 56        CALL    $5634               ; {code.enqueueTransitionSoundStops} queue the seven-code transition sound burst
+11F7: CD 34 56        CALL    $5634               ; {code.enqueueTransitionSoundStops} queue the seven transition sound-stop codes
 11FA: 21 00 AD        LD      HL,$AD00            ; point at the live context block -- its first byte is the lives count
 11FD: 35              DEC     (HL)                ; drop the lives count by one
 11FE: F5              PUSH    AF                  ; remember whether that reached zero
@@ -3002,7 +3003,7 @@ loc_1264:
 126E: C3 1A 0F        JP      $0F1A               ; {code.advanceSequenceSubStep} step the sequence on
 
 ; gated two-arm state transition: fires only when 0xad02=0, 0xacc6!=0 and
-; all 15 slots at 0xa810 are empty, then queues the transition sound burst
+; all 15 slots at 0xa810 are empty, then queues the transition sound stops
 ; and runs one of two arms on 0xad30 — with no game running, disarm+reset
 ; a cell cluster and restart the attract sequence; in a game, clear a
 ; strided run of sprite-shadow cells from 0xaa43, call startNextRound
@@ -3026,7 +3027,7 @@ loc_1283:
 1285: C0              RET     NZ                  ; a slot is still occupied -- the field isn't clear, return
 1286: 19              ADD     HL,DE               
 1287: 10 FA           DJNZ    $1283               ; {code.loc_1283} check every one of the fifteen slots
-1289: CD 34 56        CALL    $5634               ; {code.enqueueTransitionSoundStops} queue the seven-code transition sound burst
+1289: CD 34 56        CALL    $5634               ; {code.enqueueTransitionSoundStops} queue the seven transition sound-stop codes
 128C: 3A 30 AD        LD      A,($AD30)           ; {hard.workRam+530} read the in-play flag
 128F: A7              AND     A                   ; is a game running?
 1290: 28 29           JR      Z,$12BB             ; {code.loc_12bb} attract mode -- take the reset arm
@@ -3142,7 +3143,7 @@ stepRoundWonBandAnimation:
 1323: 3A 80 A9        LD      A,($A980)           ; {hard.workRam+180} read the frame tick
 1326: E6 02           AND     $02                 ; act only while bit 1 of the tick is clear -- two frames in every four
 1328: C0              RET     NZ                  ; bit 1 set -- skip this frame
-1329: 3A F0 A9        LD      A,($A9F0)           ; {hard.workRam+1F0} read the intro-animation step
+1329: 3A F0 A9        LD      A,($A9F0)           ; {hard.workRam+1F0} read the round-won animation step
 132C: A7              AND     A                   ; step 0?
 132D: 20 04           JR      NZ,$1333            ; {code.loc_1333} not step 0 -- try the next arm
 132F: CD 67 13        CALL    $1367               ; {code.flashPlayerWhiteOnAlternateCalls} step 0 -- flash the player ship white
@@ -3195,8 +3196,8 @@ flashPlayerWhiteOnAlternateCalls:
 136A: FE 08           CP      $08                 ; has it reached eight?
 136C: 20 08           JR      NZ,$1376            ; {code.loc_1376} not yet -- just recolour
 136E: 3E 01           LD      A,$01               ; value 1...
-1370: 32 F0 A9        LD      ($A9F0),A           ; {hard.workRam+1F0} ...into the intro-animation step -- move it on
-1373: CD 11 58        CALL    $5811               ; {code.requestPlayerWhiteFlashSound} ask for the player-spawn flash sound
+1370: 32 F0 A9        LD      ($A9F0),A           ; {hard.workRam+1F0} ...into the round-won animation step -- move it on
+1373: CD 11 58        CALL    $5811               ; {code.requestPlayerWhiteFlashSound} ask for the round-won flash sound
 
 loc_1376:
 1376: 3A F1 A9        LD      A,($A9F1)           ; {hard.workRam+1F1} read the tick again
@@ -3232,7 +3233,7 @@ cyclePlayerSpriteColourThenAdvanceStepAtZero:
 1396: A7              AND     A                   ; is the countdown already at zero?
 1397: 20 09           JR      NZ,$13A2            ; {code.loc_13a2} not yet -- pick a colour from the count
 1399: 3E 03           LD      A,$03               ; value 3...
-139B: 32 F0 A9        LD      ($A9F0),A           ; {hard.workRam+1F0} ...into the intro-animation step -- countdown spent, move on to step 3
+139B: 32 F0 A9        LD      ($A9F0),A           ; {hard.workRam+1F0} ...into the round-won animation step -- countdown spent, move on to step 3
 139E: 3E 3F           LD      A,$3F               ; use colour 0x3F
 13A0: 18 18           JR      $13BA               ; {code.loc_13ba} go apply it
 
@@ -3282,7 +3283,7 @@ loc_13ba:
 ; by one on the way out
 floodColourPlaneWithSavedPlayerColour:
 13CC: 3E 05           LD      A,$05               ; value 5...
-13CE: 32 F0 A9        LD      ($A9F0),A           ; {hard.workRam+1F0} ...into the intro-animation step -- move on to step 5
+13CE: 32 F0 A9        LD      ($A9F0),A           ; {hard.workRam+1F0} ...into the round-won animation step -- move on to step 5
 13D1: 3A 32 AD        LD      A,($AD32)           ; {hard.workRam+532} read the active-player selector
 13D4: A7              AND     A                   ; which player is up?
 13D5: 3A 1C AD        LD      A,($AD1C)           ; {hard.workRam+51C} read player 1's saved pen colour
@@ -3365,7 +3366,7 @@ advanceScriptedCharPlaneBandTo2:
 1439: 3E 00           LD      A,$00               ; value 0...
 143B: 32 F2 A9        LD      ($A9F2),A           ; {hard.workRam+1F2} ...clears the pass countdown -- script done
 143E: 3E 02           LD      A,$02               ; value 2...
-1440: 32 F0 A9        LD      ($A9F0),A           ; {hard.workRam+1F0} ...into the intro-animation step -- advance to stage 2
+1440: 32 F0 A9        LD      ($A9F0),A           ; {hard.workRam+1F0} ...into the round-won animation step -- advance to stage 2
 1443: 2A F7 A9        LD      HL,($A9F7)          ; {hard.workRam+1F7} reload the script cursor
 1446: 2B              DEC     HL                  ; step it back one
 1447: 22 F7 A9        LD      ($A9F7),HL          ; {hard.workRam+1F7} save it -- ending early with no decrement
@@ -3462,7 +3463,7 @@ advanceScriptedCharPlaneBandTo4:
 14D4: 3E 00           LD      A,$00               ; value 0...
 14D6: 32 F4 A9        LD      ($A9F4),A           ; {hard.workRam+1F4} ...clears the pass countdown -- script done
 14D9: 3E 04           LD      A,$04               ; value 4...
-14DB: 32 F0 A9        LD      ($A9F0),A           ; {hard.workRam+1F0} ...into the intro-animation step -- advance to stage 4
+14DB: 32 F0 A9        LD      ($A9F0),A           ; {hard.workRam+1F0} ...into the round-won animation step -- advance to stage 4
 14DE: CD E4 56        CALL    $56E4               ; {code.requestInterRoundSoundPair} request the inter-round sound pair
 14E1: 2A F7 A9        LD      HL,($A9F7)          ; {hard.workRam+1F7} reload the cursor
 14E4: 23              INC     HL                  
@@ -3705,12 +3706,13 @@ loc_15f3:
 15FD: C9              RET                         
 
 ; once the line-by-line wipe blankNextLine runs has blanked its last line,
-; arm a fresh screen: enqueue four fixed ring commands, seed a marker
-; glyph into two character cells, seed six work-RAM cell pairs from a
-; following table (the table's glyph, then colour 0x05 beside it; five of
-; them are tamper-witness pairs, none is a screen cell), print the six-
-; digit high-score readout, set the outer phase to 1 and the inner step to
-; 2, and enqueue a fifth command when free play is set
+; arm a fresh screen: enqueue four fixed ring commands, seed the digit-0
+; glyph into player one's tens and ones score cells, seed six work-RAM
+; cell pairs from a following table (the table's glyph, then colour 0x05
+; beside it; five of them are tamper-witness pairs, none is a screen
+; cell), print the six-digit high-score readout, set the outer phase to 1
+; and the inner step to 2, and enqueue a fifth command when free play is
+; set
 armAttractScreenShowingHighScore:
 15FE: CD C2 01        CALL    $01C2               ; {code.blankNextLine} blank one column of the character plane
 1601: C0              RET     NZ                  ; more columns still to blank -- leave until the block is cleared
@@ -3722,10 +3724,10 @@ armAttractScreenShowingHighScore:
 1609: FF              RST     $38                 ; queue it
 160A: 11 01 06        LD      DE,$0601            ; command 6, argument 1
 160D: FF              RST     $38                 ; queue it
-160E: 3E 13           LD      A,$13               ; marker glyph
-1610: 32 01 A7        LD      ($A701),A           ; seed it into one cell
-1613: 32 E1 A6        LD      ($A6E1),A           ; and into another
-1616: 21 3F 16        LD      HL,$163F            ; point at the six-entry patch list that follows
+160E: 3E 13           LD      A,$13               ; the digit-0 glyph
+1610: 32 01 A7        LD      ($A701),A           ; into player one's score tens digit
+1613: 32 E1 A6        LD      ($A6E1),A           ; and its ones digit
+1616: 21 3F 16        LD      HL,$163F            ; point at the six-entry witness seed table that follows
 1619: 06 06           LD      B,$06               ; six records to apply
 
 loc_161b:
@@ -3739,7 +3741,7 @@ loc_161b:
 1622: EB              EX      DE,HL               
 1623: 36 05           LD      (HL),$05            ; and colour 5 into the cell beside it
 1625: EB              EX      DE,HL               
-1626: 23              INC     HL                  ; next patch entry
+1626: 23              INC     HL                  ; next witness seed record
 1627: 10 F2           DJNZ    $161B               ; {code.loc_161b} over all six
 1629: CD 6B 0D        CALL    $0D6B               ; {code.paintHighScoreReadout} print the six-digit high-score readout
 162C: 3E 01           LD      A,$01               
@@ -3857,15 +3859,15 @@ loc_16b7:
 16E3: 1E 1A           LD      E,$1A               ; argument 0x1A
 16E5: FF              RST     $38                 ; queue it
 16E6: AF              XOR     A                   
-16E7: 32 0E AD        LD      ($AD0E),A           ; {hard.workRam+50E} clear the round-armed flag
+16E7: 32 0E AD        LD      ($AD0E),A           ; {hard.workRam+50E} clear the round-intro-pending flag
 16EA: 3E 2A           LD      A,$2A               
 16EC: 32 EB A9        LD      ($A9EB),A           ; {hard.workRam+1EB} reload the step-delay counter to 0x2A ticks
 16EF: C3 1A 0F        JP      $0F1A               ; {code.advanceSequenceSubStep} step the sequence sub-index and leave
 
 loc_16f2:
-16F2: 3A 0E AD        LD      A,($AD0E)           ; {hard.workRam+50E} read the round-armed flag
+16F2: 3A 0E AD        LD      A,($AD0E)           ; {hard.workRam+50E} read the round-intro-pending flag
 16F5: A7              AND     A                   
-16F6: C8              RET     Z                   ; not armed: leave
+16F6: C8              RET     Z                   ; no intro pending: leave
 16F7: 3A 80 A9        LD      A,($A980)           ; {hard.workRam+180} read the frame counter
 16FA: E6 0F           AND     $0F                 ; keep its low nibble
 16FC: 28 09           JR      Z,$1707             ; {code.loc_1707} frame nibble 0
@@ -3970,7 +3972,7 @@ holdCopyrightThenEraseTheCoinInvitation:
 ; tail, no static call site): check the copyright line's colours
 ; (deferring to the guard, which derails on its own if any cell is wrong),
 ; then unless caption cell TAMPER_GLYPH_SOURCE_CELL (0xa67c) still holds
-; glyph 0x7c hand off to the mother-ship warp/flash handler
+; glyph 0x7c derail into the Mother-Ship's wreck countdown
 ; (derailIntoMotherShipWreckCountdown) through its misaligned anti-tamper
 ; entry -- the wrong-glyph derail; on a clean image queue one caption
 ; command (1, 0x13), repaint the five labelled numeric readouts, copy one
@@ -3980,7 +3982,7 @@ paintReadoutsThenSampleWitnessOrDerail:
 176A: CD DA 19        CALL    $19DA               ; {code.checkTheCopyrightLineColoursOrDerail} verify the copyright line's colours -- derail if wrong
 176D: 3A 7C A6        LD      A,($A67C)           ; read a caption cell
 1770: FE 7C           CP      $7C                 ; is its glyph the expected one?
-1772: C2 9B 45        JP      NZ,$459B            ; wrong glyph: derail into the mother-ship warp-flash handler
+1772: C2 9B 45        JP      NZ,$459B            ; wrong glyph: derail into the Mother-Ship wreck countdown's misaligned entry
 1775: 11 13 01        LD      DE,$0113            ; command 1, argument 0x13
 1778: FF              RST     $38                 ; queue it
 1779: CD DC 4B        CALL    $4BDC               ; {code.paintFiveLabelledNumericReadouts} paint the five labelled numeric readouts
@@ -4210,9 +4212,9 @@ startTwoPlayerGame:
 ; frames flash the cursor colour (INITIALS_CURSOR_FLASH_TIMER bit 4);
 ; every eighth frame tick SEQUENCE_DELAY, and when it runs out blank the
 ; cursor cell (0xF1) and finish. Finishing re-arms SEQUENCE_DELAY=60,
-; queues the transition sounds and steps the sequence sub-step. Otherwise,
-; with both players out of lives, a held start button with credit (or free
-; play) hides all sprites and starts the next game
+; queues the transition sound stops and steps the sequence sub-step.
+; Otherwise, with both players out of lives, a held start button with
+; credit (or free play) hides all sprites and starts the next game
 stepHighScoreInitialsEntry:
 18C3: 3A 80 A9        LD      A,($A980)           ; {hard.workRam+180} read the frame counter
 18C6: E6 01           AND     $01                 ; keep its low bit -- run this scan every other frame
@@ -4413,13 +4415,14 @@ loc_19e9:
 19ED: 10 F0           DJNZ    $19DF               ; {code.loc_19df} loop over all thirteen
 19EF: C9              RET                         ; thirteen good cells: return having changed nothing
 
-; reset the whole playfield for a new round: clear scroll/control cells,
-; seat the ship sprite + shot slots, retire particular object slots
-; (hold/shared-cooldown/cooldown/sub-pixel variants), free and renumber
-; every object slot, clear four sprite entries, seat the era scenery band
-; via seatEraSceneryCodesThenSetAttributesAndRunScenery, then scatter one
+; reset the whole playfield at every life start (a new round or a restart
+; after a death): clear scroll/control cells, seat the ship sprite + shot
+; slots, retire particular object slots (hold/shared-
+; cooldown/cooldown/sub-pixel variants), free and renumber every object
+; slot, clear four sprite entries, seat the era scenery band via
+; seatEraSceneryCodesThenSetAttributesAndRunScenery, then scatter one
 ; 10-byte record, selected by era and ERA_RUNG (0xacc0), from the 0x1B04
-; word table into the cells that arm the round
+; word table into the spawner and launcher settings cells
 resetPlayfieldForLifeStart:
 19F0: 21 00 00        LD      HL,$0000            ; clear the value to write
 19F3: 22 08 A8        LD      ($A808),HL          ; {hard.workRam+8} zero the world-scroll Y
@@ -4483,7 +4486,7 @@ loc_1a62:
 ; apply the tuning row that the era and its escalation rung together
 ; select, scattering the row's ten bytes over twelve cells -- two spawner
 ; caps, four windows, two cooldown periods and their live countdowns, the
-; round's craft count and a script-pick threshold
+; craft spawn slot count and a script-pick threshold
 applyEraRungSettings:
 1A9A: 3A 04 AD        LD      A,($AD04)           ; {hard.workRam+504} take the era number
 1A9D: 07              RLCA                        ; shift it up into the high nibble
@@ -4510,7 +4513,7 @@ applyEraRungSettings:
 1ABF: 32 14 A8        LD      ($A814),A           ; {hard.workRam+14} -- into its paired reload cell too
 1AC2: 13              INC     DE                  
 1AC3: 1A              LD      A,(DE)              
-1AC4: 32 C1 AC        LD      ($ACC1),A           ; {hard.workRam+4C1} the craft-per-round count
+1AC4: 32 C1 AC        LD      ($ACC1),A           ; {hard.workRam+4C1} the craft spawn slot count
 1AC7: 13              INC     DE                  
 1AC8: 1A              LD      A,(DE)              
 1AC9: 32 C4 AC        LD      ($ACC4),A           ; {hard.workRam+4C4} a script-pick threshold
@@ -4821,8 +4824,9 @@ presentChecksumForTamperTest:
 200F: C9              RET                         
 
 ; advance a phase-byte-driven tile animation: on the opening pass
-; (phase>=0xb4) clamp the phase, flag the paired entry, and cue sounds
-; (56d2 always, 5679 once ERA_INDEX (0xad04) reaches 2), then divert to
+; (phase>=0xb4) clamp the phase, write the empty shape code 0xff into the
+; sprite entry's +1 byte, and post sound commands (56d2 always, 5679's
+; stop for sound 6 once ERA_INDEX (0xad04) reaches 2), then divert to
 ; $1F2E unless the two sampled tamper-witness cells (0xabfe/0xabff) hold
 ; their genuine values; then, every pass, step the phase down and, on one
 ; of seven keyframe values, blit a 5x6 shape strip into video+colour RAM
@@ -4831,10 +4835,10 @@ advancePlayerAnimationStrip:
 2013: FE B4           CP      $B4                 ; at or past the opening frame?
 2015: 38 29           JR      C,$2040             ; {code.loc_2040} mid-animation: step the phase down
 2017: DD 36 00 B4     LD      (IX+$00),$B4        ; clamp the phase to the opening frame
-201B: FD 36 01 FF     LD      (IY+$01),$FF        ; flag the paired sprite entry
+201B: FD 36 01 FF     LD      (IY+$01),$FF        ; blank the ship's sprite shape
 201F: 3A 04 AD        LD      A,($AD04)           ; {hard.workRam+504} read the era number
 2022: FE 02           CP      $02                 
-2024: D4 79 56        CALL    NC,$5679            ; {code.requestSoundSixStopWhilePlaying} past the second era: cue the extra progress sound
+2024: D4 79 56        CALL    NC,$5679            ; {code.requestSoundSixStopWhilePlaying} past the second era: ask for sound 6 to stop
 2027: CD D2 56        CALL    $56D2               ; {code.requestDestructionSoundBurst} cue the destruction sound burst
 202A: 3A FE AB        LD      A,($ABFE)           ; {hard.workRam+3FE} read the sampled caption glyph (tamper witness)
 202D: FE A5           CP      $A5                 ; is it the genuine glyph 0xa5?
@@ -5271,7 +5275,7 @@ loc_2449:
 2453: ED 42           SBC     HL,BC               ; negate it
 2455: 29              ADD     HL,HL               
 2456: 29              ADD     HL,HL               ; scale it up four times
-2457: DD 75 0A        LD      (IX+$0A),L          ; seed the shot's per-pass step from it
+2457: DD 75 0A        LD      (IX+$0A),L          ; store it as the shot's velocity in Y
 245A: DD 74 0B        LD      (IX+$0B),H          
 245D: AF              XOR     A                   
 245E: 67              LD      H,A                 
@@ -5280,7 +5284,7 @@ loc_2449:
 2464: ED 42           SBC     HL,BC               ; negate it
 2466: 29              ADD     HL,HL               
 2467: 29              ADD     HL,HL               ; scale it up four times
-2468: DD 75 0C        LD      (IX+$0C),L          ; seed the shot's other per-pass step
+2468: DD 75 0C        LD      (IX+$0C),L          ; store it as the shot's velocity in X
 246B: DD 74 0D        LD      (IX+$0D),H          
 246E: 3A 02 A8        LD      A,($A802)           ; {hard.workRam+2} read the ship heading
 2471: C6 04           ADD     A,$04               ; round the heading
@@ -5512,7 +5516,7 @@ loc_2766:
 2791: 72 84 72 83 72 82 73 81 74 80 75 7F 76 7E 77 7E
 27A1: 78 7E 79 7E 7A 7E 7B 7F 7C 80 7D 81 7E 82 7E 83
 
-; round-start sequence arm: request the round-start sound, seed the aim
+; new-game sequence arm: request the round-start sound, seed the aim
 ; anchor (0xAC64=0x78,0xAC65=0x84), both players' saved context blocks
 ; (0xAD11-0xAD2E), the pen colour 0xAD0C and ACTIVE_PLAYER 0xAD32, then
 ; split on PLAY_ACTIVE(0xAD30) -- with a game being played it zeroes both
@@ -5549,8 +5553,8 @@ armNewGameThenStepSequence:
 27E9: 3C              INC     A                   
 27EA: 32 11 AD        LD      ($AD11),A           ; {hard.workRam+511} set player 1's round number to one
 27ED: 32 21 AD        LD      ($AD21),A           ; {hard.workRam+521} set player 2's round number to one
-27F0: 32 1E AD        LD      ($AD1E),A           ; {hard.workRam+51E} arm player 1's round
-27F3: 32 2E AD        LD      ($AD2E),A           ; {hard.workRam+52E} arm player 2's round
+27F0: 32 1E AD        LD      ($AD1E),A           ; {hard.workRam+51E} player 1's round-intro flag starts set
+27F3: 32 2E AD        LD      ($AD2E),A           ; {hard.workRam+52E} mark player 2's round intro as pending
 27F6: 3A 30 AD        LD      A,($AD30)           ; {hard.workRam+530} read the play-active flag
 27F9: A7              AND     A                   
 27FA: 28 39           JR      Z,$2835             ; {code.loc_2835} no game being played -- take the attract-demo setup path
@@ -5766,7 +5770,7 @@ loc_2936:
 2939: CD 40 58        CALL    $5840               ; {code.flyAtSlowestSpeed} fly at the slowest speed
 293C: CD 83 2B        CALL    $2B83               ; {code.hasReachedRetireLine} reached the retire line?
 293F: DA DE 2B        JP      C,$2BDE             ; {code.retireSlotAndSubPixel} yes -- retire the slot
-2942: CD D6 3E        CALL    $3ED6               ; {code.fireCraftShotWhenAimedNearPlayer} try a bank-enemy launch when aimed near the player
+2942: CD D6 3E        CALL    $3ED6               ; {code.fireCraftShotWhenAimedNearPlayer} try to fire a craft shot when aimed near the player
 2945: CD 3C 2A        CALL    $2A3C               ; {code.refreshSpriteFromHeading} refresh the sprite from the heading
 2948: CD 43 42        CALL    $4243               ; {code.launchAttackerIntoFreeSlot} try to launch an attacker into a free slot
 294B: C9              RET                         
@@ -5794,7 +5798,7 @@ loc_295b:
 295E: CD 54 58        CALL    $5854               ; {code.loc_5854} fly at this era's speed
 2961: CD 83 2B        CALL    $2B83               ; {code.hasReachedRetireLine} reached the retire line?
 2964: DA DE 2B        JP      C,$2BDE             ; {code.retireSlotAndSubPixel} yes -- retire the slot
-2967: CD D6 3E        CALL    $3ED6               ; {code.fireCraftShotWhenAimedNearPlayer} try a bank-enemy launch when aimed near the player
+2967: CD D6 3E        CALL    $3ED6               ; {code.fireCraftShotWhenAimedNearPlayer} try to fire a craft shot when aimed near the player
 296A: CD 47 2A        CALL    $2A47               ; {code.refreshSecondEraSpriteFromHeading} refresh the sprite from the heading -- second-era sprite set
 296D: C9              RET                         
 
@@ -5806,10 +5810,9 @@ loc_295b:
 ; ERA_INDEX 0xad04 low three bits == 2), dispatched on the slot's state
 ; byte (ix+0): 0x00 idle returns; 0xFF active steers toward its aim unless
 ; FRAME_TICK's low two bits read 3, flies at the slowest speed, retires
-; the slot once it reaches a retire line, else runs a gated bank-launch
-; attempt, dresses its sprite and runs a gated attacker-launch attempt;
-; 0xFE releases the held object; any other value steps the dying-object
-; state
+; the slot once it reaches a retire line, else runs a gated shot attempt,
+; dresses its sprite and runs a gated attacker-launch attempt; 0xFE
+; releases the held object; any other value steps the dying-object state
 serviceEra2EnemyCraftSlot:
 2984: DD 7E 00        LD      A,(IX+$00)          ; read this slot's status byte
 2987: A7              AND     A                   
@@ -5828,15 +5831,15 @@ loc_2993:
 299D: CD 40 58        CALL    $5840               ; {code.flyAtSlowestSpeed} fly at the slowest speed
 29A0: CD 83 2B        CALL    $2B83               ; {code.hasReachedRetireLine} reached the retire line?
 29A3: DA DE 2B        JP      C,$2BDE             ; {code.retireSlotAndSubPixel} yes -- retire the slot
-29A6: CD D6 3E        CALL    $3ED6               ; {code.fireCraftShotWhenAimedNearPlayer} try a bank-enemy launch when aimed near the player
+29A6: CD D6 3E        CALL    $3ED6               ; {code.fireCraftShotWhenAimedNearPlayer} try to fire a craft shot when aimed near the player
 29A9: CD 97 2A        CALL    $2A97               ; {code.dressSpriteForFineHeading} dress the sprite for its fine heading
 29AC: CD 43 42        CALL    $4243               ; {code.launchAttackerIntoFreeSlot} try to launch an attacker into a free slot
 29AF: C9              RET                         
 
 ; era-3 per-object-slot step, dispatched on the slot's lifecycle byte at
 ; ix+0: idle does nothing; a live slot (0xff) is steered and flown a step,
-; then either retired at the line or given a bank launch attempt, dressed,
-; and given an attacker launch attempt; 0xfe releases a held slot; a lower
+; then either retired at the line or given a shot attempt, dressed, and
+; given an attacker launch attempt; 0xfe releases a held slot; a lower
 ; value is a death-countdown step
 serviceEra3EnemyCraftSlot:
 29B0: DD 7E 00        LD      A,(IX+$00)          ; read the slot's lifecycle byte
@@ -5853,7 +5856,7 @@ loc_29bf:
 29C2: CD A4 58        CALL    $58A4               ; {code.flyAtFastestSpeed} fly the slot a step along its heading
 29C5: CD 83 2B        CALL    $2B83               ; {code.hasReachedRetireLine} has it drifted onto a retire line?
 29C8: DA DE 2B        JP      C,$2BDE             ; {code.retireSlotAndSubPixel} yes: take the slot out of play
-29CB: CD D6 3E        CALL    $3ED6               ; {code.fireCraftShotWhenAimedNearPlayer} when aimed near the ship, try the bank launch
+29CB: CD D6 3E        CALL    $3ED6               ; {code.fireCraftShotWhenAimedNearPlayer} when aimed near the ship, try to fire a craft shot
 29CE: CD FC 2A        CALL    $2AFC               ; {code.dressSpriteForCoarseHeading} dress the sprite to face its heading
 29D1: CD 43 42        CALL    $4243               ; {code.launchAttackerIntoFreeSlot} try to launch an attacker into a free slot
 29D4: C9              RET                         
@@ -5880,7 +5883,7 @@ loc_29e4:
 29E7: CD 83 2B        CALL    $2B83               ; {code.hasReachedRetireLine} has it drifted onto a retire line?
 29EA: DA DE 2B        JP      C,$2BDE             ; {code.retireSlotAndSubPixel} yes: take the slot out of play
 29ED: CD 38 2B        CALL    $2B38               ; {code.animateSelectedShapeCycle} advance its shape's animation cycle
-29F0: CD D6 3E        CALL    $3ED6               ; {code.fireCraftShotWhenAimedNearPlayer} when aimed near the ship, try the bank launch
+29F0: CD D6 3E        CALL    $3ED6               ; {code.fireCraftShotWhenAimedNearPlayer} when aimed near the ship, try to fire a craft shot
 29F3: CD 43 42        CALL    $4243               ; {code.launchAttackerIntoFreeSlot} try to launch an attacker into a free slot
 29F6: C9              RET                         
 
@@ -6058,7 +6061,8 @@ animateSelectedShapeCycle:
 2B51: C9              RET                         
 
 ; count a held object's release delay down and, when it expires, step its
-; state code to the live one and re-arm the delay
+; state code to the live one and set the delay byte to 0x80, a released-
+; from-hold mark
 releaseHeldObject:
 2B52: DD 35 0E        DEC     (IX+$0E)            ; count the release delay down one
 2B55: 28 01           JR      Z,$2B58             ; {code.loc_2b58} reached zero: release it
@@ -6066,7 +6070,7 @@ releaseHeldObject:
 
 loc_2b58:
 2B58: DD 34 00        INC     (IX+$00)            ; step the state code on to the live one
-2B5B: DD 36 0E 80     LD      (IX+$0E),$80        ; reload the delay with 128
+2B5B: DD 36 0E 80     LD      (IX+$0E),$80        ; mark it released: 128 sets the delay byte's top bit
 2B5F: C9              RET                         
 
 ; add the frame's world-scroll displacement to one object's two split
@@ -6100,13 +6104,14 @@ hasReachedRetireLine:
 2B92: C9              RET                         
 
 ; per-object state-machine step: dispatch on the object's state byte —
-; 0xf0 re-arms it to 0x3b and begins its death, 0x3c begins the death then
-; flies it on, above 0x3c flies it on, below 0x3c counts the byte down,
-; retiring the slot at zero else moving the object for the frame
+; 0xf0 (the collision sweeps' just-hit mark) starts the death countdown at
+; 0x3b, 0x3c begins the death then flies it on, above 0x3c flies it on,
+; below 0x3c counts the byte down, retiring the slot at zero else moving
+; the object for the frame
 stepDyingObjectState:
 2B93: DD 7E 00        LD      A,(IX+$00)          ; read the object's state byte
-2B96: FE F0           CP      $F0                 ; the re-arm value 0xf0?
-2B98: CA AC 2B        JP      Z,$2BAC             ; {code.loc_2bac} yes: re-seat it and begin the death
+2B96: FE F0           CP      $F0                 ; the just-hit mark 0xf0?
+2B98: CA AC 2B        JP      Z,$2BAC             ; {code.loc_2bac} yes: start the death countdown and count the kill
 2B9B: FE 3C           CP      $3C                 ; at the death-begins threshold 0x3c?
 2B9D: CC BA 2B        CALL    Z,$2BBA             ; {code.countTheKillAndGrantTheSharedToken} exactly there: count the kill and grant the token
 2BA0: D2 B4 2B        JP      NC,$2BB4            ; {code.decrementObjectStateThenFlyAtSlowestSpeed} at or above the threshold: fly it on
@@ -6118,7 +6123,7 @@ loc_2bab:
 2BAB: C9              RET                         
 
 loc_2bac:
-2BAC: DD 36 00 3B     LD      (IX+$00),$3B        ; re-seat the state byte to 0x3b
+2BAC: DD 36 00 3B     LD      (IX+$00),$3B        ; start the death countdown at 0x3b
 2BB0: CD BA 2B        CALL    $2BBA               ; {code.countTheKillAndGrantTheSharedToken} count the kill and grant the token
 2BB3: C9              RET                         
 
@@ -6228,8 +6233,8 @@ moveObjectByStateByteThenRunAppearance:
 ; unless a single shared request cell names it by the record number
 ; stamped at the record's sixteenth byte -- while named it holds one fixed
 ; shape and tint, advances the byte unless FRAME_TICK's low three bits are
-; zero, and on the first value alone posts a command and clears the
-; request
+; zero, and only on a pass that leaves the byte at 1 posts a command and
+; clears the request
 driveObjectAppearanceByPhaseBand:
 2C31: DD 7E 00        LD      A,(IX+$00)          
 2C34: FE 2A           CP      $2A                 
@@ -6500,7 +6505,7 @@ loc_2ddf:
 2DE9: 32 0D AD        LD      ($AD0D),A           ; {hard.workRam+50D} clear the mother-ship-armed flag
 2DEC: 32 C6 AC        LD      ($ACC6),A           ; {hard.workRam+4C6} clear the round-transition hold
 2DEF: 3D              DEC     A                   ; flip to all-ones
-2DF0: 32 0E AD        LD      ($AD0E),A           ; {hard.workRam+50E} arm the round with it
+2DF0: 32 0E AD        LD      ($AD0E),A           ; {hard.workRam+50E} mark the round's intro pending
 2DF3: C9              RET                         
 
 ; move one object by half the frame's world-scroll displacement, applied
@@ -6687,8 +6692,8 @@ advanceToNextSlot:
 ; sum a fixed 16-byte run against a constant as a discarded tamper
 ; tripwire, copy eight bytes of the ERA_INDEX-keyed row from the 0x3176
 ; table into the stride-two run at 0xAA31, then tail into the scenery
-; clear+run carrying the era in C and the fill byte 0x28 at era four else
-; 0xCC
+; attribute set+run carrying the era in C and the attribute byte 0x28 at
+; era four else 0xCC
 seatEraSceneryCodesThenSetAttributesAndRunScenery:
 30A5: 21 6B 08        LD      HL,$086B            ; point at a fixed program run to checksum
 30A8: 0E 22           LD      C,$22               ; the value it must sum to -- a tamper tripwire
@@ -6714,23 +6719,23 @@ loc_30bf:
 30C6: 3A 04 AD        LD      A,($AD04)           ; {hard.workRam+504} read the era again
 30C9: FE 04           CP      $04                 ; is it era four?
 30CB: 4F              LD      C,A                 ; keep the era for the tail
-30CC: CA 56 31        JP      Z,$3156             ; {code.setFinalEraSceneryAttributesThenRunEraScenery} era four: hand on with the 0x28 fill byte
-30CF: 3E CC           LD      A,$CC               ; otherwise use fill byte 0xCC
+30CC: CA 56 31        JP      Z,$3156             ; {code.setFinalEraSceneryAttributesThenRunEraScenery} era four: hand on with attribute 0x28
+30CF: 3E CC           LD      A,$CC               ; otherwise use attribute 0xCC
 
-; clear a stride-two run of eight object cells to the fill byte carried in
-; A, then branch on the era in C: below four, seat and run the frame's
-; scenery through the four-object seat path; at four and up, when two
-; work-RAM guards read their expected values seat eight entries from a
-; packed table before running the scenery, and on a wrong guard jump
-; through 0x315B into the era scenery-row table at 0x3176 and run its
-; bytes as code
+; set the attribute (colour and flip) byte of eight scenery sprite
+; entries, stride two from 0xAA60, to the byte carried in A, then branch
+; on the era in C: below four, seat and run the frame's scenery through
+; the four-object seat path; at four and up, when two work-RAM guards read
+; their expected values seat eight entries from a packed table before
+; running the scenery, and on a wrong guard jump through 0x315B into the
+; era scenery-row table at 0x3176 and run its bytes as code
 setSceneryAttributesThenRunEraScenery:
 30D1: 21 60 AA        LD      HL,$AA60            ; point at the object attribute cells
 30D4: 11 02 00        LD      DE,$0002            ; stride of two
 30D7: 06 08           LD      B,$08               ; eight cells
 
 loc_30d9:
-30D9: 77              LD      (HL),A              ; clear this cell to the fill byte
+30D9: 77              LD      (HL),A              ; set this attribute byte to the caller's value
 30DA: 19              ADD     HL,DE               ; step two on
 30DB: 10 FC           DJNZ    $30D9               ; {code.loc_30d9} repeat for all eight
 30DD: 79              LD      A,C                 ; recall the era
@@ -6808,12 +6813,12 @@ loc_3135:
 3151: 10 E2           DJNZ    $3135               ; {code.loc_3135} repeat for all four
 3153: C3 BC 2C        JP      $2CBC               ; {code.runSceneryForEra} run the frame's scenery
 
-; fix the fill byte and transfer to 0x30D1 without returning; choosing
-; that one constant is the entire content of the entry, so whatever the
-; caller carried in its place is discarded
+; fix the attribute byte and transfer to 0x30D1 without returning;
+; choosing that one constant is the entire content of the entry, so
+; whatever the caller carried in its place is discarded
 setFinalEraSceneryAttributesThenRunEraScenery:
-3156: 3E 28           LD      A,$28               ; force the fill byte to 0x28
-3158: C3 D1 30        JP      $30D1               ; {code.setSceneryAttributesThenRunEraScenery} hand on to clear the entries and run the era's scenery
+3156: 3E 28           LD      A,$28               ; force the attribute to 0x28
+3158: C3 D1 30        JP      $30D1               ; {code.setSceneryAttributesThenRunEraScenery} hand on to set the scenery attributes and run the era's scenery
 
 ; a bare transfer to 0x3176 and no return; no cell is read or written and
 ; no register moves
@@ -7392,7 +7397,7 @@ drawCaptionFivePastSharedColour:
 ; 0xad05 at zero, spawn a fresh wave inline across the 0xa850/0xaa1a craft
 ; band at edge positions picked by the wave descriptor plus a heading
 ; bias, then request a sound when five or more slots filled or the filled
-; count reached the round's craft count
+; count reached the craft spawn slot count
 driveEnemyWaveForLifePhase:
 36AF: 3A C6 AC        LD      A,($ACC6)           ; {hard.workRam+4C6} read the round-transition hold cell
 36B2: A7              AND     A                   ; test it
@@ -7437,7 +7442,7 @@ driveEnemyWaveForLifePhase:
 36FA: 21 7B 39        LD      HL,$397B            ; point at the wave-descriptor table
 36FD: DF              RST     $18                 ; index it by the descriptor number
 36FE: EB              EX      DE,HL               ; keep the descriptor pointer aside
-36FF: 3A C1 AC        LD      A,($ACC1)           ; {hard.workRam+4C1} read the round's craft count
+36FF: 3A C1 AC        LD      A,($ACC1)           ; {hard.workRam+4C1} read the craft spawn slot count
 3702: 47              LD      B,A                 ; use it as the slot loop count
 3703: 3A 02 AD        LD      A,($AD02)           ; {hard.workRam+502} read the kills still owed
 3706: A7              AND     A                   ; test it
@@ -7501,12 +7506,12 @@ loc_3768:
 3775: AF              XOR     A                   
 3776: 32 C2 AC        LD      ($ACC2),A           ; {hard.workRam+4C2} clear the wave mark
 3779: 3E E4           LD      A,$E4               
-377B: 32 12 A8        LD      ($A812),A           ; {hard.workRam+12} stamp the wave-claim timer ready (0xE4)
+377B: 32 12 A8        LD      ($A812),A           ; {hard.workRam+12} open the wave's claim window: 228 frames (0xE4)
 377E: 21 11 A8        LD      HL,$A811            ; point at the filled-slot counter
 3781: 7E              LD      A,(HL)              ; read how many filled
 3782: FE 05           CP      $05                 ; five or more?
 3784: D2 17 58        JP      NC,$5817            ; {code.requestEnemyWaveSound} enough filled: request the enemy-wave sound
-3787: 21 C1 AC        LD      HL,$ACC1            ; point at the round's craft count
+3787: 21 C1 AC        LD      HL,$ACC1            ; point at the craft spawn slot count
 378A: BE              CP      (HL)                ; compare the filled count against it
 378B: 7E              LD      A,(HL)              ; take the craft count
 378C: 32 11 A8        LD      ($A811),A           ; {hard.workRam+11} store it over the filled count -- the wave's kill countdown
@@ -7529,7 +7534,7 @@ loc_3793:
 ; heads across the seven-record enemy-craft band at 0xa850, and when fewer
 ; than two are busy run the free-slot search -- the cleared run via $3793
 ; when the owed-kills cell 0xad02 is zero, else the owed run (b from the
-; round's craft count 0xacc1, seated at 0xa8b0/0xaa26) via
+; craft spawn slot count 0xacc1, seated at 0xa8b0/0xaa26) via
 ; spawnEnemyIntoFreeSlotElseStepSearch; stages nothing when the gate is
 ; shut or two or more heads are busy
 spawnEnemyCraftWhenBandUnderTwo:
@@ -7563,10 +7568,10 @@ loc_37b4:
 ; counter cell and only two of its values open the gate, every other value
 ; ending the entry with nothing staged; past the gate the count of kills
 ; still owed picks between two runs of the one slot file -- while any are
-; owed the run starts two records higher and is as long as the round's
-; craft count asks, and once none are owed a fixed run of five starts
-; lower -- and control leaves for the search without coming back. The gate
-; byte is read through a pointer the caller supplies
+; owed the run starts two records higher and is as long as the craft spawn
+; slot count asks, and once none are owed a fixed run of five starts lower
+; -- and control leaves for the search without coming back. The gate byte
+; is read through a pointer the caller supplies
 gateTheFreeSlotSearchAndPickItsRun:
 37BD: 7E              LD      A,(HL)              ; read the gate byte the caller points at
 37BE: A7              AND     A                   ; test it
@@ -7578,7 +7583,7 @@ loc_37c4:
 37C4: 3A 02 AD        LD      A,($AD02)           ; {hard.workRam+502} read the kills still owed
 37C7: A7              AND     A                   ; test it
 37C8: 28 C9           JR      Z,$3793             ; {code.loc_3793} none owed: run the fixed five-slot search
-37CA: 3A C1 AC        LD      A,($ACC1)           ; {hard.workRam+4C1} read the round's craft count
+37CA: 3A C1 AC        LD      A,($ACC1)           ; {hard.workRam+4C1} read the craft spawn slot count
 37CD: 47              LD      B,A                 ; use it as the search length
 37CE: DD 21 B0 A8     LD      IX,$A8B0            ; point at the seventh craft record
 37D2: FD 21 26 AA     LD      IY,$AA26            ; point at its sprite entry
@@ -7706,7 +7711,7 @@ loc_3861:
 spawnEnemyWaveIntoFreeSlots:
 386E: DD 21 50 A8     LD      IX,$A850            ; point at the first craft record
 3872: FD 21 1A AA     LD      IY,$AA1A            ; point at its sprite entry
-3876: 3A C1 AC        LD      A,($ACC1)           ; {hard.workRam+4C1} read the round's craft count
+3876: 3A C1 AC        LD      A,($ACC1)           ; {hard.workRam+4C1} read the craft spawn slot count
 3879: 47              LD      B,A                 ; the wave size
 387A: 3A 0D AD        LD      A,($AD0D)           ; {hard.workRam+50D} read MOTHER_SHIP_ARMED
 387D: A7              AND     A                   ; test it
@@ -7730,7 +7735,7 @@ loc_3882:
 389C: 7E              LD      A,(HL)              ; read the record's heading byte
 389D: DD 77 01        LD      (IX+$01),A          ; store it as the aim heading
 38A0: DD 77 02        LD      (IX+$02),A          ; and as the current heading
-38A3: 3A C1 AC        LD      A,($ACC1)           ; {hard.workRam+4C1} read the round's craft count
+38A3: 3A C1 AC        LD      A,($ACC1)           ; {hard.workRam+4C1} read the craft spawn slot count
 38A6: 90              SUB     B                   ; subtract the remaining count -- the ordinal within the pass
 38A7: 21 D2 38        LD      HL,$38D2            ; point at the ordinal table
 38AA: CF              RST     $08                 ; fetch this slot's flight-script selector
@@ -7749,7 +7754,7 @@ loc_38c0:
 38C9: C1              POP     BC                  ; restore the slot count
 38CA: 10 B6           DJNZ    $3882               ; {code.loc_3882} walk the counted run of slots
 38CC: 3E E4           LD      A,$E4               
-38CE: 32 12 A8        LD      ($A812),A           ; {hard.workRam+12} stamp the wave-claim timer ready (0xE4)
+38CE: 32 12 A8        LD      ($A812),A           ; {hard.workRam+12} open the wave's claim window: 228 frames (0xE4)
 38D1: C9              RET                         
 
 ; ---- $38D2-$3B5E: data ----
@@ -7817,7 +7822,7 @@ serviceEra1BomberObject:
 ; then seat its second tile directly under the first (same X, Y+0x10); if
 ; hasReachedBoundaryBandSelectedByHeading answers it has reached a
 ; boundary retire it, otherwise dress the pair by heading and run the
-; aimed-spawn attempt
+; bomber's aimed-shot attempt (fireBomberShotWhenClearOfPlayer)
 advanceTwoTileObjectThenTryAimedSpawn:
 3B77: CD 05 3E        CALL    $3E05               ; {code.flyAlongStoredVelocity} fly the object along its stored velocity
 3B7A: FD 7E 31        LD      A,(IY+$31)          ; read the top tile's Y
@@ -7828,22 +7833,22 @@ advanceTwoTileObjectThenTryAimedSpawn:
 3B88: CD C4 3C        CALL    $3CC4               ; {code.hasReachedBoundaryBandSelectedByHeading} has it reached a heading-selected boundary?
 3B8B: DA 0D 3C        JP      C,$3C0D             ; {code.retireObjectAndHold} reached: retire it and hold the slot
 3B8E: CD E9 3C        CALL    $3CE9               ; {code.mirrorTwoTileObjectByHeading} dress the pair by heading
-3B91: C3 25 3D        JP      $3D25               ; {code.fireBomberShotWhenClearOfPlayer} run the aimed-spawn attempt
+3B91: C3 25 3D        JP      $3D25               ; {code.fireBomberShotWhenClearOfPlayer} try to fire the bomber's aimed shot
 
 ; advance one hit-soaking object: while BOMBER_HITS_TO_ABSORB (0xa8dc) is
 ; left, spend one, force the record head live (0xff) and re-request its
-; sound pair before the ordinary two-tile move; once no hits remain, run
-; the record head down (capped at 0x61) toward a retire-and-hold at 0,
-; drift it with the world scroll, and at head 0x40 post a command / on
-; 8-step boundaries above 0x40 reseat the sprite shape from the 0x3c09
-; table
+; sound pair before the ordinary two-tile move; once none is left to
+; absorb, run the record head down (capped at 0x61) toward a retire-and-
+; hold at 0, drift it with the world scroll, and at head 0x40 post a
+; command / on 8-step boundaries above 0x40 reseat the sprite shape from
+; the 0x3c09 table
 advanceHitSoakingObjectThenAnimateDeath:
 3B94: 3D              DEC     A                   ; recover the record head byte
 3B95: 4F              LD      C,A                 
-3B96: 21 DC A8        LD      HL,$A8DC            ; point at the hits-remaining count
+3B96: 21 DC A8        LD      HL,$A8DC            ; point at the count of hits it can still absorb
 3B99: 7E              LD      A,(HL)              ; read it
 3B9A: A7              AND     A                   ; test it
-3B9B: CA A9 3B        JP      Z,$3BA9             ; {code.loc_3ba9} no hits left: begin the death sequence
+3B9B: CA A9 3B        JP      Z,$3BA9             ; {code.loc_3ba9} none left to absorb: this hit kills -- begin the death sequence
 3B9E: 35              DEC     (HL)                ; spend one hit
 3B9F: DD 36 00 FF     LD      (IX+$00),$FF        ; force the record head live
 3BA3: CD 83 56        CALL    $5683               ; {code.requestTwoSounds} re-request the craft's two sounds
@@ -7964,7 +7969,7 @@ loc_3c44:
 3C65: DD 71 0C        LD      (IX+$0C),C          ; store a velocity byte
 3C68: DD 70 0D        LD      (IX+$0D),B          ; store a velocity byte
 3C6B: 3E 03           LD      A,$03               
-3C6D: 32 DC A8        LD      ($A8DC),A           ; {hard.workRam+DC} set the hits-remaining count to three
+3C6D: 32 DC A8        LD      ($A8DC),A           ; {hard.workRam+DC} let it absorb three hits -- the fourth kills it
 3C70: DD 36 00 FF     LD      (IX+$00),$FF        ; mark the slot live
 3C74: C9              RET                         
 
@@ -8034,10 +8039,10 @@ mirrorTwoTileObjectByHeading:
 3CE9: 3A 80 A9        LD      A,($A980)           ; {hard.workRam+180} read the frame counter
 3CEC: E6 02           AND     $02                 ; take one alternating bit -- flicker between two shapes
 3CEE: 47              LD      B,A                 
-3CEF: 3A DC A8        LD      A,($A8DC)           ; {hard.workRam+DC} read the hits remaining
+3CEF: 3A DC A8        LD      A,($A8DC)           ; {hard.workRam+DC} read the hits it can still absorb
 3CF2: 4F              LD      C,A                 
 3CF3: 3E 03           LD      A,$03               ; the hit count it was armed with
-3CF5: 91              SUB     C                   ; subtract the hits left -- the damage taken
+3CF5: 91              SUB     C                   ; subtract the hits still absorbable -- the hits absorbed so far
 3CF6: 87              ADD     A,A                 ; times four -- four shapes per damage step
 3CF7: 87              ADD     A,A                 
 3CF8: C6 A0           ADD     A,$A0               ; the first damage shape
@@ -8062,16 +8067,16 @@ loc_3d15:
 3D20: FD 36 32 6D     LD      (IY+$32),$6D        ; and on tile two
 3D24: C9              RET                         
 
-; launch one aimed object when the caller's record head reads 0xFF, the
-; cooldown at 0xa8f4 is clear, the era count at 0xa8c6 is non-zero, a seat
-; record is free, and an object in the caller's two-slot bank sits OUTSIDE
-; a doubled window round (0x84, 0x78) on at least one axis: seat the found
-; object's coords, the doubled velocity pair for the heading toward the
-; standoff aim point at 0xac7f turned 0x18 to one side (side alternated
-; each spawn via 0xa8d4), a shape code (+0x01) and an attribute (+0x30)
-; into the era's fixed record+sprite bank (0xa840/0xaa18 or
-; 0xa8e0/0xaa2c), decrement the new record head, and reload the cooldown
-; from 0xa8f6
+; fire the bomber's aimed shot when the caller's record head reads 0xFF,
+; the cooldown at 0xa8f4 is clear, the era count at 0xa8c6 is non-zero, a
+; seat record is free, and an object in the caller's two-slot bank sits
+; OUTSIDE a doubled window round (0x84, 0x78) on at least one axis: seat
+; the found object's coords, the doubled velocity pair for the heading
+; toward the standoff aim point at 0xac7f turned 0x18 to one side (side
+; alternated each launch via 0xa8d4), the enemy-shot shape code 0x4d
+; (+0x01) and attribute 0x62 (+0x30) into the era's fixed record+sprite
+; bank (0xa840/0xaa18 or 0xa8e0/0xaa2c), decrement the new record head,
+; and reload the cooldown from 0xa8f6
 fireBomberShotWhenClearOfPlayer:
 3D25: DD 7E 00        LD      A,(IX+$00)          ; read the caller's object record head
 3D28: 3C              INC     A                   
@@ -8086,7 +8091,7 @@ fireBomberShotWhenClearOfPlayer:
 3D36: CA 40 3D        JP      Z,$3D40             ; {code.loc_3d40} a count of one -- require the primary attacker record free
 3D39: 3A E0 A8        LD      A,($A8E0)           ; {hard.workRam+E0} read era-object slot 2's record head
 3D3C: A7              AND     A                   
-3D3D: CA 45 3D        JP      Z,$3D45             ; {code.loc_3d45} free -- go find a windowed object to launch from
+3D3D: CA 45 3D        JP      Z,$3D45             ; {code.loc_3d45} free -- go look for a tile clear of the player to fire from
 
 loc_3d40:
 3D40: 3A 40 A8        LD      A,($A840)           ; {hard.workRam+40} read the primary attacker record's head
@@ -8118,7 +8123,7 @@ loc_3d4d:
 3D69: FD 23           INC     IY                  
 3D6B: D9              EXX                         
 3D6C: 10 DF           DJNZ    $3D4D               ; {code.loc_3d4d} try the other slot
-3D6E: C9              RET                         ; both inside the window on both axes -- nothing to spawn
+3D6E: C9              RET                         ; both inside the window on both axes -- no shot fired
 
 loc_3d6f:
 3D6F: CD 5F 56        CALL    $565F               ; {code.requestEnemyLaunchSound} request the enemy-launch sound
@@ -8128,7 +8133,7 @@ loc_3d6f:
 3D79: 3E 18           LD      A,$18               ; prepare the turn offset ($18)
 3D7B: EB              EX      DE,HL               
 3D7C: 21 D4 A8        LD      HL,$A8D4            ; point at the aim-side toggle
-3D7F: 34              INC     (HL)                ; flip the aim side for this spawn
+3D7F: 34              INC     (HL)                ; flip the aim side for this shot
 3D80: 46              LD      B,(HL)              ; read the toggle
 3D81: CB 40           BIT     0,B                 ; test its low bit
 3D83: 20 02           JR      NZ,$3D87            ; {code.loc_3d87} odd -- turn one way
@@ -8160,8 +8165,8 @@ loc_3da7:
 3DB4: DD 72 0B        LD      (IX+$0B),D          
 3DB7: DD 71 0C        LD      (IX+$0C),C          
 3DBA: DD 70 0D        LD      (IX+$0D),B          
-3DBD: FD 36 01 4D     LD      (IY+$01),$4D        ; set the launch shape code
-3DC1: FD 36 30 62     LD      (IY+$30),$62        ; set the launch sprite attribute
+3DBD: FD 36 01 4D     LD      (IY+$01),$4D        ; set the enemy-shot shape code
+3DC1: FD 36 30 62     LD      (IY+$30),$62        ; set the enemy-shot sprite attribute
 3DC5: DD 35 00        DEC     (IX+$00)            ; count the record head down one -- mark it live
 3DC8: 3A F6 A8        LD      A,($A8F6)           ; {hard.workRam+F6} read the cooldown reload period
 3DCB: 32 F4 A8        LD      ($A8F4),A           ; {hard.workRam+F4} reload the attacker-spawn cooldown
@@ -8444,8 +8449,8 @@ loc_3f6b:
 3F74: DD 70 0D        LD      (IX+$0D),B          
 3F77: FD 7E 31        LD      A,(IY+$31)          
 3F7A: FD 7E 00        LD      A,(IY+$00)          
-3F7D: FD 36 01 4D     LD      (IY+$01),$4D        ; set the launch shape code
-3F81: FD 36 30 62     LD      (IY+$30),$62        ; set the launch sprite attribute
+3F7D: FD 36 01 4D     LD      (IY+$01),$4D        ; set the enemy-shot shape code
+3F81: FD 36 30 62     LD      (IY+$30),$62        ; set the enemy-shot sprite attribute
 3F85: 3A 14 A8        LD      A,($A814)           ; {hard.workRam+14} read the cooldown reload period
 3F88: 32 17 A8        LD      ($A817),A           ; {hard.workRam+17} reload the bank-launch cooldown
 3F8B: DD 35 00        DEC     (IX+$00)            ; count the new record head down one -- mark it live
@@ -8647,10 +8652,11 @@ retireSlot:
 40B3: FD 36 31 00     LD      (IY+$31),$00        ; and the other -- the object leaves the screen
 40B7: C9              RET                         
 
-; ask for one sound, from the third era on, only on a pass that finds the
-; frame tick's low five bits all zero, and only while none of the three
-; records at 0xA8C0, 0xA8D0 and 0xA8E0 is live; any one of those tests
-; failing ends the entry having done nothing at all
+; ask for sound 6 to stop (stop code 0x86 from ROM 0x07FE), from the third
+; era on, only on a pass that finds the frame tick's low five bits all
+; zero, and only while none of the three records at 0xA8C0, 0xA8D0 and
+; 0xA8E0 is live; any one of those tests failing ends the entry having
+; done nothing at all
 askForSoundWhileTheGroupIsClear:
 40B8: 3A 04 AD        LD      A,($AD04)           ; {hard.workRam+504} read the era index
 40BB: FE 02           CP      $02                 ; below the third era (index 2)?
@@ -8667,7 +8673,7 @@ askForSoundWhileTheGroupIsClear:
 40CE: 3A E0 A8        LD      A,($A8E0)           ; {hard.workRam+E0} third era-object record
 40D1: 3C              INC     A                   
 40D2: C8              RET     Z                   ; holds a live object: ask for nothing
-40D3: C3 79 56        JP      $5679               ; {code.requestSoundSixStopWhilePlaying} none of the three live, from the third era on: ask for the progress sound
+40D3: C3 79 56        JP      $5679               ; {code.requestSoundSixStopWhilePlaying} none of the three live, from the third era on: ask for sound 6 to stop
 
 ; entry to the per-slot sweep over an object bank: return early below era
 ; 2 (ERA_INDEX 0xad04) or when the bank's slot count (0xa8c6) is zero,
@@ -9414,7 +9420,7 @@ loc_4554:
 4557: C2 B3 45        JP      NZ,$45B3            ; {code.derailIntoMotherShipWreckCountdown} not the sweep step: step the wreck countdown
 455A: AF              XOR     A                   ; clear BOMBER_HITS_TO_ABSORB
 455B: 32 DC A8        LD      ($A8DC),A           ; {hard.workRam+DC}
-455E: CD 34 56        CALL    $5634               ; {code.enqueueTransitionSoundStops} queue the transition sound burst
+455E: CD 34 56        CALL    $5634               ; {code.enqueueTransitionSoundStops} queue the transition sound stops
 4561: CD D2 56        CALL    $56D2               ; {code.requestDestructionSoundBurst} cue the destruction sound burst for the Mother-Ship
 4564: 21 10 A8        LD      HL,$A810            ; point at the object bank
 4567: 11 10 00        LD      DE,$0010            ; record stride
@@ -9451,23 +9457,25 @@ loc_4594:
 4597: 36 00           LD      (HL),$00            ; clear it
 4599: 18 DE           JR      $4579               ; {code.loc_4579} move on
 
-; reached only via the "wrong-glyph" derail ($1772) and the loop-back
-; ($4660); the bytes run as harmless NOPs and stray-stack POPs. The real
-; routine is at $45B3.
+; reached only via the "wrong-glyph" derail ($1772) and the witness-copy
+; derail ($4660); the bytes run as register churn, undefined NOPs, stack-
+; misaligning POPs and a carry-gated call into the life-loss handover. The
+; Mother-Ship wreck countdown proper starts at $45B3.
 ; ---- $459B-$45B2: misaligned anti-tamper entry ----
 459B: 16 A7 13 96 ED DC F1 8C 68 3B 0D ED F1 9B 13 13
 45AB: 13 13 F1 88 DC ED 11 B9
 
-; step one object's timed warp/flash sequence: drift it with the world,
-; place the pair's second sprite or blank both shapes by two edge-band
-; tests, then count a state byte down — the 0xB4 step flags the sprite,
-; requests the warp sound at 0x580B when PLAYER_STATE (0xA800) reads 0xFF
-; and posts command 0x04/0x0D to the ring, steps above it take their shape
-; pair from the eight-entry ROM table at 0x461B, indexed by the falling
-; head, and a spent counter resets to idle then derails or returns on the
-; TAMPER_GLYPH_COPY gate and the 0xAB44 gate after it; reached through a
-; misaligned prologue (two POP AF, DEC SP) whose stray carry can fold in a
-; life-loss
+; a tamper derail's misaligned entry into the Mother-Ship's wreck
+; countdown, whose aligned step (entered at 0x45B3 from $43F0) does this:
+; drift the ship with the world, place the pair's second sprite or blank
+; both shapes by two edge-band tests, then count a state byte down — the
+; 0xB4 step flags the sprite, requests the warp sound at 0x580B when
+; PLAYER_STATE (0xA800) reads 0xFF and posts command 0x04/0x0D to the
+; ring, steps above it take their shape pair from the eight-entry ROM
+; table at 0x461B, indexed by the falling head, and a spent counter resets
+; to idle then derails or returns on the TAMPER_GLYPH_COPY gate and the
+; 0xAB44 gate after it; reached through a misaligned prologue (two POP AF,
+; DEC SP) whose stray carry can fold in a life-loss
 derailIntoMotherShipWreckCountdown:
 45B3: CD 60 2B        CALL    $2B60               ; {code.driftWithWorldScroll} drift the object along with the world scroll
 45B6: FD 7E 31        LD      A,(IY+$31)          ; take its Y
@@ -9530,11 +9538,11 @@ checkTamperGlyphCopyElseRunWreckFlash:
 4612: 4F              LD      C,A                 
 4613: 3A 43 AB        LD      A,($AB43)           ; {hard.workRam+343} compare against the mirror cell
 4616: 91              SUB     C                   
-4617: C2 43 46        JP      NZ,$4643            ; {code.loc_4643} they disagree: run the start-object setup
+4617: C2 43 46        JP      NZ,$4643            ; {code.loc_4643} they disagree: fall into the wreck-flash stores
 461A: C9              RET                         
 
 loc_461b:
-461B: 94              SUB     H                   ; eight warp-flash shape codes -- also run off as harmless register churn when the start-object path jumps here and drops into 0x4623
+461B: 94              SUB     H                   ; eight warp-flash shape codes -- also run off as harmless register churn when the mismatch path jumps here and drops into 0x4623
 461C: 96              SUB     (HL)                
 461D: 96              SUB     (HL)                
 461E: 94              SUB     H                   
@@ -9556,7 +9564,7 @@ loc_4623:
 4640: C3 38 00        JP      $0038               ; {code.postCommand} queue it and return
 
 loc_4643:
-4643: C3 1B 46        JP      $461B               ; {code.loc_461b} jump on to the start-object setup
+4643: C3 1B 46        JP      $461B               ; {code.loc_461b} jump back into the flash-shape bytes
 
 loc_4646:
 4646: 3E FF           LD      A,$FF               ; raise the round-transition hold
@@ -9721,7 +9729,7 @@ loc_474c:
 474C: 22 91 A9        LD      ($A991),HL          ; {hard.workRam+191} stash the free shot record
 474F: D9              EXX                         
 4750: 22 93 A9        LD      ($A993),HL          ; {hard.workRam+193} and its entry
-4753: CD 5F 56        CALL    $565F               ; {code.requestEnemyLaunchSound} play the enemy launch sound
+4753: CD 5F 56        CALL    $565F               ; {code.requestEnemyLaunchSound} play the enemy-shot launch sound
 4756: 21 7F AC        LD      HL,$AC7F            ; the main standoff aim point
 4759: CD B8 33        CALL    $33B8               ; {code.headingToward} work out the heading toward it
 475C: 67              LD      H,A                 ; keep the heading
@@ -9953,11 +9961,11 @@ awardOneCreditOnDebouncedInputEdge:
 ; coin slot 2's accept-and-tally: rotate IN0 bit 1, the coin-2 line (from
 ; 0xA9AE), into the debounce register COIN_SLOT_2_DEBOUNCE 0xA9CA and act
 ; only on a clean rising edge (low 3 bits read 001) -- request a sound,
-; bump the counter at 0xA982, step the accumulator COIN_SLOT_2_ACCUMULATOR
-; 0xA9CB up by 0x10; once the ratio byte COIN_SLOT_2_RATIO 0xA9CC trails
-; the raised accumulator, pull the accumulator back by (ratio&0xF0)+0x10
-; and tail into awardCoinCreditThenPulseCoinCounter with C = the ratio
-; byte
+; add one to the pulses owed to slot 2's mechanical coin counter at
+; 0xA982, step the accumulator COIN_SLOT_2_ACCUMULATOR 0xA9CB up by 0x10;
+; once the ratio byte COIN_SLOT_2_RATIO 0xA9CC trails the raised
+; accumulator, pull the accumulator back by (ratio&0xF0)+0x10 and tail
+; into awardCoinCreditThenPulseCoinCounter with C = the ratio byte
 meterCoinageTowardCreditOnEdge:
 4911: 3A AE A9        LD      A,($A9AE)           ; {hard.workRam+1AE} read the input port's inverted copy
 4914: 21 CA A9        LD      HL,$A9CA            ; point at coin slot 2's debounce history
@@ -9971,7 +9979,7 @@ meterCoinageTowardCreditOnEdge:
 4921: EB              EX      DE,HL               
 4922: CD F1 57        CALL    $57F1               ; {code.requestCoinSound} blip the coin sound
 4925: 21 82 A9        LD      HL,$A982            
-4928: 34              INC     (HL)                ; bump the slot-2 coins-accepted count
+4928: 34              INC     (HL)                ; bump the count of coins slot 2 still owes its mechanical counter
 4929: EB              EX      DE,HL               
 492A: 23              INC     HL                  
 492B: 7E              LD      A,(HL)              
@@ -10189,7 +10197,7 @@ loc_4a3b:
 4A3F: 3E 00           LD      A,$00               
 4A41: 77              LD      (HL),A              ; then one 0x00 cell -- the run continues in the shared band painter
 
-; continue a caption's colour band just past the caller's cursor: lay the
+; continue the round-won band just past the caller's cursor: lay the
 ; caller's lead byte over one cell, a 13-cell run of the caller's body
 ; byte and a 4-cell tail (0x0e), then fill two thirteen-cell colour-RAM
 ; runs and six scattered colour cells from the base colour at 0xAD0C (each
@@ -10498,23 +10506,23 @@ paintFiveLabelledNumericReadouts:
 4C14: 73 A6 14 7E 29 F8 96 5D F3 13 B9
 
 ; paint a labelled numeric readout up one native tile-plane column (a
-; horizontal line on the quarter-turned monitor): a table-indexed three-
-; tile pictogram (source lead byte x3 into 0x4cb4), a six-digit field,
+; horizontal line on the quarter-turned monitor): a three-tile rank label,
+; 1ST to 5TH (the record's rank byte x3 into 0x4cb4), a six-digit field,
 ; then a three-tile suffix, each cell paired into the colour plane with
 ; the caller's pen colour
 paintLabelledNumericReadoutColumn:
 4C1F: E5              PUSH    HL                  ; save the source record pointer
 4C20: 7E              LD      A,(HL)              ; read the record's lead byte
 4C21: 87              ADD     A,A                 ; times two
-4C22: 86              ADD     A,(HL)              ; times three -- three tiles per pictogram, so the lead byte selects the pictogram
-4C23: 21 B4 4C        LD      HL,$4CB4            ; point at the pictogram table
-4C26: CF              RST     $08                 ; fetch the indexed pictogram tile
+4C22: 86              ADD     A,(HL)              ; times three -- three tiles per label, so the rank byte picks its label
+4C23: 21 B4 4C        LD      HL,$4CB4            ; point at the rank-label table, 1ST to 5TH
+4C26: CF              RST     $08                 ; fetch the label's first tile
 4C27: 12              LD      (DE),A              ; stamp the tile
 4C28: CB 92           RES     2,D                 ; drop to the paired colour cell
 4C2A: 79              LD      A,C                 ; pen colour
 4C2B: 12              LD      (DE),A              ; write the colour
 4C2C: CB D2           SET     2,D                 ; back to the tile cell
-4C2E: 23              INC     HL                  ; next pictogram tile
+4C2E: 23              INC     HL                  ; next label tile
 4C2F: E7              RST     $20                 ; step the cursor up one cell
 4C30: 7E              LD      A,(HL)              ; read the tile
 
@@ -10524,9 +10532,9 @@ loc_4c31:
 4C34: 79              LD      A,C                 ; pen colour
 4C35: 12              LD      (DE),A              ; write the colour
 4C36: CB D2           SET     2,D                 ; back to the tile cell
-4C38: 23              INC     HL                  ; next pictogram tile
+4C38: 23              INC     HL                  ; next label tile
 4C39: E7              RST     $20                 ; step the cursor up one cell
-4C3A: 7E              LD      A,(HL)              ; read the third pictogram tile
+4C3A: 7E              LD      A,(HL)              ; read the label's third tile
 4C3B: 12              LD      (DE),A              ; stamp it
 4C3C: CB 92           RES     2,D                 ; drop to the colour cell
 4C3E: 79              LD      A,C                 ; pen colour
@@ -10923,7 +10931,7 @@ loc_4e00:
 4E0C: 21 00 AD        LD      HL,$AD00            ; point at the lives-remaining count
 4E0F: 7E              LD      A,(HL)              ; read it
 4E10: 34              INC     (HL)                ; add one life
-4E11: 16 05           LD      D,$05               ; command 5 -- the award
+4E11: 16 05           LD      D,$05               ; command 5 -- redraw the reserve-ship emblems
 4E13: 5F              LD      E,A                 ; argument is the count before the increment
 4E14: FF              RST     $38                 ; post it to the command ring
 4E15: C3 05 58        JP      $5805               ; {code.requestBonusLifeSound} request the bonus-life sound and return through it
@@ -10981,7 +10989,7 @@ runAllCollisionSweepsThisFrame:
 4E85: 06 03           LD      B,$03               ; three targets
 4E87: 2E 06           LD      L,$06               ; collision box near bound
 4E89: 26 0D           LD      H,$0D               ; collision box far bound
-4E8B: CD 21 51        CALL    $5121               ; {code.destroyEraObjectsAndPlayerOnContact} destroy the targets a fixed attacker has reached
+4E8B: CD 21 51        CALL    $5121               ; {code.destroyEraObjectsAndPlayerOnContact} destroy the era objects touching the player, and the player with them
 4E8E: 06 01           LD      B,$01               ; one object
 4E90: 2E 08           LD      L,$08               ; collision box near bound
 4E92: 26 11           LD      H,$11               ; collision box far bound
@@ -10998,7 +11006,7 @@ loc_4e97:
 4EA8: FD 21 28 AA     LD      IY,$AA28            ; point the entry cursor at the era-object run
 4EAC: 2E 06           LD      L,$06               ; collision box near bound
 4EAE: 26 0D           LD      H,$0D               ; collision box far bound
-4EB0: CD 21 51        CALL    $5121               ; {code.destroyEraObjectsAndPlayerOnContact} destroy the targets a fixed attacker has reached
+4EB0: CD 21 51        CALL    $5121               ; {code.destroyEraObjectsAndPlayerOnContact} destroy the era objects touching the player, and the player with them
 4EB3: 06 01           LD      B,$01               ; one object
 4EB5: 2E 08           LD      L,$08               ; collision box near bound
 4EB7: 26 11           LD      H,$11               ; collision box far bound
@@ -11015,7 +11023,7 @@ splitCollisionWorkByFrameParity:
 4EBC: 3A 80 A9        LD      A,($A980)           ; {hard.workRam+180} read the frame tick
 4EBF: E6 01           AND     $01                 ; its low bit -- frame parity
 4EC1: C2 35 4F        JP      NZ,$4F35            ; {code.dispatchShotSweepByMotherShipArmed} odd frame: run the shot sweeps and return
-4EC4: CD 7E 4F        CALL    $4F7E               ; {code.markEra1BomberAndShotHitByShots} even frame: destroy the fixed target the shots have reached
+4EC4: CD 7E 4F        CALL    $4F7E               ; {code.markEra1BomberAndShotHitByShots} even frame: mark the bomber and the shots that reached it
 4EC7: 06 04           LD      B,$04               ; four objects
 4EC9: 11 10 A8        LD      DE,$A810            ; point the record cursor at the object run
 4ECC: FD 21 12 AA     LD      IY,$AA12            ; point the entry cursor at the object run
@@ -11122,10 +11130,10 @@ stagePlayerShotSweepAgainstTargetsAndRun:
 4F79: 26 0F           LD      H,$0F               ; collision box far bound
 4F7B: C3 11 52        JP      $5211               ; {code.destroyTargetsHitByShots} run the sweep of six shots against the three targets
 
-; destroy the one fixed target the player's shots have reached, spending
-; each shot that reached it and posting the score for each; the target's
-; liveness is tested ONCE, ahead of the sweep, so several shots can be
-; spent on it in a single pass
+; mark the era-1 bomber hit (0xF0, which its handler counts as a single
+; hit however many shots reached it), spending each shot that reached it
+; and posting the score for each; the target's liveness is tested ONCE,
+; ahead of the sweep, so several shots can be spent on it in a single pass
 markEra1BomberAndShotHitByShots:
 4F7E: 2E 06           LD      L,$06               ; the target's hit window -- X slack
 4F80: 26 0D           LD      H,$0D               ; X window width
@@ -11151,8 +11159,8 @@ loc_4f91:
 4FA7: 83              ADD     A,E                 ; plus the Y slack
 4FA8: BA              CP      D                   ; within the Y window?
 4FA9: 30 0B           JR      NC,$4FB6            ; {code.loc_4fb6} outside: skip this shot
-4FAB: 3E F0           LD      A,$F0               ; hit -- destroyed marker
-4FAD: 32 C0 A8        LD      ($A8C0),A           ; {hard.workRam+C0} mark the target destroyed
+4FAB: 3E F0           LD      A,$F0               ; hit -- the 0xf0 hit mark
+4FAD: 32 C0 A8        LD      ($A8C0),A           ; {hard.workRam+C0} mark the bomber hit -- its handler counts it off
 4FB0: FD 77 00        LD      (IY+$00),A          ; spend the shot that hit it
 4FB3: CD DE 51        CALL    $51DE               ; {code.postChainedHitScore} post the score for this hit
 
@@ -11185,9 +11193,10 @@ sweepShotsOverFiveCraftThenMotherShip:
 4FDD: CD 11 52        CALL    $5211               ; {code.destroyTargetsHitByShots} sweep the six shots against the five craft, destroying and scoring each hit -- then fall into the mother-ship sweep
 
 ; sweep the six player-shot slots for one that has reached the single
-; fixed two-slot target, mark both destroyed and post the score for each;
-; the first-axis window is widened for two of the era values, by a data
-; swap rather than a second body
+; fixed two-slot target, mark both hit (0xF0) and post the score for each
+; -- $43F0 later decides whether the mark costs one of the target's
+; absorbable hits or starts its death; the first-axis window is widened
+; for two of the era values, by a data swap rather than a second body
 markMotherShipAndShotHitByShots:
 4FE0: 3A 04 AD        LD      A,($AD04)           ; {hard.workRam+504} read the era index
 4FE3: A7              AND     A                   ; era 0?
@@ -11220,9 +11229,9 @@ loc_4ffd:
 5013: 83              ADD     A,E                 ; add the Y slack
 5014: BA              CP      D                   ; inside the Y span?
 5015: 30 0B           JR      NC,$5022            ; {code.loc_5022} outside -- skip
-5017: 3E F0           LD      A,$F0               ; the destroyed code
-5019: 32 A0 A8        LD      ($A8A0),A           ; {hard.workRam+A0} destroy the mother ship
-501C: FD 77 00        LD      (IY+$00),A          ; destroy this shot
+5017: 3E F0           LD      A,$F0               ; the hit code
+5019: 32 A0 A8        LD      ($A8A0),A           ; {hard.workRam+A0} mark the mother ship hit
+501C: FD 77 00        LD      (IY+$00),A          ; mark this shot hit
 501F: CD DE 51        CALL    $51DE               ; {code.postChainedHitScore} post the chained hit score
 
 loc_5022:
@@ -11298,7 +11307,7 @@ destroyFixedTargetReachedByPlayer:
 50A4: 32 00 A8        LD      ($A800),A           ; {hard.workRam} destroy the player
 50A7: 32 C0 A8        LD      ($A8C0),A           ; {hard.workRam+C0} destroy the fixed target
 50AA: AF              XOR     A                   
-50AB: 32 DC A8        LD      ($A8DC),A           ; {hard.workRam+DC} clear the target's remaining-hits count so the contact kills it outright rather than costing it a hit
+50AB: 32 DC A8        LD      ($A8DC),A           ; {hard.workRam+DC} clear the hits it can absorb, so the contact kills it outright rather than being absorbed
 50AE: C3 DE 51        JP      $51DE               ; {code.postChainedHitScore} post the chained hit score
 
 ; select the collision box for the mutual kill of the player and one fixed
@@ -11369,12 +11378,12 @@ destroyPlayerAndMotherShipOnContact:
 511B: 32 A4 A8        LD      ($A8A4),A           ; {hard.workRam+A4} clear the mother ship's hits-to-absorb count, four bytes into its record
 511E: C3 DE 51        JP      $51DE               ; {code.postChainedHitScore} post the chained hit score
 
-; destroy every target of a caller's run that one fixed attacker -- the
-; player's own ship -- has reached, marking both destroyed and posting the
-; chained score for each; the attacker's state is tested once, so one pass
-; can take several
+; destroy every target of a caller's run that the player's own ship
+; touches, marking both destroyed (the ship dies too) and posting the
+; chained score for each; the ship's state is tested once, so one pass can
+; take several
 destroyEraObjectsAndPlayerOnContact:
-5121: 3A 00 A8        LD      A,($A800)           ; {hard.workRam} read the player's state -- the fixed attacker
+5121: 3A 00 A8        LD      A,($A800)           ; {hard.workRam} read the player's state
 5124: 3C              INC     A                   
 5125: C0              RET     NZ                  ; player gone -- nothing to do
 
@@ -12046,7 +12055,8 @@ loc_562a:
 ; queue seven sound codes back to back with no play test: six fetched one
 ; each from its own cell of the program image, so an edit to the image
 ; changes what is asked for, and a seventh formed by adding the era index
-; to a fixed base
+; to a fixed base; every one has bit 7 set, which the audio processor
+; takes as a stop for the channel playing the low seven bits
 enqueueTransitionSoundStops:
 5634: 3A 7C 16        LD      A,($167C)           ; {hard.rom+167C} a sound code from the program image
 5637: CD 28 56        CALL    $5628               ; {code.enqueueSoundUnconditional} queue it, no permission test
@@ -12094,10 +12104,10 @@ requestAttackerSpawnSoundLateEra:
 5674: 3A 6B 27        LD      A,($276B)           ; {hard.rom+276B} a sound code from the program image
 5677: 18 93           JR      $560C               ; {code.enqueueSoundIfGameInProgress} request it, only while a game is in progress
 
-; read the byte at 0x07FE and request it as a sound code, only while a
-; game is being played
+; read the byte at 0x07FE (0x86, the stop code for sound 6) and request it
+; as a sound code, only while a game is being played
 requestSoundSixStopWhilePlaying:
-5679: 3A FE 07        LD      A,($07FE)           ; {hard.rom+7FE} a sound code from the program image
+5679: 3A FE 07        LD      A,($07FE)           ; {hard.rom+7FE} the stop code for sound six, from the program image
 567C: 18 8E           JR      $560C               ; {code.enqueueSoundIfGameInProgress} request it, only while a game is in progress
 
 ; read the byte at 0x3270 and request it as a sound code, admitted while a
@@ -12246,7 +12256,7 @@ requestMotherShipWarpSound:
 ; read the byte at 0x07A9 and request it as a sound code, only while a
 ; game is being played
 requestPlayerWhiteFlashSound:
-5811: 3A A9 07        LD      A,($07A9)           ; {hard.rom+7A9} fetch the player-spawn flash sound code from the program image
+5811: 3A A9 07        LD      A,($07A9)           ; {hard.rom+7A9} fetch the round-won flash sound code from the program image
 5814: C3 0C 56        JP      $560C               ; {code.enqueueSoundIfGameInProgress} request it, only while a game is in progress
 
 ; read the byte at 0x273A and request it as a sound code, only while a

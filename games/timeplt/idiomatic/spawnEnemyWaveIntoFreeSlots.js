@@ -36,7 +36,7 @@ const CLAIM_WINDOW_FRAMES = 0xe4;
 
 export function spawnEnemyWaveIntoFreeSlots(m) {
   const { mem8 } = m;
-  // Step 1 -- how many slots to walk: the round's craft quota CRAFT_SPAWN_SLOT_COUNT 0xACC1 [seen],
+  // Step 1 -- how many slots to walk: the craft spawn slot count CRAFT_SPAWN_SLOT_COUNT 0xACC1 [seen],
   // or five while the Mother-Ship is armed.
   const configuredCount = mem8[CRAFT_SPAWN_SLOT_COUNT];
   const count = mem8[MOTHER_SHIP_ARMED] === 0 ? configuredCount : DEFAULT_COUNT;
@@ -62,8 +62,8 @@ export function spawnEnemyWaveIntoFreeSlots(m) {
       mem8[slot + 0x02] = startHeading;
 
       // Step 4 -- the flight-script selector (+0x0A) comes from WAVE_RUN_SELECTOR_TABLE (ROM
-      // 0x38D2) at this slot's ordinal, computed as the quota minus the slots still to walk (the
-      // ROM re-reads 0xACC1 here, so it uses the quota even on a five-slot walk). The script
+      // 0x38D2) at this slot's ordinal, computed as the slot count minus the slots still to walk (the
+      // ROM re-reads 0xACC1 here, so it uses that count even on a five-slot walk). The script
       // position (+9) starts at 0x20 (32).
       mem8[slot + 0x0a] = fetchTableByte(m, WAVE_RUN_SELECTOR_TABLE, u8(configuredCount - remaining));
       mem8[slot + 0x09] = 0x20;

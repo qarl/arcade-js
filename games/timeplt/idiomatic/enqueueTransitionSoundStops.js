@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * enqueueTransitionSoundStops — queue seven sound requests back to back.
+ * enqueueTransitionSoundStops — queue seven sound-stop codes back to back.
  *
  * WHAT IT IS: ROM 0x5634-0x565E, tag [seen] (names.js ROUTINES 0x5634). The sound side of the game is
  * fed through a small queue of sound codes; this routine drops seven codes into it in one go. Six of the
@@ -9,11 +9,14 @@
  * is asked for. The seventh is formed by adding the era index to a fixed base, so it is the one request
  * that differs from era to era.
  *
- * ROLE IN THE MACHINE: the burst of sounds that marks a transition. The initials-entry arm of the
- * sequence machine, for example, "queues the transition sounds" when it finishes (names.js, the
- * high-score initials role). Every code goes through enqueueSoundUnconditional (0x5628), the way into the
- * sound queue that does NOT test whether a game is being played -- so nothing here asks that question
- * either, and the burst is queued in the attract demo just as in play.
+ * ROLE IN THE MACHINE: silencing sounds at a transition. Every one of the seven codes has bit 7 set on a
+ * genuine image (0x86, 0x9C-0xA0, and 0x8C plus the era), and the audio processor's command handler takes
+ * bit 7 as a stop: it finds the channel slot holding the low seven bits and clears it. So the routine cuts
+ * off sounds 0x06, 0x1C-0x20 and the era's 0x0C-0x10 if they are playing, and starts none. Its four
+ * callers are transitions: a lost life, a won round, the end of initials entry and the Mother-Ship's
+ * death. Every code goes through enqueueSoundUnconditional (0x5628), the way into the sound queue that
+ * does NOT test whether a game is being played -- so nothing here asks that question either, and the
+ * stops are queued in the attract demo just as in play.
  *
  * LIVE-OUT: memory-only (the sound queue and its count).
  */

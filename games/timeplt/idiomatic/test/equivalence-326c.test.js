@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Memory-equivalence for layOutEnemyAimPointsFromPlayerHeading vs the frozen oracle: real tape dispatches, a full scroll-angle
-// sweep of the sub-mode-7 body, the sub-mode gate, and broken twins caught in MEMORY.
+// Memory-equivalence for layOutEnemyAimPointsFromPlayerHeading vs the frozen oracle: real tape dispatches, a full heading
+// sweep of the units-digit-7 body, the units-digit gate, and broken twins caught in MEMORY.
 // Run: node --test games/timeplt/idiomatic/test/equivalence-326c.test.js
 
 import test from "node:test";
@@ -109,11 +109,11 @@ test("REAL DISPATCHES: every tape dispatch is byte-identical within the ceiling"
     assert.equal(rd, null, `a dispatch diverged in a register: ${JSON.stringify(rd)}`);
     if ((e.regs.c & 0x0f) === SUBMODE) body++;
   }
-  assert.ok(body > 0, "vacuous: no captured dispatch took the sub-mode-7 body");
+  assert.ok(body > 0, "vacuous: no captured dispatch took the units-digit-7 body");
   console.log(`  REAL: ${entries.length} dispatches identical, ${body} took the body`);
 });
 
-test("SCROLL SWEEP: all 256 angles through the sub-mode-7 body are identical", { skip }, () => {
+test("HEADING SWEEP: all 256 player headings through the units-digit-7 body are identical", { skip }, () => {
   let moved = 0;
   for (let scroll = 0; scroll < 256; scroll++) {
     const m = craft(scroll, SUBMODE);
@@ -128,7 +128,7 @@ test("SCROLL SWEEP: all 256 angles through the sub-mode-7 body are identical", {
   console.log(`  SWEEP: 256 angles identical, all rewrote the object fields`);
 });
 
-test("SUB-MODE GATE: the body runs iff the low nibble is 7, matching the oracle", { skip }, () => {
+test("UNITS-DIGIT GATE: the body runs iff the low nibble is 7, matching the oracle", { skip }, () => {
   for (let cLow = 0; cLow < 16; cLow++) {
     const m = craft(0x80, cLow);
     const md = memDiff(split(layOutEnemyAimPointsFromPlayerHeading, m));
@@ -147,7 +147,7 @@ function brokenNoMirror(m) {
   layOutEnemyAimPointsFromPlayerHeading(m);
   for (const f of [0x14, 0x15, 0x16, 0x17]) m.mem8[OBJECT + f] = SEED;
 }
-// BUG: the sub-mode gate is forced open, so the body writes on every mode, not just 7.
+// BUG: the units-digit gate is forced open, so the body writes on every units digit, not just 7.
 function brokenNoGate(m) {
   const c = m.regs.c;
   m.regs.c = (c & 0xf0) | SUBMODE;

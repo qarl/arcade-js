@@ -54,7 +54,7 @@ export function dispatchSequencePhase1SubStepArm(m) {
   // Pick the table word: the raw inner index, reduced to the seven bits the eight-bit doubling keeps.
   const entry = m.mem8[SEQUENCE_SUBSTEP] & ENTRY_MASK;
   switch (entry) {
-    // The tamper-check / copyright / attract sequence, in order: erase the pen route, animate the pen
+    // The tamper-check / copyright / attract sequence, in order: arm the pen route in colour 5, animate the pen
     // run, show the credit line, build the copyright screen, hold it and erase the coin invitation,
     // paint the readouts and sample the witness, hold and verify the glyph, two guard-block steps, fold
     // the image block into the signature, step under the checksum, a bare trampoline step, and finally

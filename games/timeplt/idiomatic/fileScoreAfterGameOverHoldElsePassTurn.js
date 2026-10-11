@@ -67,8 +67,8 @@ export function fileScoreAfterGameOverHoldElsePassTurn(m) {
 
   /* Step 4 -- the score was filed (0x3326-0x3335). Ask for the filed-score sound, then set the
    * pen to colour 0 and glyph 0xF1 (the blank) and put it back at the start of its route
-   * (armThePenRouteThenColdStartOnATamperedImage), so the pen's next trace ERASES the route it
-   * drew rather than drawing it again. That callee carries its own image check too (names.js). */
+   * (armThePenRouteThenColdStartOnATamperedImage), so the pen's next trace lays the same blank
+   * tiles along the route in colour 0 instead of the era's colour. That callee carries its own image check too (names.js). */
   requestHighScoreFiledSound(m);
   mem8[PEN_COLOUR] = 0;
   mem8[PEN_GLYPH] = BLANKING_GLYPH;

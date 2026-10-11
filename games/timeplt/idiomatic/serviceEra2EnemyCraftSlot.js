@@ -57,7 +57,7 @@ export function serviceEra2EnemyCraftSlot(m, record = m.regs.ix, entry = m.regs.
     // answers with the carry flag and the ROM tail-jumps (`jp c,0x2BDE`) to retireSlotAndSubPixel,
     // which zeroes the slot; nothing else runs for it.
     if (hasReachedRetireLine(m, entry)) return retireSlotAndSubPixel(m, record, entry);
-    // Still in play: one gated bank launch when aimed near the player (0x3ED6); dress the sprite to
+    // Still in play: one gated shot when aimed near the player (0x3ED6); dress the sprite to
     // face its heading, resolved to thirty-two sectors (dressSpriteForFineHeading, 0x2A97); then the
     // attacker launch into a free slot on this object's turn (launchAttackerIntoFreeSlot, 0x4243).
     fireCraftShotWhenAimedNearPlayer(m, record, entry);

@@ -56,7 +56,7 @@ export function serviceEra0EnemyCraftSlot(m, record = m.regs.ix, entry = m.regs.
   // the Z80 carry flag, and on carry the ROM tail-jumps to retireSlotAndSubPixel (0x2BDE), which
   // zeroes the slot's occupancy byte and coordinates. Nothing else runs for a retired slot.
   if (hasReachedRetireLine(m, entry)) return retireSlotAndSubPixel(m, record, entry);
-  // Still in play. One gated attempt to launch an enemy into the object bank when this craft is
+  // Still in play. One gated attempt to fire a shot into the enemy-shot bank when this craft is
   // aimed near the player (fireCraftShotWhenAimedNearPlayer, 0x3ED6); then store the shape and
   // attribute that draw the craft pointing along its heading into its sprite entry
   // (refreshSpriteFromHeading, 0x2A3C); then, on this object's turn and once the shared spawn

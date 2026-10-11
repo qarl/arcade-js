@@ -5,7 +5,7 @@
  * ROM 0x5811-0x5816 (`ld a,(0x07a9)` then `jp 0x560c`). Grounding: [seen].
  *
  * Role in the machine: one of the one-line "sound request" entries the game logic calls when
- * something audible happens -- here, the flash as the player's plane spawns. It plays nothing
+ * something audible happens -- here, the player's ship flashing white after a round is won. It plays nothing
  * itself: it hands a sound-command code to the shared sound queue, which the main CPU later
  * drains to the sound-data latch for the second (audio) Z80.
  *

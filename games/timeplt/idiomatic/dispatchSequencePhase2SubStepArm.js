@@ -23,7 +23,7 @@ export function dispatchSequencePhase2SubStepArm(m) {
   const entry = m.mem8[SEQUENCE_SUBSTEP] & ENTRY_MASK;
   switch (entry) {
     // Slot 0 parks the sprites and arms the line wipe; slot 1 blanks one line and, on the turn that
-    // finishes, runs the tamper check; slot 2 posts the attract info captions; slots 3 and 4 are the
+    // finishes, runs the tamper check; slot 2 posts the push-start screen's captions; slots 3 and 4 are the
     // copyright/insert-coin await-start steps for one credit and for two. None reads a register the
     // dispatch would have left standing — each opens on a cell read or a fixed-argument call — so the
     // arm is entered directly, with no table word carried in on a register pair. Each arm returns, and

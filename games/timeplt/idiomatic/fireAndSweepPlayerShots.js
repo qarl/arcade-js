@@ -15,7 +15,7 @@
  *
  * Shot record layout used here: +0 head byte (0 free, 0xFF live, anything else marked -- e.g. the
  * 0xF0 destroyTargetsHitByShots writes on a hit); +3/+4 the first coordinate as an 8.8 word
- * (fraction, whole); +5/+6 the second; +10/+11 and +12/+13 the two per-pass seeds.
+ * (fraction, whole); +5/+6 the second; +10/+11 and +12/+13 the two velocity words.
  * LIVE-OUT: memory. */
 
 import { u8, u16 } from "../../../core/int.js";
@@ -77,9 +77,9 @@ function spawnIntoFreeSlot(m, slot) {
   const { mem8, mem16 } = m;
   requestPlayerShotSound(m);
 
-  /* The shot's velocity. Each seed is -4 x one component of the world scroll (`xor a`,
+  /* The shot's velocity. Each velocity word is -4 x one component of the world scroll (`xor a`,
    * `sbc hl,bc`, `add hl,hl` twice). The world scroll is the negated ship velocity (names.js
-   * WORLD_SCROLL_Y), so the seed is four times the ship's velocity: the shot flies the way the
+   * WORLD_SCROLL_Y), so the velocity word is four times the ship's velocity: the shot flies the way the
    * ship is flying, four times as fast through the world. */
   mem16[slot + VELOCITY1] = u16(-4 * mem16[WORLD_SCROLL_Y]);
   mem16[slot + VELOCITY2] = u16(-4 * mem16[WORLD_SCROLL_X]);
@@ -121,19 +121,19 @@ function sweepSlots(m) {
     if (head === 0) continue;
     if (u8(head + 1) !== 0) { cullSlot(m, slot); continue; }
 
-    /* First coordinate: add the seed plus the current WORLD_SCROLL_Y component as one 8.8 word,
-     * so sub-pixel motion accumulates in the fraction. Since the seed is -4 x the scroll and the
+    /* First coordinate: add the velocity word plus the current WORLD_SCROLL_Y component as one 8.8 word,
+     * so sub-pixel motion accumulates in the fraction. Since the velocity word is -4 x the scroll and the
      * scroll is added again, a shot on a steady course moves across the screen at three times the
      * ship's velocity. A whole part in 0xF0-0xFF is off the field: free the record. */
-    const x = u16(u16(mem16[slot + VELOCITY1] + mem16[WORLD_SCROLL_Y]) + mem16[slot + AXIS1]);
-    if (u8((x >> 8) + 0x10) < 0x10) { cullSlot(m, slot); continue; }
-    mem16[slot + AXIS1] = x;
+    const nativeY = u16(u16(mem16[slot + VELOCITY1] + mem16[WORLD_SCROLL_Y]) + mem16[slot + AXIS1]);
+    if (u8((nativeY >> 8) + 0x10) < 0x10) { cullSlot(m, slot); continue; }
+    mem16[slot + AXIS1] = nativeY;
 
     /* Second coordinate, the same with WORLD_SCROLL_X; this axis is off the field in 0xF8-0xFF or
      * 0x00-0x0F. */
-    const y = u16(u16(mem16[slot + VELOCITY2] + mem16[WORLD_SCROLL_X]) + mem16[slot + AXIS2]);
-    if (u8((y >> 8) + 0x08) < 0x18) { cullSlot(m, slot); continue; }
-    mem16[slot + AXIS2] = y;
+    const nativeX = u16(u16(mem16[slot + VELOCITY2] + mem16[WORLD_SCROLL_X]) + mem16[slot + AXIS2]);
+    if (u8((nativeX >> 8) + 0x08) < 0x18) { cullSlot(m, slot); continue; }
+    mem16[slot + AXIS2] = nativeX;
 
     /* Still on the field: queue its two-by-two character block onto the deferred write list,
      * painted at the next vertical blank (mechanisms.md). */

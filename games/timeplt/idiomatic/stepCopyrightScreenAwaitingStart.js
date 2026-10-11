@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** stepCopyrightScreenAwaitingStart — one title/attract sequence arm (table-dispatched): re-stamp the copyright strip,
+/** stepCopyrightScreenAwaitingStart — one phase-2 (credit banked, awaiting start) sequence arm (table-dispatched): re-stamp the copyright strip,
  * re-request the flashing copyright line, sample one cell into a two-byte record; then hand off to
  * the one-player start when 1-player start is held, return when the credit count is one, else
  * queue one command pair and step the sequence sub-step. LIVE-OUT: memory only. */

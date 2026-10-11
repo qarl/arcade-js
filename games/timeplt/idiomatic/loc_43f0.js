@@ -180,7 +180,7 @@ export function sweepFieldOnMotherShipDeathElseStepWreck(m, phase, record, entry
   if (phase !== FIELD_SWEEP_TRIGGER) return stepMotherShipWreckCountdown(m, record, entry);
 
   // The Mother-Ship's death clears BOMBER_HITS_TO_ABSORB (0xA8DC) [seen] -- the bomber's hit counter -- and
-  // queues the transition sound burst (0x5634) and the destruction sound burst (0x56D2).
+  // queues the transition sound stops (0x5634) and the destruction sound burst (0x56D2).
   mem8[BOMBER_HITS_TO_ABSORB] = 0x00;
   enqueueTransitionSoundStops(m);
   requestDestructionSoundBurst(m);
@@ -433,7 +433,7 @@ export function launchAimedMotherShipShot(m, recordPtr, entryPtr, origin) {
   mem8[Y(0x31)] = tileNativeY;
   mem8[Y(0x00)] = tileNativeX;
 
-  // Dispatch the era's stage arm directly. The slowest-sample arm serves the two opening eras and
+  // Dispatch the era's velocity arm directly. The slowest-sample arm serves the two opening eras and
   // the faster arm eras two through four; each reads the record's heading and returns the doubled
   // component pair, split little-endian into the record's 0x0a..0x0d cells just below. Later eras
   // name no arm and are surfaced as a fault, exactly as reaching past the table would.
@@ -450,7 +450,7 @@ export function launchAimedMotherShipShot(m, recordPtr, entryPtr, origin) {
       [alongFirstAxis, alongSecondAxis] = loc_5994(m, recordPtr);
       break;
     default:
-      throw new NotImplemented(`launchAimedMotherShipShot: no stage arm for era ${era}`);
+      throw new NotImplemented(`launchAimedMotherShipShot: no velocity arm for era ${era}`);
   }
 
   // Seat the shot: its velocity pair at +0x0A..+0x0D (`ld (ix+0x0a),e` .. `ld (ix+0x0d),b`), sprite code

@@ -2,7 +2,7 @@
 /** startNextRound — step the round counter, roll the era forward (wrapping after the fifth), and reload
  * the starting rung from one of three cells bracketed by how far into the run the round counter has got.
  * The kill quota is refilled from a non-era-keyed cell, so it is the same every round. Two flags are
- * cleared and a third set to all-ones, which leaves the round armed rather than merely counted.
+ * cleared and a third set to all-ones, which marks the new round's intro as pending.
  *
  * ROM 0x2DB8-0x2DF3 (frozen lift translated/loc_2db8.js). Grounding: [seen].
  *
@@ -29,7 +29,7 @@ const ERAS = 5;
 const SECOND_BRACKET_FROM = 6;
 const THIRD_BRACKET_FROM = 11;
 
-// The round-armed gate is raised to all-ones (the ROM's `xor a; dec a` gives 0xFF).
+// The round-intro-pending flag is raised to all-ones (the ROM's `xor a; dec a` gives 0xFF).
 const ARMED = 0xff;
 
 export function startNextRound(m) {
@@ -60,6 +60,6 @@ export function startNextRound(m) {
   // raised, so the new round's waves can run.
   mem8[MOTHER_SHIP_ARMED] = 0;
   mem8[ROUND_TRANSITION_HOLD] = 0;
-  // Arm the round: the gate stays up until the round-intro fly-in timer expires.
+  // Mark the round's intro pending: the flag stays up until the round-intro fly-in timer expires.
   mem8[ROUND_INTRO_PENDING] = ARMED;
 }

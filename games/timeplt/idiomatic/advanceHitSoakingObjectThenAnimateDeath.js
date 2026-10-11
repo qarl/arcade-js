@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** advanceHitSoakingObjectThenAnimateDeath — advance one object that is still soaking up hits. While BOMBER_HITS_TO_ABSORB is left, spend
  * one, keep the record live and re-request the pair of sounds, then hand off to the ordinary move.
- * Once no hits remain, run the record head down toward retirement, and at the values it crosses
+ * Once none is left to absorb, run the record head down toward retirement, and at the values it crosses
  * reseat the sprite entry from the shape table. LIVE-OUT: memory.
  *
  * ROM 0x3B94-0x3C08 (frozen lift translated/loc_3b94.js). Grounding: [seen] in names.js.

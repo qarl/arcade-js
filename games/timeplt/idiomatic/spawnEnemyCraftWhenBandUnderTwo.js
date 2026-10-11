@@ -51,9 +51,9 @@ export function spawnEnemyCraftWhenBandUnderTwo(m, phaseCell = m.regs.hl) {
   }
   if (busy >= BUSY_CEILING) return; // two or more slots already busy
 
-  // nothing owed -> the cleared five-slot run; else the owed run over the round's craft count
+  // nothing owed -> the cleared five-slot run; else the owed run over the craft spawn slot count
   if (mem8[KILLS_REMAINING] === 0x00) return loc_3793(m);
 
-  // the owed run: the round's craft count of turns, from the slot-6 record and its entry downward
+  // the owed run: the craft spawn slot count of turns, from the slot-6 record and its entry downward
   return spawnEnemyIntoFreeSlotElseStepSearch(m, CRAFT_RECORD_SLOT6, CRAFT_ENTRY_SLOT6, mem8[CRAFT_SPAWN_SLOT_COUNT]);
 }

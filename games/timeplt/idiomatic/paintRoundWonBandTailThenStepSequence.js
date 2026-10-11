@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** paintRoundWonBandTailThenStepSequence — paint a caption's colour band from a base colour. Starting at the cursor the caller
+/** paintRoundWonBandTailThenStepSequence — finish the round-won band's tile row, then colour the band animation's cells from a base colour. Starting at the cursor the caller
  * leaves in HL it lays the caller's A over one cell, then a run of the caller's C, then a short
  * fixed tail; next it reads the base colour and fills two thirteen-cell colour-RAM runs and six scattered colour
  * cells, every value the base plus a fixed offset. Last it seeds the saved pen from the era and

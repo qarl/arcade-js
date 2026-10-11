@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** meterCoinageTowardCreditOnEdge — one tick of coin slot 2's debounced coin accept. The slot's input bit is rotated into a debounce
  * history; unless its low three bits read 0b001 (a fresh leading edge) the tick does nothing. When they
- * do it requests a sound, bumps the slot's accepted-coin counter, and steps the slot's accumulator by
+ * do it requests a sound, bumps the count of pulses the slot's mechanical counter is owed, and steps the slot's accumulator by
  * sixteen; only once that exceeds the coinage setting byte is the accumulator pulled back and the
  * credit-and-coin tail run. LIVE-OUT: memory. */
 //
@@ -39,12 +39,12 @@ export function meterCoinageTowardCreditOnEdge(m) {
   // Sample the coin line. IN0_MIRROR (0xA9AE) [seen] is this frame's inverted (`cpl`) copy of the IN0 input port; the
   // ROM's two `rrca` put its bit 1 into carry and `rl (hl)` shifts that carry into the bottom of the
   // debounce history at 0xA9CA, so the history holds one sample per call, newest in bit 0.
-  const selectorBit = (mem8[IN0_MIRROR] >> 1) & 1; // two rrca land IN0 bit 1 in carry
-  mem8[COIN_SLOT_2_DEBOUNCE] = (mem8[COIN_SLOT_2_DEBOUNCE] << 1) | selectorBit; // selector bit shifted in as the low bit
+  const coinBit = (mem8[IN0_MIRROR] >> 1) & 1; // two rrca land IN0 bit 1 in carry
+  mem8[COIN_SLOT_2_DEBOUNCE] = (mem8[COIN_SLOT_2_DEBOUNCE] << 1) | coinBit; // coin-line sample shifted in as the low bit
   if ((mem8[COIN_SLOT_2_DEBOUNCE] & PHASE_MASK) !== READY) return;
 
-  // A coin has been accepted: ask for the coin sound (requestCoinSound, 0x57F1) and count the coin
-  // in COIN_COUNTER_PULSES_OWED_SLOT_2 (0xA982, `inc (hl)` at 0x4928), the slot-2 twin of COIN_COUNTER_PULSES_OWED.
+  // A coin has been accepted: ask for the coin sound (requestCoinSound, 0x57F1) and owe the slot's mechanical
+  // counter one more pulse in COIN_COUNTER_PULSES_OWED_SLOT_2 (0xA982, `inc (hl)` at 0x4928), the slot-2 twin of COIN_COUNTER_PULSES_OWED.
   requestCoinSound(m);
   mem8[COIN_COUNTER_PULSES_OWED_SLOT_2] = (mem8[COIN_COUNTER_PULSES_OWED_SLOT_2] + 1);
 

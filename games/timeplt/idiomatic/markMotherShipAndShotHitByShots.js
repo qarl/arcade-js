@@ -7,14 +7,14 @@
  * MOTHER_SHIP_ENTRY (0xAA24). The bullets are the six 16-byte shot records at PLAYER_SHOT_ARRAY
  * (0xAA80). dispatchEra4CollisionByFrameParity jumps here (507B jp 0x4fe0), and sweepShotsOverFiveCraftThenMotherShip (0x4FBF) falls into it.
  *
- * ROLE. Sweep the six shot slots for one that has reached the Mother-Ship and destroy both. The
+ * ROLE. Sweep the six shot slots for one that has reached the Mother-Ship and mark both hit. The
  * Mother-Ship's state must be live or the sweep doesn't run. Each slot must be live too, with both
  * coordinates inside a box centred on the Mother-Ship -- not square, and its first axis widened for
  * two of the era values (the only thing the era decides here; the ROM does it by loading a
  * different pair of window constants, not with a second body). A slot that passes takes the
- * destroyed code, the Mother-Ship takes it too, and the chained hit score is posted. The Mother-Ship
+ * hit code 0xF0, the Mother-Ship takes it too, and the chained hit score is posted. The Mother-Ship
  * is tested live only once, before the sweep, so the remaining slots are still run with it already
- * destroyed and one pass can pay for several. Marking it destroyed here is a hit, not necessarily
+ * marked and one pass can pay for several. Marking it here is a hit, not necessarily
  * its death: loc_43f0 spends one of the hits it can absorb (record +4) before it dies.
  * Slots step a record at a time without leaving their page.
  *

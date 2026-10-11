@@ -53,7 +53,7 @@ export function runAllCollisionSweepsThisFrame(m) {
   // `jr nz,0x4e97`). The Mother-Ship occupies the last two craft records (MOTHER_SHIP_STATE 0xA8A0 =
   // craft slot 5), so while it is armed the craft sweep stops short of it and it gets its own test.
   if (mem8[MOTHER_SHIP_ARMED] !== 0) {
-    // Armed: the contact sweep's cursor is discarded (the attacker sweep restarts at the era slots).
+    // Armed: the contact sweep's cursor is discarded (the era-object sweep restarts at the era slots).
     // Stage 3, armed (ROM 0x4E97-0x4E9D, `call 0x5152`): only the first five craft (B = 5, L = 7,
     // H = 0x0F), continuing from where stage 2 stopped.
     destroySlotsAndPlayerOnContact(m, afterPlayer.occupancy, afterPlayer.entry, 5, 7, 15);
@@ -70,7 +70,7 @@ export function runAllCollisionSweepsThisFrame(m) {
     return markObjectsTouchingPlayer(m, 8, 17, afterTargets.target, afterTargets.entry, 1);
   }
 
-  // Unarmed: the contact sweep's cursor threads straight into the attacker sweep.
+  // Unarmed: the contact sweep's cursor threads straight into the era-object sweep.
   // Stage 3, unarmed (ROM 0x4E7C-0x4E82, `call 0x5152`): all seven craft (B = 7, L = 7, H = 0x0F),
   // Mother-Ship records included; there is no stage 4.
   const afterSlots = destroySlotsAndPlayerOnContact(m, afterPlayer.occupancy, afterPlayer.entry, 7, 7, 15);

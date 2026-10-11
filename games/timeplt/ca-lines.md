@@ -281,7 +281,7 @@
 075A	read the current pen colour
 075D	was the pen colour already the set value?
 0762	set the pen colour to five
-0767	set the stamp glyph to the blanking glyph, so the pen erases
+0767	set the stamp glyph to the blank glyph -- the pen lays blank tiles
 076A	arm the pen to the start of its route
 076E	step the sequence sub-step an extra time when the pen colour already held five
 0771	step the sequence sub-step
@@ -298,7 +298,7 @@
 0791	player one: leave the argument as is
 0793	player two: bump the command argument
 0794	post the command pair to the ring
-0795	read the round-armed flag
+0795	read the round-intro-pending flag
 0799	clear: skip to command two, argument two, and the tail
 079B	set the command to number seven
 079D	post that command to the ring
@@ -306,7 +306,7 @@
 07A0	command two, argument two
 07A3	post it to the ring
 07A4	repaint the kill meter
-07A7	reset the playfield and arm a new round
+07A7	reset the playfield for this life
 07AA	step the sequence sub-step
 07AD	set the folded program total aside for the tamper verdict
 07AE	hand on to the verdict
@@ -918,7 +918,7 @@
 11F0	read the round-transition hold
 11F3	is it set?
 11F4	set -- start the next round
-11F7	queue the seven-code transition sound burst
+11F7	queue the seven transition sound-stop codes
 11FA	point at the live context block -- its first byte is the lives count
 11FD	drop the lives count by one
 11FE	remember whether that reached zero
@@ -975,7 +975,7 @@
 1284	is the slot empty?
 1285	a slot is still occupied -- the field isn't clear, return
 1287	check every one of the fifteen slots
-1289	queue the seven-code transition sound burst
+1289	queue the seven transition sound-stop codes
 128C	read the in-play flag
 128F	is a game running?
 1290	attract mode -- take the reset arm
@@ -1031,7 +1031,7 @@
 1323	read the frame tick
 1326	act only while bit 1 of the tick is clear -- two frames in every four
 1328	bit 1 set -- skip this frame
-1329	read the intro-animation step
+1329	read the round-won animation step
 132C	step 0?
 132D	not step 0 -- try the next arm
 132F	step 0 -- flash the player ship white
@@ -1059,8 +1059,8 @@
 136A	has it reached eight?
 136C	not yet -- just recolour
 136E	value 1...
-1370	...into the intro-animation step -- move it on
-1373	ask for the player-spawn flash sound
+1370	...into the round-won animation step -- move it on
+1373	ask for the round-won flash sound
 1376	read the tick again
 1379	take its low bit
 137B	colour 0x3E -- the white flash colour
@@ -1078,7 +1078,7 @@
 1396	is the countdown already at zero?
 1397	not yet -- pick a colour from the count
 1399	value 3...
-139B	...into the intro-animation step -- countdown spent, move on to step 3
+139B	...into the round-won animation step -- countdown spent, move on to step 3
 139E	use colour 0x3F
 13A0	go apply it
 13A2	test bit 2 of the count
@@ -1103,7 +1103,7 @@
 13C7	step it down (wraps below zero)
 13C8	store it
 13CC	value 5...
-13CE	...into the intro-animation step -- move on to step 5
+13CE	...into the round-won animation step -- move on to step 5
 13D1	read the active-player selector
 13D4	which player is up?
 13D5	read player 1's saved pen colour
@@ -1149,7 +1149,7 @@
 1439	value 0...
 143B	...clears the pass countdown -- script done
 143E	value 2...
-1440	...into the intro-animation step -- advance to stage 2
+1440	...into the round-won animation step -- advance to stage 2
 1443	reload the script cursor
 1446	step it back one
 1447	save it -- ending early with no decrement
@@ -1214,7 +1214,7 @@
 14D4	value 0...
 14D6	...clears the pass countdown -- script done
 14D9	value 4...
-14DB	...into the intro-animation step -- advance to stage 4
+14DB	...into the round-won animation step -- advance to stage 4
 14DE	request the inter-round sound pair
 14E1	reload the cursor
 14E5	step the cursor on -- ending early
@@ -1347,10 +1347,10 @@
 1609	queue it
 160A	command 6, argument 1
 160D	queue it
-160E	marker glyph
-1610	seed it into one cell
-1613	and into another
-1616	point at the six-entry patch list that follows
+160E	the digit-0 glyph
+1610	into player one's score tens digit
+1613	and its ones digit
+1616	point at the six-entry witness seed table that follows
 1619	six records to apply
 161B	read the destination address low byte
 161D	and its high byte
@@ -1358,7 +1358,7 @@
 1620	write the record's glyph into the first cell of the pair
 1621	the cell beside it
 1623	and colour 5 into the cell beside it
-1626	next patch entry
+1626	next witness seed record
 1627	over all six
 1629	print the six-digit high-score readout
 162E	set the outer sequence phase to 1
@@ -1415,11 +1415,11 @@
 16E2	queue it
 16E3	argument 0x1A
 16E5	queue it
-16E7	clear the round-armed flag
+16E7	clear the round-intro-pending flag
 16EC	reload the step-delay counter to 0x2A ticks
 16EF	step the sequence sub-index and leave
-16F2	read the round-armed flag
-16F6	not armed: leave
+16F2	read the round-intro-pending flag
+16F6	no intro pending: leave
 16F7	read the frame counter
 16FA	keep its low nibble
 16FC	frame nibble 0
@@ -1470,7 +1470,7 @@
 176A	verify the copyright line's colours -- derail if wrong
 176D	read a caption cell
 1770	is its glyph the expected one?
-1772	wrong glyph: derail into the mother-ship warp-flash handler
+1772	wrong glyph: derail into the Mother-Ship wreck countdown's misaligned entry
 1775	command 1, argument 0x13
 1778	queue it
 1779	paint the five labelled numeric readouts
@@ -1737,7 +1737,7 @@
 1AB7	the bank's near-approach half-window, both axes
 1ABC	the bank-launch cooldown
 1ABF	-- into its paired reload cell too
-1AC4	the craft-per-round count
+1AC4	the craft spawn slot count
 1AC9	a script-pick threshold
 1ACE	an attacker-spawn slot cap
 1AD3	the attacker-spawn spread half-window
@@ -1807,9 +1807,9 @@
 2013	at or past the opening frame?
 2015	mid-animation: step the phase down
 2017	clamp the phase to the opening frame
-201B	flag the paired sprite entry
+201B	blank the ship's sprite shape
 201F	read the era number
-2024	past the second era: cue the extra progress sound
+2024	past the second era: ask for sound 6 to stop
 2027	cue the destruction sound burst
 202A	read the sampled caption glyph (tamper witness)
 202D	is it the genuine glyph 0xa5?
@@ -1939,11 +1939,11 @@
 244F	read the world scroll in Y
 2453	negate it
 2456	scale it up four times
-2457	seed the shot's per-pass step from it
+2457	store it as the shot's velocity in Y
 2460	read the world scroll in X
 2464	negate it
 2467	scale it up four times
-2468	seed the shot's other per-pass step
+2468	store it as the shot's velocity in X
 246E	read the ship heading
 2471	round the heading
 2473	shift it down toward a direction index
@@ -2021,8 +2021,8 @@
 27E6	clear the pen colour
 27EA	set player 1's round number to one
 27ED	set player 2's round number to one
-27F0	arm player 1's round
-27F3	arm player 2's round
+27F0	player 1's round-intro flag starts set
+27F3	mark player 2's round intro as pending
 27F6	read the play-active flag
 27FA	no game being played -- take the attract-demo setup path
 27FF	clear player 1's score low byte
@@ -2129,7 +2129,7 @@
 2939	fly at the slowest speed
 293C	reached the retire line?
 293F	yes -- retire the slot
-2942	try a bank-enemy launch when aimed near the player
+2942	try to fire a craft shot when aimed near the player
 2945	refresh the sprite from the heading
 2948	try to launch an attacker into a free slot
 294C	read this slot's status byte
@@ -2141,7 +2141,7 @@
 295E	fly at this era's speed
 2961	reached the retire line?
 2964	yes -- retire the slot
-2967	try a bank-enemy launch when aimed near the player
+2967	try to fire a craft shot when aimed near the player
 296A	refresh the sprite from the heading -- second-era sprite set
 2984	read this slot's status byte
 2988	empty slot -- nothing to do
@@ -2154,7 +2154,7 @@
 299D	fly at the slowest speed
 29A0	reached the retire line?
 29A3	yes -- retire the slot
-29A6	try a bank-enemy launch when aimed near the player
+29A6	try to fire a craft shot when aimed near the player
 29A9	dress the sprite for its fine heading
 29AC	try to launch an attacker into a free slot
 29B0	read the slot's lifecycle byte
@@ -2169,7 +2169,7 @@
 29C2	fly the slot a step along its heading
 29C5	has it drifted onto a retire line?
 29C8	yes: take the slot out of play
-29CB	when aimed near the ship, try the bank launch
+29CB	when aimed near the ship, try to fire a craft shot
 29CE	dress the sprite to face its heading
 29D1	try to launch an attacker into a free slot
 29D5	read the slot's lifecycle byte
@@ -2184,7 +2184,7 @@
 29E7	has it drifted onto a retire line?
 29EA	yes: take the slot out of play
 29ED	advance its shape's animation cycle
-29F0	when aimed near the ship, try the bank launch
+29F0	when aimed near the ship, try to fire a craft shot
 29F3	try to launch an attacker into a free slot
 29F7	first reference point on the screen (0x78)
 29F9	distance from the slot's screen-position probe
@@ -2267,7 +2267,7 @@
 2B52	count the release delay down one
 2B55	reached zero: release it
 2B58	step the state code on to the live one
-2B5B	reload the delay with 128
+2B5B	mark it released: 128 sets the delay byte's top bit
 2B60	the object's whole Y byte, from its sprite entry
 2B63	its fraction from the record
 2B66	the frame's world-scroll step in Y
@@ -2288,15 +2288,15 @@
 2B8E	line up the retire X with the window
 2B90	within a pixel of the retire X (4)? -- carry now carries the answer
 2B93	read the object's state byte
-2B96	the re-arm value 0xf0?
-2B98	yes: re-seat it and begin the death
+2B96	the just-hit mark 0xf0?
+2B98	yes: start the death countdown and count the kill
 2B9B	at the death-begins threshold 0x3c?
 2B9D	exactly there: count the kill and grant the token
 2BA0	at or above the threshold: fly it on
 2BA3	below it: count the state byte down
 2BA6	hit zero: take the slot out of play
 2BA8	else move it for the frame and run its appearance
-2BAC	re-seat the state byte to 0x3b
+2BAC	start the death countdown at 0x3b
 2BB0	count the kill and grant the token
 2BB4	count the object's state byte down one
 2BB7	fly it on at the slowest table speed
@@ -2462,7 +2462,7 @@
 2DE9	clear the mother-ship-armed flag
 2DEC	clear the round-transition hold
 2DEF	flip to all-ones
-2DF0	arm the round with it
+2DF0	mark the round's intro pending
 2DF4	whole part of the Y coordinate
 2DF7	its fraction
 2DFA	this frame's Y world-scroll
@@ -2551,12 +2551,12 @@
 30C6	read the era again
 30C9	is it era four?
 30CB	keep the era for the tail
-30CC	era four: hand on with the 0x28 fill byte
-30CF	otherwise use fill byte 0xCC
+30CC	era four: hand on with attribute 0x28
+30CF	otherwise use attribute 0xCC
 30D1	point at the object attribute cells
 30D4	stride of two
 30D7	eight cells
-30D9	clear this cell to the fill byte
+30D9	set this attribute byte to the caller's value
 30DA	step two on
 30DB	repeat for all eight
 30DD	recall the era
@@ -2608,8 +2608,8 @@
 314F	...steps the entry cursor a row
 3151	repeat for all four
 3153	run the frame's scenery
-3156	force the fill byte to 0x28
-3158	hand on to clear the entries and run the era's scenery
+3156	force the attribute to 0x28
+3158	hand on to set the scenery attributes and run the era's scenery
 315B	derail into the scenery-row data table when a guard reads wrong
 31B4	read the packed-decimal life-tick
 31B7	keep it
@@ -2892,7 +2892,7 @@
 36FA	point at the wave-descriptor table
 36FD	index it by the descriptor number
 36FE	keep the descriptor pointer aside
-36FF	read the round's craft count
+36FF	read the craft spawn slot count
 3702	use it as the slot loop count
 3703	read the kills still owed
 3706	test it
@@ -2941,12 +2941,12 @@
 376E	advance to the next two-byte sprite entry
 3773	loop over the slots
 3776	clear the wave mark
-377B	stamp the wave-claim timer ready (0xE4)
+377B	open the wave's claim window: 228 frames (0xE4)
 377E	point at the filled-slot counter
 3781	read how many filled
 3782	five or more?
 3784	enough filled: request the enemy-wave sound
-3787	point at the round's craft count
+3787	point at the craft spawn slot count
 378A	compare the filled count against it
 378B	take the craft count
 378C	store it over the filled count -- the wave's kill countdown
@@ -2981,7 +2981,7 @@
 37C4	read the kills still owed
 37C7	test it
 37C8	none owed: run the fixed five-slot search
-37CA	read the round's craft count
+37CA	read the craft spawn slot count
 37CD	use it as the search length
 37CE	point at the seventh craft record
 37D2	point at its sprite entry
@@ -3051,7 +3051,7 @@
 386B	turn all five away
 386E	point at the first craft record
 3872	point at its sprite entry
-3876	read the round's craft count
+3876	read the craft spawn slot count
 3879	the wave size
 387A	read MOTHER_SHIP_ARMED
 387D	test it
@@ -3071,7 +3071,7 @@
 389C	read the record's heading byte
 389D	store it as the aim heading
 38A0	and as the current heading
-38A3	read the round's craft count
+38A3	read the craft spawn slot count
 38A6	subtract the remaining count -- the ordinal within the pass
 38A7	point at the ordinal table
 38AA	fetch this slot's flight-script selector
@@ -3086,7 +3086,7 @@
 38C5	step to the next sprite entry
 38C9	restore the slot count
 38CA	walk the counted run of slots
-38CE	stamp the wave-claim timer ready (0xE4)
+38CE	open the wave's claim window: 228 frames (0xE4)
 3B5F	read the era number
 3B62	is it era 1?
 3B63	outside era 1: leave the object untouched
@@ -3106,12 +3106,12 @@
 3B88	has it reached a heading-selected boundary?
 3B8B	reached: retire it and hold the slot
 3B8E	dress the pair by heading
-3B91	run the aimed-spawn attempt
+3B91	try to fire the bomber's aimed shot
 3B94	recover the record head byte
-3B96	point at the hits-remaining count
+3B96	point at the count of hits it can still absorb
 3B99	read it
 3B9A	test it
-3B9B	no hits left: begin the death sequence
+3B9B	none left to absorb: this hit kills -- begin the death sequence
 3B9E	spend one hit
 3B9F	force the record head live
 3BA3	re-request the craft's two sounds
@@ -3190,7 +3190,7 @@
 3C62	store a velocity byte
 3C65	store a velocity byte
 3C68	store a velocity byte
-3C6D	set the hits-remaining count to three
+3C6D	let it absorb three hits -- the fourth kills it
 3C70	mark the slot live
 3C75	read the frame counter
 3C79	a sixteen-step nudge
@@ -3218,9 +3218,9 @@
 3CE8	carry answers whether it reached the edge
 3CE9	read the frame counter
 3CEC	take one alternating bit -- flicker between two shapes
-3CEF	read the hits remaining
+3CEF	read the hits it can still absorb
 3CF3	the hit count it was armed with
-3CF5	subtract the hits left -- the damage taken
+3CF5	subtract the hits still absorbable -- the hits absorbed so far
 3CF6	times four -- four shapes per damage step
 3CF8	the first damage shape
 3CFA	plus the flicker bit
@@ -3248,7 +3248,7 @@
 3D34	is the count exactly one?
 3D36	a count of one -- require the primary attacker record free
 3D39	read era-object slot 2's record head
-3D3D	free -- go find a windowed object to launch from
+3D3D	free -- go look for a tile clear of the player to fire from
 3D40	read the primary attacker record's head
 3D44	return unless it is free
 3D45	two bank slots to scan
@@ -3268,13 +3268,13 @@
 3D65	step to the next bank record
 3D67	step to the next sprite entry (two bytes)
 3D6C	try the other slot
-3D6E	both inside the window on both axes -- nothing to spawn
+3D6E	both inside the window on both axes -- no shot fired
 3D6F	request the enemy-launch sound
 3D72	point at the standoff aim point
 3D75	find the heading toward the standoff aim point
 3D79	prepare the turn offset ($18)
 3D7C	point at the aim-side toggle
-3D7F	flip the aim side for this spawn
+3D7F	flip the aim side for this shot
 3D80	read the toggle
 3D81	test its low bit
 3D83	odd -- turn one way
@@ -3295,8 +3295,8 @@
 3DAD	recover the aimed angle
 3DAE	look up the doubled velocity pair for that angle
 3DB1	stock the record with the aimed velocity pair -- four bytes
-3DBD	set the launch shape code
-3DC1	set the launch sprite attribute
+3DBD	set the enemy-shot shape code
+3DC1	set the enemy-shot sprite attribute
 3DC5	count the record head down one -- mark it live
 3DC8	read the cooldown reload period
 3DCB	reload the attacker-spawn cooldown
@@ -3448,8 +3448,8 @@
 3F63	era 0 -- look up the velocity pair for the heading
 3F68	later eras -- look up the velocity pair for the heading
 3F6B	stock the record with the velocity pair -- four bytes
-3F7D	set the launch shape code
-3F81	set the launch sprite attribute
+3F7D	set the enemy-shot shape code
+3F81	set the enemy-shot sprite attribute
 3F85	read the cooldown reload period
 3F88	reload the bank-launch cooldown
 3F8B	count the new record head down one -- mark it live
@@ -3554,7 +3554,7 @@
 40CD	holds a live object: ask for nothing
 40CE	third era-object record
 40D2	holds a live object: ask for nothing
-40D3	none of the three live, from the third era on: ask for the progress sound
+40D3	none of the three live, from the third era on: ask for sound 6 to stop
 40D6	read the era index
 40D9	below the third era (index 2)?
 40DB	yes: this bank is idle before then
@@ -3942,7 +3942,7 @@
 4555	is the head 0xEF -- the step after the killing hit?
 4557	not the sweep step: step the wreck countdown
 455A	clear BOMBER_HITS_TO_ABSORB
-455E	queue the transition sound burst
+455E	queue the transition sound stops
 4561	cue the destruction sound burst for the Mother-Ship
 4564	point at the object bank
 4567	record stride
@@ -3995,8 +3995,8 @@
 460E	point at the watched video cell
 4611	read it
 4613	compare against the mirror cell
-4617	they disagree: run the start-object setup
-461B	eight warp-flash shape codes -- also run off as harmless register churn when the start-object path jumps here and drops into 0x4623
+4617	they disagree: fall into the wreck-flash stores
+461B	eight warp-flash shape codes -- also run off as harmless register churn when the mismatch path jumps here and drops into 0x4623
 4623	step the sequence counter
 4626	set the flash shapes
 462E	set the flash colour in both slots
@@ -4004,7 +4004,7 @@
 4639	if so, sound the mother-ship warp
 463D	the scoring command -- entry 13, 3,000 points
 4640	queue it and return
-4643	jump on to the start-object setup
+4643	jump back into the flash-shape bytes
 4646	raise the round-transition hold
 464B	reset the object's state to idle
 464F	point at the tamper-glyph copy
@@ -4082,7 +4082,7 @@
 4749	try the other slot
 474C	stash the free shot record
 4750	and its entry
-4753	play the enemy launch sound
+4753	play the enemy-shot launch sound
 4756	the main standoff aim point
 4759	work out the heading toward it
 475C	keep the heading
@@ -4191,7 +4191,7 @@
 491E	act only on a clean leading edge
 4920	otherwise nothing this frame
 4922	blip the coin sound
-4928	bump the slot-2 coins-accepted count
+4928	bump the count of coins slot 2 still owes its mechanical counter
 492C	step the coins-inserted accumulator up by one coin's worth (0x10)
 492E	store it back
 4931	read the coinage ratio byte
@@ -4437,15 +4437,15 @@
 4C1F	save the source record pointer
 4C20	read the record's lead byte
 4C21	times two
-4C22	times three -- three tiles per pictogram, so the lead byte selects the pictogram
-4C23	point at the pictogram table
-4C26	fetch the indexed pictogram tile
+4C22	times three -- three tiles per label, so the rank byte picks its label
+4C23	point at the rank-label table, 1ST to 5TH
+4C26	fetch the label's first tile
 4C27	stamp the tile
 4C28	drop to the paired colour cell
 4C2A	pen colour
 4C2B	write the colour
 4C2C	back to the tile cell
-4C2E	next pictogram tile
+4C2E	next label tile
 4C2F	step the cursor up one cell
 4C30	read the tile
 4C31	stamp it
@@ -4453,9 +4453,9 @@
 4C34	pen colour
 4C35	write the colour
 4C36	back to the tile cell
-4C38	next pictogram tile
+4C38	next label tile
 4C39	step the cursor up one cell
-4C3A	read the third pictogram tile
+4C3A	read the label's third tile
 4C3B	stamp it
 4C3C	drop to the colour cell
 4C3E	pen colour
@@ -4642,7 +4642,7 @@
 4E0C	point at the lives-remaining count
 4E0F	read it
 4E10	add one life
-4E11	command 5 -- the award
+4E11	command 5 -- redraw the reserve-ship emblems
 4E13	argument is the count before the increment
 4E14	post it to the command ring
 4E15	request the bonus-life sound and return through it
@@ -4672,7 +4672,7 @@
 4E85	three targets
 4E87	collision box near bound
 4E89	collision box far bound
-4E8B	destroy the targets a fixed attacker has reached
+4E8B	destroy the era objects touching the player, and the player with them
 4E8E	one object
 4E90	collision box near bound
 4E92	collision box far bound
@@ -4687,7 +4687,7 @@
 4EA8	point the entry cursor at the era-object run
 4EAC	collision box near bound
 4EAE	collision box far bound
-4EB0	destroy the targets a fixed attacker has reached
+4EB0	destroy the era objects touching the player, and the player with them
 4EB3	one object
 4EB5	collision box near bound
 4EB7	collision box far bound
@@ -4695,7 +4695,7 @@
 4EBC	read the frame tick
 4EBF	its low bit -- frame parity
 4EC1	odd frame: run the shot sweeps and return
-4EC4	even frame: destroy the fixed target the shots have reached
+4EC4	even frame: mark the bomber and the shots that reached it
 4EC7	four objects
 4EC9	point the record cursor at the object run
 4ECC	point the entry cursor at the object run
@@ -4789,8 +4789,8 @@
 4FA7	plus the Y slack
 4FA8	within the Y window?
 4FA9	outside: skip this shot
-4FAB	hit -- destroyed marker
-4FAD	mark the target destroyed
+4FAB	hit -- the 0xf0 hit mark
+4FAD	mark the bomber hit -- its handler counts it off
 4FB0	spend the shot that hit it
 4FB3	post the score for this hit
 4FB6	step to the next shot slot -- low half of the cursor only, so a wide array wraps in its page
@@ -4830,9 +4830,9 @@
 5013	add the Y slack
 5014	inside the Y span?
 5015	outside -- skip
-5017	the destroyed code
-5019	destroy the mother ship
-501C	destroy this shot
+5017	the hit code
+5019	mark the mother ship hit
+501C	mark this shot hit
 501F	post the chained hit score
 5024	advance to the next shot record -- low byte only; the six records never cross their page
 5028	loop the six shots
@@ -4881,7 +4881,7 @@
 50A2	the destroyed code
 50A4	destroy the player
 50A7	destroy the fixed target
-50AB	clear the target's remaining-hits count so the contact kills it outright rather than costing it a hit
+50AB	clear the hits it can absorb, so the contact kills it outright rather than being absorbed
 50AE	post the chained hit score
 50B1	read the era index
 50B4	era 0?
@@ -4928,7 +4928,7 @@
 5117	destroy the mother ship
 511B	clear the mother ship's hits-to-absorb count, four bytes into its record
 511E	post the chained hit score
-5121	read the player's state -- the fixed attacker
+5121	read the player's state
 5125	player gone -- nothing to do
 5126	read this target's state
 5128	dead target -- skip
@@ -5286,7 +5286,7 @@
 5671	request it while a game runs, then fall into the next request
 5674	a sound code from the program image
 5677	request it, only while a game is in progress
-5679	a sound code from the program image
+5679	the stop code for sound six, from the program image
 567C	request it, only while a game is in progress
 567E	a sound code from the program image
 5681	request it while a game runs or attract sound is enabled
@@ -5337,7 +5337,7 @@
 5808	request it, only while a game is in progress
 580B	fetch the mother-ship warp sound code from the program image
 580E	request it, only while a game is in progress
-5811	fetch the player-spawn flash sound code from the program image
+5811	fetch the round-won flash sound code from the program image
 5814	request it, only while a game is in progress
 5817	fetch the enemy-wave sound code from the program image
 581A	request it, only while a game is in progress

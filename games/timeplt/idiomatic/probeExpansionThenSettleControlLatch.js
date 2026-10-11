@@ -50,6 +50,6 @@ export function probeExpansionThenSettleControlLatch(m) {
   // (0x01), not an immediate, so a patched image can leave the screen dark.
   mem8[VIDEO_ENABLE_LATCH] = mem8[DISPLAY_ON_VALUE];
 
-  // Next stage (`jp 0x0069`): clear the sprite banks and work RAM.
+  // Next stage (`jp 0x0069`): clear sprite bank 1 and work RAM.
   return clearWorkRamAndSpriteBank1ThenColdInit(m);
 }

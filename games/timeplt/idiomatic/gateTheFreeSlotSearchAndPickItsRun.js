@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** gateTheFreeSlotSearchAndPickItsRun — only two counter values open the gate; past it, the count of
- * enemies still owed picks between two runs of the slot file (the owed run for the round's craft count,
+ * enemies still owed picks between two runs of the slot file (the owed run for the craft spawn slot count,
  * else a fixed run of five two records earlier), and hands the run's two cursors and its count to the
  * search. LIVE-OUT: memory. */
 //
@@ -26,7 +26,7 @@ import { spawnEnemyIntoFreeSlotElseStepSearch } from "./spawnEnemyIntoFreeSlotEl
 const LAUNCH_TICKS = [0x00, 0x30];
 
 // The two runs of the one slot file; the search walks each DOWNWARD from its seat.
-//   OWED    -- seated on slot 6 (record 0xA8B0, sprite entry 0xAA26), length = the round's craft count
+//   OWED    -- seated on slot 6 (record 0xA8B0, sprite entry 0xAA26), length = the craft spawn slot count
 //              (0x37CA-0x37D5).
 //   CLEARED -- seated on slot 4 (record 0xA890, sprite entry 0xAA22), a fixed five (the 0x3793 block).
 const OWED_RUN = { records: CRAFT_RECORD_SLOT6, entries: CRAFT_ENTRY_SLOT6 };

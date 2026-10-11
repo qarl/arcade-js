@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
  * advanceRoundWhenFieldCleared — end the round once the field is empty: when the kill quota is spent,
- * a round transition is being held, and every object slot is free, queue the transition sounds and
+ * a round transition is being held, and every object slot is free, queue the transition sound stops and
  * either (attract demo) restart the attract sequence, or (a real game) start the next round and save
  * the player's context.
  *
@@ -43,7 +43,7 @@ export function advanceRoundWhenFieldCleared(m) {
     if (mem8[ACTOR_RECORD_SLOT0 + i * 0x10] !== 0) return;
   }
 
-  // The field is clear: queue the round-transition sound burst (ROM call 0x5634 — seven sound codes,
+  // The field is clear: queue the round-transition sound stops (ROM call 0x5634 — seven stop codes,
   // six fetched from program-image cells and one keyed by the era index).
   enqueueTransitionSoundStops(m);
 

@@ -38,7 +38,7 @@
  *
  * ★ A TAMPER TRANSFER IS COMPARED WHERE IT HAPPENS. A crafted slot can run an arm on a state its
  *   screen was never drawn for, so the arm's anti-tamper guard fails. The oracle then transfers into
- *   a landing with no routine form (the warp/flash step's misaligned prologue 0x459b, or the caption
+ *   a landing with no routine form (the misaligned prologue 0x459b of the Mother-Ship's wreck countdown, or the caption
  *   record 0x49fa run as code) and faults somewhere inside it; the rewrite raises NotImplemented at
  *   the transfer. The oracle is stopped on entry to either landing (test/_tamperDerail.js), and the
  *   two sides must reach the SAME landing after the SAME work outside the band. A genuine image

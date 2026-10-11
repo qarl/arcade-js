@@ -77,7 +77,8 @@ export function sweepShotsOverFiveCraftThenMotherShip(m) {
 
   // Walk the six shot records. A live shot whose coordinates fall within the box on both axes — the
   // Mother-Ship's sprite entry byte (0xAA24) against the shot's +6, its sprite Y (0xAA55) against the shot's
-  // +4 — destroys the Mother-Ship and is spent with it, and the hit is scored.
+  // +4 — marks the Mother-Ship just hit (0xF0) and is spent with it, and the hit is scored. A mark is a
+  // hit, not necessarily the kill: the Mother-Ship absorbs hits while MOTHER_SHIP_HITS_TO_ABSORB (0xA8A4) is non-zero.
   let shot = PLAYER_SHOT_ARRAY;
   for (let left = SHOTS; left !== 0; left--) {
     if (mem8[shot + STATE] === LIVE &&

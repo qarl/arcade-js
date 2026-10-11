@@ -5,7 +5,7 @@
  * The span is XOR-folded; any total but the genuine one advances the outer sequence phase first.
  * With play inactive a single default caption pair is posted. With play active the player caption
  * goes up (its argument one higher while the second player is up), followed by the same argument
- * under a second command when the round is armed, else by the default pair.
+ * under a second command while the round's intro is pending, else by the default pair.
  * LIVE-OUT: memory only. */
 
 /*
@@ -71,7 +71,7 @@ export function postRoundStartCaptionsAndResetPlayfield(m) {
     else postCommand(m, ARMED_COMMAND, argument);
   }
 
-  // Repaint the kill meter (drawKillMeter, 0x0809), reset the playfield and arm the round's
+  // Repaint the kill meter (drawKillMeter, 0x0809), reset the playfield and load the era-and-rung
   // settings (resetPlayfieldForLifeStart, 0x19F0), then step the inner sequence index
   // (advanceSequenceSubStep, 0x0F1A, a ROM tail jump) so the next frame runs the next arm.
   drawKillMeter(m);

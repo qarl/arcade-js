@@ -1,29 +1,29 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** armAttractScreenShowingHighScore — arm a fresh screen once a per-frame countdown lapses. Every call first ticks that
  * countdown; the rest runs only on the call that zeroes it — push four fixed commands onto the ring,
- * seed a marker into two cells, seed six work-RAM cell pairs from the record list that follows this routine (each
+ * seed the digit-0 glyph into player one's tens and ones score cells, seed six work-RAM cell pairs from the record list that follows this routine (each
  * destination gets the record's glyph, with colour 0x05 beside it), print the six-digit readout, set two sub-state
  * cells, and push a fifth command only when the gate cell is non-zero. LIVE-OUT: memory.
  *
- * ROM 0x15FE-0x163E (frozen lift translated/loc_15fe.js); its patch list follows at 0x163F.
+ * ROM 0x15FE-0x163E (frozen lift translated/loc_15fe.js); its witness seed table follows at 0x163F.
  * Grounding: [seen] in names.js.
  *
  * Role in the machine: sub-step 6 of sequence phase 0 (the power-on wipe phase), the arm that hands the machine on to the attract phase. The countdown it ticks is a screen wipe —
  * blankNextLine (0x01C2) blanks one line of the character plane per call and counts the lines still
  * owed — so the new screen is only drawn once the old one has been wiped clean. The screen it
- * builds shows the high score: captions posted to the command ring, a pair of marker glyphs and the
- * high-score digits. The six patched cells are work-RAM cells (0xA800 and up), not screen cells. */
+ * builds shows the high score: captions posted to the command ring, a zero in player one's last two score digits and the
+ * high-score digits. The six seeded cells are work-RAM cells (0xA800 and up), not screen cells. */
 
 import { paintHighScoreReadout } from "./paintHighScoreReadout.js";
 import { postCommand } from "./postCommand.js";
 import { blankNextLine } from "./blankNextLine.js";
 import { FREE_PLAY, SEQUENCE_PHASE, SEQUENCE_SUBSTEP, WITNESS_SEED_TABLE, PLAYER1_SCORE_READOUT_ONES_CELL, PLAYER1_SCORE_READOUT_TENS_CELL } from "./names.js";
 
-// The marker glyph (`ld a,0x13` at 0x160E) written to the two marker cells.
+// The digit-0 glyph (`ld a,0x13` at 0x160E) written to player one's tens and ones score cells.
 const CELL_SEED = 0x13;
-// `ld b,0x06` at 0x1619: the patch list holds six three-byte records.
+// `ld b,0x06` at 0x1619: the witness seed table holds six three-byte records.
 const PATCH_COUNT = 6;
-// `ld (hl),0x05` at 0x1623: the byte stored beside each patched value.
+// `ld (hl),0x05` at 0x1623: the byte stored beside each seeded glyph.
 const WITNESS_SEED_COLOUR = 0x05;
 
 export function armAttractScreenShowingHighScore(m) {
@@ -42,12 +42,12 @@ export function armAttractScreenShowingHighScore(m) {
   postCommand(m, 1, 7);
   postCommand(m, 6, 1);
 
-  /* Step 2 — the marker glyph 0x13 into two character cells one row apart
+  /* Step 2 — the digit-0 glyph 0x13 into player one's tens and ones score cells, one row apart
    * (PLAYER1_SCORE_READOUT_TENS_CELL 0xA701, row 24; PLAYER1_SCORE_READOUT_ONES_CELL 0xA6E1, row 23; both column 1). */
   mem8[PLAYER1_SCORE_READOUT_TENS_CELL] = CELL_SEED;
   mem8[PLAYER1_SCORE_READOUT_ONES_CELL] = CELL_SEED;
 
-  /* Step 3 — apply the patch list at WITNESS_SEED_TABLE (0x163F, 0x1619-0x1627).
+  /* Step 3 — walk the witness seed table at WITNESS_SEED_TABLE (0x163F, 0x1619-0x1627).
    * Each record is {destination low, destination high, value}: the value goes to the destination
    * and 0x05 to the byte after it. The ROM walks the list with a djnz loop over B = 6. */
   let cursor = WITNESS_SEED_TABLE;

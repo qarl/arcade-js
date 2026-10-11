@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * askForSoundWhileTheGroupIsClear — from the third era on, ask for one sound every thirty-second frame,
+ * askForSoundWhileTheGroupIsClear — from the third era on, ask for sound 6 to stop every thirty-second frame,
  * but only while none of the three era-object records is live. Any one test failing ends
  * the entry having done nothing at all.
  *
@@ -14,8 +14,9 @@
  * The three records are the per-era special-object bank at ERA_OBJECT_RECORD_SLOT0 (0xA8C0) [seen], 0xA8D0
  * and 0xA8E0; a record's first byte is its state byte, and 0xFF there means the object is live.
  *
- * WHICH SOUND is not established: the code byte asked for is ROM[0x07FE] = 0x86 (names.js "why"), requested
- * through requestSoundSixStopWhilePlaying, which admits it only while a game is being played. Under MAME the
+ * The code byte asked for is ROM[0x07FE] = 0x86, a stop code: with bit 7 set, the audio processor clears
+ * the channel playing sound 0x06 rather than starting a sound. It is requested through
+ * requestSoundSixStopWhilePlaying, which admits it only while a game is being played. Under MAME the
  * gate is the conjunction of every test (names.js "why": passes and refusals counted at the entry).
  *
  * LIVE-OUT: memory, through the request.
@@ -41,6 +42,6 @@ export function askForSoundWhileTheGroupIsClear(m) {
   if (mem8[FRAME_TICK] % ONE_FRAME_IN !== 0) return;
   // Test 3: no record of the group may be live — any one live object silences the request.
   if (WATCHED.some((cell) => mem8[cell] === ALL_ONES)) return;
-  // Every test passed: ask for the sound (the ROM tail-jumps to 0x5679).
+  // Every test passed: ask for sound 6 to stop (the ROM tail-jumps to 0x5679).
   requestSoundSixStopWhilePlaying(m);
 }

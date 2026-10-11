@@ -8,10 +8,10 @@
  * sessions (eras 0, 2 and 4), while a complemented stack pointer is heard at once. The rewrite threads the pair through every arm and
  * into every callee as arguments and leaves it nowhere.
  * The spent-sequence tamper gate (TAMPER_GLYPH_COPY) has its own DERAIL arm: when it fails the oracle
- * falls into the warp/flash step's misaligned prologue (0x459b), which has no routine form, so the
+ * falls into the misaligned prologue of the Mother-Ship's wreck countdown (0x459b, derailIntoMotherShipWreckCountdown), which has no routine form, so the
  * rewrite raises there and the two are compared AT the transfer (test/_tamperDerail.js). On a genuine
  * image the gate always passes: every writer of the pair seats the "K" glyph 0x7c and one of the
- * copyright line's two colours (the ROM patch list at 0x163f, and the copies taken off the drawn line).
+ * copyright line's two colours (the ROM witness seed table at 0x163f, and the copies taken off the drawn line).
  * Run: node --test games/timeplt/idiomatic/test/equivalence-43f0.test.js */
 
 import test from "node:test";
@@ -70,8 +70,8 @@ const WRITING = [
   ["reach-5a", 0x5b, (c) => { c.mem8[RECORD + 0x04] = 0; }],
   ["live-cooldown", 0xff, (c) => { c.mem8[COOLDOWN] = 0x01; }],
   ["live-nofree", 0xff, (c) => { liveProximity(c); c.mem8[0xa830] = 0x11; c.mem8[0xa840] = 0x22; }],
-  ["live-spawn", 0xff, (c) => { liveProximity(c); c.mem8[0xa830] = 0x00; c.mem8[0xad04] = 0x00; }], // stage 0 arm
-  ["live-spawn-s2", 0xff, (c) => { liveProximity(c); c.mem8[0xa830] = 0x00; c.mem8[0xad04] = 0x02; }], // stage 2 arm
+  ["live-spawn", 0xff, (c) => { liveProximity(c); c.mem8[0xa830] = 0x00; c.mem8[0xad04] = 0x00; }], // era-0 velocity arm
+  ["live-spawn-s2", 0xff, (c) => { liveProximity(c); c.mem8[0xa830] = 0x00; c.mem8[0xad04] = 0x02; }], // era-2 velocity arm
   ["live-noprox", 0xff, (c) => { c.mem8[COOLDOWN] = 0; c.mem8[SPRITE + 0] = 0; c.mem8[SPRITE + 0x31] = 0; }],
 ];
 // The spent sequence on a tampered copy of the glyph pair: 4646 falls into the 0x459b landing.
@@ -241,14 +241,14 @@ test("TEETH: broken twins are caught in memory on every writing arm", { skip }, 
   console.log(`  TEETH: no-op and data-scribble caught on all ${rows.length} writing entries`);
 });
 
-// The launch path picks one of two stage arms by the era and lands the pair it hands back into the
+// The launch path picks one of two velocity arms by the era and lands the pair it hands back into the
 // spawned record's 0x0a..0x0d cells. Those cells are ordinary work RAM the EQUAL comparison covers,
 // so a dispatch that ran the wrong arm would land the wrong pair and fail EQUAL on one of the two
 // live-spawn entries. This is the positive control that the two arms are genuinely different: pointed
 // at the same heading they hand back different pairs, so choosing between them is observable and the
 // EQUAL check above has teeth over the choice. If they ever agreed, EQUAL could not catch a swap.
 const STAGE_HEADINGS = [0x08, 0x20, 0x40, 0x60, 0x80, 0xa0, 0xc0, 0xe0];
-test("STAGE ARMS DIFFER: the two era arms hand back different vectors, so the dispatch is observable", { skip }, () => {
+test("VELOCITY ARMS DIFFER: the two era arms hand back different vectors, so the dispatch is observable", { skip }, () => {
   const vec = (arm, heading) => {
     const m = bases()[0].clone();
     m.regs.ix = RECORD;
@@ -264,10 +264,10 @@ test("STAGE ARMS DIFFER: the two era arms hand back different vectors, so the di
   }
   assert.ok(
     differing > 0,
-    "the two stage arms handed back the same vector on every heading tried, so a dispatch that " +
+    "the two velocity arms handed back the same vector on every heading tried, so a dispatch that " +
       "picked the wrong arm could never be caught by the EQUAL memory comparison",
   );
-  console.log(`  STAGE ARMS DIFFER: ${differing} of ${STAGE_HEADINGS.length} headings distinguish the two arms`);
+  console.log(`  VELOCITY ARMS DIFFER: ${differing} of ${STAGE_HEADINGS.length} headings distinguish the two arms`);
 });
 
 // ── the tamper derail ───────────────────────────────────────────────────────────────────

@@ -270,8 +270,8 @@ for (const [label, twin, expected] of TWINS) {
 // ── the guard-fail divert below era four ────────────────────────────────────────────────────
 // Below era four the seed step's own guard (TAMPER_WITNESS 0xAD39, then 0xAD3A) diverts through
 // 0x3114 into 0x307F, which stores E through the witness pointer, counts B down and places one tile
-// through IY offset by C. This routine is what leaves E (its clear stride, low byte of DE = 2) and B
-// (its spent clear count, 0) standing for that divert -- the rewrite hands both on as arguments,
+// through IY offset by C. This routine is what leaves E (its attribute-loop stride, low byte of DE = 2) and B
+// (its spent attribute-loop count, 0) standing for that divert -- the rewrite hands both on as arguments,
 // with the era and cursor it was given. MAME at 0x3117: DE = 0x0002, B = 0 at every fetch.
 
 const WITNESS = 0xad39;
@@ -280,7 +280,7 @@ const divertEntries = () => [
   ["witness-byte1", craft((m) => { m.mem8[WITNESS + 1] = 0x07; })],
 ];
 
-/** BUG: hands the divert a stride of 1, not the clear loop's 2. */
+/** BUG: hands the divert a stride of 1, not the attribute loop's 2. */
 function brokenDivertStride(m, fillByte = m.regs.a, era = m.regs.c, entryCursor = m.regs.iy) {
   let clearAddr = 0xaa60;
   for (let n = 8; n !== 0; n--) {
@@ -291,7 +291,7 @@ function brokenDivertStride(m, fillByte = m.regs.a, era = m.regs.c, entryCursor 
   return candidate(m, fillByte, era, entryCursor);
 }
 
-test("DIVERT: a failed seed guard below era four diverts identically, with the clear loop's stride and count", { skip }, () => {
+test("DIVERT: a failed seed guard below era four diverts identically, with the attribute loop's stride and count", { skip }, () => {
   for (const [tag, m] of divertEntries()) {
     assert.ok(m.regs.c < ERA_FOUR, `${tag}: the captured entry is not below era four`);
     const r = compare(candidate, m);

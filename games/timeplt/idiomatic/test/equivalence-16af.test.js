@@ -19,9 +19,9 @@
  *
  * What it exercises:
  *   1. REAL DISPATCHES — every captured entry under the coin/start tape (capped), identical.
- *   2. CRAFTED ARMS — from a real entry, the frame tick / delay / round-armed / era poked identically
+ *   2. CRAFTED ARMS — from a real entry, the frame tick / delay / round-intro-pending flag / era poked identically
  *      on both sides to force each branch: expiry tail, odd-frame count-down without expiry, each
- *      of the three nibble commands, an unlisted nibble, and a disarmed round.
+ *      of the three nibble commands, an unlisted nibble, and no round intro pending.
  *   3. CONTINUATION — the frozen fixed tail run on both sides afterwards; RAM still identical.
  *   3a. HELD REQUEST — a crafted entry whose last multiplex slot carries a request the fixups leave
  *      standing (the beam sits before its line until the multiplex pass, then past every hold),
@@ -145,8 +145,8 @@ const CRAFTED = [
   ["even, nibble 10", [[FRAME_TICK, 0x3a], [SEQUENCE_DELAY, 0x07], [ROUND_INTRO_PENDING, 0xff], [ERA_INDEX, 0x04]]],
   ["even, unlisted nibble", [[FRAME_TICK, 0x04], [SEQUENCE_DELAY, 0x07], [ROUND_INTRO_PENDING, 0xff]]],
   ["odd, unlisted nibble", [[FRAME_TICK, 0x07], [SEQUENCE_DELAY, 0x07], [ROUND_INTRO_PENDING, 0xff]]],
-  ["disarmed, nibble 0", [[FRAME_TICK, 0x10], [SEQUENCE_DELAY, 0x07], [ROUND_INTRO_PENDING, 0x00]]],
-  ["disarmed, count-down", [[FRAME_TICK, 0x05], [SEQUENCE_DELAY, 0x09], [ROUND_INTRO_PENDING, 0x00]]],
+  ["no intro pending, nibble 0", [[FRAME_TICK, 0x10], [SEQUENCE_DELAY, 0x07], [ROUND_INTRO_PENDING, 0x00]]],
+  ["no intro pending, count-down", [[FRAME_TICK, 0x05], [SEQUENCE_DELAY, 0x09], [ROUND_INTRO_PENDING, 0x00]]],
   // The fold nets out only for some phase values; this one it moves, so the fold itself is exercised.
   ["phase the fold moves", [[SEQUENCE_PHASE, 0x00], [FRAME_TICK, 0x04], [SEQUENCE_DELAY, 0x07], [ROUND_INTRO_PENDING, 0xff]]],
 ];
@@ -266,7 +266,7 @@ const TWINS = [
   ["wrong-fold-key", (m) => { fold(m, 0x90); services(m); timer(m); }],
   ["even-frame-countdown", (m) => { fold(m); services(m); timer(m, { parity: 0 }); }],
   ["no-sub-step-advance", (m) => { fold(m); services(m); timer(m, { advance: false }); }],
-  ["no-disarm-on-expiry", (m) => { fold(m); services(m); timer(m, { clearArmed: false }); }],
+  ["intro-left-pending-on-expiry", (m) => { fold(m); services(m); timer(m, { clearArmed: false }); }],
   ["wrong-rearm", (m) => { fold(m); services(m); timer(m, { rearm: 0x5a }); }],
   ["no-armed-guard", (m) => { fold(m); services(m); timer(m, { guard: false }); }],
   ["swapped-nibble-commands", (m) => { fold(m); services(m); timer(m, { cmds: { 0: 0x0b, 5: 0x0a, 10: 2 } }); }],
@@ -321,7 +321,7 @@ test("CRAFTED ARMS: every forced branch is identical, and the branches really di
   oracle(expired);
   assert.equal(expired.mem8[SEQUENCE_SUBSTEP], (subBefore + 1) & 0xff, "the expiry arm did not advance the sub-step");
   assert.equal(expired.mem8[SEQUENCE_DELAY], 0x2a, "the expiry arm did not re-arm the delay");
-  assert.equal(expired.mem8[ROUND_INTRO_PENDING], 0x00, "the expiry arm did not disarm the round");
+  assert.equal(expired.mem8[ROUND_INTRO_PENDING], 0x00, "the expiry arm did not clear the round-intro-pending flag");
   console.log(`  CRAFTED ARMS: ${CRAFTED.length} identical; ${new Set(footprints.values()).size} distinct timer outcomes`);
 });
 

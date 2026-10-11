@@ -4,7 +4,7 @@
  * parks return addresses in the stack scratch the rewrite never writes and pops one it never pushed:
  * RAM is compared with the measured [low, seat) window masked, the +2 sp drift is asserted, and the
  * flag/scratch registers the dissolved callees do not reproduce are excluded — only ix and iy, the
- * bases the caller keeps, are held. Real play tops the state byte out at 0x3b plus the 0xf0 re-arm,
+ * bases the caller keeps, are held. Real play tops the state byte out at 0x3b plus the 0xf0 just-hit mark,
  * so the threshold and above-threshold arms are reached only by the crafted 256-state sweep.
  * Run: node --test games/timeplt/idiomatic/test/equivalence-2b93.test.js
  */
@@ -48,7 +48,7 @@ const show = (d) => (d ? `${hex4(d.addr ?? 0)}: oracle=${d.a} candidate=${d.b}` 
 
 /** Oracle vs candidate on clones: RAM outside the oracle's own [low, seat) push window, the ix/iy
  * bases, the sp drift and the return value. `low` is watched off the oracle's pushes, so a path
- * that nests deeper (the re-arm and death arms enter the kill) widens the window on its own. */
+ * that nests deeper (the just-hit and death arms enter the kill) widens the window on its own. */
 function compare(cand, machine) {
   const a = machine.clone();
   const b = machine.clone();
@@ -120,7 +120,7 @@ function replaySession(opts, cand) {
 
 function brokenNoOp() {}
 
-/** BUG: re-arms to the wrong byte. */
+/** BUG: starts the death countdown at the wrong byte. */
 function brokenRearmWrongValue(m, o = m.regs.ix) {
   const s = m.mem8[o + STATE];
   if (s === REARM) { m.mem8[o + STATE] = REARMED_TO - 1; return countKill(m, o); }
@@ -131,7 +131,7 @@ function brokenRearmWrongValue(m, o = m.regs.ix) {
   return moveObjectByStateByteThenRunAppearance(m, o);
 }
 
-/** BUG: re-arms but never begins the death. */
+/** BUG: starts the death countdown but never counts the kill. */
 function brokenRearmSkipsCount(m, o = m.regs.ix) {
   const s = m.mem8[o + STATE];
   if (s === REARM) { m.mem8[o + STATE] = REARMED_TO; return; }
@@ -173,8 +173,8 @@ function brokenFliesBelow(m, o = m.regs.ix) {
 
 const TWINS = [
   ["no-op", brokenNoOp, 256, { "coin-start": 37, attract: 257 }],
-  ["rearm-wrong-value", brokenRearmWrongValue, 1, { "coin-start": 1, attract: 7 }],
-  ["rearm-skips-count", brokenRearmSkipsCount, 1, { "coin-start": 1, attract: 7 }],
+  ["just-hit-wrong-value", brokenRearmWrongValue, 1, { "coin-start": 1, attract: 7 }],
+  ["just-hit-skips-count", brokenRearmSkipsCount, 1, { "coin-start": 1, attract: 7 }],
   ["threshold-exclusive", brokenThresholdExclusive, 1, { "coin-start": 0, attract: 0 }],
   ["skip-decrement", brokenSkipDecrement, 51, { "coin-start": 36, attract: 250 }],
   ["flies-below", brokenFliesBelow, 60, { "coin-start": 36, attract: 250 }],

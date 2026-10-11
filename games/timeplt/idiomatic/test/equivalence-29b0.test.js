@@ -123,7 +123,7 @@ const BRANCHES = [
   ["idle", 0x00, false, 0],
   ["dying-low", 0x01, false, 1],
   ["dying-death", 0x3c, false, 1],
-  ["dying-rearm", 0xf0, false, 1],
+  ["dying-just-hit", 0xf0, false, 1],
   ["held", 0xfe, false, 1],
   ["live", 0xff, false, 1],
   ["live-retire", 0xff, true, 1],

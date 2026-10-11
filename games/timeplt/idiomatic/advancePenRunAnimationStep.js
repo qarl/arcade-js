@@ -10,7 +10,7 @@
  * outer sequence mode. The sequence machine (SEQUENCE_PHASE / SEQUENCE_SUBSTEP, both [seen]) calls one
  * arm per frame and only moves to the next arm when the current one steps SEQUENCE_SUBSTEP. This arm
  * therefore repeats frame after frame, each frame stamping one more run of pen cells (attract step 0 has set the
- * pen to the blank glyph 0xF1, so here the runs erase the route leg by leg -- mechanisms.md "Step 1"), until the drawer
+ * pen to the blank glyph 0xF1 in colour 5, so here the runs retrace the route in colour 5 leg by leg -- mechanisms.md "Phase 1"), until the drawer
  * reports that the run it just finished reseated to row zero; that frame the arm hands on.
  *
  * WHY THE CHECKSUM. On its way out the arm sums (negatively) the 34 bytes of the routine at ROM 0x1748

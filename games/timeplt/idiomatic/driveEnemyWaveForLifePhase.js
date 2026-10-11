@@ -82,7 +82,7 @@ export function driveEnemyWaveForLifePhase(m) {
   // Point at the descriptor row in the ROM table at 0x397B: sixteen bytes per row, two per slot.
   let descriptor = offsetAddress(m, WAVE_DESCRIPTOR_TABLE, u8(16 * mem8[WAVE_DESCRIPTOR_INDEX])); // two-byte entries, one consumed per filled slot
 
-  // How many slots to walk: the round's craft quota (CRAFT_SPAWN_SLOT_COUNT 0xACC1) while kills remain
+  // How many slots to walk: the craft spawn slot count (CRAFT_SPAWN_SLOT_COUNT 0xACC1) while kills remain
   // before the Mother-Ship, else five. WAVE_KILL_COUNTDOWN (0xA811) is zeroed and used as the
   // filled-slot tally during the build.
   const count = mem8[KILLS_REMAINING] !== 0 ? mem8[CRAFT_SPAWN_SLOT_COUNT] : DEFAULT_COUNT;
@@ -134,8 +134,8 @@ export function driveEnemyWaveForLifePhase(m) {
   mem8[WAVE_SPAWN_BUSY_FLAG] = 0;
   mem8[WAVE_CLAIM_TIMER] = CLAIM_WINDOW_FRAMES;
   // Five or more filled: the tally stands as the wave's kill countdown, and the wave sound is
-  // requested. Otherwise the countdown becomes the round's craft quota, and the sound is still
-  // requested when the fill reached that quota.
+  // requested. Otherwise the countdown becomes the craft spawn slot count, and the sound is still
+  // requested when the fill reached that count.
   const filled = mem8[WAVE_KILL_COUNTDOWN];
   if (filled >= DEFAULT_COUNT) return requestEnemyWaveSound(m);
   const owed = mem8[CRAFT_SPAWN_SLOT_COUNT];

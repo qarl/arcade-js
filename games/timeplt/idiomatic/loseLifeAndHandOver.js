@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** loseLifeAndHandOver — one maintenance step per call: hide the sprite band, start the next round when a
- * flag is set, and queue the fixed transition sound burst. Then decrement the lives count at the
+ * flag is set, and queue the fixed transition sound stops. Then decrement the lives count at the
  * head of the live 16-byte context block and copy that block into whichever of two save slots the
  * active-player selector points at. If lives reached zero, hand off to the game-over banner and
  * stop. Otherwise, when the other player's slot still shows lives, flip the selector, then stamp a
@@ -40,7 +40,7 @@ export function loseLifeAndHandOver(m) {
   /* Step 1 -- clear the stage (0x11ED-0x11FA). hideAllSprites parks every sprite above the
    * visible screen. If ROUND_TRANSITION_HOLD 0xACC6 [seen] is raised the round was already won
    * (the Mother-Ship's closing sequence raised it), so startNextRound banks it first: the next
-   * life starts in the next era. Then the fixed transition sound burst is queued. */
+   * life starts in the next era. Then the fixed transition sound stops are queued. */
   hideAllSprites(m);
   if (mem8[ROUND_TRANSITION_HOLD] !== 0) startNextRound(m);
   enqueueTransitionSoundStops(m);

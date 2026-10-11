@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** advanceTwoTileObjectThenTryAimedSpawn — advance a two-tile object one step: fly it along its stored velocity, then place its
  * second tile directly under the first (same X, Y + 0x10). If it has reached a boundary,
- * retire it; otherwise dress the pair by heading and run the aimed-spawn attempt. LIVE-OUT: memory. */
+ * retire it; otherwise dress the pair by heading and run the bomber's aimed-shot attempt. LIVE-OUT: memory. */
 //
 // ROM 0x3B77-0x3B93 (lift: translated/loc_3b77.js). Grounding tag in names.js ROUTINES: [seen].
 //
@@ -51,8 +51,8 @@ export function advanceTwoTileObjectThenTryAimedSpawn(m, record = m.regs.ix, spr
   // this pass.
   if (hasReachedBoundaryBandSelectedByHeading(m, record, sprite)) return retireObjectAndHold(m, record, sprite);
   // STEP 4 -- STILL IN PLAY. Dress the two entries with the shape pair for its damage and heading
-  // (call 0x3CE9), then tail into the aimed-spawn attempt (jp 0x3D25), which may launch one aimed
-  // enemy from this object when its own gates allow.
+  // (call 0x3CE9), then tail into the aimed-shot attempt (jp 0x3D25, fireBomberShotWhenClearOfPlayer), which may fire one aimed
+  // shot from this object when its own gates allow.
   mirrorTwoTileObjectByHeading(m, record, sprite);
   return fireBomberShotWhenClearOfPlayer(m, record, sprite);
 }

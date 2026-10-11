@@ -53,7 +53,7 @@ export function serviceEra1EnemyCraftSlot(m, record = m.regs.ix, entry = m.regs.
   loc_5854(m, record, entry);
   // Once it has drifted onto a retire line, take it out of play and free the slot.
   if (hasReachedRetireLine(m, entry)) return retireSlotAndSubPixel(m, record, entry);
-  // Otherwise: one gated attempt to launch an enemy into the object bank, then redraw the sprite
+  // Otherwise: one gated attempt to fire a shot into the enemy-shot bank, then redraw the sprite
   // pointing the way it is heading, in the second era's shape bank.
   fireCraftShotWhenAimedNearPlayer(m, record, entry);
   return refreshSecondEraSpriteFromHeading(m, record, entry);

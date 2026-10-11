@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** paintLabelledNumericReadoutColumn — paint one labelled numeric readout as a single column climbing the tile plane: a
- * three-tile pictogram taken from a record table by the source's lead byte, a six-digit field
+ * three-tile rank label taken from a record table by the source's lead byte (the rank), a six-digit field
  * after it, and a three-tile suffix, every cell paired with the caller's pen colour in the
  * colour plane. The column is walked upward a cell at a time and the source is read forward past
  * its lead byte, its digit bytes and its suffix bytes. LIVE-OUT: memory only — the cursor, source
@@ -26,11 +26,11 @@ import { paintSixDigitFieldSuppressingLeadingZeros } from "./paintSixDigitFieldS
 import { u8, u16 } from "../../../core/int.js";
 import { HIGH_SCORE_RANK_LABEL_TABLE } from "./names.js";
 
-// Each pictogram record in HIGH_SCORE_RANK_LABEL_TABLE (ROM 0x4CB4) is three tile codes; the lead byte
+// Each rank-label record in HIGH_SCORE_RANK_LABEL_TABLE (ROM 0x4CB4) is three tile codes; the lead byte
 // times 3 (`add a,a` / `add a,(hl)`) indexes it.
 const RECORD_STRIDE = 3;
 const COLOUR_PLANE_CELL = 0x04 << 8; // clearing bit 2 of the cursor's high byte pairs the tile cell with its colour cell
-// Gaps along the column, in cell steps of 0x20: after the pictogram the cursor moves on 0x80 (four
+// Gaps along the column, in cell steps of 0x20: after the label the cursor moves on 0x80 (four
 // cells: `ld hl,0xff80` / `add hl,de`) to where the digits start, and after the digits a further 0x60
 // (three cells: `ld hl,0xffa0` / `add hl,de`) to where the suffix starts.
 const PICTOGRAM_TO_FIELD = 0x80;
@@ -49,7 +49,7 @@ export function paintLabelledNumericReadoutColumn(m, source = m.regs.hl, cursor 
   const { mem8 } = m;
 
   // STEP 1 -- THE LABEL (0x4C1F-0x4C42).
-  // pictogram: three consecutive tiles of the record the source's lead byte selects (stride 3)
+  // rank label: three consecutive tiles of the record the source's lead byte selects (stride 3)
   // fetchTableByte (`rst 0x08`) returns the first code and leaves the table pointer on the record, so
   // the next two codes are the bytes after it.
   const index = u8(mem8[source] * RECORD_STRIDE);
@@ -61,7 +61,7 @@ export function paintLabelledNumericReadoutColumn(m, source = m.regs.hl, cursor 
   stamp(m, mem8[u16(record + 2)], cursor, pen);
 
   // STEP 2 -- THE NUMBER (0x4C45-0x4C4B, call 0x0D73).
-  // six-digit field: move the cursor four cells on (0x80) from the last pictogram cell and read the digits from the source.
+  // six-digit field: move the cursor four cells on (0x80) from the last label cell and read the digits from the source.
   // The printer is handed source+3 -- the field's most significant byte -- and steps its pointer BACK
   // through the three packed bytes, blanking leading zeros except in the last two digits.
   // the printer takes the source pointer, the cursor and the pen as arguments and hands the pointer

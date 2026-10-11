@@ -56,7 +56,7 @@ export function splitCollisionWorkByFrameParity(m) {
   // Step 3: the player against the craft band, starting at 0xA850 where step 2 stopped. While the
   // Mother-Ship is armed (MOTHER_SHIP_ARMED, 0xAD0D [seen]) only five slots are swept: the band's last
   // two records, 0xA8A0/0xA8B0, are then the Mother-Ship's own two-slot record (MOTHER_SHIP_STATE is
-  // 0xA8A0), and step 4 tests it with its own ram test instead. The first-axis box is bias 7, width 15.
+  // 0xA8A0), and step 4 tests it with its own player-contact check instead. The first-axis box is bias 7, width 15.
   const armed = mem8[MOTHER_SHIP_ARMED] !== 0;
   destroySlotsAndPlayerOnContact(m, afterSlot0.occupancy, afterSlot0.entry, armed ? 5 : 7, 7, 15);
   if (armed) destroyPlayerAndMotherShipOnContactByEra(m);

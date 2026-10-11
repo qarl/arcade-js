@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * setFinalEraSceneryAttributesThenRunEraScenery — poked-natural dispatch, then a MASKED diff on independent clones. Choose the fill
- * byte, then transfer into the routine that owns the cells it fills. The dissolved callee drops its
+ * setFinalEraSceneryAttributesThenRunEraScenery — poked-natural dispatch, then a MASKED diff on independent clones. Choose the attribute
+ * byte, then transfer into the routine that writes it into the scenery attribute cells. The dissolved callee drops its
  * tail return, so the frozen side re-seats two bytes higher and leaves a return address in the dead
  * stack scratch the rewrite never writes; that window is masked, its floor proved above every data
  * cell. Registers are not compared: control leaves and does not come back. The dispatch fires only
@@ -21,7 +21,7 @@ const TARGET = 0x3156;
 const ERA_THAT_DISPATCHES = 4;
 const POKE_FROM_FRAME = 260;
 
-/** The fill byte this entry chooses, and the run of cells the destination writes it into. */
+/** The attribute byte this entry chooses, and the run of cells the destination writes it into. */
 const FILL_BYTE = 40;
 const FILLED_RUN_START = 0xaa60;
 const FILLED_RUN_STRIDE = 2;
@@ -113,7 +113,7 @@ test("THE BYTE LANDS: the filled run holds the chosen byte, so the RAM arm is no
   const m = entryState().clone();
   setFinalEraSceneryAttributesThenRunEraScenery(m);
   assert.deepEqual(filledRun(m), new Array(FILLED_RUN_CELLS).fill(FILL_BYTE), "every filled cell must hold it");
-  assert.notEqual(FILL_BYTE, THE_OTHER_FILL_BYTE, "the two fill bytes must actually differ");
+  assert.notEqual(FILL_BYTE, THE_OTHER_FILL_BYTE, "the two attribute bytes must actually differ");
   console.log(`  LANDS: ${FILLED_RUN_CELLS} cells from ${hex4(FILLED_RUN_START)} all read ${FILL_BYTE}`);
 });
 

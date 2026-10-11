@@ -10,7 +10,7 @@
  * 0xAA28). The record's head byte says what state it is in, and this routine runs the matching step:
  *   - 0x00 (empty): count its arming timer, and arm a new bomber when it fires
  *     (armBomberSlotWhenTimerFires, 0x3C25);
- *   - 0xFF (live): the ordinary two-tile move, with a chance of an aimed spawn
+ *   - 0xFF (live): the ordinary two-tile move, with a chance of an aimed shot
  *     (advanceTwoTileObjectThenTryAimedSpawn, 0x3B77);
  *   - anything else: it has been hit, so spend its remaining hits and run it down toward death
  *     (advanceHitSoakingObjectThenAnimateDeath, 0x3B94).

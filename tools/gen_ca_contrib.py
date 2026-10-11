@@ -198,8 +198,9 @@ GAME_CONVENTIONS = {
 FORCE_DATA = {
     "timeplt": [
         (0x459b, 0x45b2, "misaligned anti-tamper entry",
-         'reached only via the "wrong-glyph" derail ($1772) and the loop-back ($4660); the '
-         "bytes run as harmless NOPs and stray-stack POPs. The real routine is at $45B3.",
+         'reached only via the "wrong-glyph" derail ($1772) and the witness-copy derail ($4660); the '
+         "bytes run as register churn, undefined NOPs, stack-misaligning POPs and a carry-gated call into "
+         "the life-loss handover. The Mother-Ship wreck countdown proper starts at $45B3.",
          0x459b),
         (0x49fa, 0x4a0e, "misaligned anti-tamper entry",
          'reached only via the "wrong-glyph" derail ($19E6); the bytes run as harmless NOPs and '

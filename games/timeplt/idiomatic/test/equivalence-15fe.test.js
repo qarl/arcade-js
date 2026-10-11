@@ -9,7 +9,7 @@
  * ★ The guard is consumed as a RETURN. blankNextLine hands back whether its line count reached zero
  *   (the ROM's Z flag) and no longer leaves B, HL or F behind, so this entry's guard-block arm leaves
  *   the caller's B, HL and F where the oracle leaves the guard's, and its proceed arm leaves them
- *   where the oracle's patch loop leaves them. B, H and L join the ceiling on the ORACLE's evidence:
+ *   where the oracle's witness-seed loop leaves them. B, H and L join the ceiling on the ORACLE's evidence:
  *   DEAD AT EXIT complements every register in the ceiling on every exit of the all-frozen game over
  *   the attract and the coin -> start sessions and no cell of per-frame state moves, while SP moved
  *   at the same exit is heard. GUARD RETURN keeps the replaced register compared: at every arm the
@@ -57,7 +57,7 @@ const SCRATCH_BYTES = 10;
  * session, where the same probe on drawRandomByte's A (a real live-out) forks.
  */
 /**
- * b, h and l: the guard's line counter and eraser cursor (and the patch loop's count and record
+ * b, h and l: the guard's line counter and eraser cursor (and the witness-seed loop's count and record
  * cursor) are left standing by the oracle and not by the rewrite; DEAD AT EXIT shows them dead here.
  */
 const MOVED = ["a", "f", "sp", "d", "e", "c", "b", "h", "l"];

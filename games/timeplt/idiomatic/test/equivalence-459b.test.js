@@ -7,7 +7,7 @@
  * the tamper-witness pair does not hold the genuine values. Entered here, the prologue pops the
  * caller's return slot as data, steps SP by one, pops again out of step, and every exit returns
  * through a slot at an odd offset from the frame — control is destroyed rather than handed back. The
- * object's genuine warp/flash step is entered past this prologue (0x45B3) and is gated elsewhere.
+ * Mother-Ship's genuine wreck countdown is entered past this prologue (0x45B3) and is gated elsewhere.
  * So the rewrite raises NotImplemented at this entry, and this gate no longer byte-replays the body
  * that runs on a broken stack — it asserts the fault and PROVES the fault stands in for no live path:
  *

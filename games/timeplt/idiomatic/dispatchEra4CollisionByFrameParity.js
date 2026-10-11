@@ -2,7 +2,7 @@
 /** dispatchEra4CollisionByFrameParity — the era-4 collision dispatch for one round-engine pass, split by frame parity. On even frames run the
  * whole collision-and-destruction pass: the player-contact sweeps plus one shot sweep against the era-object slots. On odd frames stage one shot-versus-
  * target sweep over a run of object slots and hand it the shared destruction body: while the mother
- * ship is armed the run is nine long and a following mother-ship mutual-kill pass runs after it;
+ * ship is armed the run is nine long and a following shot-versus-Mother-Ship hit pass runs after it;
  * while it is clear the run is eleven long and no mother-ship pass follows. The two cursor cells the
  * shared body reloads between passes are staged in memory first so every pass restarts on this run.
  * LIVE-OUT: memory.
@@ -48,7 +48,7 @@ export function dispatchEra4CollisionByFrameParity(m) {
 
   /* destroyTargetsHitByShots (0x5211) tests each live shot of PLAYER_SHOT_ARRAY (0xAA80) against
    * each target in the run, destroying and scoring every hit. Armed: the sweep is a real call, and
-   * the mother-ship mutual-kill pass (0x4FE0) follows as a tail jump. Clear: the sweep is the tail. */
+   * the shot-versus-Mother-Ship hit pass (0x4FE0) follows as a tail jump. Clear: the sweep is the tail. */
   if (armed) {
     destroyTargetsHitByShots(
       m, PLAYER_SHOT_ARRAY, ACTOR_ENTRY_SLOT0, ACTOR_RECORD_SLOT0,

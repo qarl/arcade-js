@@ -47,7 +47,7 @@ const ARM_MASK = 0x0f;
 export function dispatchSequenceSubStepArm(m) {
   // Select this frame's arm from the sub-step's low nibble and run it.
   switch (m.mem8[SEQUENCE_SUBSTEP] & ARM_MASK) {
-    // The round-start arm, the caption pen seated from the era, the caption blank and pen-run step,
+    // The new-game arm, the caption pen seated from the era, the kill-meter blank and pen-run step,
     // the active player's turn set up with the round HUD, the round-start captions, the flashing era
     // year, the enemy-free lead-in, then the round engine itself; after it the post-game-over filing,
     // the pen-route erase that opens initials entry, the initials entry step, a delay countdown, the

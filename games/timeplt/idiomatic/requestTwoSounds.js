@@ -16,7 +16,7 @@
  * processor rather than sitting in RAM.
  *
  * Twin: requestTwoSoundsWhilePlaying has the same two-fetch shape but goes through the
- * play-only door; this one uses the play-or-demo door, so the demo hears it too.
+ * play-only door; this one uses the play-or-demo door, so the demo hears it too when demo sounds are switched on.
  *
  * LIVE-OUT: memory only -- the sound queue, up to two entries. */
 

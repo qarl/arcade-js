@@ -5,7 +5,7 @@
  *
  * First the copyright line's colours are checked, which derails the machine if any cell is wrong.
  * Then one caption cell is read: unless it still holds its expected glyph the arm hands off to the
- * mother-ship warp/flash handler through its misaligned anti-tamper entry — the "wrong-glyph"
+ * Mother-Ship's wreck countdown through its misaligned anti-tamper entry (derailIntoMotherShipWreckCountdown) — the "wrong-glyph"
  * derail. Neither derail has a faithful transcription as a routine — each lands in bytes that
  * destroy the stack frame — so both raise where the transfer would begin; a genuine image never
  * takes either (the copyright line is painted, in its two flashing colours, before this arm runs).
@@ -42,7 +42,7 @@ export function paintReadoutsThenSampleWitnessOrDerail(m) {
   checkTheCopyrightLineColoursOrDerail(m);
 
   if (mem8[TAMPER_GLYPH_SOURCE_CELL] !== EXPECTED_GLYPH) {
-    // wrong-glyph derail: the mother-ship warp/flash handler's misaligned entry, which raises.
+    // wrong-glyph derail: the misaligned entry into the Mother-Ship's wreck countdown (derailIntoMotherShipWreckCountdown), which raises.
     derailIntoMotherShipWreckCountdown();
     return;
   }

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** layOutEnemyAimPointsFromPlayerHeading — when the mode byte in C selects sub-mode 7, lay the enemy aim anchor's twelve coordinate
- * fields (0xAC64 +0x10..+0x1b, the standoff aim points) out as six XY pairs around centre (0x78 across, 0x84 down): the scroll angle
- * turned a quarter and the scroll angle itself, each drawn through the velocity table at an x8 and an
- * x16 radius, the quarter-turned direction also mirrored to its negatives; every other sub-mode
+/** layOutEnemyAimPointsFromPlayerHeading — when the life-tick byte in C has units digit 7, lay the enemy aim anchor's twelve coordinate
+ * fields (0xAC64 +0x10..+0x1b, the standoff aim points) out as six XY pairs around centre (0x78 across, 0x84 down): the player heading
+ * turned a quarter and the heading itself, each drawn through the velocity table at an x8 and an
+ * x16 radius, the quarter-turned direction also mirrored to its negatives; every other units digit
  * returns without a write.
  *
  * ROM 0x326C-0x32EA (lift: translated/loc_326c.js). Grounding: [seen] (names.js ROUTINES 0x326C).
@@ -10,22 +10,23 @@
  * ROLE IN THE MACHINE. Enemy re-aim code steers toward aim points (mechanisms.md, record +1);
  * this routine lays a set of those points out around the ship's fixed screen position. Its caller
  * is reaimEnemyCraftByFlightScriptOnPhaseTick, which runs first in each round-engine dispatch and
- * passes the low place of the life tick counter (LIFE_TICKS_LOW 0xAD05 [seen]) as the mode byte.
+ * passes the low place of the life tick counter (LIFE_TICKS_LOW 0xAD05 [seen]) in C.
  * That byte is packed decimal, so "low nibble == 7" means "units digit 7": on those passes (and
  * not on the 00-09 / 30-39 passes that re-aim a craft instead) the points are laid out from the
  * heading as it stood before this dispatch's turn (mechanisms.md, round engine order).
  *
- * The "scroll angle" in the name is PLAYER_HEADING 0xA802 [seen]: the world scroll is the negated
- * ship velocity (names.js WORLD_SCROLL_Y), so the ship's heading also fixes the scroll direction. The fields are written from ENEMY_AIM_ANCHOR_Y 0xAC64 [seen], the enemy aim anchor.
+ * The routine was once named for a "scroll angle", a misnomer: the only angle it reads is
+ * PLAYER_HEADING 0xA802 [seen] (at 0x3276 and 0x32C1), and it reads no scroll cell. The world scroll is
+ * the negated ship velocity (names.js WORLD_SCROLL_Y), so the scroll runs opposite to the heading. The fields are written from ENEMY_AIM_ANCHOR_Y 0xAC64 [seen], the enemy aim anchor.
  *
- * PARAMETER: mode = the mode byte (which the caller loaded from LIFE_TICKS_LOW).
+ * PARAMETER: lifeTick = the packed-decimal life-tick byte the caller loaded from LIFE_TICKS_LOW.
  * LIVE-OUT: fields 0x10-0x1b of that object; no return value. */
 
 import { loc_59d1 } from "./loc_59d1.js";
 import { u8, u16 } from "../../../core/int.js";
 import { ENEMY_AIM_ANCHOR_Y, PLAYER_HEADING } from "./names.js";
 
-// `and 0x0f` / `cp 0x07` / `ret nz` at 0x326D-0x3271: only sub-mode 7 lays anything out.
+// `and 0x0f` / `cp 0x07` / `ret nz` at 0x326D-0x3271: only units digit 7 lays anything out.
 const UNITS_DIGIT_MASK = 0x0f;
 const LAYOUT_UNITS_DIGIT = 0x07;
 // A quarter of the 256-step circle (`add a,0x40` at 0x3279).
@@ -52,11 +53,11 @@ function plot(m, base, term, centre, off8, off16, mirror) {
   if (mirror) mem8[u16(base + off16 + 4)] = u8(centre - h16);
 }
 
-export function layOutEnemyAimPointsFromPlayerHeading(m, mode = m.regs.c) {
+export function layOutEnemyAimPointsFromPlayerHeading(m, lifeTick = m.regs.c) {
   const { mem8 } = m;
 
-  /* Step 1 -- only on sub-mode 7 (0x326D-0x3272); every other value returns with no write. */
-  if ((mode & UNITS_DIGIT_MASK) !== LAYOUT_UNITS_DIGIT) return;
+  /* Step 1 -- only on units digit 7 (0x326D-0x3272); every other value returns with no write. */
+  if ((lifeTick & UNITS_DIGIT_MASK) !== LAYOUT_UNITS_DIGIT) return;
   // The base is a fixed anchor; the index register it once rode through is dead past this routine,
   // so a plain constant reproduces the field writes.
   const base = ENEMY_AIM_ANCHOR_Y;

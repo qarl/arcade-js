@@ -4,7 +4,7 @@
  * the slot's literal target, called directly with that record, and nothing here runs after it. Three
  * bits admit eight slots: the first five are the five eras' slot services; the sixth and seventh hold
  * words that address no program at all, so reaching one is a fault and it is raised, not assumed
- * away; the eighth holds the word of the intro-animation step, and that is what it runs. The record and
+ * away; the eighth holds the word of the round-won band animation step (0x1323), and that is what it runs. The record and
  * its sprite entry come in as arguments and each handler is entered directly, with no table word
  * carried in on a register pair. LIVE-OUT: memory, and the handler's. */
 

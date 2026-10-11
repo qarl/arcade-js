@@ -10,7 +10,7 @@
  * On the genuine image it starts the attract-mode autopilot demo: it parks the caption sprites,
  * seeds the demo autopilot heading script, then clears the two-player flag, player two's lives, the
  * play-active flag and the inner sequence sub-step, stocks player one with one life, and winds the
- * outer sequence on to its last phase (3) — the phase where the demo actually flies. Because
+ * outer sequence on to its last phase (3) — the round engine, which real play runs in too. Because
  * PLAY_ACTIVE is cleared rather than raised, this is the demo run, not a real game.
  *
  * LIVE-OUT: memory only. The arm is reached by computed dispatch and its successor reloads every
@@ -32,7 +32,7 @@ import { NotImplemented } from "../../../boards/timeplt/io.js";
 
 // The value a genuine image's self-check fold must land on.
 const EXPECTED_SIGNATURE = 0x76;
-// The outer sequence's last phase — where the attract demo run lives.
+// The outer sequence's last phase — the round engine, shared by real play and the demo.
 const ROUND_ENGINE_PHASE = 0x03;
 // One life for the autopilot demonstration.
 const DEMO_LIVES = 0x01;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** serviceEra3EnemyCraftSlot — the era-3 step for one object slot, dispatched on the slot's lifecycle byte at ix+0:
  * an idle slot does nothing; a live slot (0xff) is steered and flown a step, then either retired at
- * the line or given a bank launch, dressed and given a spawn attempt; 0xfe releases a held slot; a lower value is a death
+ * the line or given a shot attempt, dressed and given a spawn attempt; 0xfe releases a held slot; a lower value is a death
  * countdown step. LIVE-OUT: memory. */
 
 /*
@@ -14,7 +14,7 @@
  * them with dressSpriteForCoarseHeading.
  *
  * The body below runs, for a live slot, in the ROM's call order at 0x29BF-0x29D4: steer, fly,
- * retire test, bank launch, dress the sprite, attacker launch.
+ * retire test, shot attempt, dress the sprite, attacker launch.
  *
  * PARAMETERS. `record` is the slot's 16-byte object record (lifecycle byte at +0); `entry` is its
  * two-byte sprite entry.
@@ -56,7 +56,7 @@ export function serviceEra3EnemyCraftSlot(m, record = m.regs.ix, entry = m.regs.
   // answers with the carry flag and the ROM tail-jumps (`jp c,0x2BDE`) to retireSlotAndSubPixel,
   // which zeroes the slot; nothing else runs for it.
   if (hasReachedRetireLine(m, entry)) return retireSlotAndSubPixel(m, record, entry);
-  // Still in play: one gated bank launch when aimed near the player (0x3ED6); point the sprite
+  // Still in play: one gated shot when aimed near the player (0x3ED6); point the sprite
   // along the heading rounded to sixteen sectors (dressSpriteForCoarseHeading, 0x2AFC); then the
   // attacker launch into a free slot on this object's turn (launchAttackerIntoFreeSlot, 0x4243).
   fireCraftShotWhenAimedNearPlayer(m, record, entry);

@@ -11,8 +11,10 @@
  * is won: stepRoundWonBandAnimation dispatches on ROUND_WON_ANIMATION_STEP 0xA9F0 [seen] and runs
  * this for its flash steps, running the player's ship white and back (mechanisms.md, round won).
  * The byte recoloured is PLAYER_SPRITE_ATTRIBUTE 0xAA40 [seen], the player's sprite colour + flip
- * byte, which the sprite publisher copies to the hardware. Under MAME the ship's pixels were seen
- * alternating white and blue frame by frame (names.js ROUTINES 0x1367, "why").
+ * byte, which the sprite publisher copies to the hardware. The colour flips once per call, and the
+ * caller runs this on only two frames in every four (FRAME_TICK bit 1 clear). Under MAME, with this
+ * routine run every frame in place of the heading dresser, the ship's pixels were seen alternating
+ * white and blue frame by frame (names.js ROUTINES 0x1367, "why").
  * LIVE-OUT: memory. */
 
 import { u8 } from "../../../core/int.js";
@@ -38,7 +40,7 @@ export function flashPlayerWhiteOnAlternateCalls(m) {
 
   /* Step 1 -- the threshold tick (0x136A-0x1376). When PLAYER_FLASH_TICK 0xA9F1 [seen] reads 8,
    * hand the animation on to its next step by writing ROUND_WON_ANIMATION_STEP, and ask for the
-   * spawn-flash sound (requestPlayerWhiteFlashSound, which only sounds while a game is being
+   * round-won flash sound (requestPlayerWhiteFlashSound, which only sounds while a game is being
    * played). The recolour below still happens on this tick. */
   if (mem8[PLAYER_FLASH_TICK] === SOUND_AT_TICK) {
     mem8[ROUND_WON_ANIMATION_STEP] = NEXT_STEP;

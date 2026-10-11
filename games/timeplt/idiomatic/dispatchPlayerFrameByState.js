@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** dispatchPlayerFrameByState — seat the player record and its paired sprite entry, then route the frame on the
  * player-state byte: leave at once while it is clear, drive the multi-pass explosion animation while it is
- * mid-count, and once it is fully wound either fly the demo pilot (no live play), turn the ship
+ * mid-count, and once it reads 0xFF (the ship alive) either fly the demo pilot (no live play), turn the ship
  * toward the read stick, or just scroll the world when the stick is centred. LIVE-OUT: memory.
  *
  * ROM 0x1EDF-0x1F00 (frozen lift translated/loc_1edf.js). Grounding: [seen] in names.js.

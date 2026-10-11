@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** fireBomberShotWhenClearOfPlayer — spawn one aimed enemy, but only when the spawn slot is free, the cooldown at
- * ATTACKER_SPAWN_COOLDOWN is clear, the era count is live, and some object in the caller's two-slot bank passes
- * the doubled-window test (step 2 below). Draws a heading toward the standoff aim point ENEMY_STANDOFF_AIM_MAIN, alternates the aim's
- * side each spawn via ATTACKER_SPAWN_AIM_SIDE_TOGGLE, then seats coords, the doubled velocity pair, a shape code and an
+/** fireBomberShotWhenClearOfPlayer — fire one aimed bomber shot, but only when its seat is free, the cooldown at
+ * ATTACKER_SPAWN_COOLDOWN is clear, the era count is live, and some object in the caller's two-slot bank sits
+ * outside the doubled window (step 2 below). Draws a heading toward the standoff aim point ENEMY_STANDOFF_AIM_MAIN, alternates the aim's
+ * side each shot via ATTACKER_SPAWN_AIM_SIDE_TOGGLE, then seats coords, the doubled velocity pair, a shape code and an
  * attribute byte into the era's fixed record+sprite bank and reloads the cooldown. LIVE-OUT: memory. The routine is a
  * pure writer — its sole caller (advanceTwoTileObjectThenTryAimedSpawn) tail-returns and reads no register it
  * leaves, and that whole dispatch chain up to serviceEra1BomberObject is memory-only — so the search pointers,
@@ -12,18 +12,18 @@
  * ROM 0x3D25-0x3DD9. Grounding: [seen] (names.js ROUTINES 0x3d25).
  *
  * ROLE IN THE MACHINE. An era object (reached from serviceEra1BomberObject's chain) uses this to
- * launch an attacker: a new object placed where one of the caller's two objects sits and sent off
+ * fire the bomber's shot: a new object placed where one of the caller's two objects sits and sent off
  * on a heading aimed near the player. How often this can happen is governed by the era's
  * difficulty settings: ATTACKER_SPAWN_SLOT_COUNT 0xA8C6 [seen] (how many attacker slots the era
  * fields; zero disables the arm), ATTACKER_SPAWN_WINDOW_HALF 0xA8D6 [seen] (the half-width of the
  * window test), and the shared cooldown ATTACKER_SPAWN_COOLDOWN 0xA8F4 [seen], which is reloaded
  * from ATTACKER_SPAWN_COOLDOWN_PERIOD 0xA8F6 [seen] after every spawn.
  *
- * TWO DESTINATION BANKS. The new attacker goes into one of two fixed record + sprite-entry seats:
+ * TWO DESTINATION BANKS. The shot goes into one of two fixed record + sprite-entry seats:
  * "bank A" = ACTOR_RECORD_SLOT3 0xA840 / ACTOR_ENTRY_SLOT3 0xAA18 [seen], or "bank B" =
  * ERA_OBJECT_RECORD_SLOT2 0xA8E0 / ERA_OBJECT_ENTRY_SLOT2 0xAA2C [seen]. Bank B is used when the
  * era's slot count is not 1 and bank B's head byte is 0 (free); otherwise bank A, which must itself
- * be free (head 0) or nothing spawns.
+ * be free (head 0) or nothing is fired.
  */
 
 import { u8, u16 } from "../../../core/int.js";
@@ -48,7 +48,8 @@ const Y_ORIGIN = 0x78;
 // The aim is turned 0x18 steps (of a 256-step circle) off the heading, to one side or the other.
 const TURN = 0x18;
 
-// Fixed bytes seated into the new attacker's sprite entry (+0x01 and +0x30).
+// Fixed bytes seated into the shot's sprite entry (+0x01 and +0x30): the enemy-shot shape and
+// attribute, the same pair fireCraftShotWhenAimedNearPlayer seats at 0x3F7D/0x3F81.
 const NEW_SHAPE_CODE = 0x4d;
 const NEW_ATTRIBUTE = 0x62;
 
@@ -70,7 +71,7 @@ export function fireBomberShotWhenClearOfPlayer(m, record = m.regs.ix, entry = m
   // in lockstep with the entry pointer but its landing slot is discarded — the seat below is fixed.
   // Step 2 -- the window test, per axis: take the player's coordinate minus the object's, add the
   // half-width, and compare against twice the half-width, all in wrapping 8-bit arithmetic. The
-  // ROM's `jp nc,0x3d6f` takes the spawn path when the biased difference is at or past the full
+  // ROM's `jp nc,0x3d6f` takes the launch path when the biased difference is at or past the full
   // width on EITHER axis -- that is, when the object's offset from the player's spot on that axis
   // falls outside -half .. half-1. The first object that does so is the one used.
   const half = mem8[ATTACKER_SPAWN_WINDOW_HALF];
@@ -85,13 +86,13 @@ export function fireBomberShotWhenClearOfPlayer(m, record = m.regs.ix, entry = m
     entry = u16(entry + ENTRY_STRIDE);
     count = u8(count - 1);
   } while (count !== 0);
-  // Neither object qualified: nothing is spawned and nothing is written.
+  // Neither object qualified: nothing is fired and nothing is written.
   if (!hit) return;
 
   // Step 3 -- the launch sound (program byte 0x07A2, queued only while a game is being played),
   // then the aim. headingToward gives the heading from the found object to the aim point at
-  // ENEMY_STANDOFF_AIM_MAIN 0xAC7F [seen]. The side toggle is stepped every spawn and its low bit
-  // picks +0x18 (odd) or -0x18 (even), so successive attackers are aimed to alternate sides.
+  // ENEMY_STANDOFF_AIM_MAIN 0xAC7F [seen]. The side toggle is stepped every launch and its low bit
+  // picks +0x18 (odd) or -0x18 (even), so successive shots are aimed to alternate sides.
   requestEnemyLaunchSound(m);
   const heading = headingToward(m, ENEMY_STANDOFF_AIM_MAIN, entry);
   mem8[ATTACKER_SPAWN_AIM_SIDE_TOGGLE] = u8(mem8[ATTACKER_SPAWN_AIM_SIDE_TOGGLE] + 1);
@@ -110,7 +111,7 @@ export function fireBomberShotWhenClearOfPlayer(m, record = m.regs.ix, entry = m
     entBank = ACTOR_ENTRY_SLOT3;
   }
 
-  // Step 5 -- stock the new attacker. It starts at the found object's coordinates. Its velocity
+  // Step 5 -- stock the shot. It starts at the found object's coordinates. Its velocity
   // is the doubled component pair for the aimed heading, stored little-endian as two words at
   // record +0x0A..+0x0D -- the stored velocity a separate mover later reads to move the object.
   mem8[entBank + ENTRY_Y] = foundY;

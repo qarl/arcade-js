@@ -9,7 +9,7 @@
  *
  * ROLE. Load a ten-byte row and scatter it over twelve fixed cells: two slot counts (bank launch
  * and attacker spawn), four half-width windows, two cooldown periods and their live countdowns, the
- * round's craft count and the script-pick threshold (names.js). Eight
+ * craft spawn slot count and the script-pick threshold (names.js). Eight
  * bytes go to one cell each and two go to two cells each -- a cooldown PERIOD and the live
  * COUNTDOWN that the vblank service runs down and other code reloads from that period -- so applying a row also
  * restarts both countdowns at the new period. It is reached from the life-start routine (0x19F0, by

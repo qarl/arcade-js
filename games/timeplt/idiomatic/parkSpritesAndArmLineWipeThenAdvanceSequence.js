@@ -10,7 +10,7 @@
  *
  * Role in the machine: step 0 of sequence phase 2 — "a credit on the board, waiting for start" —
  * run through dispatchSequencePhase2SubStepArm. Phase 2 is only ever entered with a credit banked,
- * and this first step clears the stage for the attract information screen: the sprites vanish at
+ * and this first step clears the stage for the push-start information screen: the sprites vanish at
  * once, and the character plane is then blanked one line per frame by the NEXT step
  * (blankOneLineThenGuardBlockOrDerailSequence), which consumes the wipe armed here (mechanisms.md,
  * "Phase 2").

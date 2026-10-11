@@ -19,7 +19,7 @@
  * BONUS_LIFE_LATCH (0xAD03) [seen] makes the award one-shot: a match while the bit is set does nothing, and
  * the first pass whose top byte matches no mark clears it again.
  *
- * THE AWARD increments LIVES_REMAINING (0xAD00) [seen], posts ring command 5 carrying the count from BEFORE
+ * THE AWARD increments LIVES_REMAINING (0xAD00) [seen], posts ring command 5 (redraw the reserve-ship emblem strip) carrying the count from BEFORE
  * the increment, and tail-jumps into requestBonusLifeSound (ROM 0x5805).
  *
  * LIVE-OUT: memory.
@@ -34,7 +34,7 @@ const MARKS_WHEN_CLEAR = BONUS_LIFE_MARK_TABLE_BIT0_CLEAR;
 const MARKS_WHEN_SET = BONUS_LIFE_MARK_TABLE_BIT0_SET;
 /** Bit 0 of BONUS_LIFE_LATCH: set once a mark has paid (ROM `bit/set/res 0,(hl)` on 0xAD03). */
 const LATCH_BIT = 0x01;
-/** The ring command posted with an award (ROM `ld d,0x05; rst 0x38`). */
+/** The ring command that redraws the reserve-ship emblem strip, posted with an award (ROM `ld d,0x05; rst 0x38`). */
 const EMBLEM_STRIP_COMMAND = 5;
 /** `cpir` with a count of zero runs 65536 times before BC runs out, so a zero length byte means 65536. */
 const A_ZERO_LENGTH_MEANS = 65536;
@@ -65,9 +65,9 @@ export function awardBonusLifeAtScoreMark(m) {
   if ((mem8[BONUS_LIFE_LATCH] & LATCH_BIT) !== 0) return;
   mem8[BONUS_LIFE_LATCH] |= LATCH_BIT;
 
-  // Award: one more life, report the pre-award count on the command ring, and ask for the award sound.
-  const awardsSoFar = mem8[LIVES_REMAINING];
-  mem8[LIVES_REMAINING] = awardsSoFar + 1;
-  postCommand(m, EMBLEM_STRIP_COMMAND, awardsSoFar);
+  // Award: one more life, post the pre-award count to the emblem strip (command 5), and ask for the award sound.
+  const livesBeforeAward = mem8[LIVES_REMAINING];
+  mem8[LIVES_REMAINING] = livesBeforeAward + 1;
+  postCommand(m, EMBLEM_STRIP_COMMAND, livesBeforeAward);
   requestBonusLifeSound(m);
 }

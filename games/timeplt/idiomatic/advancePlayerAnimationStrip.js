@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** advancePlayerAnimationStrip — advance a multi-pass tile animation driven by a phase byte in the record. On the
- * opening frame (phase at or past the cap) the phase is clamped, the paired entry is flagged, and
- * sound cues are requested — one burst always, one extra from ERA_INDEX 2 up — and then two
+ * opening frame (phase at or past the cap) the phase is clamped, the ship's sprite code is blanked, and
+ * sound commands are posted — a burst always, and from ERA_INDEX 2 up a stop for sound 6 — and then two
  * tamper-witness cells may divert the frame into the tamper trap instead. Otherwise the phase is stepped
  * down and, when it lands on one of seven keyframe values, a shape strip is blitted tile-by-tile
  * into video and colour memory a row at a time; a phase between keyframes draws nothing.
@@ -18,7 +18,7 @@
 // the player record (0xA800) and IY on its sprite entry (0xAA10). The routine uses that state byte
 // itself as its countdown:
 //   * opening frame (0xB4 or more): clamp to 0xB4, hide the ship's sprite, request the opening-frame
-//     sound cues (which sounds they are is unidentified, mechanisms.md), and check two anti-tamper
+//     sound commands (the destruction burst, and from ERA_INDEX 2 a stop for sound 6), and check two anti-tamper
 //     witnesses;
 //   * every pass of the player's handler: count down by one, and on seven keyframe values paint a 6-row by 5-cell block of
 //     character tiles over the ship's pinned screen position -- a fireball drawn in the background
@@ -52,13 +52,13 @@ import {
 
 // Record and sprite-entry offsets. PHASE is the record's head byte -- for the player, PLAYER_STATE.
 const PHASE = 0x00; // record byte holding the animation phase
-const SPRITE_CODE = 0x01; // paired-entry byte flagged on the opening frame
+const SPRITE_CODE = 0x01; // sprite entry's shape-code byte, blanked on the opening frame
 const FIRST_FRAME = 0xb4; // phases at or above this are the opening frame; clamp to it
 // 0xFF written to the sprite entry's +1 byte (PLAYER_SPRITE_CODE for the player). Per mechanisms.md,
 // sprite 255 in the sprite ROM is empty, so writing it makes the ship's own sprite disappear -- the
 // tile fireball replaces it.
 const EMPTY_SPRITE_CODE = 0xff;
-// The late-era sound is asked for only from ERA_INDEX 2 up (`cp 0x02` / `call nc,0x5679`).
+// The stop for sound 6 is asked for only from ERA_INDEX 2 up (`cp 0x02` / `call nc,0x5679`).
 
 const EXTRA_CUE_LEVEL = 0x02;
 // The anti-tamper witnesses' genuine values: the sampled caption glyph must be 0xA5 (`cp 0xa5` at
@@ -99,7 +99,7 @@ export function advancePlayerAnimationStrip(m, record = m.regs.ix, entry = m.reg
   // STEP 1 -- OPENING FRAME (0x2010-0x203F). A fresh kill leaves the state at 0xF0, above the cap, so
   // this runs exactly once per explosion: the clamp to 0xB4 makes every later pass skip it.
   if (mem8[X(PHASE)] >= FIRST_FRAME) {
-    // opening frame: clamp the phase, flag the paired entry, request the opening-frame sound cues
+    // opening frame: clamp the phase, blank the ship's sprite, post the opening-frame sound commands
     mem8[X(PHASE)] = FIRST_FRAME;
     mem8[Y(SPRITE_CODE)] = EMPTY_SPRITE_CODE;
     if (mem8[ERA_INDEX] >= EXTRA_CUE_LEVEL) requestSoundSixStopWhilePlaying(m);
@@ -111,8 +111,8 @@ export function advancePlayerAnimationStrip(m, record = m.regs.ix, entry = m.reg
     // patched caption sends the frame into loc_1f2e ([code]), a table whose bytes then run as code.
     const glyph = mem8[TAMPER_GLYPH_STRIP];
     if (glyph !== GENUINE_GLYPH) return loc_1f2e(m);
-    const drawState = mem8[TAMPER_COLOUR_STRIP];
-    if (drawState !== GENUINE_COLOUR_A && drawState !== GENUINE_COLOUR_B) return loc_1f2e(m);
+    const witnessColour = mem8[TAMPER_COLOUR_STRIP];
+    if (witnessColour !== GENUINE_COLOUR_A && witnessColour !== GENUINE_COLOUR_B) return loc_1f2e(m);
   }
 
   // STEP 2 -- COUNT DOWN (`dec (ix+0x00)` at 0x2040). Every pass, the opening one included.

@@ -4,7 +4,7 @@
  *
  * On a failed guard the frozen oracle transfers into bytes that destroy the stack frame: the
  * copyright-colour walk jumps into a caption record decoded as code (0x49fa), and the wrong-glyph
- * checks jump into the warp/flash step's misaligned prologue (0x459b). The rewrites raise
+ * checks jump into the misaligned prologue of the Mother-Ship's wreck countdown (0x459b). The rewrites raise
  * NotImplemented at those transfers instead, naming the module that stands for the landing. What the
  * two sides then do is not comparable (the oracle faults somewhere inside the garbage, the rewrite
  * at the entry), so a gate compares them AT the transfer:

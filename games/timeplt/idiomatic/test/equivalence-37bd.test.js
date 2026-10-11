@@ -218,7 +218,7 @@ function sweepGateByte(candidate, diff) {
   return caught;
 }
 
-/** Every value of the round's craft count, gate open and enemies still owed. */
+/** Every value of the craft spawn slot count, gate open and enemies still owed. */
 function sweepCraftCount(candidate, diff) {
   const base = capture("coin-start").entries[0];
   let caught = 0;
@@ -274,7 +274,7 @@ function brokenRunsSwapped(m) {
   return m.call(SLOT_BODY);
 }
 
-/** BUG: always five slots, so the round's craft count never shortens or lengthens the run. */
+/** BUG: always five slots, so the craft spawn slot count never shortens or lengthens the run. */
 function brokenAlwaysFive(m) {
   if (!OPEN.includes(m.mem8[m.regs.hl])) return;
   const cleared = m.mem8[KILLS_REMAINING] === 0;
@@ -392,7 +392,7 @@ test("GATE-BYTE: all 256 values, on both settings of the kill counter", { skip }
   console.log(`  GATE-BYTE: ${SWEEP_RUNS.gateByte} value-and-counter combinations identical`);
 });
 
-test("CRAFT-COUNT: all 256 values of the round's craft count", { skip }, () => {
+test("CRAFT-COUNT: all 256 values of the craft spawn slot count", { skip }, () => {
   assert.equal(sweepCraftCount(gateTheFreeSlotSearchAndPickItsRun, unitDiff), 0, "a craft count diverged");
   const seen = [];
   const probe = capture("coin-start").entries[0].clone();

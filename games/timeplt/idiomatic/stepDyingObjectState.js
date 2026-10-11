@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** stepDyingObjectState — step one object's state byte and dispatch on its value: the re-arm value re-seats the
- * byte and begins the death; the threshold begins the death then flies the object on, as does any
+/** stepDyingObjectState — step one object's state byte and dispatch on its value: the just-hit mark 0xF0 starts the
+ * death countdown at 0x3B and counts the kill; the threshold begins the death then flies the object on, as does any
  * higher value; below it the byte counts down, retiring the slot at zero, else moving it. LIVE-OUT: memory. */
 //
 // ROM 0x2B93-0x2BB3; lift: translated/loc_2b93.js. Grounding tag in names.js ROUTINES: [seen].
@@ -26,8 +26,8 @@ import { moveObjectByStateByteThenRunAppearance } from "./moveObjectByStateByteT
 import { retireSlotAndSubPixel } from "./retireSlotAndSubPixel.js";
 import { u8 } from "../../../core/int.js";
 
-// The state byte is record +0. 0xF0 is the collision sweeps' "just hit" mark; it is re-stamped to
-// 0x3B, one below the threshold 0x3C at which the shared "death begins" step runs.
+// The state byte is record +0. 0xF0 is the collision sweeps' "just hit" mark; it is replaced by
+// 0x3B, the start of the death countdown, one below the threshold 0x3C at which the shared "death begins" step runs.
 const STATE = 0;
 const JUST_HIT = 0xf0;
 const DEATH_COUNTDOWN_START = 0x3b;

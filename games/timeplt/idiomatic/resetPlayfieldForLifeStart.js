@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** resetPlayfieldForLifeStart — reset the whole playfield for a fresh round: clear the scroll and control cells, seat
+/** resetPlayfieldForLifeStart — reset the whole playfield at a life start: clear the scroll and control cells, seat
  * the ship sprite and shot slots, retire particular object slots in their own ways, free and renumber every slot, clear four sprite
  * entries, seat the era's scenery band, then scatter one era-and-rung-selected ten-byte record from a word
- * table into the cells that arm the round. LIVE-OUT: memory-only. */
+ * table into the spawner and launcher settings cells. LIVE-OUT: memory-only. */
 
 /*
  * ROM 0x19F0-0x1AE3, grounding [seen] (names.js ROUTINES 0x19f0).
@@ -108,7 +108,7 @@ export function resetPlayfieldForLifeStart(m) {
   // record cursor the numbering walk ended on. Only the scenery seed's tamper divert reads them.
   seatEraSceneryCodesThenSetAttributesAndRunScenery(m, ERA_OBJECT_ENTRY_SLOT0, recordCursor);
 
-  // Arm the round's difficulty. The settings table at 0x1B04 (ERA_RUNG_SETTINGS_POINTER_TABLE) holds
+  // Load the difficulty settings for the current era and rung. The settings table at 0x1B04 (ERA_RUNG_SETTINGS_POINTER_TABLE) holds
   // a pointer per (era, rung): the ROM builds the index (era << 4) + rung with four `rlca`,
   // `and 0xf0` and `add a,b` -- an eight-bit sum, hence u8 -- then RST 0x10 (fetchTableWord)
   // doubles it into a table offset and reads the word: the address of this era/rung's settings row.
@@ -119,7 +119,7 @@ export function resetPlayfieldForLifeStart(m) {
   //   +0 BANK_LAUNCH_SLOT_COUNT     records the bank-launch arm scans (zero disables it)
   //   +1 BANK_LAUNCH_HEADING_HALF_WIDTH  its heading window   +2 BANK_LAUNCH_NEAR_HALF_WIDTH  its proximity window
   //   +3 BANK_LAUNCH_COOLDOWN_PERIOD and the live BANK_LAUNCH_COOLDOWN, both from one byte
-  //   +4 CRAFT_SPAWN_SLOT_COUNT          the round's enemy-craft quota
+  //   +4 CRAFT_SPAWN_SLOT_COUNT          slots a craft spawn pass walks
   //   +5 SCRIPT_PICK_THRESHOLD      random-vs-ordered movement-script choice
   //   +6 ATTACKER_SPAWN_SLOT_COUNT  the era bank's size
   //   +7 ATTACKER_SPAWN_WINDOW_HALF +8 ATTACKER_SPAWN_AIM_WINDOW_HALF -- the attacker spawn windows

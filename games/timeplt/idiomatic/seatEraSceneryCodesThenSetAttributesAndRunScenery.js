@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** seatEraSceneryCodesThenSetAttributesAndRunScenery — seat one era-keyed object band, then hand the frame's scenery on. A fixed run is
  * summed against a constant as a tamper tripwire whose answer is dropped, eight bytes of the row the
- * era indexes are copied into a stride-two cell run, and control transfers into the scenery clear +
- * run: at era four with the fill byte 0x28, otherwise 0xCC. The era and the entry cursor ride into the
+ * era indexes are copied into a stride-two cell run, and control transfers into the scenery attribute set +
+ * run: at era four with the attribute byte 0x28, otherwise 0xCC. The era and the entry cursor ride into the
  * chain as arguments; the cursor is the era-object entry its one caller has just cleared through (the
  * original leaves it standing in IY), and the chain writes through it only if the scenery guard fails.
  * LIVE-OUT: memory (the seated band and whatever the scenery chain leaves); control leaves through the
@@ -11,7 +11,7 @@
 /*
  * ROM 0x30A5-0x30D0 (then into 0x30D1 / 0x3156), grounding [seen] (names.js ROUTINES 0x30a5).
  *
- * ROLE. Part of the playfield reset for a new round: its one caller, resetPlayfieldForLifeStart
+ * ROLE. Part of the playfield reset at every life start: its one caller, resetPlayfieldForLifeStart
  * (0x19F0), calls it once the object slots are retired. It gives the eight scenery sprites the shape
  * codes of the current era and then runs the era's scenery setup.
  *
@@ -37,7 +37,7 @@ const ROW_STRIDE = 8;
 // The scenery sprite entries are two bytes apart, so the codes land in every other cell.
 const SEAT_STRIDE = 2;
 const SEAT_COUNT = 8;
-// The era (ERA_INDEX value) that takes the other fill byte.
+// The era (ERA_INDEX value) that takes the other attribute byte.
 const ERA_FOUR = 0x04;
 const FILL_BYTE = 0xcc;
 
@@ -63,11 +63,11 @@ export function seatEraSceneryCodesThenSetAttributesAndRunScenery(m, entryCursor
     dst = u16(dst + SEAT_STRIDE);
   }
 
-  // Hand on to the scenery clear + run (0x30D1), which fills a stride-two run of eight object cells
-  // with the fill byte and then sets up the era's scenery by era. Era 4 enters via
+  // Hand on to the scenery attribute set + run (0x30D1), which sets the eight scenery attribute bytes (stride two from 0xAA60)
+  // to that byte and then sets up the era's scenery by era. Era 4 enters via
   // setFinalEraSceneryAttributesThenRunEraScenery (0x3156), whose only job is to choose 0x28; every
   // other era falls into 0x30D1 with 0xCC. Both are ROM jumps, so control does not come back here.
-  // fill byte 0x28 at era four, else 0xCC
+  // attribute byte 0x28 at era four, else 0xCC
   if (era === ERA_FOUR) return setFinalEraSceneryAttributesThenRunEraScenery(m, era, entryCursor, recordCursor);
   return setSceneryAttributesThenRunEraScenery(m, FILL_BYTE, era, entryCursor, recordCursor);
 }

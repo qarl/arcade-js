@@ -57,7 +57,7 @@ export function mirrorTwoTileObjectByHeading(m, object = m.regs.ix, entry = m.re
   const { mem8 } = m;
 
   // Step 1 -- choose the shape pair. The ROM computes (3 - hits) * 4 + 0xA0 + (FRAME_TICK & 2) in
-  // eight bits: a fresh object (3 hits left) draws from block 0xA0, each hit absorbed moves one
+  // eight bits: a fresh object (3 hits left to absorb) draws from block 0xA0, each hit absorbed moves one
   // block of four further on, and FRAME_TICK [seen] bit 1 flips between the first and second pair of
   // the block so the sprite animates.
   const alternate = mem8[FRAME_TICK] & ALTERNATE_BIT;

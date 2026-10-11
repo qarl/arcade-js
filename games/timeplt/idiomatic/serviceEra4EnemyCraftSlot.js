@@ -49,7 +49,7 @@ export function serviceEra4EnemyCraftSlot(m, record = m.regs.ix, entry = m.regs.
   // which zeroes the slot; nothing else runs for it.
   if (hasReachedRetireLine(m, entry)) return retireSlotAndSubPixel(m, record, entry);
   // Still in play: give the sprite entry the current frame of a four-frame shape cycle
-  // (animateSelectedShapeCycle, 0x2B38); one gated bank launch when aimed near the player (0x3ED6);
+  // (animateSelectedShapeCycle, 0x2B38); one gated shot when aimed near the player (0x3ED6);
   // then the attacker launch into a free slot on this object's turn (launchAttackerIntoFreeSlot,
   // 0x4243). The ROM ends with a plain `ret`, so nothing is handed back.
   animateSelectedShapeCycle(m, record, entry);

@@ -40,7 +40,7 @@ const DELAY_REARM = 0x2a;
 
 // The era's year caption is caption 0x1A + ERA_INDEX.
 const ERA_ARGUMENT_BASE = 0x1a;
-// Frame-tick low nibble -> command posted while the round is armed; any other nibble posts nothing.
+// Frame-tick low nibble -> command posted while the round's intro is pending; any other nibble posts nothing.
 const TICK_COMMANDS = new Map([[0x00, 0x02], [0x05, 0x0a], [0x0a, 0x0b]]);
 
 export function flyRoundIntroFlashingEraYearThenEraseIntroCaptions(m) {
@@ -74,7 +74,7 @@ export function flyRoundIntroFlashingEraYearThenEraseIntroCaptions(m) {
     }
   }
 
-  // The flash: while the round is armed, frame-tick low nibble 0, 5 or 10 repaints the year caption
+  // The flash: while the round's intro is pending, frame-tick low nibble 0, 5 or 10 repaints the year caption
   // through command 2, 0x0A or 0x0B (names.js: the +0/+5/+10 shared-colour painters), so the
   // caption flashes. Any other nibble posts nothing.
   if (mem8[ROUND_INTRO_PENDING] === 0) return;

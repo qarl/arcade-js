@@ -10,9 +10,10 @@
  * an inner sub-step (SEQUENCE_SUBSTEP 0xA9AC [seen]) that picks which arm runs this frame. This
  * is the first arm of attract phase 1, reached through dispatchSequencePhase1SubStepArm. The
  * attract screens use a "pen" that draws a fixed route leg by leg, stamping PEN_GLYPH and
- * PEN_COLOUR into each character cell it passes (plotPenCell). Setting the glyph to the blank
- * 0xF1 turns that pen into an eraser: this arm prepares it, and sub-step 1
- * (advancePenRunAnimationStep) then erases the route one leg per frame (mechanisms.md, phase 1).
+ * PEN_COLOUR into each character cell it passes (plotPenCell). The glyph is the blank 0xF1 in
+ * every era's pen pair, so the pen always lays blank tiles: this arm re-seats that glyph, fixes the
+ * colour at 5 and re-arms the route, and sub-step 1 (advancePenRunAnimationStep) then traces the
+ * route one leg per frame (mechanisms.md, phase 1). This arm plots nothing itself.
  *
  * Anti-tamper: like many arms in this ROM, it first sums a block of the program image and refuses
  * to continue on a modified image. The failure path does not report an error — it jumps into
@@ -28,7 +29,7 @@ import { PEN_COLOUR, PEN_GLYPH, ATTRACT_CHECKSUM_BLOCK_BASE } from "./names.js";
 
 const CHECKED_BYTES = 0x100; // ld b,0x00 / djnz: 256 iterations
 const GENUINE_TOTAL = 0xb8; // sub 0xb8: the total a genuine image gives
-const BLANKING_GLYPH = 0xf1; // the blank glyph: a pen stamping it erases
+const BLANKING_GLYPH = 0xf1; // the blank glyph, the one every era's pen already holds (ERA_PEN_TABLE)
 const PEN_COLOUR_VALUE = 5; // ld a,0x05 / ld (0xad0c),a
 
 export function armPenRouteInColour5ThenAdvanceStep(m) {
@@ -43,7 +44,8 @@ export function armPenRouteInColour5ThenAdvanceStep(m) {
 
   /* Step 2 — remember whether PEN_COLOUR (0xAD0C) [seen] already held 5 (ROM cp 0x05, whose flags
    * are parked on the stack with push af across the next calls), then set the pen to colour 5
-   * and PEN_GLYPH (0xAD0B) [seen] to the blank, so the pen erases what it passes over. */
+   * and PEN_GLYPH (0xAD0B) [seen] to the blank, so the route the pen traces next is laid in blank
+   * tiles of colour 5. Nothing is plotted here. */
   const penColourWasSet = mem8[PEN_COLOUR] === PEN_COLOUR_VALUE;
   mem8[PEN_COLOUR] = PEN_COLOUR_VALUE;
   mem8[PEN_GLYPH] = BLANKING_GLYPH;

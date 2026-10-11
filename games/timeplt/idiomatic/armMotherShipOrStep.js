@@ -47,7 +47,7 @@ export function armMotherShipOrStep(m) {
   const { mem8 } = m;
 
   // Stand down entirely while ROUND_TRANSITION_HOLD (0xACC6) reads 0xFF -- the value the
-  // Mother-Ship's warp/flash finish leaves while the round hands over. The ROM tests it with
+  // Mother-Ship's spent wreck countdown leaves while the round hands over. The ROM tests it with
   // `inc a / ret z`, so only 0xFF stops it; the 0xFE the field sweep writes does not.
   if (mem8[ROUND_TRANSITION_HOLD] === HELD) return;
 

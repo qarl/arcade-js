@@ -5,7 +5,7 @@
  * shown letter round its 27-value ring, and a forward or back history that has saturated is emptied so a held
  * control repeats. On odd frames the cursor cell's colour flashes. Every eighth frame the entry
  * clock ticks, and running out finishes the entry too. Finishing re-arms the clock, queues the
- * transition sounds and steps the sequence on. After the scan, once neither player has lives
+ * transition sound stops and steps the sequence on. After the scan, once neither player has lives
  * left, a held start button with a credit (or on free play) starts the next game.
  * LIVE-OUT: memory only; the accumulator and flags left behind are dead at the one caller. */
 //
@@ -192,7 +192,7 @@ function entryClockRanOut(m) {
   return true;
 }
 
-// Finish: reload SEQUENCE_DELAY for the next arm, queue the seven transition sound codes
+// Finish: reload SEQUENCE_DELAY for the next arm, queue the seven transition sound-stop codes
 // (enqueueTransitionSoundStops, 0x5634 [seen]), and step the sequence sub-step (`jp 0x0f1a`).
 function finishEntry(m) {
   m.mem8[SEQUENCE_DELAY] = ENTRY_CLOCK_RELOAD;

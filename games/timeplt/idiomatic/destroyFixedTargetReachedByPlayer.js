@@ -45,7 +45,7 @@ export function destroyFixedTargetReachedByPlayer(m) {
   const along = u8(mem8[ERA_OBJECT_SPRITE_Y_SLOT0] - mem8[PLAYER_SPRITE_Y] + SECOND_AXIS_SLACK);
   if (along >= SECOND_AXIS_WINDOW) return;
 
-  // Contact: both start to die, the target's remaining hits are cleared (BOMBER_HITS_TO_ABSORB 0xA8DC)
+  // Contact: both start to die, the hits the target could still absorb are cleared (BOMBER_HITS_TO_ABSORB 0xA8DC)
   // so nothing survives the contact, and the ROM tail-jumps to postChainedHitScore (0x51DE).
   mem8[PLAYER_STATE] = DESTROYED;
   mem8[ERA_OBJECT_RECORD_SLOT0] = DESTROYED;

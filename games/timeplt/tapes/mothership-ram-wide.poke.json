@@ -1,7 +1,7 @@
 {
   "name": "mothership-ram-wide",
   "description": "Ram the Mother-Ship in era 0, where the player-vs-Mother-Ship test hands over to the wide box, vs MAME.",
-  "_grounding": "Kill quota held at 0 (0xAD02=0 from f620, 400 frames) so the game arms the Mother-Ship (f960). At f1060 its sprite entry is moved onto the player (MOTHER_SHIP_ENTRY 0xAA24=0x84, MOTHER_SHIP_SPRITE_Y 0xAA55=0x68); the game's own ram test then finds the contact and writes 0xF0 into both PLAYER_STATE and MOTHER_SHIP_STATE (golden f1062, 'responded'). The player's death countdown ends during the Mother-Ship's transition hold, so loseLifeAndHandOver and startNextRound run together (golden ~f1242). Era 0 is in WIDE_WINDOW_ERAS, so the contact is destroyPlayerAndMotherShipOnContact (0x50EE).",
+  "_grounding": "Kill quota held at 0 (0xAD02=0 from f620, 400 frames) so the game arms the Mother-Ship (f960). At f1060 its sprite entry is moved onto the player (MOTHER_SHIP_ENTRY 0xAA24=0x84, MOTHER_SHIP_SPRITE_Y 0xAA55=0x68); the game's own player/Mother-Ship contact check then finds the contact and writes 0xF0 into both PLAYER_STATE and MOTHER_SHIP_STATE (golden f1062, 'responded'). The player's death countdown ends during the Mother-Ship's transition hold, so loseLifeAndHandOver and startNextRound run together (golden ~f1242). Era 0 is in WIDE_WINDOW_ERAS, so the contact is destroyPlayerAndMotherShipOnContact (0x50EE).",
   "hold": 8,
   "coin": 400,
   "start": 500,
