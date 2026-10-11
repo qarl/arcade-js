@@ -207,7 +207,9 @@ Stand up these pieces in the skeleton; none of them needs a finished layer.
   swept offset breaks there even when the layer is correct. An extended / cross-loop / gameplay run therefore
   re-MEASURES the offset per segment from state (`tools/long_golden.py`: RAM byte-exact at the measured
   offset, re-measured where it shifts, each shift printed and held to the game's declared `max_shifts`) and
-  judges pixels at that offset with the per-frame band. The nearest-golden-frame reconverge
+  judges pixels at that offset with the per-frame band, plus a cap on how many frames may differ at all
+  above the band (the game's declared `top_frames`, pinned per layer and part at the measured correct-run
+  count; unpinned FAILs). The nearest-golden-frame reconverge
   (`tools/convergence.mjs`) is an alignment aid only, never the verdict: it cannot see a sprite-scale
   defect. Settle any cross-loop divergence by re-measuring (or a longer golden that contains it) before
   ruling it a bug.

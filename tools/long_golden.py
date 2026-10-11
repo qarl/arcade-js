@@ -13,8 +13,12 @@ Both layers render the whole golden through tools/long_render.mjs. Per part and 
   pixels        at the pixel offset measured beside it: every frame within pixel_gate.ROUGH_TOLERANCE
                 whole-frame, and within the suite's BAND_MAX_PX in rows BAND_FROM.. except an isolated
                 tear (one frame, both neighbours in band, RAM exact there, <= TEAR_MAX_PX), at most
-                TEAR_MAX_COUNT of them. Nearest-golden-frame reconverge is NOT a verdict here: it cannot see
-                a sprite-scale defect (a dropped sprite dress passes it at 0.56%).
+                TEAR_MAX_COUNT of them. Rows 0..BAND_FROM-1 carry a deterministic scanline-compositing
+                residual no per-frame px budget can sit below, so there the gate counts frames: the frames
+                whose top region differs at all must not exceed the game's declared top_frames cap for that
+                layer and part (pinned from the measured correct run); a missing pin FAILs.
+                Nearest-golden-frame reconverge is NOT a verdict here: it cannot see a sprite-scale defect
+                (a dropped sprite dress passes it at 0.56%).
   controls      >= MIN_DISTINCT distinct frames on both sides; GAMEPLAY's golden must show the coin taken
                 and play started (the suite's game_responded) and more than one game played.
 The golden is ROM-derived and gitignored: kept under games/<g>/out/long-golden/ as a lossless frames.mp4
@@ -22,7 +26,9 @@ The golden is ROM-derived and gitignored: kept under games/<g>/out/long-golden/ 
 verdict (tools/raw_dumps.py). Prints `long_golden: PASS -- <game>` only on a clean run; done_gate keys on it.
 
   run --game G [--seconds 600] [--part attract|gameplay|both] [--layer idiomatic|oracle|both] [--recapture]
-      [--edit-json F] [--keep-frames]      --edit-json renders an idiomatic MUTANT (null-mutant control)
+      [--edit-json F] [--null-mutant] [--keep-frames]
+                                            --edit-json renders an idiomatic MUTANT; --null-mutant renders the
+                                            game's declared null_mutant, which must FAIL (the control)
   selftest                                  the verdict logic on synthetic data (no MAME, no ROM)
 """
 import argparse
@@ -47,8 +53,17 @@ from hardware import Hardware  # noqa: E402
 from raw_dumps import raw_dumps  # noqa: E402
 
 # Enrolled games: the pixel suite whose constants (HW, LANDMARK, TAPE_OFFSET, BAND_FROM, BAND_MAX_PX,
-# MIN_DISTINCT, game_responded) this reads, and how many offset shifts a correct layer shows over the run.
-GAMES = {"timeplt": {"suite": "games/timeplt/tools/pixel_suite.py", "max_shifts": 0}}
+# MIN_DISTINCT, game_responded) this reads, how many offset shifts a correct layer shows over the run, and
+# top_frames: per layer and part, how many compared frames may differ ANYWHERE in rows 0..BAND_FROM-1.
+# Each cap is the measured correct-run count (the residual is deterministic, as pixel_suite's RESIDUAL_FRAMES); the gate prints the count, so
+# re-measure when MAME, the ROM or the tape changes. null_mutant is the must-FAIL control
+# (`run --null-mutant`): every cloud switch row moved up 6. It passed the whole-frame-only verdict.
+GAMES = {"timeplt": {"suite": "games/timeplt/tools/pixel_suite.py", "max_shifts": 0,
+                     # measured at 014c29c2 (MAME 0.288 goldens): idiomatic 292 / 455, oracle 1 / 5
+                     "top_frames": {"idiomatic": {"attract": 292, "gameplay": 455},
+                                    "oracle": {"attract": 1, "gameplay": 5}},
+                     "null_mutant": {"replayCloudBands.js": [["row: 113 - mem8[y] }",
+                                                              "row: 113 - mem8[y] - 6 }"]]}}}
 SECONDS = 600
 SEED = 0x51A7E5
 MIN_FREE_GIB = 30
@@ -187,11 +202,18 @@ def ram_verdict(js, gs, mask, max_shifts):
                   + (f", shifts {shifts}" if shifts else ", no shift")), offs
 
 
-def pixel_verdict(full, band, ram_ok, total_px, band_max):
-    """Whole frame within ROUGH_TOLERANCE; band within band_max except isolated, bounded, RAM-exact tears."""
-    full, band = np.asarray(full), np.asarray(band)
+def pixel_verdict(full, band, ram_ok, total_px, band_max, top, top_cap):
+    """Whole frame within ROUGH_TOLERANCE; band within band_max except isolated, bounded, RAM-exact tears;
+    at most top_cap frames whose top region (rows above the band) differs at all. No cap pinned -> FAIL."""
+    full, band, top = np.asarray(full), np.asarray(band), np.asarray(top)
     if len(full) == 0:
         return False, "pixels: nothing compared"
+    ntop = int(np.count_nonzero(top))
+    if top_cap is None:
+        return False, f"pixels: {ntop} frame(s) differ above the band, but no top_frames cap is pinned"
+    if ntop > top_cap:
+        return False, (f"pixels: {ntop} frame(s) differ above the band, over the pinned top_frames cap "
+                       f"{top_cap} (the correct-run residual)")
     rough = full > pixel_gate.ROUGH_TOLERANCE * total_px
     if rough.any():
         i = int(np.argmax(rough))
@@ -207,6 +229,7 @@ def pixel_verdict(full, band, ram_ok, total_px, band_max):
     if len(tears) > TEAR_MAX_COUNT:
         return False, f"pixels: {len(tears)} isolated tears > {TEAR_MAX_COUNT}"
     return True, (f"pixels: {len(full)} frames, worst {int(full.max())}px whole / {int(band.max())}px band, "
+                  f"{ntop} frame(s) differ above the band (cap {top_cap}), "
                   f"{len(tears)} isolated tear(s){' at ' + str(tears[:8]) if tears else ''}")
 
 
@@ -274,7 +297,7 @@ def states(path, sb):
     return np.memmap(path, np.uint8, "r").reshape(-1, sb)
 
 
-def judge(suite, gdir, jdir, layer, stack, max_shifts, gameplay):
+def judge(suite, gdir, jdir, layer, stack, max_shifts, gameplay, top_cap):
     hw = Hardware.load(suite.HW)
     sb = sum(size for _n, _b, size in hw.state_regions)
     mask, base = np.ones(sb, bool), 0
@@ -315,16 +338,17 @@ def judge(suite, gdir, jdir, layer, stack, max_shifts, gameplay):
     n = min(jn, gn - poff)
     if n < gn - poff - 2:
         return False, f"{layer} painted {jn} frames; it does not cover the golden's {gn}"
-    full, band = np.zeros(n, np.int64), np.zeros(n, np.int64)
+    full, band, top = np.zeros(n, np.int64), np.zeros(n, np.int64), np.zeros(n, np.int64)
     for s in range(0, n, 400):
         e = min(n, s + 400)
         d = np.any(jm[s:e] != gm[s + poff:e + poff], axis=3)
         full[s:e], band[s:e] = d.sum(axis=(1, 2)), d[:, suite.BAND_FROM:].sum(axis=(1, 2))
+        top[s:e] = d[:, :suite.BAND_FROM].sum(axis=(1, 2))
     jrow = np.arange(n) + (poff - ram_off)
     ram_ok = np.zeros(n, bool)
     inside = (jrow >= 0) & (jrow < len(offs))
     ram_ok[inside] = offs[jrow[inside]] > -10**6
-    ok, why = pixel_verdict(full, band, ram_ok, w * h, suite.BAND_MAX_PX)
+    ok, why = pixel_verdict(full, band, ram_ok, w * h, suite.BAND_MAX_PX, top, top_cap)
     print(f"    [{layer}] pixel offset {poff} (RAM {ram_off}); {why}")
     return ok, why
 
@@ -349,6 +373,12 @@ def run(a):
     if not facts["stack"]:
         print(f"long_golden: FAIL -- games/{game}/manifest.js declares no convergence.stateExclude.stack")
         return 1
+    if a.null_mutant and "null_mutant" not in GAMES[game]:
+        print(f"long_golden: FAIL -- {game} declares no null_mutant")
+        return 1
+    if a.null_mutant and a.part == "both":
+        print("long_golden: --null-mutant needs --part attract or gameplay (the first FAIL ends the run)")
+        return 2
     parts = ["attract", "gameplay"] if a.part == "both" else [a.part]
     layers = ["idiomatic", "oracle"] if a.layer == "both" else [a.layer]
     bpf = pixel_gate.screen_geometry(suite.HW)[2]
@@ -375,6 +405,9 @@ def run(a):
                     cmd += ["--tape-origin", str(suite.LANDMARK)]
                 if tape:
                     cmd += ["--tape", tpath]
+                if a.null_mutant and layer == "idiomatic":
+                    a.edit_json = os.path.join(work, "null_mutant.json")
+                    json.dump(GAMES[game]["null_mutant"], open(a.edit_json, "w"))
                 if a.edit_json and layer == "idiomatic":
                     cmd += ["--edit-json", a.edit_json]
                 r = subprocess.run(cmd, capture_output=True, text=True)
@@ -382,8 +415,9 @@ def run(a):
                 if r.returncode != 0:
                     print(f"long_golden: FAIL -- {part}/{layer}: the render stopped short (completeness)")
                     return 1
+                top_cap = GAMES[game].get("top_frames", {}).get(layer, {}).get(part)
                 ok, why = judge(suite, gdir, jdir, layer, facts["stack"], GAMES[game]["max_shifts"],
-                                part == "gameplay")
+                                part == "gameplay", top_cap)
                 shutil.rmtree(jdir, ignore_errors=True)
                 if not ok:
                     print(f"long_golden: FAIL -- {part}/{layer}: {why}")
@@ -424,20 +458,45 @@ def selftest():
 
     total, band_max = 1000, 10
     full, band, ram_ok = np.zeros(50), np.zeros(50), np.ones(50, bool)
-    check("clean pixels pass", pixel_verdict(full, band, ram_ok, total, band_max)[0], True)
+    check("clean pixels pass", pixel_verdict(full, band, ram_ok, total, band_max, (), 0)[0], True)
     b = band.copy(); b[20] = 40
-    check("an isolated RAM-exact tear passes", pixel_verdict(full, b, ram_ok, total, band_max)[0], True)
+    check("an isolated RAM-exact tear passes", pixel_verdict(full, b, ram_ok, total, band_max, (), 0)[0], True)
     b2 = band.copy(); b2[20] = b2[21] = 40
-    check("a sustained band defect fails", pixel_verdict(full, b2, ram_ok, total, band_max)[0], False)
+    check("a sustained band defect fails", pixel_verdict(full, b2, ram_ok, total, band_max, (), 0)[0], False)
     r = ram_ok.copy(); r[20] = False
-    check("a tear without exact RAM fails", pixel_verdict(full, b, r, total, band_max)[0], False)
+    check("a tear without exact RAM fails", pixel_verdict(full, b, r, total, band_max, (), 0)[0], False)
     b3 = band.copy(); b3[20] = TEAR_MAX_PX + 1
-    check("a tear over TEAR_MAX_PX fails", pixel_verdict(full, b3, ram_ok, total, band_max)[0], False)
+    check("a tear over TEAR_MAX_PX fails", pixel_verdict(full, b3, ram_ok, total, band_max, (), 0)[0], False)
     b4 = np.zeros(4 * (TEAR_MAX_COUNT + 1)); b4[::4] = 40
-    check("too many tears fail", pixel_verdict(np.zeros(len(b4)), b4, np.ones(len(b4), bool), total, band_max)[0], False)
+    check("too many tears fail", pixel_verdict(np.zeros(len(b4)), b4, np.ones(len(b4), bool), total, band_max, (), 0)[0], False)
     f = full.copy(); f[7] = 0.06 * total
-    check("a whole-frame defect over the rough tolerance fails", pixel_verdict(f, band, ram_ok, total, band_max)[0], False)
-    check("an empty comparison fails", pixel_verdict([], [], [], total, band_max)[0], False)
+    check("a whole-frame defect over the rough tolerance fails", pixel_verdict(f, band, ram_ok, total, band_max, (), 0)[0], False)
+    check("an empty comparison fails", pixel_verdict([], [], [], total, band_max, (), 0)[0], False)
+
+    # top_frames: synthetic per-frame stats shaped like the measured 10-minute attract run (correct layer
+    # vs the committed null_mutant, which differs above the band on most frames).
+    tn, floor = 35766, 292
+    tcap = floor
+    tz, tok = np.zeros(tn), np.ones(tn, bool)
+    correct = np.zeros(tn); correct[rng.choice(tn, floor, replace=False)] = rng.integers(1, 450, floor)
+    check("a correct-like top residual within its cap passes",
+          pixel_verdict(tz, tz, tok, total * 100, band_max, correct, tcap)[0], True)
+    mutant = correct.copy(); mutant[np.arange(0, tn, 2)] = 300
+    check("a mutant-like top series over the cap fails",
+          pixel_verdict(tz, tz, tok, total * 100, band_max, mutant, tcap)[0], False)
+    edge = np.zeros(tn); edge[:tcap] = 1
+    check("exactly the cap passes", pixel_verdict(tz, tz, tok, total * 100, band_max, edge, tcap)[0], True)
+    edge[tcap] = 1
+    check("one frame over the cap fails", pixel_verdict(tz, tz, tok, total * 100, band_max, edge, tcap)[0], False)
+    check("no pinned cap fails closed", pixel_verdict(tz, tz, tok, total * 100, band_max, correct, None)[0], False)
+    for game, cfg in GAMES.items():
+        for layer in ("idiomatic", "oracle"):
+            for part in ("attract", "gameplay"):
+                check(f"{game} pins a top_frames cap for {layer}/{part}",
+                      isinstance(cfg.get("top_frames", {}).get(layer, {}).get(part), int), True)
+        for mod, pairs in cfg.get("null_mutant", {}).items():
+            src = open(os.path.join(REPO, "games", game, "idiomatic", mod)).read()
+            check(f"{game} null_mutant edits live text in {mod}", all(f in src for f, _t in pairs), True)
 
     t1, t2 = make_tape(36002), make_tape(36002)
     check("the tape is deterministic", t1 == t2, True)
@@ -460,6 +519,8 @@ def main():
     r.add_argument("--layer", choices=("idiomatic", "oracle", "both"), default="both")
     r.add_argument("--recapture", action="store_true", help="capture fresh goldens even if the cache matches")
     r.add_argument("--edit-json", help="render an idiomatic MUTANT (see tools/long_render.mjs)")
+    r.add_argument("--null-mutant", action="store_true",
+                   help="render the game's declared null_mutant on the idiomatic layer; it must FAIL")
     r.add_argument("--keep-frames", action="store_true", help="keep the raw dumps in the work dir")
     sub.add_parser("selftest")
     a = ap.parse_args()
