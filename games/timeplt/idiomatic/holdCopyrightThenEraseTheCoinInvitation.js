@@ -48,7 +48,7 @@ export function holdCopyrightThenEraseTheCoinInvitation(m) {
    * (COPYRIGHT_SAMPLE_GLYPH_CELL) is the fifth cell of the "(c) KONAMI 1982" caption -- the N,
    * glyph 0x3B -- and 0xA23C (COPYRIGHT_SAMPLE_COLOUR_CELL) is the same cell in the colour plane
    * (the ROM's `res 2,h` turns one address into the other). Both go into TAMPER_GLYPH_KONAMI
-   * 0xACC7 [seen] and the cell after it. Later, clearSceneryEntriesThenRunEraScenery (0x30D1), on its
+   * 0xACC7 [seen] and the cell after it. Later, setSceneryAttributesThenRunEraScenery (0x30D1), on its
    * era-4-and-up path, reads that pair back and jumps off its genuine path (through 0x315B)
    * unless the glyph is still 0x3B and the colour 0x05 or 0x10 -- so an edited credit line is
    * caught here without failing cleanly (names.js ROUTINES 0x1748). */

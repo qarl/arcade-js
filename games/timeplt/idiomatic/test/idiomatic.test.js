@@ -21,7 +21,7 @@ import { existsSync, readFileSync } from "node:fs";
 
 import { Machine, CYCLES_PER_FRAME, resolveAllIdiomatic } from "../../machine.js";
 import manifest from "../../manifest.js";
-import { COIN_ACCEPTED, PLAY_ACTIVE } from "../names.js";
+import { COIN_COUNTER_PULSES_OWED, PLAY_ACTIVE } from "../names.js";
 import { runIdiomaticGame } from "../../../../core/frame-stepped.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
@@ -107,7 +107,7 @@ async function runIdiomatic(live) {
     onFrame: (mm, f) => {
       if (f < 1) return;
       mm.io.inputAssert = inputAt(f - 1, live);
-      if (mm.mem.read8(COIN_ACCEPTED)) everSet.coin = true;
+      if (mm.mem.read8(COIN_COUNTER_PULSES_OWED)) everSet.coin = true;
       if (mm.mem.read8(PLAY_ACTIVE)) everSet.play = true;
       states.set(f - 1, Buffer.from(mm.dumpState()));
     },

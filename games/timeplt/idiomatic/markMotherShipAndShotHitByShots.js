@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * destroyMotherShipAndShotOnMutualHit — ROM 0x4FE0 [seen]
+ * markMotherShipAndShotHitByShots — ROM 0x4FE0 [seen]
  *
  * WHAT IT IS. The collision test between the player's bullets and the Mother-Ship, the large
  * two-slot craft whose record starts at MOTHER_SHIP_STATE (0xA8A0) and whose sprite entry is
  * MOTHER_SHIP_ENTRY (0xAA24). The bullets are the six 16-byte shot records at PLAYER_SHOT_ARRAY
- * (0xAA80). dispatchEra4CollisionByFrameParity jumps here (507B jp 0x4fe0), and destroyCraftAndMotherShipHitByShots (0x4FBF) falls into it.
+ * (0xAA80). dispatchEra4CollisionByFrameParity jumps here (507B jp 0x4fe0), and sweepShotsOverFiveCraftThenMotherShip (0x4FBF) falls into it.
  *
  * ROLE. Sweep the six shot slots for one that has reached the Mother-Ship and destroy both. The
  * Mother-Ship's state must be live or the sweep doesn't run. Each slot must be live too, with both
@@ -48,7 +48,7 @@ const FIRST_AXIS_SPAN = 13;
 const SECOND_AXIS_REACH = 23;
 const SECOND_AXIS_SPAN = 31;
 
-export function destroyMotherShipAndShotOnMutualHit(m) {
+export function markMotherShipAndShotHitByShots(m) {
   const { mem8 } = m;
   // Pick the first-axis window by era (ERA_INDEX 0xAD04) before anything else, as the ROM does.
   const wide = WIDE_ERAS.includes(mem8[ERA_INDEX]);

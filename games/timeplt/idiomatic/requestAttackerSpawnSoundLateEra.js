@@ -13,14 +13,14 @@
  * requests (names.js notes that only era 4 reaches the code directly, era 3 folding into the
  * mid-era path).
  *
- * The code is not an immediate: the ROM reads it from ATTACKER_SPAWN_SOUND_LATE_ERA (0x276B), a
+ * The code is not an immediate: the ROM reads it from ATTACKER_SPAWN_SOUND_ERAS_1_TO_4 (0x276B), a
  * byte of the program image that names.js records as this routine's sound-command code.
  */
 
 import { enqueueSoundIfGameInProgress } from "./enqueueSoundIfGameInProgress.js";
-import { ATTACKER_SPAWN_SOUND_LATE_ERA } from "./names.js";
+import { ATTACKER_SPAWN_SOUND_ERAS_1_TO_4 } from "./names.js";
 
 export function requestAttackerSpawnSoundLateEra(m) {
   // Fetch the code from ROM and tail-jump (`jr 0x560c`) into the play-only gate.
-  enqueueSoundIfGameInProgress(m, m.mem8[ATTACKER_SPAWN_SOUND_LATE_ERA]);
+  enqueueSoundIfGameInProgress(m, m.mem8[ATTACKER_SPAWN_SOUND_ERAS_1_TO_4]);
 }

@@ -15,10 +15,10 @@
 //
 // The even-frame chain, in ROM order (steps 3 and 7 start where steps 2 and 6 left their cursors,
 // one past their last slot):
-//   1. the player's shots against the bomber (destroyFixedTargetHitByShots, 0x4F7E);
+//   1. the player's shots against the bomber (markEra1BomberAndShotHitByShots, 0x4F7E);
 //   2. the player against the four enemy-shot slots from 0xA810 (destroyPlayerAndObjectsTouchingIt, 0x5185);
 //   3. the player against the craft band that follows at 0xA850 (destroySlotsAndPlayerOnContact, 0x5152);
-//   4. while the Mother-Ship is armed, the player against it (ramTestPlayerVsMotherShip, 0x50B1);
+//   4. while the Mother-Ship is armed, the player against it (destroyPlayerAndMotherShipOnContactByEra, 0x50B1);
 //   5. the player against the bomber (destroyFixedTargetReachedByPlayer, 0x507E);
 //   6. the player against the bomber's launched object at 0xA8E0 (destroyPlayerAndObjectsTouchingIt);
 //   7. the next record, the parachutist at 0xA8F0, marked if the player touches it
@@ -27,10 +27,10 @@
 // LIVE-OUT: memory only -- the state bytes the sweeps mark and the scores they post.
 
 import { dispatchShotSweepByMotherShipArmed } from "./dispatchShotSweepByMotherShipArmed.js";
-import { destroyFixedTargetHitByShots } from "./destroyFixedTargetHitByShots.js";
+import { markEra1BomberAndShotHitByShots } from "./markEra1BomberAndShotHitByShots.js";
 import { destroyPlayerAndObjectsTouchingIt } from "./destroyPlayerAndObjectsTouchingIt.js";
 import { destroySlotsAndPlayerOnContact } from "./destroySlotsAndPlayerOnContact.js";
-import { ramTestPlayerVsMotherShip } from "./ramTestPlayerVsMotherShip.js";
+import { destroyPlayerAndMotherShipOnContactByEra } from "./destroyPlayerAndMotherShipOnContactByEra.js";
 import { destroyFixedTargetReachedByPlayer } from "./destroyFixedTargetReachedByPlayer.js";
 import { markObjectsTouchingPlayer } from "./markObjectsTouchingPlayer.js";
 import { ACTOR_ENTRY_SLOT0, ACTOR_RECORD_SLOT0, ERA_OBJECT_ENTRY_SLOT2, ERA_OBJECT_RECORD_SLOT2, FRAME_TICK, MOTHER_SHIP_ARMED } from "./names.js";
@@ -44,7 +44,7 @@ export function splitCollisionWorkByFrameParity(m) {
   // Even frame. Step 1: the player's shots against the bomber, the one target that only the even
   // frame shoots at in this era.
 
-  destroyFixedTargetHitByShots(m);
+  markEra1BomberAndShotHitByShots(m);
 
   // Step 2: the player's ship against the four enemy-shot slots, record 0xA810 / entry 0xAA12
   // (`ld de,0xa810 / ld iy,0xaa12 / call 0x5185`): a box of 5 either side (slack 5, width 11) on both
@@ -59,7 +59,7 @@ export function splitCollisionWorkByFrameParity(m) {
   // 0xA8A0), and step 4 tests it with its own ram test instead. The first-axis box is bias 7, width 15.
   const armed = mem8[MOTHER_SHIP_ARMED] !== 0;
   destroySlotsAndPlayerOnContact(m, afterSlot0.occupancy, afterSlot0.entry, armed ? 5 : 7, 7, 15);
-  if (armed) ramTestPlayerVsMotherShip(m);
+  if (armed) destroyPlayerAndMotherShipOnContactByEra(m);
   // Step 5: the player ramming the bomber -- a touch marks both and posts a chained score.
   destroyFixedTargetReachedByPlayer(m);
 

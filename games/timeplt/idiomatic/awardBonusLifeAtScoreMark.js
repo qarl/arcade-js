@@ -35,7 +35,7 @@ const MARKS_WHEN_SET = BONUS_LIFE_MARK_TABLE_BIT0_SET;
 /** Bit 0 of BONUS_LIFE_LATCH: set once a mark has paid (ROM `bit/set/res 0,(hl)` on 0xAD03). */
 const LATCH_BIT = 0x01;
 /** The ring command posted with an award (ROM `ld d,0x05; rst 0x38`). */
-const AWARD_COMMAND = 5;
+const EMBLEM_STRIP_COMMAND = 5;
 /** `cpir` with a count of zero runs 65536 times before BC runs out, so a zero length byte means 65536. */
 const A_ZERO_LENGTH_MEANS = 65536;
 
@@ -68,6 +68,6 @@ export function awardBonusLifeAtScoreMark(m) {
   // Award: one more life, report the pre-award count on the command ring, and ask for the award sound.
   const awardsSoFar = mem8[LIVES_REMAINING];
   mem8[LIVES_REMAINING] = awardsSoFar + 1;
-  postCommand(m, AWARD_COMMAND, awardsSoFar);
+  postCommand(m, EMBLEM_STRIP_COMMAND, awardsSoFar);
   requestBonusLifeSound(m);
 }

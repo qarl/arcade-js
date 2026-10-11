@@ -33,8 +33,8 @@ const RECORD_STRIDE = 16;
 const OCC = 0;
 const AXIS1 = 3;
 const AXIS2 = 5;
-const SEED1 = 10;
-const SEED2 = 12;
+const VELOCITY1 = 10;
+const VELOCITY2 = 12;
 
 export function fireAndSweepPlayerShots(m) {
   const { mem8, mem16 } = m;
@@ -81,8 +81,8 @@ function spawnIntoFreeSlot(m, slot) {
    * `sbc hl,bc`, `add hl,hl` twice). The world scroll is the negated ship velocity (names.js
    * WORLD_SCROLL_Y), so the seed is four times the ship's velocity: the shot flies the way the
    * ship is flying, four times as fast through the world. */
-  mem16[slot + SEED1] = u16(-4 * mem16[WORLD_SCROLL_Y]);
-  mem16[slot + SEED2] = u16(-4 * mem16[WORLD_SCROLL_X]);
+  mem16[slot + VELOCITY1] = u16(-4 * mem16[WORLD_SCROLL_Y]);
+  mem16[slot + VELOCITY2] = u16(-4 * mem16[WORLD_SCROLL_X]);
 
   /* The shot's starting point. PLAYER_HEADING 0xA802 [seen] is rounded to the nearest of 32
    * directions ((heading + 4) >> 3) and used to fetch a word from the 32-entry ROM table at 0x2771
@@ -125,13 +125,13 @@ function sweepSlots(m) {
      * so sub-pixel motion accumulates in the fraction. Since the seed is -4 x the scroll and the
      * scroll is added again, a shot on a steady course moves across the screen at three times the
      * ship's velocity. A whole part in 0xF0-0xFF is off the field: free the record. */
-    const x = u16(u16(mem16[slot + SEED1] + mem16[WORLD_SCROLL_Y]) + mem16[slot + AXIS1]);
+    const x = u16(u16(mem16[slot + VELOCITY1] + mem16[WORLD_SCROLL_Y]) + mem16[slot + AXIS1]);
     if (u8((x >> 8) + 0x10) < 0x10) { cullSlot(m, slot); continue; }
     mem16[slot + AXIS1] = x;
 
     /* Second coordinate, the same with WORLD_SCROLL_X; this axis is off the field in 0xF8-0xFF or
      * 0x00-0x0F. */
-    const y = u16(u16(mem16[slot + SEED2] + mem16[WORLD_SCROLL_X]) + mem16[slot + AXIS2]);
+    const y = u16(u16(mem16[slot + VELOCITY2] + mem16[WORLD_SCROLL_X]) + mem16[slot + AXIS2]);
     if (u8((y >> 8) + 0x08) < 0x18) { cullSlot(m, slot); continue; }
     mem16[slot + AXIS2] = y;
 

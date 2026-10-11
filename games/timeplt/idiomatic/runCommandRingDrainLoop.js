@@ -40,7 +40,7 @@ const RING_CELLS = 64;
 // The marker a consumed cell is restored to (`ld (hl),0xff`); its high bit set means "empty".
 const FREE = 255;
 // The bit the ROM tests with `rlca` (bit 7 into carry) to tell empty from occupied.
-const OCCUPIED_BIT = 0x80;
+const EMPTY_BIT = 0x80;
 // Only the command byte's low nibble picks the handler (`and 0x0f`).
 const HANDLER_BITS = 0x0f;
 
@@ -74,7 +74,7 @@ export function* runCommandRingDrainLoop(m) {
     // Look at the cell the read cursor names: the ROM builds HL = 0xAC00 + cursor (`ld h,0xac` /
     // `ld l,a`), so the cursor is a plain byte offset into the ring.
     const commandCell = u16(COMMAND_RING + mem8[COMMAND_READ_CURSOR]);
-    if (mem8[commandCell] & OCCUPIED_BIT) { // high bit SET means EMPTY; the name reads backwards
+    if (mem8[commandCell] & EMPTY_BIT) { // high bit SET means EMPTY; the name reads backwards
       // Nothing to do. The ROM jumps back through 0x0B90 and looks again; here the loop hands the
       // rest of the frame back to the machine (yield) and looks again next time round.
       replayCloudBands(m); // beam-sync render: repaint the frame's multiplexed clouds in bands

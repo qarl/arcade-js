@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** requestLateEraProgressSound — request one particular sound, and only while a game is in progress. Its code is
+/** requestSoundSixStopWhilePlaying — request one particular sound, and only while a game is in progress. Its code is
  * fetched from a byte of the program image. LIVE-OUT: memory.
  *
  * ROM 0x5679-0x567D (frozen lift loc_5679). Grounding: [seen] (names.js ROUTINES 0x5679).
@@ -10,16 +10,16 @@
  * strip). mechanisms.md records that which sound this is, heard at the latter site, is not yet
  * identified.
  *
- * The code is LATE_ERA_PROGRESS_SOUND (0x07FE), a byte of the program ROM read as data (0x86 on a
+ * The code is LATE_ERA_SOUND_6_STOP_CODE (0x07FE), a byte of the program ROM read as data (0x86 on a
  * genuine image). It goes through enqueueSoundIfGameInProgress, so it is queued only while
  * PLAY_ACTIVE is set.
  */
 
 import { enqueueSoundIfGameInProgress } from "./enqueueSoundIfGameInProgress.js";
-import { LATE_ERA_PROGRESS_SOUND } from "./names.js";
+import { LATE_ERA_SOUND_6_STOP_CODE } from "./names.js";
 
-export function requestLateEraProgressSound(m) {
+export function requestSoundSixStopWhilePlaying(m) {
   /* ld a,(0x07fe) / jr 0x560c: fetch the code and jump (nothing pushed) into the in-play gate,
    * whose return goes straight back to our caller. */
-  enqueueSoundIfGameInProgress(m, m.mem8[LATE_ERA_PROGRESS_SOUND]);
+  enqueueSoundIfGameInProgress(m, m.mem8[LATE_ERA_SOUND_6_STOP_CODE]);
 }

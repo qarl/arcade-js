@@ -38,7 +38,7 @@ import { steerTowardAimHeading } from "../steerTowardAimHeading.js";
 import { loc_5854 } from "../loc_5854.js";
 import { hasReachedRetireLine } from "../hasReachedRetireLine.js";
 import { retireSlotAndSubPixel } from "../retireSlotAndSubPixel.js";
-import { launchBankEnemyWhenAimedNearPlayer } from "../launchBankEnemyWhenAimedNearPlayer.js";
+import { fireCraftShotWhenAimedNearPlayer } from "../fireCraftShotWhenAimedNearPlayer.js";
 import { refreshSecondEraSpriteFromHeading } from "../refreshSecondEraSpriteFromHeading.js";
 import { refreshSpriteFromHeading } from "../refreshSpriteFromHeading.js";
 import { releaseHeldObject } from "../releaseHeldObject.js";
@@ -186,7 +186,7 @@ function activeArm(m, { steer = true, retire = "test", refresh = refreshSecondEr
   loc_5854(m);
   const reached = hasReachedRetireLine(m);
   if (retire === "always" || (retire === "test" && reached)) return retireSlotAndSubPixel(m);
-  launchBankEnemyWhenAimedNearPlayer(m);
+  fireCraftShotWhenAimedNearPlayer(m);
   return refresh(m);
 }
 function dispatchWith(active) {

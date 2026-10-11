@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** resetPlayfieldAndArmNewRound — reset the whole playfield for a fresh round: clear the scroll and control cells, seat
+/** resetPlayfieldForLifeStart — reset the whole playfield for a fresh round: clear the scroll and control cells, seat
  * the ship sprite and shot slots, retire particular object slots in their own ways, free and renumber every slot, clear four sprite
  * entries, seat the era's scenery band, then scatter one era-and-rung-selected ten-byte record from a word
  * table into the cells that arm the round. LIVE-OUT: memory-only. */
@@ -22,10 +22,10 @@ import { retireSlotIntoSharedCooldown } from "./retireSlotIntoSharedCooldown.js"
 import { retireSlotIntoCooldown } from "./retireSlotIntoCooldown.js";
 import { retireSlotAndSubPixel } from "./retireSlotAndSubPixel.js";
 import { freeAndNumberEveryObjectSlot } from "./freeAndNumberEveryObjectSlot.js";
-import { seatEraSceneryRowThenClearAndRunScenery } from "./seatEraSceneryRowThenClearAndRunScenery.js";
+import { seatEraSceneryCodesThenSetAttributesAndRunScenery } from "./seatEraSceneryCodesThenSetAttributesAndRunScenery.js";
 import { fetchTableWord } from "./fetchTableWord.js";
 import { u8 } from "../../../core/int.js";
-import { ATTACKER_SPAWN_AIM_WINDOW_HALF, ATTACKER_SPAWN_COOLDOWN, ATTACKER_SPAWN_COOLDOWN_PERIOD, ATTACKER_SPAWN_SLOT_COUNT, ATTACKER_SPAWN_WINDOW_HALF, BANK_LAUNCH_COOLDOWN, BANK_LAUNCH_COOLDOWN_PERIOD, BANK_LAUNCH_HEADING_HALF_WIDTH, BANK_LAUNCH_NEAR_HALF_WIDTH, BANK_LAUNCH_SLOT_COUNT, ERA_OBJECT_ENTRY_SLOT0, ERA_OBJECT_ENTRY_SLOT2, ERA_OBJECT_RECORD_SLOT0, ERA_OBJECT_RECORD_SLOT2, PARACHUTIST_ENTRY, PARACHUTIST_RECORD, PLAYER_ENTRY, PLAYER_SPRITE_Y, ROUND_CRAFT_COUNT, ROUND_TRANSITION_HOLD, SCRIPT_PICK_THRESHOLD, SHOT_BURST_PENDING, START_RUNG, ERA_INDEX, WORLD_SCROLL_Y, WORLD_SCROLL_X, LIFE_TICKS_MID, LIFE_TICKS_LOW, MOTHER_SHIP_ARMED, PARACHUTIST_RUNG, ERA_RUNG_TIMER, ERA_RUNG_PERIOD, ERA_RUNG, PLAYER_HEADING, PLAYER_STATE, PLAYER_RECORD_SPARE_BYTE, ERA_RUNG_SETTINGS_POINTER_TABLE } from "./names.js";
+import { ATTACKER_SPAWN_AIM_WINDOW_HALF, ATTACKER_SPAWN_COOLDOWN, ATTACKER_SPAWN_COOLDOWN_PERIOD, ATTACKER_SPAWN_SLOT_COUNT, ATTACKER_SPAWN_WINDOW_HALF, BANK_LAUNCH_COOLDOWN, BANK_LAUNCH_COOLDOWN_PERIOD, BANK_LAUNCH_HEADING_HALF_WIDTH, BANK_LAUNCH_NEAR_HALF_WIDTH, BANK_LAUNCH_SLOT_COUNT, ERA_OBJECT_ENTRY_SLOT0, ERA_OBJECT_ENTRY_SLOT2, ERA_OBJECT_RECORD_SLOT0, ERA_OBJECT_RECORD_SLOT2, PARACHUTIST_ENTRY, PARACHUTIST_RECORD, PLAYER_ENTRY, PLAYER_SPRITE_Y, CRAFT_SPAWN_SLOT_COUNT, ROUND_TRANSITION_HOLD, SCRIPT_PICK_THRESHOLD, SHOT_BURST_PENDING, START_RUNG, ERA_INDEX, WORLD_SCROLL_Y, WORLD_SCROLL_X, LIFE_TICKS_MID, LIFE_TICKS_LOW, MOTHER_SHIP_ARMED, PARACHUTIST_RUNG, ERA_RUNG_TIMER, ERA_RUNG_PERIOD, ERA_RUNG, PLAYER_HEADING, PLAYER_STATE, PLAYER_RECORD_SPARE_BYTE, ERA_RUNG_SETTINGS_POINTER_TABLE } from "./names.js";
 
 // The sub-pixel retire loop covers seven records (ROM `ld b,0x07` feeding the djnz at 0x1A6E),
 // stepping one 16-byte object record and one two-byte sprite entry at a time.
@@ -37,7 +37,7 @@ const ENTRY_STRIDE = 2;
 // 0x1A77-0x1A96 with IY = 0xAA28): four at +0..+6 and four at +0x31..+0x37.
 const CLEARED_ENTRY_OFFSETS = [0, 2, 4, 6, 0x31, 0x33, 0x35, 0x37];
 
-export function resetPlayfieldAndArmNewRound(m) {
+export function resetPlayfieldForLifeStart(m) {
   const { mem8, mem16 } = m;
 
   // World and life counters. Zero both world-scroll words (WORLD_SCROLL_Y 0xA808, WORLD_SCROLL_X
@@ -106,7 +106,7 @@ export function resetPlayfieldAndArmNewRound(m) {
   // Seat the era's scenery band and run its scenery setup (0x30A5), handing on the two cursors the
   // ROM leaves standing here: the sprite-entry cursor just seated on the era-object bank, and the
   // record cursor the numbering walk ended on. Only the scenery seed's tamper divert reads them.
-  seatEraSceneryRowThenClearAndRunScenery(m, ERA_OBJECT_ENTRY_SLOT0, recordCursor);
+  seatEraSceneryCodesThenSetAttributesAndRunScenery(m, ERA_OBJECT_ENTRY_SLOT0, recordCursor);
 
   // Arm the round's difficulty. The settings table at 0x1B04 (ERA_RUNG_SETTINGS_POINTER_TABLE) holds
   // a pointer per (era, rung): the ROM builds the index (era << 4) + rung with four `rlca`,
@@ -119,7 +119,7 @@ export function resetPlayfieldAndArmNewRound(m) {
   //   +0 BANK_LAUNCH_SLOT_COUNT     records the bank-launch arm scans (zero disables it)
   //   +1 BANK_LAUNCH_HEADING_HALF_WIDTH  its heading window   +2 BANK_LAUNCH_NEAR_HALF_WIDTH  its proximity window
   //   +3 BANK_LAUNCH_COOLDOWN_PERIOD and the live BANK_LAUNCH_COOLDOWN, both from one byte
-  //   +4 ROUND_CRAFT_COUNT          the round's enemy-craft quota
+  //   +4 CRAFT_SPAWN_SLOT_COUNT          the round's enemy-craft quota
   //   +5 SCRIPT_PICK_THRESHOLD      random-vs-ordered movement-script choice
   //   +6 ATTACKER_SPAWN_SLOT_COUNT  the era bank's size
   //   +7 ATTACKER_SPAWN_WINDOW_HALF +8 ATTACKER_SPAWN_AIM_WINDOW_HALF -- the attacker spawn windows
@@ -128,7 +128,7 @@ export function resetPlayfieldAndArmNewRound(m) {
   mem8[BANK_LAUNCH_HEADING_HALF_WIDTH] = mem8[src + 1];
   mem8[BANK_LAUNCH_NEAR_HALF_WIDTH] = mem8[src + 2];
   mem8[BANK_LAUNCH_COOLDOWN_PERIOD] = mem8[BANK_LAUNCH_COOLDOWN] = mem8[src + 3]; // one source byte into two cells
-  mem8[ROUND_CRAFT_COUNT] = mem8[src + 4];
+  mem8[CRAFT_SPAWN_SLOT_COUNT] = mem8[src + 4];
   mem8[SCRIPT_PICK_THRESHOLD] = mem8[src + 5];
   mem8[ATTACKER_SPAWN_SLOT_COUNT] = mem8[src + 6];
   mem8[ATTACKER_SPAWN_WINDOW_HALF] = mem8[src + 7];

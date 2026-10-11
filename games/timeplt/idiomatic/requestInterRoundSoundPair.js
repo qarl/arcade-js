@@ -12,19 +12,19 @@
  * requestTwoSounds (0x5683), with a different pair of program bytes.
  *
  * The codes are INTER_ROUND_SOUND_1 (0x27CB) and INTER_ROUND_SOUND_2 (0x33A0). Both go through
- * enqueueSoundIfGameOrAttract, which admits them while PLAY_ACTIVE is set or while
+ * enqueueSoundIfGameOrDemoSoundsOn, which admits them while PLAY_ACTIVE is set or while
  * DEMO_SOUNDS_ENABLE (the attract-sound setting) is set — so, unlike the in-play-only requests,
  * this pair can be heard in the attract demo.
  */
 
-import { enqueueSoundIfGameOrAttract } from "./enqueueSoundIfGameOrAttract.js";
+import { enqueueSoundIfGameOrDemoSoundsOn } from "./enqueueSoundIfGameOrDemoSoundsOn.js";
 import { INTER_ROUND_SOUND_1, INTER_ROUND_SOUND_2 } from "./names.js";
 
 export function requestInterRoundSoundPair(m) {
   const { mem8 } = m;
   /* First code: ld a,(0x27cb) / call 0x5617. The queue keeps arrival order, so this one is sent
    * to the audio board ahead of the second. */
-  enqueueSoundIfGameOrAttract(m, mem8[INTER_ROUND_SOUND_1]);
+  enqueueSoundIfGameOrDemoSoundsOn(m, mem8[INTER_ROUND_SOUND_1]);
   /* Second code: ld a,(0x33a0) / jp 0x5617 — a tail-jump, so the gate's return is ours. */
-  enqueueSoundIfGameOrAttract(m, mem8[INTER_ROUND_SOUND_2]);
+  enqueueSoundIfGameOrDemoSoundsOn(m, mem8[INTER_ROUND_SOUND_2]);
 }

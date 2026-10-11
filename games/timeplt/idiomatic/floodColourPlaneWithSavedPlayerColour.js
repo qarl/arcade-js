@@ -10,14 +10,14 @@
  * ROM 0x13CC-0x1429 (lift: translated/loc_13cc.js). Grounding: [seen].
  *
  * Role in the machine: after a round is won the game plays a between-eras band animation
- * (sub-step 14 of the round engine, stepRoundStartIntroAnimation), stepped by
- * INTRO_ANIMATION_STEP (0xA9F0). This is its step-4 arm: it sets the step to 5, whose arm winds the
+ * (sub-step 14 of the round engine, stepRoundWonBandAnimation), stepped by
+ * ROUND_WON_ANIMATION_STEP (0xA9F0). This is its step-4 arm: it sets the step to 5, whose arm winds the
  * animation up, and washes the playfield's colour plane with the active player's saved pen colour.
  * The colour is the SAVED copy from the per-player save block (PLAYER_ONE_PEN_COLOUR 0xAD1C or
  * PLAYER_TWO_PEN_COLOUR 0xAD2C, chosen by ACTIVE_PLAYER 0xAD32), not the live PEN_COLOUR.
  */
 
-import { ACTIVE_PLAYER, COLOUR_FLOOD_COUNTDOWN, COLOUR_FLOOD_FIRST_CELL, INTRO_ANIMATION_STEP, PLAYER_ONE_PEN_COLOUR, PLAYER_TWO_PEN_COLOUR, SCREEN_UNFLIPPED } from "./names.js";
+import { ACTIVE_PLAYER, COLOUR_FLOOD_COUNTDOWN, COLOUR_FLOOD_FIRST_CELL, ROUND_WON_ANIMATION_STEP, PLAYER_ONE_PEN_COLOUR, PLAYER_TWO_PEN_COLOUR, SCREEN_UNFLIPPED } from "./names.js";
 
 // The step this arm hands the band animation to (`ld a,0x05 / ld (0xa9f0),a`).
 const NEXT_STEP = 5;
@@ -37,7 +37,7 @@ const LAST_CELL = FIRST_CELL + ROW_STRIDE * (ROWS - 1) + (CELLS_PER_ROW - 1);
 export function floodColourPlaneWithSavedPlayerColour(m) {
   const { mem8 } = m;
   // Hand the animation its next step first; the ROM stores it before doing any painting.
-  mem8[INTRO_ANIMATION_STEP] = NEXT_STEP;
+  mem8[ROUND_WON_ANIMATION_STEP] = NEXT_STEP;
 
   // Pick the fill: player one's saved pen colour when ACTIVE_PLAYER is 0, player two's otherwise.
   const source = mem8[ACTIVE_PLAYER] === 0 ? PLAYER_ONE_PEN_COLOUR : PLAYER_TWO_PEN_COLOUR;

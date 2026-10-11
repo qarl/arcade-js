@@ -24,7 +24,7 @@ const TARGET = 0x3c25;
 const FRAME_TICK = 0xa980;
 const PLAYER_HEADING = 0xa802;
 const MOTHER_SHIP_ARMED = 0xad0d;
-const HITS_REMAINING = 0xa8dc;
+const BOMBER_HITS_TO_ABSORB = 0xa8dc;
 const EDGE_POSITION_TABLE = 0x3c84;
 const COUNTDOWN = 0x0e;
 
@@ -138,7 +138,7 @@ function twin({ hits = 3, live = 0xff, table = EDGE_POSITION_TABLE, snap = true,
       mem8[(regs.ix + 0x0c) & 0xffff] = regs.c;
       mem8[(regs.ix + 0x0d) & 0xffff] = regs.b;
     }
-    mem8[HITS_REMAINING] = hits;
+    mem8[BOMBER_HITS_TO_ABSORB] = hits;
     mem8[(regs.ix + 0x00) & 0xffff] = live;
   };
 }

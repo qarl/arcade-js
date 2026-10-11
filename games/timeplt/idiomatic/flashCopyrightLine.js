@@ -13,7 +13,7 @@
  * tap on the line's first colour cell).
  *
  * ROLE IN THE MACHINE: called by the sequence arms that keep the copyright screen up -- among them
- * postAttractInfoCaptions, stepCopyrightScreenAwaitingStart and stepTwoCreditCopyrightScreenAwaitingStart
+ * postPushStartScreenCaptions, stepCopyrightScreenAwaitingStart and stepTwoCreditCopyrightScreenAwaitingStart
  * (steps 2-4 of phase 2, mechanisms.md) -- which restamp the copyright strip and then flash its line.
  * The frame counter advances once per vblank, so the colour flips on every frame.
  *

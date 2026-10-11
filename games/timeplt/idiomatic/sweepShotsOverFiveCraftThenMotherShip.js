@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * destroyCraftAndMotherShipHitByShots — the player's shot sweeps for the stretch of a round in which the
+ * sweepShotsOverFiveCraftThenMotherShip — the player's shot sweeps for the stretch of a round in which the
  * Mother-Ship is on the field: sweep the six player shots against FIVE ordinary craft instead of the usual
  * seven, then run the same six shots against the Mother-Ship itself.
  *
  * ROM 0x4FBF-0x5031. Grounding: [seen] (names.js ROUTINES 0x4FBF). The second sweep is the code the ROM falls
- * into at 0x4FE0 (destroyMotherShipAndShotOnMutualHit); it is not called.
+ * into at 0x4FE0 (markMotherShipAndShotHitByShots); it is not called.
  *
  * ROLE IN THE MACHINE. dispatchShotSweepByMotherShipArmed sends the pass's shot sweep here while
  * MOTHER_SHIP_ARMED is set, and to a seven-craft sweep otherwise. The Mother-Ship's record is the one at
@@ -56,7 +56,7 @@ const NARROW_SPAN = 13;
 const SECOND_AXIS_REACH = 23;
 const SECOND_AXIS_SPAN = 31;
 
-export function destroyCraftAndMotherShipHitByShots(m) {
+export function sweepShotsOverFiveCraftThenMotherShip(m) {
   const { mem8, mem16 } = m;
   // SWEEP 1. Stage the two scratch cursors (SCRATCH_PTR_B 0xA993 = craft records, SCRATCH_PTR_A 0xA991 =
   // craft sprite entries, both [seen]) that the shared sweep reloads between passes, then run it over the

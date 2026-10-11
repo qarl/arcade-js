@@ -12,8 +12,8 @@
  *   1. the player's shots against the three-slot era weapon bank (stagePlayerShotSweepAgainstTargetsAndRun);
  *   2. the player against the four enemy-shot slots (destroyPlayerAndObjectsTouchingIt, unscored);
  *   3. the player against the craft band (destroySlotsAndPlayerOnContact, scored);
- *   4. only while the Mother-Ship is armed: the player against the Mother-Ship (ramTestPlayerVsMotherShip);
- *   5. the player against the era weapons (destroyTargetsReachedByFixedAttacker, scored);
+ *   4. only while the Mother-Ship is armed: the player against the Mother-Ship (destroyPlayerAndMotherShipOnContactByEra);
+ *   5. the player against the era weapons (destroyEraObjectsAndPlayerOnContact, scored);
  *   6. the parachutist pickup (markObjectsTouchingPlayer), the only contact that leaves the player alive.
  * Stages 2, 3, 5 and 6 share ONE cursor pair (a record cursor, 16-byte stride, and a sprite-entry
  * cursor, 2-byte stride -- the ROM's DE and IY), each sweep handing it on one past its last slot, so
@@ -32,8 +32,8 @@
 import { stagePlayerShotSweepAgainstTargetsAndRun } from "./stagePlayerShotSweepAgainstTargetsAndRun.js";
 import { destroyPlayerAndObjectsTouchingIt } from "./destroyPlayerAndObjectsTouchingIt.js";
 import { destroySlotsAndPlayerOnContact } from "./destroySlotsAndPlayerOnContact.js";
-import { ramTestPlayerVsMotherShip } from "./ramTestPlayerVsMotherShip.js";
-import { destroyTargetsReachedByFixedAttacker } from "./destroyTargetsReachedByFixedAttacker.js";
+import { destroyPlayerAndMotherShipOnContactByEra } from "./destroyPlayerAndMotherShipOnContactByEra.js";
+import { destroyEraObjectsAndPlayerOnContact } from "./destroyEraObjectsAndPlayerOnContact.js";
 import { markObjectsTouchingPlayer } from "./markObjectsTouchingPlayer.js";
 import { ACTOR_ENTRY_SLOT0, ACTOR_RECORD_SLOT0, ERA_OBJECT_ENTRY_SLOT0, ERA_OBJECT_RECORD_SLOT0, MOTHER_SHIP_ARMED } from "./names.js";
 
@@ -58,12 +58,12 @@ export function runAllCollisionSweepsThisFrame(m) {
     // H = 0x0F), continuing from where stage 2 stopped.
     destroySlotsAndPlayerOnContact(m, afterPlayer.occupancy, afterPlayer.entry, 5, 7, 15);
     // Stage 4 (`call 0x50b1`): the Mother-Ship's own box, chosen by era inside the callee.
-    ramTestPlayerVsMotherShip(m);
+    destroyPlayerAndMotherShipOnContactByEra(m);
 
     // Stage 5, armed (ROM 0x4EA3-0x4EB0, `call 0x5121`): the stage-3 cursor stopped at the Mother-Ship
     // records, so the cursor is reseated at ERA_OBJECT_RECORD_SLOT0 0xA8C0 / ERA_OBJECT_ENTRY_SLOT0
     // 0xAA28 [seen]; B = 3 era-weapon slots, L = 6, H = 0x0D.
-    const afterTargets = destroyTargetsReachedByFixedAttacker(m, ERA_OBJECT_RECORD_SLOT0, ERA_OBJECT_ENTRY_SLOT0, 3, 6, 13);
+    const afterTargets = destroyEraObjectsAndPlayerOnContact(m, ERA_OBJECT_RECORD_SLOT0, ERA_OBJECT_ENTRY_SLOT0, 3, 6, 13);
     // Stage 6 (ROM 0x4EB3-0x4EB9, tail `jp 0x51b3`): one object (B = 1, L = 8, H = 0x11) at the
     // cursor stage 5 left -- the parachutist slot, PARACHUTIST_RECORD 0xA8F0 [seen]. A touch stores
     // 0xF0 into its state only.
@@ -77,7 +77,7 @@ export function runAllCollisionSweepsThisFrame(m) {
 
   // Stage 5, unarmed (ROM 0x4E85-0x4E8B): seven craft on from 0xA850 is already 0xA8C0, the era-weapon
   // bank, so no reseat is needed; B = 3, L = 6, H = 0x0D as on the armed path.
-  const afterTargets = destroyTargetsReachedByFixedAttacker(m, afterSlots.record, afterSlots.entry, 3, 6, 13);
+  const afterTargets = destroyEraObjectsAndPlayerOnContact(m, afterSlots.record, afterSlots.entry, 3, 6, 13);
   // Stage 6, unarmed (ROM 0x4E8E-0x4E94, tail `jp 0x51b3`): the same parachutist mark as the armed path.
   return markObjectsTouchingPlayer(m, 8, 17, afterTargets.target, afterTargets.entry, 1);
 }

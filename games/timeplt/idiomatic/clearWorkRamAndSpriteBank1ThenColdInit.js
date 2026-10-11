@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** clearWorkRamAndSpriteBanksThenColdInit — cold-start clear: kick the watchdog, wipe two sprite-bank runs and the whole 2 KB of
+/** clearWorkRamAndSpriteBank1ThenColdInit — cold-start clear: kick the watchdog, wipe two sprite-bank runs and the whole 2 KB of
  * work RAM, then fold a fixed program run into one total; anything but a genuine image's total runs
  * the frame service out of band, and either way it hands off to the screen-RAM clear and verify.
  * LIVE-OUT: memory.
@@ -26,7 +26,7 @@ const CHECK_BYTES = 0x100;
 // ... and a genuine image sums to 0x87 (the `sub 0x87` at 0x00A0).
 const GENUINE_TOTAL = 0x87;
 
-export function clearWorkRamAndSpriteBanksThenColdInit(m) {
+export function clearWorkRamAndSpriteBank1ThenColdInit(m) {
   const { mem8 } = m;
 
   // Two 48-byte zero runs in the sprite-attribute bank at 0xB400, one starting at 0xB411 and one at

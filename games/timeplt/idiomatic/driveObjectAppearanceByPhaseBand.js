@@ -58,7 +58,7 @@ const HOLD_ONE_FRAME_IN = 0x07; // and 0x07 on FRAME_TICK: zero one frame in eig
 const SHAPE_RUN_TINT = 60; // 0x3c
 const HELD_SHAPE = 252; // 0xfc
 const HELD_TINT = 108; // 0x6c
-const FIRST_PHASE = 1; // cp 0x01
+const FINAL_PHASE = 1; // cp 0x01
 const COMMAND = 4; // ring command 4: awardScoreToPlayer
 const ARGUMENT = 12; // award index 12: 2,000 points
 
@@ -107,7 +107,7 @@ export function driveObjectAppearanceByPhaseBand(m, object = m.regs.ix, sprite =
    * post command 4 / argument 12 on the command ring (rst 0x38, postCommand) and zero the token,
    * so no later frame can name this record again. postCommand drops the pair if the ring cell
    * is still occupied; the token is cleared either way. */
-  if (mem8[object + PHASE] !== FIRST_PHASE) return;
+  if (mem8[object + PHASE] !== FINAL_PHASE) return;
   postCommand(m, COMMAND, ARGUMENT);
   mem8[CLAIM_TOKEN] = 0;
 }

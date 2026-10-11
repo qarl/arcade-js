@@ -24,9 +24,9 @@ import { advanceCharCursor } from "./advanceCharCursor.js";
 import { fetchTableByte } from "./fetchTableByte.js";
 import { paintSixDigitFieldSuppressingLeadingZeros } from "./paintSixDigitFieldSuppressingLeadingZeros.js";
 import { u8, u16 } from "../../../core/int.js";
-import { READOUT_PICTOGRAM_TABLE } from "./names.js";
+import { HIGH_SCORE_RANK_LABEL_TABLE } from "./names.js";
 
-// Each pictogram record in READOUT_PICTOGRAM_TABLE (ROM 0x4CB4) is three tile codes; the lead byte
+// Each pictogram record in HIGH_SCORE_RANK_LABEL_TABLE (ROM 0x4CB4) is three tile codes; the lead byte
 // times 3 (`add a,a` / `add a,(hl)`) indexes it.
 const RECORD_STRIDE = 3;
 const COLOUR_PLANE_CELL = 0x04 << 8; // clearing bit 2 of the cursor's high byte pairs the tile cell with its colour cell
@@ -53,8 +53,8 @@ export function paintLabelledNumericReadoutColumn(m, source = m.regs.hl, cursor 
   // fetchTableByte (`rst 0x08`) returns the first code and leaves the table pointer on the record, so
   // the next two codes are the bytes after it.
   const index = u8(mem8[source] * RECORD_STRIDE);
-  const record = u16(READOUT_PICTOGRAM_TABLE + index);
-  stamp(m, fetchTableByte(m, READOUT_PICTOGRAM_TABLE, index), cursor, pen);
+  const record = u16(HIGH_SCORE_RANK_LABEL_TABLE + index);
+  stamp(m, fetchTableByte(m, HIGH_SCORE_RANK_LABEL_TABLE, index), cursor, pen);
   cursor = advanceCharCursor(m, cursor);
   stamp(m, mem8[u16(record + 1)], cursor, pen);
   cursor = advanceCharCursor(m, cursor);

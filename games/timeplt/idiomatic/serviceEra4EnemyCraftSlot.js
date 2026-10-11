@@ -8,7 +8,7 @@
  * ROLE. Word 4 of the era table at 0x2914 that dispatchSeatedSlotByEraIndex runs when ERA_INDEX
  * (0xAD04) is 4 -- the fifth and last era (A.D. 2001, flying saucers, in gameplay.md). Called once per
  * round-engine pass per seated enemy-craft slot. Same skeleton as the other era services, with two differences:
- * steering and flying are one call (steerEnemyTowardShip), and instead of pointing the sprite along a
+ * steering and flying are one call (steerEra4CraftTowardAimHeadingThenFly), and instead of pointing the sprite along a
  * heading it plays a four-frame shape cycle (animateSelectedShapeCycle).
  *
  * PARAMETERS. `record` is the slot's 16-byte object record (lifecycle byte at +0); `entry` is its
@@ -19,11 +19,11 @@
 
 import { releaseHeldObject } from "./releaseHeldObject.js";
 import { stepDyingObjectState } from "./stepDyingObjectState.js";
-import { steerEnemyTowardShip } from "./steerEnemyTowardShip.js";
+import { steerEra4CraftTowardAimHeadingThenFly } from "./steerEra4CraftTowardAimHeadingThenFly.js";
 import { hasReachedRetireLine } from "./hasReachedRetireLine.js";
 import { retireSlotAndSubPixel } from "./retireSlotAndSubPixel.js";
 import { animateSelectedShapeCycle } from "./animateSelectedShapeCycle.js";
-import { launchBankEnemyWhenAimedNearPlayer } from "./launchBankEnemyWhenAimedNearPlayer.js";
+import { fireCraftShotWhenAimedNearPlayer } from "./fireCraftShotWhenAimedNearPlayer.js";
 import { launchAttackerIntoFreeSlot } from "./launchAttackerIntoFreeSlot.js";
 
 // Lifecycle-byte values (record +0); any other nonzero value is a death countdown.
@@ -41,9 +41,9 @@ export function serviceEra4EnemyCraftSlot(m, record = m.regs.ix, entry = m.regs.
   if (state === HELD) return releaseHeldObject(m, record);
   if (state !== LIVE) return stepDyingObjectState(m, record, entry);
 
-  // Live craft. steerEnemyTowardShip (0x29F7) turns the slot toward its aim heading and flies it a
+  // Live craft. steerEra4CraftTowardAimHeadingThenFly (0x29F7) turns the slot toward its aim heading and flies it a
   // step, in one call.
-  steerEnemyTowardShip(m, entry, record);
+  steerEra4CraftTowardAimHeadingThenFly(m, entry, record);
   // Retire test: a craft on either fixed retire line has left play. hasReachedRetireLine (0x2B83)
   // answers with the carry flag and the ROM tail-jumps (`jp c,0x2BDE`) to retireSlotAndSubPixel,
   // which zeroes the slot; nothing else runs for it.
@@ -53,6 +53,6 @@ export function serviceEra4EnemyCraftSlot(m, record = m.regs.ix, entry = m.regs.
   // then the attacker launch into a free slot on this object's turn (launchAttackerIntoFreeSlot,
   // 0x4243). The ROM ends with a plain `ret`, so nothing is handed back.
   animateSelectedShapeCycle(m, record, entry);
-  launchBankEnemyWhenAimedNearPlayer(m, record, entry);
+  fireCraftShotWhenAimedNearPlayer(m, record, entry);
   launchAttackerIntoFreeSlot(m, record, entry);
 }

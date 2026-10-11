@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * destroyFixedTargetHitByShots — memory-equivalent to the frozen oracle at ROM 0x4F7E.
+ * markEra1BomberAndShotHitByShots — memory-equivalent to the frozen oracle at ROM 0x4F7E.
  *
  * GATE: strict unit-capture on the undriven attract run with ONE exclusion, every captured dispatch
  *   replayed, a crafted cross over the shared flag, the slots' occupancy and both coordinates, a
@@ -44,7 +44,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMachine, romsPresent } from "./_harness.js";
-import { destroyFixedTargetHitByShots } from "../destroyFixedTargetHitByShots.js";
+import { markEra1BomberAndShotHitByShots } from "../markEra1BomberAndShotHitByShots.js";
 import { loc_4f7e as oracle } from "../../translated/loc_4f7e.js";
 import { unitEquivalence } from "../../../../core/equivalence.js";
 import { u8 } from "../../../../core/int.js";
@@ -115,7 +115,7 @@ function gate(candidate) {
 }
 
 function entryState() {
-  if (entry === null) gate(destroyFixedTargetHitByShots);
+  if (entry === null) gate(markEra1BomberAndShotHitByShots);
   return entry;
 }
 
@@ -359,16 +359,16 @@ const TWINS = [
 // ── the gate ────────────────────────────────────────────────────────────────────────────
 
 test("EQUAL at the real dispatch: identical outside the scratch window", { skip }, () => {
-  gate(destroyFixedTargetHitByShots);
+  gate(markEra1BomberAndShotHitByShots);
   assert.notEqual(entry, null, "vacuous: the attract run never reached the routine");
   const sp = entryState().regs.sp;
   const a = entryState().clone();
   const b = entryState().clone();
   oracle(a);
-  destroyFixedTargetHitByShots(b);
+  markEra1BomberAndShotHitByShots(b);
   const strays = allDiffs(a, b).filter((d) => !inScratch(d.addr, sp));
   assert.deepEqual(strays, [], `a divergence escaped the scratch window: ${show(strays[0])}`);
-  assert.equal(liveOutDiff(destroyFixedTargetHitByShots, entryState()), null, "a pinned live-out diverged");
+  assert.equal(liveOutDiff(markEra1BomberAndShotHitByShots, entryState()), null, "a pinned live-out diverged");
   console.log(`  EQUAL: sp ${hex4(sp)}; nothing outside the ${SCRATCH_BYTES}-byte window moves`);
 });
 
@@ -394,12 +394,12 @@ test("NO REGISTER PINNED, RAM IS: dead-register scribbles pass; a RAM scribble b
   // scratch (B) is DELIBERATELY not flagged, and the same measurement must still catch a scribbled
   // RAM cell, or the clean read on the register twins is worthless.
   assert.deepEqual(GENUINE_LIVE_OUTS, [], "a register live-out was declared; derive it from the oracle and measure it");
-  const scribbleDeadReg = (m) => { destroyFixedTargetHitByShots(m); m.regs.b = u8(m.regs.b + 1); };
+  const scribbleDeadReg = (m) => { markEra1BomberAndShotHitByShots(m); m.regs.b = u8(m.regs.b + 1); };
   const scribbleLeftChanged = (m) => {
-    destroyFixedTargetHitByShots(m);
+    markEra1BomberAndShotHitByShots(m);
     m.regs.e = u8(m.regs.e + 1); m.regs.iy = (m.regs.iy + 2) & 0xffff; m.regs.f ^= 0x01;
   };
-  const scribbleData = (m) => { destroyFixedTargetHitByShots(m); m.mem8[SCRIBBLE_CELL] ^= 0xff; };
+  const scribbleData = (m) => { markEra1BomberAndShotHitByShots(m); m.mem8[SCRIBBLE_CELL] ^= 0xff; };
   assert.equal(caughtFull(scribbleDeadReg, entryState()), false, "a dead-register scribble was flagged, but B is not a live-out");
   assert.equal(caughtFull(scribbleLeftChanged, entryState()), false, "an E/IY/F scribble was flagged, but they are dead at exit");
   assert.equal(caughtFull(scribbleData, entryState()), true, "a scribbled RAM cell went uncaught, so the RAM measurement has no teeth");
@@ -423,7 +423,7 @@ test("CORPUS: every captured dispatch replays identically", { skip }, () => {
   const { entries, shapes } = captureCorpus();
   assert.equal(entries.length, DISPATCHES, "the dispatch count moved");
   for (const captured of entries) {
-    assert.equal(unitDiff(destroyFixedTargetHitByShots, captured), null, "a captured dispatch diverged");
+    assert.equal(unitDiff(markEra1BomberAndShotHitByShots, captured), null, "a captured dispatch diverged");
   }
   console.log(`  CORPUS: ${entries.length} dispatches over ${shapes.size} flag/occupancy shapes`);
 });
@@ -433,7 +433,7 @@ test("CRAFTED: every flag, occupancy and coordinate combination is identical", {
     for (const o of OCCUPANCIES) {
       for (const a of ACROSS) {
         for (const b of ALONG) {
-          const d = unitDiff(destroyFixedTargetHitByShots, craft(f, o, a, b));
+          const d = unitDiff(markEra1BomberAndShotHitByShots, craft(f, o, a, b));
           assert.equal(d, null, `${hex4(f)}/${hex4(o)}/${a}/${b}: ${show(d)}`);
         }
       }
@@ -446,7 +446,7 @@ test("THE SWEEP DOES NOT STOP AT THE FIRST HIT", { skip }, () => {
   const m = craft(LIVE, LIVE, 0, 0);
   const before = m.clone();
   oracle(before);
-  destroyFixedTargetHitByShots(m);
+  markEra1BomberAndShotHitByShots(m);
   assert.equal(m.mem8[slotAt(0) + OCCUPANCY], DESTROYED, "the first slot in reach must be marked");
   const last = slotAt(SLOTS - 1) + OCCUPANCY;
   assert.equal(m.mem8[last], DESTROYED, "and so must the last, in the same pass");
@@ -459,13 +459,13 @@ test("THE SLOT CURSOR STEPS THE LOW HALF ONLY", { skip }, () => {
   assert.equal(slotAt(SLOTS - 1), 0xaad0, "the last slot's address moved");
   const m = craft(LIVE, LIVE, 0, 0);
   m.mem8[slotAt(0) + OCCUPANCY] = 0;
-  destroyFixedTargetHitByShots(m);
+  markEra1BomberAndShotHitByShots(m);
   assert.equal(m.mem8[slotAt(SLOTS - 1) + OCCUPANCY], DESTROYED, "the last slot must be reached");
   console.log(`  CURSOR: the last slot sits at ${hex4(slotAt(SLOTS - 1))} and is swept`);
 });
 
 test("WHOLE-MACHINE: the session differs only inside the scratch windows", { skip }, () => {
-  const r = wholeRunCells(hosted(destroyFixedTargetHitByShots));
+  const r = wholeRunCells(hosted(markEra1BomberAndShotHitByShots));
   assert.equal(r.threw, null, `the run threw: ${r.threw}`);
   assert.equal(r.stopped, null, `the run stopped early: ${r.stopped}`);
   assert.equal(r.frames, FRAMES, `compared ${r.frames} of ${FRAMES} frames`);
@@ -477,7 +477,7 @@ test("WHOLE-MACHINE: the session differs only inside the scratch windows", { ski
 });
 
 test("TEETH: removing the shim's return kills the run, so the shim is load-bearing", { skip }, () => {
-  const r = wholeRunCells(destroyFixedTargetHitByShots);
+  const r = wholeRunCells(markEra1BomberAndShotHitByShots);
   assert.ok(
     r.threw !== null || r.stopped !== null,
     "the run COMPLETED without the shim, so the callers no longer expect a return",

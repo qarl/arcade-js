@@ -17,14 +17,14 @@
 import { paintHighScoreReadout } from "./paintHighScoreReadout.js";
 import { postCommand } from "./postCommand.js";
 import { blankNextLine } from "./blankNextLine.js";
-import { FREE_PLAY, SEQUENCE_PHASE, SEQUENCE_SUBSTEP, HIGH_SCORE_PATCH_TABLE, HIGH_SCORE_MARKER_CELL_UPPER, HIGH_SCORE_MARKER_CELL_LOWER } from "./names.js";
+import { FREE_PLAY, SEQUENCE_PHASE, SEQUENCE_SUBSTEP, WITNESS_SEED_TABLE, PLAYER1_SCORE_READOUT_ONES_CELL, PLAYER1_SCORE_READOUT_TENS_CELL } from "./names.js";
 
 // The marker glyph (`ld a,0x13` at 0x160E) written to the two marker cells.
 const CELL_SEED = 0x13;
 // `ld b,0x06` at 0x1619: the patch list holds six three-byte records.
 const PATCH_COUNT = 6;
 // `ld (hl),0x05` at 0x1623: the byte stored beside each patched value.
-const PATCH_MARKER = 0x05;
+const WITNESS_SEED_COLOUR = 0x05;
 
 export function armAttractScreenShowingHighScore(m) {
   const { mem8 } = m;
@@ -43,18 +43,18 @@ export function armAttractScreenShowingHighScore(m) {
   postCommand(m, 6, 1);
 
   /* Step 2 — the marker glyph 0x13 into two character cells one row apart
-   * (HIGH_SCORE_MARKER_CELL_LOWER 0xA701, row 24; HIGH_SCORE_MARKER_CELL_UPPER 0xA6E1, row 23; both column 1). */
-  mem8[HIGH_SCORE_MARKER_CELL_LOWER] = CELL_SEED;
-  mem8[HIGH_SCORE_MARKER_CELL_UPPER] = CELL_SEED;
+   * (PLAYER1_SCORE_READOUT_TENS_CELL 0xA701, row 24; PLAYER1_SCORE_READOUT_ONES_CELL 0xA6E1, row 23; both column 1). */
+  mem8[PLAYER1_SCORE_READOUT_TENS_CELL] = CELL_SEED;
+  mem8[PLAYER1_SCORE_READOUT_ONES_CELL] = CELL_SEED;
 
-  /* Step 3 — apply the patch list at HIGH_SCORE_PATCH_TABLE (0x163F, 0x1619-0x1627).
+  /* Step 3 — apply the patch list at WITNESS_SEED_TABLE (0x163F, 0x1619-0x1627).
    * Each record is {destination low, destination high, value}: the value goes to the destination
    * and 0x05 to the byte after it. The ROM walks the list with a djnz loop over B = 6. */
-  let cursor = HIGH_SCORE_PATCH_TABLE;
+  let cursor = WITNESS_SEED_TABLE;
   for (let i = 0; i < PATCH_COUNT; i++) {
     const dest = mem8[cursor] | (mem8[cursor + 1] << 8);
     mem8[dest] = mem8[cursor + 2];
-    mem8[dest + 1] = PATCH_MARKER;
+    mem8[dest + 1] = WITNESS_SEED_COLOUR;
     cursor += 3;
   }
 

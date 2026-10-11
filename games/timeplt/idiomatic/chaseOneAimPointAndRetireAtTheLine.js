@@ -13,7 +13,7 @@
  * re-aimed). The turn, the move and the dressing run every frame regardless.
  *
  * The aim point read is ENEMY_STANDOFF_AIM_MAIN (0xAC7F), one of SIX two-byte points packed at
- * 0xAC74-0xAC7F that layOutEnemyAimPointsFromScrollAngle rewrites as a block each pass -- so it is
+ * 0xAC74-0xAC7F that layOutEnemyAimPointsFromPlayerHeading rewrites as a block each pass -- so it is
  * ONE point, not THE point, and neither the only one nor fixed. The sibling at 0x41B8 has the same
  * shape but aims at other points of that block.
  *

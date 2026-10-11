@@ -15,7 +15,7 @@
 // LIVE-OUT: memory only -- SCRATCH_PTR_A/SCRATCH_PTR_B, plus every kill, spent shot and score the
 // chosen sweep writes.
 
-import { destroyCraftAndMotherShipHitByShots } from "./destroyCraftAndMotherShipHitByShots.js";
+import { sweepShotsOverFiveCraftThenMotherShip } from "./sweepShotsOverFiveCraftThenMotherShip.js";
 import { destroyTargetsHitByShots } from "./destroyTargetsHitByShots.js";
 import { CRAFT_ENTRY_SLOT0, CRAFT_RECORD_SLOT0, MOTHER_SHIP_ARMED, PLAYER_SHOT_ARRAY, SCRATCH_PTR_A, SCRATCH_PTR_B } from "./names.js";
 
@@ -40,7 +40,7 @@ export function dispatchShotSweepByMotherShipArmed(m) {
   // five ordinary craft and then the Mother-Ship itself (`jp nz,0x4FBF`). That sweep stages its own
   // cursors and counts, so nothing is set up here.
   if (mem8[MOTHER_SHIP_ARMED] !== 0) {
-    destroyCraftAndMotherShipHitByShots(m);
+    sweepShotsOverFiveCraftThenMotherShip(m);
     return;
   }
 

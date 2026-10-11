@@ -29,8 +29,8 @@ import { u8 } from "../../../core/int.js";
 // The state byte is record +0. 0xF0 is the collision sweeps' "just hit" mark; it is re-stamped to
 // 0x3B, one below the threshold 0x3C at which the shared "death begins" step runs.
 const STATE = 0;
-const REARM = 0xf0;
-const REARMED_TO = 0x3b;
+const JUST_HIT = 0xf0;
+const DEATH_COUNTDOWN_START = 0x3b;
 const DEATH_BEGINS = 0x3c;
 
 export function stepDyingObjectState(m, object = m.regs.ix, sprite = m.regs.iy) {
@@ -39,8 +39,8 @@ export function stepDyingObjectState(m, object = m.regs.ix, sprite = m.regs.iy) 
 
   // Freshly hit (`cp 0xf0 / jp z,0x2bac`): start the countdown at 0x3B and count the kill
   // (`ld (ix+0x00),0x3b / call 0x2bba` at 0x2BAC-0x2BB0).
-  if (state === REARM) {
-    mem8[object + STATE] = REARMED_TO;
+  if (state === JUST_HIT) {
+    mem8[object + STATE] = DEATH_COUNTDOWN_START;
     return countTheKillAndGrantTheSharedToken(m, object);
   }
 

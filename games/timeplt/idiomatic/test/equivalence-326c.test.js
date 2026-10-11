@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Memory-equivalence for layOutEnemyAimPointsFromScrollAngle vs the frozen oracle: real tape dispatches, a full scroll-angle
+// Memory-equivalence for layOutEnemyAimPointsFromPlayerHeading vs the frozen oracle: real tape dispatches, a full scroll-angle
 // sweep of the sub-mode-7 body, the sub-mode gate, and broken twins caught in MEMORY.
 // Run: node --test games/timeplt/idiomatic/test/equivalence-326c.test.js
 
@@ -7,7 +7,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
-import { layOutEnemyAimPointsFromScrollAngle } from "../layOutEnemyAimPointsFromScrollAngle.js";
+import { layOutEnemyAimPointsFromPlayerHeading } from "../layOutEnemyAimPointsFromPlayerHeading.js";
 import { loc_326c as oracle } from "../../translated/loc_326c.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
 
@@ -102,7 +102,7 @@ test("REAL DISPATCHES: every tape dispatch is byte-identical within the ceiling"
   const entries = captureDispatches();
   let body = 0;
   for (const e of entries) {
-    const s = split(layOutEnemyAimPointsFromScrollAngle, e);
+    const s = split(layOutEnemyAimPointsFromPlayerHeading, e);
     const md = memDiff(s);
     assert.equal(md, null, `a dispatch diverged in memory: ${JSON.stringify(md)}`);
     const rd = regDiff(s);
@@ -117,7 +117,7 @@ test("SCROLL SWEEP: all 256 angles through the sub-mode-7 body are identical", {
   let moved = 0;
   for (let scroll = 0; scroll < 256; scroll++) {
     const m = craft(scroll, SUBMODE);
-    const s = split(layOutEnemyAimPointsFromScrollAngle, m);
+    const s = split(layOutEnemyAimPointsFromPlayerHeading, m);
     const md = memDiff(s);
     assert.equal(md, null, `angle ${hex(scroll)} diverged: ${JSON.stringify(md)}`);
     const rd = regDiff(s);
@@ -131,7 +131,7 @@ test("SCROLL SWEEP: all 256 angles through the sub-mode-7 body are identical", {
 test("SUB-MODE GATE: the body runs iff the low nibble is 7, matching the oracle", { skip }, () => {
   for (let cLow = 0; cLow < 16; cLow++) {
     const m = craft(0x80, cLow);
-    const md = memDiff(split(layOutEnemyAimPointsFromScrollAngle, m));
+    const md = memDiff(split(layOutEnemyAimPointsFromPlayerHeading, m));
     assert.equal(md, null, `nibble ${cLow} diverged: ${JSON.stringify(md)}`);
     const wrote = footprint(m) > 0;
     assert.equal(wrote, cLow === SUBMODE, `nibble ${cLow}: body ran=${wrote}, expected ${cLow === SUBMODE}`);
@@ -144,14 +144,14 @@ test("SUB-MODE GATE: the body runs iff the low nibble is 7, matching the oracle"
 function brokenNoOp() {}
 // BUG: the block-1 mirror is dropped, so the four negative slots are never seated.
 function brokenNoMirror(m) {
-  layOutEnemyAimPointsFromScrollAngle(m);
+  layOutEnemyAimPointsFromPlayerHeading(m);
   for (const f of [0x14, 0x15, 0x16, 0x17]) m.mem8[OBJECT + f] = SEED;
 }
 // BUG: the sub-mode gate is forced open, so the body writes on every mode, not just 7.
 function brokenNoGate(m) {
   const c = m.regs.c;
   m.regs.c = (c & 0xf0) | SUBMODE;
-  layOutEnemyAimPointsFromScrollAngle(m);
+  layOutEnemyAimPointsFromPlayerHeading(m);
   m.regs.c = c;
 }
 
@@ -179,6 +179,6 @@ for (const [label, twin] of [["no-op", brokenNoOp], ["no-mirror", brokenNoMirror
 }
 
 test("TEETH CONTROL: the real rewrite is clean on the same set", { skip }, () => {
-  assert.equal(caughtInMemory(layOutEnemyAimPointsFromScrollAngle), 0, "the rewrite itself diverged on a teeth machine");
-  console.log(`  CONTROL: layOutEnemyAimPointsFromScrollAngle clean on all ${reps().length} teeth machines`);
+  assert.equal(caughtInMemory(layOutEnemyAimPointsFromPlayerHeading), 0, "the rewrite itself diverged on a teeth machine");
+  console.log(`  CONTROL: layOutEnemyAimPointsFromPlayerHeading clean on all ${reps().length} teeth machines`);
 });

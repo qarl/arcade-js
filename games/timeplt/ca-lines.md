@@ -3941,7 +3941,7 @@
 4554	recall the state value
 4555	is the head 0xEF -- the step after the killing hit?
 4557	not the sweep step: step the wreck countdown
-455A	clear HITS_REMAINING
+455A	clear BOMBER_HITS_TO_ABSORB
 455E	queue the transition sound burst
 4561	cue the destruction sound burst for the Mother-Ship
 4564	point at the object bank

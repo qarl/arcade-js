@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * stepRoundStartIntroAnimation — memory-equivalent to the frozen oracle at ROM 0x1323.
+ * stepRoundWonBandAnimation — memory-equivalent to the frozen oracle at ROM 0x1323.
  * GATE: crafted-entry; no tape dispatches this phase-14 handler, so a coherent machine is captured
  *   at the reachable dispatcher and each arm is poked in. RAM compared with the dead stack scratch
  *   below the seated SP masked out (the oracle nests calls and rets, the rewrite does not), the SP
@@ -14,9 +14,9 @@ import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { ROUTINES as TRANSLATED } from "../../routines.js";
-import { stepRoundStartIntroAnimation as candidate } from "../stepRoundStartIntroAnimation.js";
+import { stepRoundWonBandAnimation as candidate } from "../stepRoundWonBandAnimation.js";
 import { loc_1323 as oracle } from "../../translated/loc_1323.js";
-import { flashPlayerWhiteEveryOtherFrame } from "../flashPlayerWhiteEveryOtherFrame.js";
+import { flashPlayerWhiteOnAlternateCalls } from "../flashPlayerWhiteOnAlternateCalls.js";
 import { hideAllSprites } from "../hideAllSprites.js";
 import { advanceScriptedCharPlaneBandTo2 } from "../advanceScriptedCharPlaneBandTo2.js";
 import { cyclePlayerSpriteColourThenAdvanceStepAtZero } from "../cyclePlayerSpriteColourThenAdvanceStepAtZero.js";
@@ -122,14 +122,14 @@ function scenarios() {
 
 // ── the twins ─────────────────────────────────────────────────────────────────────────────
 
-/** The rewrite with one deliberate defect each; every knob matches stepRoundStartIntroAnimation by default. */
+/** The rewrite with one deliberate defect each; every knob matches stepRoundWonBandAnimation by default. */
 function twin({ gate = true, arm1Tail = true, windDelay = WIND_DELAY, reload = true, step3Extra = false }) {
   return (m) => {
     const { mem8 } = m;
     if (gate && (mem8[FRAME_TICK] & GATE_BIT)) return;
     switch (mem8[ANIMATION_STEP]) {
-      case 0: flashPlayerWhiteEveryOtherFrame(m); return;
-      case 1: flashPlayerWhiteEveryOtherFrame(m); if (arm1Tail) advanceScriptedCharPlaneBandTo2(m); return;
+      case 0: flashPlayerWhiteOnAlternateCalls(m); return;
+      case 1: flashPlayerWhiteOnAlternateCalls(m); if (arm1Tail) advanceScriptedCharPlaneBandTo2(m); return;
       case 2: cyclePlayerSpriteColourThenAdvanceStepAtZero(m); advanceScriptedCharPlaneBandTo4(m); return;
       case 3: if (step3Extra) cyclePlayerSpriteColourThenAdvanceStepAtZero(m); advanceScriptedCharPlaneBandTo4(m); return;
       case 4: floodColourPlaneWithSavedPlayerColour(m); return;

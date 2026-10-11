@@ -10,7 +10,7 @@
  * so the only thing that shows which way it faces is its SHAPE. This entry keeps the player's
  * sprite entry (PLAYER_SPRITE_CODE 0xAA11, entry +1, and PLAYER_SPRITE_ATTRIBUTE 0xAA40, its colour/flip
  * byte at entry +0x30) in step with PLAYER_HEADING (0xA802, byte +2 of the player's record).
- * resetPlayfieldAndArmNewRound calls it when a life starts, and
+ * resetPlayfieldForLifeStart calls it when a life starts, and
  * negateVelocityIntoWorldScrollThenDressSprite calls it after turning the player's velocity into
  * the world scroll. Under MAME the entry matched the two tables on every sampled frame while the
  * ship was alive (names.js).

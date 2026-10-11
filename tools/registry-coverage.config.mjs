@@ -41,7 +41,7 @@ export const UNWIRED = {
       "and the in-page record step that the movers and collision tests import directly.",
     "appendSoundCommandToQueue.js":
       "DISSOLVED into a direct call, not oracle-served: enqueueSoundIfGameInProgress, " +
-      "enqueueSoundIfGameOrAttract and enqueueSoundUnconditional call it directly with the sound code " +
+      "enqueueSoundIfGameOrDemoSoundsOn and enqueueSoundUnconditional call it directly with the sound code " +
       "as an argument -- entered on every measured session -- and the translated loc_562a never runs. " +
       "Not a ROUTINES override: its address's word occurs nowhere in the image, so no table names it; " +
       "every way in is a branch or fall-through interior to another routine.",

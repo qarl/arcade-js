@@ -41,7 +41,7 @@
 // byte in the entry and a fraction byte in the record (+0x03 for the +0x31 coordinate, +0x05 for +0x00).
 //
 // LIVE-OUT: memory only -- the record pair and sprite entries, the fifteen swept records, the scoring
-// ring, the sound requests, ROUND_TRANSITION_HOLD, HITS_REMAINING, the launch cooldown and the aim toggle.
+// ring, the sound requests, ROUND_TRANSITION_HOLD, BOMBER_HITS_TO_ABSORB, the launch cooldown and the aim toggle.
 
 import { u8, u16 } from "../../../core/int.js";
 import { NotImplemented } from "../../../boards/timeplt/io.js";
@@ -52,15 +52,15 @@ import { postCommand } from "./postCommand.js";
 import { driftWithWorldScroll } from "./driftWithWorldScroll.js";
 import { headingToward } from "./headingToward.js";
 import { dressSpriteForHeadingOrRetireAtEdge } from "./dressSpriteForHeadingOrRetireAtEdge.js";
-import { stepMotherShipWarpFlashFrame } from "./stepMotherShipWarpFlashFrame.js";
+import { derailIntoMotherShipWreckCountdown } from "./derailIntoMotherShipWreckCountdown.js";
 import { setMotherShipVelocityFromHeading } from "./setMotherShipVelocityFromHeading.js";
-import { enqueueTransitionSoundBurst } from "./enqueueTransitionSoundBurst.js";
+import { enqueueTransitionSoundStops } from "./enqueueTransitionSoundStops.js";
 import { requestEnemyLaunchSound } from "./requestEnemyLaunchSound.js";
 import { requestTwoSounds } from "./requestTwoSounds.js";
 import { requestDestructionSoundBurst } from "./requestDestructionSoundBurst.js";
 import { requestCurrentEraSound } from "./requestCurrentEraSound.js";
 import { requestMotherShipWarpSound } from "./requestMotherShipWarpSound.js";
-import { ACTOR_ENTRY_SLOT2, ACTOR_RECORD_SLOT0, ACTOR_RECORD_SLOT2, BANK_LAUNCH_COOLDOWN, BANK_LAUNCH_COOLDOWN_PERIOD, BANK_LAUNCH_NEAR_HALF_WIDTH, ENEMY_STANDOFF_AIM_MAIN, ERA_INDEX, FRAME_TICK, HITS_REMAINING, MOTHER_SHIP_AIM_SIDE_TOGGLE, MOTHER_SHIP_ENTRY, MOTHER_SHIP_STATE, PLAYER_HEADING, PLAYER_STATE, ROUND_TRANSITION_HOLD, SCRATCH_PTR_A, SCRATCH_PTR_B, TAMPER_GLYPH_COPY, WORLD_SCROLL_X, WORLD_SCROLL_Y, HEADING_EDGE_POSITION_TABLE, MOTHER_SHIP_WARP_SHAPE_TABLE } from "./names.js";
+import { ACTOR_ENTRY_SLOT2, ACTOR_RECORD_SLOT0, ACTOR_RECORD_SLOT2, BANK_LAUNCH_COOLDOWN, BANK_LAUNCH_COOLDOWN_PERIOD, BANK_LAUNCH_NEAR_HALF_WIDTH, ENEMY_STANDOFF_AIM_MAIN, ERA_INDEX, FRAME_TICK, BOMBER_HITS_TO_ABSORB, MOTHER_SHIP_AIM_SIDE_TOGGLE, MOTHER_SHIP_ENTRY, MOTHER_SHIP_STATE, PLAYER_HEADING, PLAYER_STATE, ROUND_TRANSITION_HOLD, SCRATCH_PTR_A, SCRATCH_PTR_B, TAMPER_GLYPH_COPY, WORLD_SCROLL_X, WORLD_SCROLL_Y, HEADING_EDGE_POSITION_TABLE, MOTHER_SHIP_WARP_SHAPE_TABLE } from "./names.js";
 
 // The field sweep (sweepFieldOnMotherShipDeathElseStepWreck): fifteen sixteen-byte records from ACTOR_RECORD_SLOT0 (0xA810) up
 // to the parachutist's (0xA8F0); the dying codes it hands out start at 0x14 and step 10 per record;
@@ -102,7 +102,7 @@ const NEAR_Y = 0x78;
 const ON_SCREEN_X = 0x28;
 const ON_SCREEN_Y = 0x20;
 
-const SECOND_ENTRY = 0x30; // +0x30 off an entry: its attribute byte (colour and flip), not a second entry
+const FIRST_ATTRIBUTE = 0x30; // +0x30 off an entry: its attribute byte (colour and flip), not a second entry
 
 // ── Entry (0x43F0): seat the record (0xA8A0) and entry (0xAA24) and dispatch on the head.
 export function loc_43f0(m) {
@@ -179,10 +179,10 @@ export function sweepFieldOnMotherShipDeathElseStepWreck(m, phase, record, entry
 
   if (phase !== FIELD_SWEEP_TRIGGER) return stepMotherShipWreckCountdown(m, record, entry);
 
-  // The Mother-Ship's death clears HITS_REMAINING (0xA8DC) [seen] -- the bomber's hit counter -- and
+  // The Mother-Ship's death clears BOMBER_HITS_TO_ABSORB (0xA8DC) [seen] -- the bomber's hit counter -- and
   // queues the transition sound burst (0x5634) and the destruction sound burst (0x56D2).
-  mem8[HITS_REMAINING] = 0x00;
-  enqueueTransitionSoundBurst(m);
+  mem8[BOMBER_HITS_TO_ABSORB] = 0x00;
+  enqueueTransitionSoundStops(m);
   requestDestructionSoundBurst(m);
 
   // Sweep the fifteen records (the ROM loop from `ld hl,0xa810` at 0x4564): a record holding 0xFF (a live object)
@@ -210,7 +210,7 @@ export function sweepFieldOnMotherShipDeathElseStepWreck(m, phase, record, entry
   // `ld (0xacc6),a` at 0x4584), restart the head at 0xE4 and seed both tiles' attribute bytes.
   mem8[ROUND_TRANSITION_HOLD] = ROUND_HOLD_SWEEPING;
   mem8[X(STATE)] = WRECK_COUNTDOWN_START;
-  mem8[Y(SECOND_ENTRY)] = SPRITE_SEED;
+  mem8[Y(FIRST_ATTRIBUTE)] = SPRITE_SEED;
   mem8[Y(0x32)] = SPRITE_SEED;
 }
 
@@ -280,7 +280,7 @@ export function flashMotherShipWreckAndPayThreeThousand(m, record, entry) {
   mem8[X(STATE)] = u8(mem8[X(STATE)] - 1);
   mem8[Y(0x01)] = 0xfe;
   mem8[Y(0x03)] = 0xfd;
-  mem8[Y(SECOND_ENTRY)] = 0x6c;
+  mem8[Y(FIRST_ATTRIBUTE)] = 0x6c;
   mem8[Y(0x32)] = 0x6c;
 
   if (u8(mem8[PLAYER_STATE] + 1) === 0x00) requestMotherShipWarpSound(m);
@@ -292,7 +292,7 @@ export function flashMotherShipWreckAndPayThreeThousand(m, record, entry) {
 // (0xAB43) [seen] holds a glyph copied from the screen (during attract, and again at every credited one-player start), and the next byte its colour.
 // A genuine image reads 0x7C with colour 0x10 or 0x05 (`cp 0x7c`, `cp 0x10`, `cp 0x05`, 0x4653-0x465D)
 // and simply returns. Anything else is a patched caption, and the ROM jumps into
-// stepMotherShipWarpFlashFrame (0x459B) [code] through a misaligned prologue that pops the stack out
+// derailIntoMotherShipWreckCountdown (0x459B) [code] through a misaligned prologue that pops the stack out
 // of step -- a deliberate derail, not a routine this ship means to run.
 export function retireMotherShipAndReleaseRoundHold(m, record) {
   const { mem8 } = m;
@@ -305,7 +305,7 @@ export function retireMotherShipAndReleaseRoundHold(m, record) {
     if (next === WITNESS_COLOUR_A) return;
     if (next === WITNESS_COLOUR_B) return;
   }
-  return stepMotherShipWarpFlashFrame();
+  return derailIntoMotherShipWreckCountdown();
 }
 
 // ── LAUNCH (0x4663), reached from IDLE when the delay is spent. Nothing happens while
@@ -462,7 +462,7 @@ export function launchAimedMotherShipShot(m, recordPtr, entryPtr, origin) {
   mem8[X(0x0c)] = alongSecondAxis;
   mem8[X(0x0d)] = alongSecondAxis >> 8;
   mem8[Y(0x01)] = 0x4d;
-  mem8[Y(SECOND_ENTRY)] = 0x62;
+  mem8[Y(FIRST_ATTRIBUTE)] = 0x62;
   mem8[X(STATE)] = u8(mem8[X(STATE)] - 1); // 0x00 -> 0xFF: the entry is live
   mem8[BANK_LAUNCH_COOLDOWN] = mem8[BANK_LAUNCH_COOLDOWN_PERIOD]; // re-arm the cooldown
 }

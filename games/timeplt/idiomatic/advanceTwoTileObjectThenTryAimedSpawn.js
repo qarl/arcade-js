@@ -21,7 +21,7 @@ import { flyAlongStoredVelocity } from "./flyAlongStoredVelocity.js";
 import { hasReachedBoundaryBandSelectedByHeading } from "./hasReachedBoundaryBandSelectedByHeading.js";
 import { retireObjectAndHold } from "./retireObjectAndHold.js";
 import { mirrorTwoTileObjectByHeading } from "./mirrorTwoTileObjectByHeading.js";
-import { spawnAimedEnemyIntoEraBankWhenInWindow } from "./spawnAimedEnemyIntoEraBankWhenInWindow.js";
+import { fireBomberShotWhenClearOfPlayer } from "./fireBomberShotWhenClearOfPlayer.js";
 
 // Offsets into the sprite-entry area (from IY). The first tile's Y lives at +0x31 and the second
 // tile's at +0x33; the first tile's X at +0x00 and the second's at +0x02 -- the two entries sit one
@@ -54,5 +54,5 @@ export function advanceTwoTileObjectThenTryAimedSpawn(m, record = m.regs.ix, spr
   // (call 0x3CE9), then tail into the aimed-spawn attempt (jp 0x3D25), which may launch one aimed
   // enemy from this object when its own gates allow.
   mirrorTwoTileObjectByHeading(m, record, sprite);
-  return spawnAimedEnemyIntoEraBankWhenInWindow(m, record, sprite);
+  return fireBomberShotWhenClearOfPlayer(m, record, sprite);
 }

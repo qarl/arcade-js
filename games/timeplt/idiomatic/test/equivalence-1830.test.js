@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * postAttractInfoCaptions — memory-equivalent to the frozen oracle at ROM 0x1830.
+ * postPushStartScreenCaptions — memory-equivalent to the frozen oracle at ROM 0x1830.
  * GATE: unit-capture with a 4-byte dead-stack window, a replayed corpus, a crafted 2x2 branch
  *   grid, the frozen continuation run on both sides, a seam-placement arm, and teeth. Every callee
  *   is a direct call that lays nothing on the stack, so the window is the frozen side's own call
@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { ROUTINES as TRANSLATED } from "../../routines.js";
-import { postAttractInfoCaptions } from "../postAttractInfoCaptions.js";
+import { postPushStartScreenCaptions } from "../postPushStartScreenCaptions.js";
 import { loc_1830 as oracle } from "../../translated/loc_1830.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
 import { seamPlaceable } from "../../../../core/equivalence.js";
@@ -123,13 +123,13 @@ const twinIgnoreFlip = build({ readFlip: false }); // flip cell never consulted
 const twinIgnoreBranch = build({ readBranch: false }); // always the low arm, one counter bump
 const twinSingleCounter = build({ bumps: 1 }); // bumps once, not twice
 /** A stray word laid on the stack that nothing lifts: memory-identical in the window, seam-refused. */
-const twinStrayWord = (m) => { m.push16(0); postAttractInfoCaptions(m); };
+const twinStrayWord = (m) => { m.push16(0); postPushStartScreenCaptions(m); };
 
 // ── the gate ──────────────────────────────────────────────────────────────────────────────
 test("EQUAL: the real dispatch is identical outside the dead stack window", { skip }, () => {
   capture();
   assert.notEqual(entry, null, "vacuous: the tape never reached this arm");
-  assert.equal(stray(postAttractInfoCaptions, entry), null, "a divergence escaped the scratch window");
+  assert.equal(stray(postPushStartScreenCaptions, entry), null, "a divergence escaped the scratch window");
   console.log(`  EQUAL: flip=${entry.mem8[FLIP_CELL]} branch=${entry.mem8[BRANCH_CELL]} sp=${hex4(entry.regs.sp)}`);
 });
 
@@ -137,7 +137,7 @@ test("SP: the rewrite drops exactly the tail return the oracle pops", { skip }, 
   capture();
   for (const s of [entry, ...corpus]) {
     const a = s.clone(); const b = s.clone();
-    oracle(a); postAttractInfoCaptions(b);
+    oracle(a); postPushStartScreenCaptions(b);
     assert.equal((a.regs.sp - b.regs.sp) & 0xffff, 2,
       "the sp drift is not the single dropped tail return advanceSequenceSubStep omits");
   }
@@ -154,7 +154,7 @@ test("WINDOW: the widest divergence is exactly the declared window", { skip }, (
   let widest = 0;
   for (const s of [entry, ...corpus, ...GRID.map(([f, b]) => craft(f, b))]) {
     const sp = s.regs.sp; const a = s.clone(); const b = s.clone();
-    oracle(a); postAttractInfoCaptions(b);
+    oracle(a); postPushStartScreenCaptions(b);
     const da = a.dumpState(); const db = b.dumpState();
     for (let i = 0; i < da.length; i++) {
       if (da[i] !== db[i]) { const ad = a.stateOffsetToAddr(i); if (ad !== null && ad < sp) widest = Math.max(widest, sp - ad); }
@@ -169,9 +169,9 @@ test("SEAM: a direct call leaves the stack where it found it, and the seam place
   const states = [entry, ...corpus, ...GRID.map(([f, b]) => craft(f, b))];
   for (const s of states) {
     const direct = s.clone();
-    postAttractInfoCaptions(direct);
+    postPushStartScreenCaptions(direct);
     assert.equal(direct.regs.sp, s.regs.sp, "a direct call moved the stack pointer");
-    const r = seamPlaceable(withOmittedRet, postAttractInfoCaptions, TARGET, s.clone());
+    const r = seamPlaceable(withOmittedRet, postPushStartScreenCaptions, TARGET, s.clone());
     assert.equal(r.placeable, true, `the seam cannot place the arm: ${r.error}`);
   }
   // ★ control: a stray word is invisible to the masked diff (it lands in the window) but not here.
@@ -213,12 +213,12 @@ test("CONTINUATION: the frozen tail after the arm leaves RAM identical (the excl
     return null;
   };
   for (const s of states) {
-    const d = afterTail(s, postAttractInfoCaptions);
+    const d = afterTail(s, postPushStartScreenCaptions);
     assert.equal(d, null, `the continuation diverged at ${d && hex4(d.addr)}`);
   }
   // The deepest path is really taken: the two-player start raises the play-active cell.
   const deep = craftFreePlayStart(START_TWO);
-  postAttractInfoCaptions(deep);
+  postPushStartScreenCaptions(deep);
   continuation(deep);
   assert.equal(deep.mem8[PLAY_ACTIVE_CELL], 0xff, "the free-play start state never reached the game-start path");
   // ★ control: the same comparison still sees a real defect once the tail has run.
@@ -230,7 +230,7 @@ test("CORPUS: every captured real state replays identically", { skip }, () => {
   capture();
   assert.ok(corpus.length > 0, "vacuous: no states captured");
   let caught = 0;
-  for (const s of corpus) if (stray(postAttractInfoCaptions, s)) caught++;
+  for (const s of corpus) if (stray(postPushStartScreenCaptions, s)) caught++;
   assert.equal(caught, 0, `the rewrite diverged on ${caught} of ${corpus.length} captured states`);
   console.log(`  CORPUS: ${corpus.length} states identical`);
 });
@@ -238,7 +238,7 @@ test("CORPUS: every captured real state replays identically", { skip }, () => {
 test("CRAFTED: both branch decisions replay identically", { skip }, () => {
   capture();
   for (const [flip, branch] of GRID) {
-    assert.equal(stray(postAttractInfoCaptions, craft(flip, branch)), null, `flip=${flip} branch=${branch} diverged`);
+    assert.equal(stray(postPushStartScreenCaptions, craft(flip, branch)), null, `flip=${flip} branch=${branch} diverged`);
   }
   console.log("  CRAFTED: the 2x2 branch grid is identical");
 });
@@ -246,11 +246,11 @@ test("CRAFTED: both branch decisions replay identically", { skip }, () => {
 test("EXCLUDED: only the dead registers differ, and a scribbling control is still caught", { skip }, () => {
   capture();
   const a = entry.clone(); const b = entry.clone();
-  oracle(a); postAttractInfoCaptions(b);
+  oracle(a); postPushStartScreenCaptions(b);
   const moved = REG_FIELDS.filter((k) => a.regs[k] !== b.regs[k]);
   assert.deepEqual(moved.filter((k) => !EXCLUDED_REGS.includes(k)), [], "a register diverged outside the dead set");
   assert.ok(EXCLUDED_REGS.some((k) => moved.includes(k)), "no dead register moved, so the exclusion measures nothing");
-  const scribble = (m) => { postAttractInfoCaptions(m); m.regs.d = (m.regs.d + 1) & 0xff; };
+  const scribble = (m) => { postPushStartScreenCaptions(m); m.regs.d = (m.regs.d + 1) & 0xff; };
   assert.notEqual(stray(scribble, entry), null, "the register check cannot even see a scribbled live register");
   console.log(`  EXCLUDED: ${moved.join(", ")} move (all dead); a scribble on a live register is caught`);
 });

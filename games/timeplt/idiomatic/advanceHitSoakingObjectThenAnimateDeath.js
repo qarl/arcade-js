@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** advanceHitSoakingObjectThenAnimateDeath — advance one object that is still soaking up hits. While HITS_REMAINING is left, spend
+/** advanceHitSoakingObjectThenAnimateDeath — advance one object that is still soaking up hits. While BOMBER_HITS_TO_ABSORB is left, spend
  * one, keep the record live and re-request the pair of sounds, then hand off to the ordinary move.
  * Once no hits remain, run the record head down toward retirement, and at the values it crosses
  * reseat the sprite entry from the shape table. LIVE-OUT: memory.
@@ -7,7 +7,7 @@
  * ROM 0x3B94-0x3C08 (frozen lift translated/loc_3b94.js). Grounding: [seen] in names.js.
  *
  * Role in the machine: this handles the big two-tile object that takes several hits to kill.
- * HITS_REMAINING (0xA8DC) counts the hits it can still ABSORB; a hit arriving while that count is
+ * BOMBER_HITS_TO_ABSORB (0xA8DC) counts the hits it can still ABSORB; a hit arriving while that count is
  * non-zero only spends one and the object keeps flying. When the count is already zero the hit is
  * fatal, and this routine then plays the object's death: the record head (0xFF while live) becomes
  * a countdown, the two tiles change colour, then shape, the kill is scored, and the slot retires.
@@ -18,7 +18,7 @@
  * the ROM opens with `dec a` to recover the raw head. */
 
 import { u8 } from "../../../core/int.js";
-import { HITS_REMAINING, DEATH_ANIMATION_SHAPE_TABLE } from "./names.js";
+import { BOMBER_HITS_TO_ABSORB, DEATH_ANIMATION_SHAPE_TABLE } from "./names.js";
 import { requestTwoSounds } from "./requestTwoSounds.js";
 import { advanceTwoTileObjectThenTryAimedSpawn } from "./advanceTwoTileObjectThenTryAimedSpawn.js";
 import { retireObjectAndHold } from "./retireObjectAndHold.js";
@@ -34,8 +34,8 @@ export function advanceHitSoakingObjectThenAnimateDeath(m, record = m.regs.ix, e
    * With hits still in hand, spend one, force the head back to 0xFF (live), request the hit's pair
    * of sounds (0x5683), and carry on with the ordinary two-tile move (0x3B77, a tail jump), which
    * flies the object and keeps its second tile seated under the first. */
-  if (mem8[HITS_REMAINING] !== 0) {
-    mem8[HITS_REMAINING] = mem8[HITS_REMAINING] - 1;
+  if (mem8[BOMBER_HITS_TO_ABSORB] !== 0) {
+    mem8[BOMBER_HITS_TO_ABSORB] = mem8[BOMBER_HITS_TO_ABSORB] - 1;
     mem8[record] = 0xff;
     requestTwoSounds(m);
     return advanceTwoTileObjectThenTryAimedSpawn(m, record, entry);

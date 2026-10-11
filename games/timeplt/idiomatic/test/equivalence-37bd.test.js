@@ -43,7 +43,7 @@ const skip = romsPresent() ? false : "ROM images are gitignored; none assembled"
 
 /** The three cells this routine reads. HL is the caller's pointer, not a constant. */
 const KILLS_REMAINING = 0xad02;
-const ROUND_CRAFT_COUNT = 0xacc1;
+const CRAFT_SPAWN_SLOT_COUNT = 0xacc1;
 
 /** What the two arms must stage, derived here so an edit to the module's table cannot pass. */
 const CLEARED = { b: 5, ix: 0xa890, iy: 0xaa22 };
@@ -210,7 +210,7 @@ function sweepGateByte(candidate, diff) {
       const d = diff(candidate, base, (mm) => {
         mm.mem8[mm.regs.hl] = value;
         mm.mem8[KILLS_REMAINING] = kills;
-        mm.mem8[ROUND_CRAFT_COUNT] = 3;
+        mm.mem8[CRAFT_SPAWN_SLOT_COUNT] = 3;
       });
       if (d) caught++;
     }
@@ -226,7 +226,7 @@ function sweepCraftCount(candidate, diff) {
     const d = diff(candidate, base, (mm) => {
       mm.mem8[mm.regs.hl] = 0x30;
       mm.mem8[KILLS_REMAINING] = 1;
-      mm.mem8[ROUND_CRAFT_COUNT] = value;
+      mm.mem8[CRAFT_SPAWN_SLOT_COUNT] = value;
     });
     if (d) caught++;
   }
@@ -249,7 +249,7 @@ function brokenNoOp() {}
 /** BUG: opens the gate on the zero value only, so half the launch ticks are dropped. */
 function brokenOnlyZeroOpens(m) {
   if (m.mem8[m.regs.hl] !== 0x00) return;
-  m.regs.b = m.mem8[ROUND_CRAFT_COUNT];
+  m.regs.b = m.mem8[CRAFT_SPAWN_SLOT_COUNT];
   m.regs.ix = OWED.ix;
   m.regs.iy = OWED.iy;
   return m.call(SLOT_BODY);
@@ -258,7 +258,7 @@ function brokenOnlyZeroOpens(m) {
 /** BUG: opens the gate on every value, so a launch is attempted every tick. */
 function brokenGateAlwaysOpen(m) {
   const cleared = m.mem8[KILLS_REMAINING] === 0;
-  m.regs.b = cleared ? CLEARED.b : m.mem8[ROUND_CRAFT_COUNT];
+  m.regs.b = cleared ? CLEARED.b : m.mem8[CRAFT_SPAWN_SLOT_COUNT];
   m.regs.ix = cleared ? CLEARED.ix : OWED.ix;
   m.regs.iy = cleared ? CLEARED.iy : OWED.iy;
   return m.call(SLOT_BODY);
@@ -268,7 +268,7 @@ function brokenGateAlwaysOpen(m) {
 function brokenRunsSwapped(m) {
   if (!OPEN.includes(m.mem8[m.regs.hl])) return;
   const cleared = m.mem8[KILLS_REMAINING] === 0;
-  m.regs.b = cleared ? CLEARED.b : m.mem8[ROUND_CRAFT_COUNT];
+  m.regs.b = cleared ? CLEARED.b : m.mem8[CRAFT_SPAWN_SLOT_COUNT];
   m.regs.ix = cleared ? OWED.ix : CLEARED.ix;
   m.regs.iy = cleared ? OWED.iy : CLEARED.iy;
   return m.call(SLOT_BODY);
@@ -288,7 +288,7 @@ function brokenAlwaysFive(m) {
 function brokenEntryCursorStale(m) {
   if (!OPEN.includes(m.mem8[m.regs.hl])) return;
   const cleared = m.mem8[KILLS_REMAINING] === 0;
-  m.regs.b = cleared ? CLEARED.b : m.mem8[ROUND_CRAFT_COUNT];
+  m.regs.b = cleared ? CLEARED.b : m.mem8[CRAFT_SPAWN_SLOT_COUNT];
   m.regs.ix = cleared ? CLEARED.ix : OWED.ix;
   m.regs.iy = OWED.iy;
   return m.call(SLOT_BODY);
@@ -399,7 +399,7 @@ test("CRAFT-COUNT: all 256 values of the round's craft count", { skip }, () => {
   probe.routines = recorderRoutines(seen);
   probe.mem8[probe.regs.hl] = 0x30;
   probe.mem8[KILLS_REMAINING] = 1;
-  probe.mem8[ROUND_CRAFT_COUNT] = 0;
+  probe.mem8[CRAFT_SPAWN_SLOT_COUNT] = 0;
   oracle(probe);
   assert.deepEqual(seen, [{ b: 0, ix: OWED.ix, iy: OWED.iy }],
     "a craft count of zero must be handed over as zero, not clamped or skipped");

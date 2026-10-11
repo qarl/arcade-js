@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * seatEraSceneryRowThenClearAndRunScenery — memory-equivalent to the frozen oracle at ROM 0x30A5. The real coin dispatch is
+ * seatEraSceneryCodesThenSetAttributesAndRunScenery — memory-equivalent to the frozen oracle at ROM 0x30A5. The real coin dispatch is
  * compared with the dead stack scratch masked and the two-byte tail drift asserted; a crafted era-
  * four entry drives the other branch; the seated stride-two run is read back; and teeth, with a
  * scratch-not-pinned control beside the RAM measurement. The frogger standard: the dropped tail chain
@@ -13,12 +13,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
-import { seatEraSceneryRowThenClearAndRunScenery as candidate } from "../seatEraSceneryRowThenClearAndRunScenery.js";
+import { seatEraSceneryCodesThenSetAttributesAndRunScenery as candidate } from "../seatEraSceneryCodesThenSetAttributesAndRunScenery.js";
 import { loc_30a5 as oracle } from "../../translated/loc_30a5.js";
 import { sumByteRunAndCompareToExpected } from "../sumByteRunAndCompareToExpected.js";
 import { offsetAddress } from "../offsetAddress.js";
-import { seatFinalEraSceneryFillThenClearEraScenery } from "../seatFinalEraSceneryFillThenClearEraScenery.js";
-import { clearSceneryEntriesThenRunEraScenery } from "../clearSceneryEntriesThenRunEraScenery.js";
+import { setFinalEraSceneryAttributesThenRunEraScenery } from "../setFinalEraSceneryAttributesThenRunEraScenery.js";
+import { setSceneryAttributesThenRunEraScenery } from "../setSceneryAttributesThenRunEraScenery.js";
 import { u8, u16 } from "../../../../core/int.js";
 
 const TARGET = 0x30a5;
@@ -153,9 +153,9 @@ function variant({ rowTable = ROW_TABLE, rowStride = ROW_STRIDE, seatBase = SEAT
     regs.a = mem8[ERA_INDEX];
     regs.cp(ERA_FOUR);
     regs.c = regs.a;
-    if (honourEraFour && regs.fZ) return seatFinalEraSceneryFillThenClearEraScenery(m);
+    if (honourEraFour && regs.fZ) return setFinalEraSceneryAttributesThenRunEraScenery(m);
     regs.a = fillByte;
-    if (transfer) return clearSceneryEntriesThenRunEraScenery(m);
+    if (transfer) return setSceneryAttributesThenRunEraScenery(m);
   };
 }
 

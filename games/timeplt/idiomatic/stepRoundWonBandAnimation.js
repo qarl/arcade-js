@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** stepRoundStartIntroAnimation — run one frame of the sub-step-14 band animation, and only on two frames of every four. The
+/** stepRoundWonBandAnimation — run one frame of the sub-step-14 band animation, and only on two frames of every four. The
  * animation's own step cell picks the arm: the early steps flash the player ship and advance two character-plane
  * animations, the last step hides every sprite, sets up the active player's turn and reloads the inner
  * sequence index to its reload sub-step. LIVE-OUT: memory.
@@ -9,39 +9,39 @@
  * Role in the machine: this is the sub-step-14 arm of the sequence machine's phase-3 table at
  * 0x0F29 — the between-eras band animation that plays after a round is won and before the next
  * round starts. armRoundWonBandAnimationThenStepSequence stocks its control block (0xA9F0-0xA9F8)
- * and seeds INTRO_ANIMATION_STEP (0xA9F0) to 0; each sub-animation below writes the step it hands
+ * and seeds ROUND_WON_ANIMATION_STEP (0xA9F0) to 0; each sub-animation below writes the step it hands
  * off to when it finishes (flash->1, band-to-2->2, colour-cycle->3, band-to-4->4, flood->5), so this
  * routine only reads the step and never advances it itself. */
 
-import { flashPlayerWhiteEveryOtherFrame } from "./flashPlayerWhiteEveryOtherFrame.js";
+import { flashPlayerWhiteOnAlternateCalls } from "./flashPlayerWhiteOnAlternateCalls.js";
 import { hideAllSprites } from "./hideAllSprites.js";
 import { advanceScriptedCharPlaneBandTo2 } from "./advanceScriptedCharPlaneBandTo2.js";
 import { cyclePlayerSpriteColourThenAdvanceStepAtZero } from "./cyclePlayerSpriteColourThenAdvanceStepAtZero.js";
 import { floodColourPlaneWithSavedPlayerColour } from "./floodColourPlaneWithSavedPlayerColour.js";
 import { advanceScriptedCharPlaneBandTo4 } from "./advanceScriptedCharPlaneBandTo4.js";
 import { loadActivePlayerContextAndPostRoundHud } from "./loadActivePlayerContextAndPostRoundHud.js";
-import { FRAME_TICK, INTRO_ANIMATION_STEP, SEQUENCE_DELAY, SEQUENCE_SUBSTEP, INTRO_SUBSTEP_RELOAD } from "./names.js";
+import { FRAME_TICK, ROUND_WON_ANIMATION_STEP, SEQUENCE_DELAY, SEQUENCE_SUBSTEP, INTRO_SUBSTEP_RELOAD } from "./names.js";
 
 // `ld a,0x5a` at 0x1355: the sequence machine's one-shot delay (90 ticks, which arm 5 counts down on odd frames only) armed on the way out.
 const WIND_DELAY = 90;
 
-export function stepRoundStartIntroAnimation(m) {
+export function stepRoundWonBandAnimation(m) {
   const { mem8 } = m;
   /* Pacing (0x1323-0x1328): FRAME_TICK (0xA980) advances once per vblank; its bit 1 is set on two
    * frames out of every four, and on those frames nothing happens (`and 0x02 / ret nz`). The whole
    * animation therefore runs at half the frame rate, in pairs of frames. */
   if (mem8[FRAME_TICK] & 2) return;
 
-  /* Dispatch on INTRO_ANIMATION_STEP (0xA9F0). The ROM walks it with a chain of `dec a / jr nz`
+  /* Dispatch on ROUND_WON_ANIMATION_STEP (0xA9F0). The ROM walks it with a chain of `dec a / jr nz`
    * tests (0x1329-0x1355); each arm is one or two calls and a return. */
-  switch (mem8[INTRO_ANIMATION_STEP]) {
+  switch (mem8[ROUND_WON_ANIMATION_STEP]) {
     case 0:
       // Step 0: flash the player's ship white and back (0x1367).
-      flashPlayerWhiteEveryOtherFrame(m);
+      flashPlayerWhiteOnAlternateCalls(m);
       return;
     case 1:
       // Step 1: keep flashing while the first scripted character-plane band animation runs (0x142A).
-      flashPlayerWhiteEveryOtherFrame(m);
+      flashPlayerWhiteOnAlternateCalls(m);
       advanceScriptedCharPlaneBandTo2(m);
       return;
     case 2:

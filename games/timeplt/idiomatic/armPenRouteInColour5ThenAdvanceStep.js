@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** erasePenRouteThenAdvanceStep — attract-sequence arm (phase 1, sub-step 0): fold a fixed 256-byte program run into an
+/** armPenRouteInColour5ThenAdvanceStep — attract-sequence arm (phase 1, sub-step 0): fold a fixed 256-byte program run into an
  * eight-bit total and derail into the checksum-failure landing on any total but the genuine one;
  * otherwise set the pen colour and stamp glyph (to blank), arm the pen to its route start, and step
  * the sequence sub-step -- twice when the pen colour already held its set value. LIVE-OUT: memory.
@@ -31,7 +31,7 @@ const GENUINE_TOTAL = 0xb8; // sub 0xb8: the total a genuine image gives
 const BLANKING_GLYPH = 0xf1; // the blank glyph: a pen stamping it erases
 const PEN_COLOUR_VALUE = 5; // ld a,0x05 / ld (0xad0c),a
 
-export function erasePenRouteThenAdvanceStep(m) {
+export function armPenRouteInColour5ThenAdvanceStep(m) {
   const { mem8 } = m;
 
   /* Step 1 — image check (ROM 0x074B-0x0757). Add up the 256 bytes from ATTRACT_CHECKSUM_BLOCK_BASE

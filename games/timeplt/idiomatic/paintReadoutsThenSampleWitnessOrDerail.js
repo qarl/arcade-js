@@ -27,7 +27,7 @@ import {
   TAMPER_COLOUR_READBACK,
 } from "./names.js";
 import { checkTheCopyrightLineColoursOrDerail } from "./checkTheCopyrightLineColoursOrDerail.js";
-import { stepMotherShipWarpFlashFrame } from "./stepMotherShipWarpFlashFrame.js";
+import { derailIntoMotherShipWreckCountdown } from "./derailIntoMotherShipWreckCountdown.js";
 import { postCommand } from "./postCommand.js";
 import { paintFiveLabelledNumericReadouts } from "./paintFiveLabelledNumericReadouts.js";
 import { advanceSequenceSubStep } from "./advanceSequenceSubStep.js";
@@ -43,7 +43,7 @@ export function paintReadoutsThenSampleWitnessOrDerail(m) {
 
   if (mem8[TAMPER_GLYPH_SOURCE_CELL] !== EXPECTED_GLYPH) {
     // wrong-glyph derail: the mother-ship warp/flash handler's misaligned entry, which raises.
-    stepMotherShipWarpFlashFrame();
+    derailIntoMotherShipWreckCountdown();
     return;
   }
 

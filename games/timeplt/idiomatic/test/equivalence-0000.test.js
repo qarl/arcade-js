@@ -65,7 +65,7 @@ const DESTINATION = 0x07b1;
 /** The next seam both paths reach: the jump out of the power-on routine. */
 const CONTINUATION = 0x0069;
 /** The continuation as the power-on rewrite reaches it (a direct call), and the store it makes first. */
-const CONTINUATION_NAME = "clearWorkRamAndSpriteBanksThenColdInit";
+const CONTINUATION_NAME = "clearWorkRamAndSpriteBank1ThenColdInit";
 const WATCHDOG = 0xc200;
 
 const skip = romsPresent() ? false : "ROM images are gitignored; none assembled";

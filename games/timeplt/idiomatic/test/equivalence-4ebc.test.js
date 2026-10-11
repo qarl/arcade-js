@@ -18,10 +18,10 @@ import { splitCollisionWorkByFrameParity as candidate } from "../splitCollisionW
 import { loc_4ebc as oracle } from "../../translated/loc_4ebc.js";
 import { loc_4e4f as caller } from "../../translated/loc_4e4f.js";
 import { dispatchShotSweepByMotherShipArmed } from "../dispatchShotSweepByMotherShipArmed.js";
-import { destroyFixedTargetHitByShots } from "../destroyFixedTargetHitByShots.js";
+import { markEra1BomberAndShotHitByShots } from "../markEra1BomberAndShotHitByShots.js";
 import { destroyPlayerAndObjectsTouchingIt } from "../destroyPlayerAndObjectsTouchingIt.js";
 import { destroySlotsAndPlayerOnContact } from "../destroySlotsAndPlayerOnContact.js";
-import { ramTestPlayerVsMotherShip } from "../ramTestPlayerVsMotherShip.js";
+import { destroyPlayerAndMotherShipOnContactByEra } from "../destroyPlayerAndMotherShipOnContactByEra.js";
 import { destroyFixedTargetReachedByPlayer } from "../destroyFixedTargetReachedByPlayer.js";
 import { markObjectsTouchingPlayer } from "../markObjectsTouchingPlayer.js";
 
@@ -165,7 +165,7 @@ function scenarios() {
 /** The rewrite's even-frame chain, each option a deliberate defect; defaults match splitCollisionWorkByFrameParity. */
 function evenChain(m, { skipFirst = false, forceArmed = null, tailReach = 17, firstRecords = 0xa810 } = {}) {
   const { mem8, regs } = m;
-  destroyFixedTargetHitByShots(m);
+  markEra1BomberAndShotHitByShots(m);
   if (!skipFirst) {
     regs.b = 4;
     regs.de = firstRecords;
@@ -179,7 +179,7 @@ function evenChain(m, { skipFirst = false, forceArmed = null, tailReach = 17, fi
   regs.l = 7;
   regs.h = 15;
   destroySlotsAndPlayerOnContact(m);
-  if (armed) ramTestPlayerVsMotherShip(m);
+  if (armed) destroyPlayerAndMotherShipOnContactByEra(m);
   destroyFixedTargetReachedByPlayer(m);
   regs.b = 1;
   regs.de = 0xa8e0;

@@ -18,7 +18,7 @@
  * up in arrival order and the drain takes the oldest from the head.
  *
  * Role in the machine: producers reach it through one of three gates — enqueueSoundUnconditional,
- * enqueueSoundIfGameInProgress and enqueueSoundIfGameOrAttract. Nothing here tests for room, and
+ * enqueueSoundIfGameInProgress and enqueueSoundIfGameOrDemoSoundsOn. Nothing here tests for room, and
  * the count wraps at a byte.
  *
  * Parameter: `command` — the sound code to queue (A in the ROM, pushed by the gate's prologue).

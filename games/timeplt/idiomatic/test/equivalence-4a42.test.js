@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * paintCaptionColourBandAndStepSequence — memory-equivalent to the frozen oracle at ROM 0x4A42. GATE: crafted seats over a
+ * paintRoundWonBandTailThenStepSequence — memory-equivalent to the frozen oracle at ROM 0x4A42. GATE: crafted seats over a
  * coherent captured machine, work-RAM compared with the dead stack scratch below the seat masked
  * out (the oracle nests calls and tail-rets the caller's slot, the rewrite calls its dissolved
  * callees directly), the +2 SP re-seat and the return value checked, registers excluded (the
@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { ROUTINES as TRANSLATED } from "../../routines.js";
-import { paintCaptionColourBandAndStepSequence as candidate } from "../paintCaptionColourBandAndStepSequence.js";
+import { paintRoundWonBandTailThenStepSequence as candidate } from "../paintRoundWonBandTailThenStepSequence.js";
 import { loc_4a42 as oracle } from "../../translated/loc_4a42.js";
 import { u8, u16 } from "../../../../core/int.js";
 import { fillCellRun } from "../fillCellRun.js";
@@ -134,7 +134,7 @@ function scenarios() {
 
 // ── broken twins ──────────────────────────────────────────────────────────────────────────
 
-/** The rewrite with one deliberate defect each; every parameter matches paintCaptionColourBandAndStepSequence by default. */
+/** The rewrite with one deliberate defect each; every parameter matches paintRoundWonBandTailThenStepSequence by default. */
 function twin({ tail = 0x0e, skipFirst = false, rowA = ROW_A, cellHiA = 0xa0, pen = true, step = true }) {
   return (m) => {
     const { regs, mem8 } = m;

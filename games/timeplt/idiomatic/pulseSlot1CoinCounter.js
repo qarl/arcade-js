@@ -10,14 +10,14 @@
  *
  * ROM: 0x4984. Tag [seen] (names.js). Role in the machine: coin slot 1's mechanical counter, a solenoid
  * the timer's period gives its on-time; each owed coin becomes a separate on-then-off pulse, so two
- * quick coins give two distinct clicks (mechanisms.md). The coin path bumps COIN_ACCEPTED 0xA981 [seen] once per coin; this
+ * quick coins give two distinct clicks (mechanisms.md). The coin path bumps COIN_COUNTER_PULSES_OWED 0xA981 [seen] once per coin; this
  * routine pays that debt off one pulse at a time. Its twin for the second slot, pulseSlot2CoinCounter
  * (0x49D6), is byte-identical but for the three addresses it uses. mechanisms.md notes that the shared crediting
  * tail (awardCoinCreditThenPulseCoinCounter) ends by falling into THIS slot's driver whichever input
  * the credit came from, so on a frame that completes a credit this driver runs twice.
  */
 
-import { COIN_ACCEPTED, COIN_PULSE_TIMER, COIN_COUNTER_0_LATCH } from "./names.js";
+import { COIN_COUNTER_PULSES_OWED, COIN_PULSE_TIMER, COIN_COUNTER_0_LATCH } from "./names.js";
 
 // A pulse lasts 48 timer steps (ROM: ld (hl),0x30); the line is held high for the first half and
 // dropped at 24 (cp 0x18), giving an equal on and off time.
@@ -33,7 +33,7 @@ const drive = (m, level) => {
 export function pulseSlot1CoinCounter(m) {
   const { mem8 } = m;
   // Nothing owed: leave the timer and the line alone (ROM: ld a,(0xa981) / and a / ret z).
-  if (mem8[COIN_ACCEPTED] === 0) return;
+  if (mem8[COIN_COUNTER_PULSES_OWED] === 0) return;
 
   // An idle timer (COIN_PULSE_TIMER 0xA984 [seen] at zero) means no pulse is under way: start one
   // by loading the full length and energising the line in the same step.
@@ -49,7 +49,7 @@ export function pulseSlot1CoinCounter(m) {
   const left = remaining - 1;
   mem8[COIN_PULSE_TIMER] = left;
   if (left === 0) {
-    mem8[COIN_ACCEPTED] = mem8[COIN_ACCEPTED] - 1;
+    mem8[COIN_COUNTER_PULSES_OWED] = mem8[COIN_COUNTER_PULSES_OWED] - 1;
     return;
   }
   // Half-way through: release the line. The test is an exact match, as in the ROM, so the drop

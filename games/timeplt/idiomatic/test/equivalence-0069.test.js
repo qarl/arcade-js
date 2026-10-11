@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * clearWorkRamAndSpriteBanksThenColdInit — memory-equivalent to the frozen oracle at ROM 0x0069.
+ * clearWorkRamAndSpriteBank1ThenColdInit — memory-equivalent to the frozen oracle at ROM 0x0069.
  * GATE: crafted-boot-entry; the single boot dispatch replayed with the foreground loop (0x0B93)
  * severed to an empty coroutine so both arms stop at the same handover, comparing work + sprite RAM
  * outside the stack window, the LS259 latches, the sound latch and the watchdog kicks. Priors
@@ -12,7 +12,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
-import { clearWorkRamAndSpriteBanksThenColdInit as candidate } from "../clearWorkRamAndSpriteBanksThenColdInit.js";
+import { clearWorkRamAndSpriteBank1ThenColdInit as candidate } from "../clearWorkRamAndSpriteBank1ThenColdInit.js";
 import { loc_0069 as oracle } from "../../translated/loc_0069.js";
 import { clearScreenRamAndVerifyImageThenColdInit } from "../clearScreenRamAndVerifyImageThenColdInit.js";
 import { enterVerticalBlankService } from "../enterVerticalBlankService.js";

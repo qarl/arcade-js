@@ -19,7 +19,7 @@ import { requestCoinSound } from "./requestCoinSound.js";
 import { paintCreditCountPanel } from "./paintCreditCountPanel.js";
 import { pulseSlot1CoinCounter } from "./pulseSlot1CoinCounter.js";
 import { bcdAddByte } from "../../../core/bcd.js";
-import { COIN_ACCEPTED, COIN_SLOT_1_ACCUMULATOR, COIN_SLOT_1_DEBOUNCE, COIN_SLOT_1_RATIO, CREDIT_COUNT, FREE_PLAY, IN0_MIRROR } from "./names.js";
+import { COIN_COUNTER_PULSES_OWED, COIN_SLOT_1_ACCUMULATOR, COIN_SLOT_1_DEBOUNCE, COIN_SLOT_1_RATIO, CREDIT_COUNT, FREE_PLAY, IN0_MIRROR } from "./names.js";
 
 export function tallyCoinSlot1AndAwardCredit(m) {
   const { mem8 } = m;
@@ -36,10 +36,10 @@ export function tallyCoinSlot1AndAwardCredit(m) {
   if ((debounce & 0x07) !== 0x01) return; // not the clean rising edge
 
   /* Step 2 — a coin was taken (0x4950-0x4958).
-   * Request the coin blip (0x57F1) and add one to COIN_ACCEPTED (0xA981), the count of pulses the
+   * Request the coin blip (0x57F1) and add one to COIN_COUNTER_PULSES_OWED (0xA981), the count of pulses the
    * machine owes the mechanical coin counter; the pulse driver at the tail spends it. */
   requestCoinSound(m);
-  mem8[COIN_ACCEPTED] = mem8[COIN_ACCEPTED] + 1;
+  mem8[COIN_COUNTER_PULSES_OWED] = mem8[COIN_COUNTER_PULSES_OWED] + 1;
 
   /* Step 3 — meter the coin against the coinage (0x4959-0x4962).
    * The accumulator counts coins in its high nibble (+0x10 each). The ratio byte holds

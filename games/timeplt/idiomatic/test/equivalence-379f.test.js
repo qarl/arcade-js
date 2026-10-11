@@ -25,7 +25,7 @@ const CRAFT_BAND = 0xa850;
 const RECORD_STRIDE = 0x10;
 const BAND_SLOTS = 7;
 const OWED_KILLS = 0xad02;
-const ROUND_CRAFT_COUNT = 0xacc1;
+const CRAFT_SPAWN_SLOT_COUNT = 0xacc1;
 const OPEN_PHASE = 0x30;
 
 // The two cells that steer the caller into this address, and from which frame the poke forces them.
@@ -162,7 +162,7 @@ function twin({ noop = false, ceiling = 0x02, openPhase = OPEN_PHASE, honorMode 
     regs.a = mem8[OWED_KILLS];
     regs.and(regs.a);
     if (honorMode && regs.a === 0x00) return loc_3793(m);
-    regs.a = mem8[ROUND_CRAFT_COUNT]; regs.b = regs.a; regs.ix = 0xa8b0; regs.iy = 0xaa26;
+    regs.a = mem8[CRAFT_SPAWN_SLOT_COUNT]; regs.b = regs.a; regs.ix = 0xa8b0; regs.iy = 0xaa26;
     return spawn(m);
   };
 }

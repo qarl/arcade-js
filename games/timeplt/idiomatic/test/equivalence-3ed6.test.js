@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * launchBankEnemyWhenAimedNearPlayer vs its frozen oracle, at the frogger memory-eq standard. A leaf whose every ROM call
+ * fireCraftShotWhenAimedNearPlayer vs its frozen oracle, at the frogger memory-eq standard. A leaf whose every ROM call
  * is dissolved into a direct import, so the rewrite pushes no return address and omits its own ret.
  * Entries are captured at the real dispatch over both tapes; each is replayed on both sides and the
  * whole RAM compared with the dead stack scratch masked out and the +2 SP re-seat asserted. The two
@@ -17,7 +17,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
-import { launchBankEnemyWhenAimedNearPlayer as candidate } from "../launchBankEnemyWhenAimedNearPlayer.js";
+import { fireCraftShotWhenAimedNearPlayer as candidate } from "../fireCraftShotWhenAimedNearPlayer.js";
 import { loc_3ed6 as oracle } from "../../translated/loc_3ed6.js";
 import { headingToward } from "../headingToward.js";
 import { requestEraKeyedLaunchSound } from "../requestEraKeyedLaunchSound.js";
@@ -105,7 +105,7 @@ function footprint(machine) {
 
 // ── broken twins ────────────────────────────────────────────────────────────────────────────
 
-/** The rewrite with one deliberate defect each; every knob matches launchBankEnemyWhenAimedNearPlayer by default. */
+/** The rewrite with one deliberate defect each; every knob matches fireCraftShotWhenAimedNearPlayer by default. */
 function twin(o = {}) {
   const { noop = false, store = true, c1 = 0x4d, selectFlip = false, dec = true } = o;
   return function (m) {

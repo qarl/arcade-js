@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * clearSceneryEntriesThenRunEraScenery — memory-equivalent to the frozen oracle at ROM 0x30D1. The frogger standard
+ * setSceneryAttributesThenRunEraScenery — memory-equivalent to the frozen oracle at ROM 0x30D1. The frogger standard
  * applies: every register the body touches is dead-after-return scratch — each returning arm hands
  * on to a callee (seedScenery / runSceneryForEra) that reseats both cursors, and the guard-fail arm
  * transfers into a fault — so RAM is the whole contract and no register is pinned (GENUINE_LIVE_OUTS
@@ -16,7 +16,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
-import { clearSceneryEntriesThenRunEraScenery as candidate } from "../clearSceneryEntriesThenRunEraScenery.js";
+import { setSceneryAttributesThenRunEraScenery as candidate } from "../setSceneryAttributesThenRunEraScenery.js";
 import { loc_30d1 as oracle } from "../../translated/loc_30d1.js";
 import { seedSceneryEntriesThenRunScenery } from "../seedSceneryEntriesThenRunScenery.js";
 import { loc_315b } from "../loc_315b.js";
@@ -133,7 +133,7 @@ const scenarios = () => [
 
 // ── twins ─────────────────────────────────────────────────────────────────────────────────
 
-/** The rewrite with one deliberate defect each; every parameter matches clearSceneryEntriesThenRunEraScenery by default, and
+/** The rewrite with one deliberate defect each; every parameter matches setSceneryAttributesThenRunEraScenery by default, and
  * each twin dissolves to the same callees so only the named defect can move the comparison. */
 function variant({ fillStride = 2, fillCount = 8, eraFloor = 4, guardOk = 0x3b, subA = 0x05, subB = 0x10, seatTable = 0x315e, seatCount = 8, seatStride = 2, transfer = true } = {}) {
   return (m) => {

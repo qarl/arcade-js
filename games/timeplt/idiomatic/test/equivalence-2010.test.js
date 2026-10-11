@@ -22,7 +22,7 @@ import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { advancePlayerAnimationStrip as candidate } from "../advancePlayerAnimationStrip.js";
 import { loc_2010 as oracle } from "../../translated/loc_2010.js";
 import { loc_1f2e } from "../loc_1f2e.js";
-import { requestLateEraProgressSound } from "../requestLateEraProgressSound.js";
+import { requestSoundSixStopWhilePlaying } from "../requestSoundSixStopWhilePlaying.js";
 import { requestDestructionSoundBurst } from "../requestDestructionSoundBurst.js";
 import { offsetAddress } from "../offsetAddress.js";
 import { NotImplemented } from "../../../../boards/timeplt/io.js";
@@ -174,7 +174,7 @@ function makeBody(o = {}) {
       mem8[(regs.iy + 1) & 0xffff] = 0xff;
       regs.a = mem8[LEVEL_CELL];
       regs.cp(0x02);
-      if (!regs.fC) requestLateEraProgressSound(m);
+      if (!regs.fC) requestSoundSixStopWhilePlaying(m);
       requestDestructionSoundBurst(m);
       regs.a = mem8[STATE_HI];
       regs.cp(RUNNING);

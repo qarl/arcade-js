@@ -22,7 +22,7 @@
 import { u8, u16 } from "../../../core/int.js";
 import { fetchTableByte } from "./fetchTableByte.js";
 import { loc_5942 } from "./loc_5942.js";
-import { FRAME_TICK, HITS_REMAINING, MOTHER_SHIP_ARMED, PLAYER_HEADING, HEADING_EDGE_POSITION_TABLE } from "./names.js";
+import { FRAME_TICK, BOMBER_HITS_TO_ABSORB, MOTHER_SHIP_ARMED, PLAYER_HEADING, HEADING_EDGE_POSITION_TABLE } from "./names.js";
 
 export function armBomberSlotWhenTimerFires(m, record = m.regs.ix, entry = m.regs.iy) {
   const { mem8 } = m;
@@ -74,10 +74,10 @@ export function armBomberSlotWhenTimerFires(m, record = m.regs.ix, entry = m.reg
   mem8[u16(record + 0x0c)] = alongSecondAxis;
   mem8[u16(record + 0x0d)] = alongSecondAxis >> 8;
 
-  // HITS_REMAINING (0xA8DC) is how many more hits the big two-slot object can absorb before it
+  // BOMBER_HITS_TO_ABSORB (0xA8DC) is how many more hits the big two-slot object can absorb before it
   // dies: three here. Finally the record head becomes 0xFF, the "live" marker, so the caller's
   // next dispatch runs the two-tile move (advanceTwoTileObjectThenTryAimedSpawn) instead of this
   // arming step.
-  mem8[HITS_REMAINING] = 3;
+  mem8[BOMBER_HITS_TO_ABSORB] = 3;
   mem8[u16(record + 0x00)] = 0xff;
 }

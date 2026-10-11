@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** steerEnemyTowardShip — steer one live slot toward its aim heading, then fly it a step. When the slot's probe
+/** steerEra4CraftTowardAimHeadingThenFly — steer one live slot toward its aim heading, then fly it a step. When the slot's probe
  * cell sits within a fixed window of either reference point, the turn runs with the shared rate index
  * forced to zero and then reseated to four; otherwise it runs at the standing index. The step then
  * alternates a double- and a single-velocity mover on bit 1 of the frame tick. LIVE-OUT: memory.
@@ -34,7 +34,7 @@ const PROBE = 49;
 const HALF_WINDOW = 72;
 const WINDOW = 144;
 // The two reference points, 0x78 and 0x84 -- the pair of coordinates the player's own sprite entry is
-// pinned at (resetPlayfieldAndArmNewRound, per hasReachedRetireLine's names.js entry). The ROM tests
+// pinned at (resetPlayfieldForLifeStart, per hasReachedRetireLine's names.js entry). The ROM tests
 // 0x78 first (0x29F7) and 0x84 second (0x2A02); either hit takes the same arm.
 const REFERENCES = [120, 132];
 // ERA_INDEX while the borrowed-rate turn runs (`xor a / ld (0xad04),a` at 0x2A1C)...
@@ -45,7 +45,7 @@ const RATE_INDEX_RESEATED = 4;
 const withinWindow = (probe) =>
   REFERENCES.some((ref) => u8(ref - probe + HALF_WINDOW) < WINDOW);
 
-export function steerEnemyTowardShip(m, entry = m.regs.iy, record = m.regs.ix) {
+export function steerEra4CraftTowardAimHeadingThenFly(m, entry = m.regs.iy, record = m.regs.ix) {
   const { mem8 } = m;
   // Step 1 -- turn. Inside the window of either reference point the turn runs at the first era's
   // rate (ERA_INDEX forced to 0 around the call to 0x2BEF, then reseated to 4); outside it the turn

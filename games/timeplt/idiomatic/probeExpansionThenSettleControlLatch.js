@@ -17,7 +17,7 @@
  */
 
 import { NotImplemented } from "../../../boards/timeplt/io.js";
-import { clearWorkRamAndSpriteBanksThenColdInit } from "./clearWorkRamAndSpriteBanksThenColdInit.js";
+import { clearWorkRamAndSpriteBank1ThenColdInit } from "./clearWorkRamAndSpriteBank1ThenColdInit.js";
 import { EXPANSION_SOCKET_PROBE, WATCHDOG_RESET, NMI_ENABLE_LATCH, VIDEO_ENABLE_LATCH, DISPLAY_ON_VALUE } from "./names.js";
 
 // The byte a fitted expansion board would present at 0x6000 (the ROM's `cp 0x55`).
@@ -51,5 +51,5 @@ export function probeExpansionThenSettleControlLatch(m) {
   mem8[VIDEO_ENABLE_LATCH] = mem8[DISPLAY_ON_VALUE];
 
   // Next stage (`jp 0x0069`): clear the sprite banks and work RAM.
-  return clearWorkRamAndSpriteBanksThenColdInit(m);
+  return clearWorkRamAndSpriteBank1ThenColdInit(m);
 }

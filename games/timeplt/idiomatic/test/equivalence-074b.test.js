@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * erasePenRouteThenAdvanceStep — memory-equivalent to the frozen oracle at ROM 0x074B.
+ * armPenRouteInColour5ThenAdvanceStep — memory-equivalent to the frozen oracle at ROM 0x074B.
  * GATE: crafted-entry. This arm is table-dispatched and NEITHER shipped tape reaches it, so entries
  *   are POKED -- forcing the sequence sub-step to zero makes the ROM dispatch it itself, coherent.
  *   RAM is compared outside the dead stack scratch the oracle's nested calls write and the rewrite
@@ -15,7 +15,7 @@ import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { ROUTINES as TRANSLATED } from "../../routines.js";
-import { erasePenRouteThenAdvanceStep as candidate } from "../erasePenRouteThenAdvanceStep.js";
+import { armPenRouteInColour5ThenAdvanceStep as candidate } from "../armPenRouteInColour5ThenAdvanceStep.js";
 import { loc_074b as oracle } from "../../translated/loc_074b.js";
 import { loc_08fa } from "../loc_08fa.js";
 import { armThePenRouteThenColdStartOnATamperedImage as armPen } from "../armThePenRouteThenColdStartOnATamperedImage.js";
@@ -104,7 +104,7 @@ const substepAfterOracle = (machine) => { const a = machine.clone(); oracle(a); 
 
 // ── the twins ─────────────────────────────────────────────────────────────────────────────
 
-/** The rewrite with one deliberate defect each; every parameter matches erasePenRouteThenAdvanceStep by default. */
+/** The rewrite with one deliberate defect each; every parameter matches armPenRouteInColour5ThenAdvanceStep by default. */
 function twin({ block = CHECKED_BLOCK, colour = PEN_COLOUR_VALUE, glyph = BLANKING_GLYPH,
                arm = true, advanceExtra = true, advanceBase = true } = {}) {
   return (m) => {

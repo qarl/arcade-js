@@ -25,7 +25,7 @@ import { steerTowardAimHeading } from "./steerTowardAimHeading.js";
 import { flyAtSlowestSpeed } from "./flyAtSlowestSpeed.js";
 import { hasReachedRetireLine } from "./hasReachedRetireLine.js";
 import { retireSlotAndSubPixel } from "./retireSlotAndSubPixel.js";
-import { launchBankEnemyWhenAimedNearPlayer } from "./launchBankEnemyWhenAimedNearPlayer.js";
+import { fireCraftShotWhenAimedNearPlayer } from "./fireCraftShotWhenAimedNearPlayer.js";
 import { refreshSpriteFromHeading } from "./refreshSpriteFromHeading.js";
 import { launchAttackerIntoFreeSlot } from "./launchAttackerIntoFreeSlot.js";
 import { releaseHeldObject } from "./releaseHeldObject.js";
@@ -57,11 +57,11 @@ export function serviceEra0EnemyCraftSlot(m, record = m.regs.ix, entry = m.regs.
   // zeroes the slot's occupancy byte and coordinates. Nothing else runs for a retired slot.
   if (hasReachedRetireLine(m, entry)) return retireSlotAndSubPixel(m, record, entry);
   // Still in play. One gated attempt to launch an enemy into the object bank when this craft is
-  // aimed near the player (launchBankEnemyWhenAimedNearPlayer, 0x3ED6); then store the shape and
+  // aimed near the player (fireCraftShotWhenAimedNearPlayer, 0x3ED6); then store the shape and
   // attribute that draw the craft pointing along its heading into its sprite entry
   // (refreshSpriteFromHeading, 0x2A3C); then, on this object's turn and once the shared spawn
   // cooldown has expired, launch an attacker into a free slot (launchAttackerIntoFreeSlot, 0x4243).
-  launchBankEnemyWhenAimedNearPlayer(m, record, entry);
+  fireCraftShotWhenAimedNearPlayer(m, record, entry);
   refreshSpriteFromHeading(m, entry, record);
   return launchAttackerIntoFreeSlot(m, record, entry);
 }

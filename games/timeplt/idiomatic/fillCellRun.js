@@ -13,7 +13,7 @@
  * RAM, so -0x20 is one row back. The board is rotated a quarter turn (ROT90), so a fixed
  * video-RAM column shows on the glass as a horizontal line, and stepping a row in memory steps
  * one cell along that line. Callers (the scripted band animations advanceScriptedCharPlaneBandTo2
- * and ...To4, armRoundWonBandAnimationThenStepSequence, paintCaptionColourBandAndStepSequence)
+ * and ...To4, armRoundWonBandAnimationThenStepSequence, paintRoundWonBandTailThenStepSequence)
  * start it at a run's bottom cell — e.g. CHAR_PLANE_LOWER_RUN_BOTTOM (0xA7B1) or its colour-plane
  * twin — and it walks up thirteen rows.
  *

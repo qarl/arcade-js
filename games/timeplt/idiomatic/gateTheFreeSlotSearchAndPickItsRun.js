@@ -18,7 +18,7 @@
 //
 // LIVE-OUT: memory only -- whatever slot the search fills. Nothing is staged when the gate is shut.
 
-import { CRAFT_ENTRY_SLOT4, CRAFT_ENTRY_SLOT6, CRAFT_RECORD_SLOT4, CRAFT_RECORD_SLOT6, KILLS_REMAINING, ROUND_CRAFT_COUNT } from "./names.js";
+import { CRAFT_ENTRY_SLOT4, CRAFT_ENTRY_SLOT6, CRAFT_RECORD_SLOT4, CRAFT_RECORD_SLOT6, KILLS_REMAINING, CRAFT_SPAWN_SLOT_COUNT } from "./names.js";
 import { spawnEnemyIntoFreeSlotElseStepSearch } from "./spawnEnemyIntoFreeSlotElseStepSearch.js";
 
 // The two gate values (`and a` then `cp 0x30`, `ret nz` at 0x37C3). The counter is packed decimal,
@@ -40,11 +40,11 @@ export function gateTheFreeSlotSearchAndPickItsRun(m, gateCell = m.regs.hl) {
 
   // PICK THE RUN. KILLS_REMAINING (0xAD02, [seen]) counts down the enemies still to destroy before the
   // Mother-Ship appears. While any are owed, search the owed run for as many slots as
-  // ROUND_CRAFT_COUNT (0xACC1, [seen]) asks; once none are owed, search the fixed run of five instead
+  // CRAFT_SPAWN_SLOT_COUNT (0xACC1, [seen]) asks; once none are owed, search the fixed run of five instead
   // (the ROM's `jr z,0x3793` at 0x37C8). The same quota-picks-the-count rule appears again at 0x3702.
   const cleared = mem8[KILLS_REMAINING] === 0;
   const run = cleared ? CLEARED_RUN : OWED_RUN;
-  const slotCount = cleared ? CLEARED_RUN.slots : mem8[ROUND_CRAFT_COUNT];
+  const slotCount = cleared ? CLEARED_RUN.slots : mem8[CRAFT_SPAWN_SLOT_COUNT];
   // HAND OFF (tail into 0x37D6). The search takes the record cursor (the ROM's IX), the sprite-entry
   // cursor (IY) and the turn count (B), and claims the first free slot it meets.
   return spawnEnemyIntoFreeSlotElseStepSearch(m, run.records, run.entries, slotCount);

@@ -13,8 +13,8 @@
  * character plane before the next era starts (mechanisms.md, "Round won: the band animation").
  * armRoundWonBandAnimationThenStepSequence stocks the control block at 0xA9F0-0xA9F8 once --
  * BAND_TO2_PASS_COUNTDOWN (0xA9F2) to 0xFF, BAND_SCRIPT_CURSOR (0xA9F7) to BAND_SCRIPT_START
- * (0x56F1) -- and then stepRoundStartIntroAnimation (0x1323) calls this entry on each frame it runs
- * (those with FRAME_TICK bit 1 clear) while INTRO_ANIMATION_STEP (0xA9F0) is 1. This is the FIRST half of the band script; the second half is
+ * (0x56F1) -- and then stepRoundWonBandAnimation (0x1323) calls this entry on each frame it runs
+ * (those with FRAME_TICK bit 1 clear) while ROUND_WON_ANIMATION_STEP (0xA9F0) is 1. This is the FIRST half of the band script; the second half is
  * advanceScriptedCharPlaneBandTo4, which this entry hands over to by writing step 2.
  *
  * THE GEOMETRY. The band is one video-RAM column (column 0x11 of the 32x32 character plane) split
@@ -35,7 +35,7 @@ import { gatherCharColumnIntoBackingRun } from "./gatherCharColumnIntoBackingRun
 import {
   BAND_SCRIPT_CURSOR,
   BAND_TO2_PASS_COUNTDOWN,
-  INTRO_ANIMATION_STEP,
+  ROUND_WON_ANIMATION_STEP,
   CHAR_PLANE_UPPER_RUN_BOTTOM,
   CHAR_PLANE_STUB_UPPER_RIGHT,
   CHAR_PLANE_COLUMN_MID_TOP,
@@ -74,13 +74,13 @@ export function advanceScriptedCharPlaneBandTo2(m) {
     }
   } else {
     // DRAWING PASS. First the terminator test (ROM 0x1431-0x144A): a script byte of 0xFF under the
-    // cursor ends this half of the animation. The countdown is zeroed, INTRO_ANIMATION_STEP is set to
+    // cursor ends this half of the animation. The countdown is zeroed, ROUND_WON_ANIMATION_STEP is set to
     // 2 so the band-to-4 half runs from the next frame, and the cursor is stepped BACK one so the
     // second half starts reading at the byte before the terminator. The ROM returns straight out
     // of this arm, so on this one pass the countdown is not decremented.
     if (mem8[mem16[BAND_SCRIPT_CURSOR]] === END_OF_SCRIPT) {
       mem8[BAND_TO2_PASS_COUNTDOWN] = 0;
-      mem8[INTRO_ANIMATION_STEP] = 2;
+      mem8[ROUND_WON_ANIMATION_STEP] = 2;
       mem16[BAND_SCRIPT_CURSOR] = mem16[BAND_SCRIPT_CURSOR] - 1;
       return;
     }

@@ -7,7 +7,7 @@
  * flyAlongHeadingAtDoubleVelocity. Choosing the table and the mover is the whole of this entry, and a
  * pointer the caller held (the ROM's HL) is discarded.
  *
- * ROLE IN THE MACHINE: the era-4 arm steerEnemyTowardShip alternates, on bit 1 of the frame tick,
+ * ROLE IN THE MACHINE: the era-4 arm steerEra4CraftTowardAimHeadingThenFly alternates, on bit 1 of the frame tick,
  * between this entry and flyAtSecondFastestSpeed (names.js 0x5860), so the object does not stay on one
  * rung. The table is the bottom rung of the ladder (206), but the mover doubles the object's own
  * velocity, so this entry moves farther per step than flyAtSecondFastestSpeed's single 306 (names.js

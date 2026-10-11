@@ -7,11 +7,11 @@
  * Role in the machine: the ungated one of the three ways into the pending-sound queue. In the ROM
  * it is only a two-instruction prologue — push hl / push af — that falls straight into the
  * enqueue body at 0x562A (appendSoundCommandToQueue here), the same body the two gated entries,
- * enqueueSoundIfGameInProgress and enqueueSoundIfGameOrAttract, branch into once their test
+ * enqueueSoundIfGameInProgress and enqueueSoundIfGameOrDemoSoundsOn, branch into once their test
  * passes. The body steps SOUND_QUEUE_COUNT (0xAC43) [seen] on and stores the code at the new
  * tail; each run of the frame service sends the oldest queued code to the audio board.
  *
- * Its producers in the image are the six call sites in enqueueTransitionSoundBurst
+ * Its producers in the image are the six call sites in enqueueTransitionSoundStops
  * (0x5634), that routine's tail-jump, which carries its last code, and requestCoinSound (0x57F1),
  * which loads its code and tail-jumps here. Under MAME, in attract (a
  * state the in-play gate would drop), every entry here was followed by exactly one count bump

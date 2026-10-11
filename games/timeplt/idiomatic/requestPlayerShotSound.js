@@ -12,14 +12,14 @@
  * LIVE-OUT: memory only -- the sound queue (its count and the slot the new count selects), and
  * only when the permission lets the request through. */
 
-import { enqueueSoundIfGameOrAttract } from "./enqueueSoundIfGameOrAttract.js";
+import { enqueueSoundIfGameOrDemoSoundsOn } from "./enqueueSoundIfGameOrDemoSoundsOn.js";
 import { PLAYER_SHOT_SOUND } from "./names.js";
 
 export function requestPlayerShotSound(m) {
   // The code is not an immediate operand: the ROM reads it from the program byte at 0x3270
   // (PLAYER_SHOT_SOUND), so the value that byte holds IS the command sent. It then tail-jumps
-  // into the play-or-demo door at 0x5617 (enqueueSoundIfGameOrAttract), which queues the code
+  // into the play-or-demo door at 0x5617 (enqueueSoundIfGameOrDemoSoundsOn), which queues the code
   // while a game is being played or the demo-sounds cell 0xA9C6 is set, and drops it only when
   // both are clear -- so this sound can also be heard during the attract demo.
-  enqueueSoundIfGameOrAttract(m, m.mem8[PLAYER_SHOT_SOUND]);
+  enqueueSoundIfGameOrDemoSoundsOn(m, m.mem8[PLAYER_SHOT_SOUND]);
 }

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * enqueueTransitionSoundBurst — memory-equivalent to the frozen oracle at ROM 0x5634.
+ * enqueueTransitionSoundStops — memory-equivalent to the frozen oracle at ROM 0x5634.
  *
  * WHAT IT IS. Seven requests queued back to back through a shared body that is ALREADY DECOMPILED,
  * so the rewrite calls it directly and dissolving those seven transfers belongs to this caller's
@@ -37,7 +37,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMachine, romsPresent } from "./_harness.js";
-import { enqueueTransitionSoundBurst } from "../enqueueTransitionSoundBurst.js";
+import { enqueueTransitionSoundStops } from "../enqueueTransitionSoundStops.js";
 import { enqueueSoundUnconditional } from "../enqueueSoundUnconditional.js";
 import { ERA_INDEX } from "../names.js";
 import { loc_5634 as oracle } from "../../translated/loc_5634.js";
@@ -108,7 +108,7 @@ function replay(candidate) {
 }
 
 function entryState() {
-  if (entry === null) replay(enqueueTransitionSoundBurst);
+  if (entry === null) replay(enqueueTransitionSoundStops);
   assert.notEqual(entry, null, "vacuous: the tape never reached the routine");
   return entry;
 }
@@ -204,8 +204,8 @@ const TWINS = [
 
 // ── the gate ────────────────────────────────────────────────────────────────────────────
 
-test("EQUAL at the real dispatch: enqueueTransitionSoundBurst == oracle outside the scratch window", { skip }, () => {
-  const r = replay(enqueueTransitionSoundBurst);
+test("EQUAL at the real dispatch: enqueueTransitionSoundStops == oracle outside the scratch window", { skip }, () => {
+  const r = replay(enqueueTransitionSoundStops);
   assert.equal(r.dispatches, DISPATCHES, "the dispatch count moved");
   assert.equal(r.caught, 0, "the rewrite diverged at a real dispatch");
 
@@ -213,7 +213,7 @@ test("EQUAL at the real dispatch: enqueueTransitionSoundBurst == oracle outside 
   const a = entryState().clone();
   const b = entryState().clone();
   oracle(a);
-  enqueueTransitionSoundBurst(b);
+  enqueueTransitionSoundStops(b);
   const strays = allDiffs(a, b).filter((d) => !inScratch(d.addr, sp));
   assert.deepEqual(strays, [], `a divergence escaped the scratch window: ${show(strays[0])}`);
   console.log(`  EQUAL: ${r.dispatches} dispatch at era ${[...r.eras]}, sp=${hex4(sp)}`);
@@ -230,7 +230,7 @@ test("EXCLUDED, deliberately: a pinned register set, and nothing else", { skip }
   const a = entryState().clone();
   const b = entryState().clone();
   oracle(a);
-  enqueueTransitionSoundBurst(b);
+  enqueueTransitionSoundStops(b);
   assert.deepEqual(
     REG_FIELDS.filter((k) => a.regs[k] !== b.regs[k]),
     EXCLUDED,
@@ -241,7 +241,7 @@ test("EXCLUDED, deliberately: a pinned register set, and nothing else", { skip }
 
 test("SEVEN LAND, IN ORDER: the queue grows by seven and holds the right bytes", { skip }, () => {
   const era = 3;
-  const got = appended(enqueueTransitionSoundBurst, era);
+  const got = appended(enqueueTransitionSoundStops, era);
   assert.equal(got.length, REQUESTS, "the queue must grow by exactly seven");
   const image = entryState().mem.rom;
   const want = [...FIXED_CODE_SOURCES.map((s) => image[s]), (era + ERA_CODE_BASE) & 0xff];
@@ -257,7 +257,7 @@ test("IT READS THE IMAGE: a poked source moves the queued byte, a baked twin doe
   assert.equal(unitDiff(brokenBakedCodes, base), null, "the baked twin must be invisible here");
 
   const which = FIXED_CODE_SOURCES.indexOf(POKED_SOURCE);
-  const followed = withPokedImage(base, POKED_SOURCE, POKED_CODE, () => appended(enqueueTransitionSoundBurst, 1)[which]);
+  const followed = withPokedImage(base, POKED_SOURCE, POKED_CODE, () => appended(enqueueTransitionSoundStops, 1)[which]);
   assert.equal(followed, POKED_CODE, "the rewrite baked a code in instead of reading it");
 
   const caught = withPokedImage(base, POKED_SOURCE, POKED_CODE, () =>
@@ -267,8 +267,8 @@ test("IT READS THE IMAGE: a poked source moves the queued byte, a baked twin doe
 });
 
 test("EXHAUSTIVE: all 256 crafted eras behave as the oracle", { skip }, () => {
-  assert.equal(sweepCaught(enqueueTransitionSoundBurst), 0, "the rewrite diverged somewhere in the crafted space");
-  const last = new Set(ERAS.map((era) => appended(enqueueTransitionSoundBurst, era)[REQUESTS - 1]));
+  assert.equal(sweepCaught(enqueueTransitionSoundStops), 0, "the rewrite diverged somewhere in the crafted space");
+  const last = new Set(ERAS.map((era) => appended(enqueueTransitionSoundStops, era)[REQUESTS - 1]));
   assert.equal(last.size, ERAS.length, "the era code must be distinct for every era value");
   console.log(`  EXHAUSTIVE: ${ERAS.length} eras identical, ${last.size} distinct era codes`);
 });

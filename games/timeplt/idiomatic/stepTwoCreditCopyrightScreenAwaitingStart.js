@@ -7,7 +7,7 @@
  *
  * ROLE IN THE MACHINE. This is step 4 of phase 2 of the attract/credit sequence machine — the
  * "a credit is on the board, waiting for start" phase (mechanisms.md, "Phase 2"). Its caller is
- * dispatchSequencePhase2SubStepArm, which runs one arm per frame. postAttractInfoCaptions (step 2)
+ * dispatchSequencePhase2SubStepArm, which runs one arm per frame. postPushStartScreenCaptions (step 2)
  * steps straight to here when there are two or more credits; the one-credit wait
  * stepCopyrightScreenAwaitingStart (step 3) steps here when more credits arrive. So this arm runs
  * frame after frame, with at least two credits banked, until a start button is pressed.

@@ -15,14 +15,14 @@
  * and 0xA8E0; a record's first byte is its state byte, and 0xFF there means the object is live.
  *
  * WHICH SOUND is not established: the code byte asked for is ROM[0x07FE] = 0x86 (names.js "why"), requested
- * through requestLateEraProgressSound, which admits it only while a game is being played. Under MAME the
+ * through requestSoundSixStopWhilePlaying, which admits it only while a game is being played. Under MAME the
  * gate is the conjunction of every test (names.js "why": passes and refusals counted at the entry).
  *
  * LIVE-OUT: memory, through the request.
  */
 
 import { ERA_INDEX, ERA_OBJECT_RECORD_SLOT0, ERA_OBJECT_RECORD_SLOT1, ERA_OBJECT_RECORD_SLOT2, FRAME_TICK } from "./names.js";
-import { requestLateEraProgressSound } from "./requestLateEraProgressSound.js";
+import { requestSoundSixStopWhilePlaying } from "./requestSoundSixStopWhilePlaying.js";
 
 /** ERA_INDEX runs 0-4; 2 is the third era (ROM `cp 0x02; ret c`). */
 const FIRST_ERA_THAT_ASKS = 2;
@@ -42,5 +42,5 @@ export function askForSoundWhileTheGroupIsClear(m) {
   // Test 3: no record of the group may be live — any one live object silences the request.
   if (WATCHED.some((cell) => mem8[cell] === ALL_ONES)) return;
   // Every test passed: ask for the sound (the ROM tail-jumps to 0x5679).
-  requestLateEraProgressSound(m);
+  requestSoundSixStopWhilePlaying(m);
 }

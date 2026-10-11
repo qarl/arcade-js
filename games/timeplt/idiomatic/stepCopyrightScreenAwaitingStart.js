@@ -9,7 +9,7 @@
 // ROLE IN THE MACHINE. The sequence machine's phase 2 is "a credit on the board, waiting for start"
 // (mechanisms.md). This is its step 3, the ONE-credit wait: this arm runs every frame, with the
 // copyright line on screen, until a start is pressed or a second credit arrives. Step 2
-// (postAttractInfoCaptions) sends the machine here with exactly one credit; with two or more it goes
+// (postPushStartScreenCaptions) sends the machine here with exactly one credit; with two or more it goes
 // straight to step 4, the two-credit wait, which is where this arm also sends it when a second credit
 // arrives. A two-player game can only be started from step 4.
 //

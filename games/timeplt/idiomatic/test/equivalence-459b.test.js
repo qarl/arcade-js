@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * stepMotherShipWarpFlashFrame — the misaligned entry at ROM 0x459B, dissolved to a fault.
+ * derailIntoMotherShipWreckCountdown — the misaligned entry at ROM 0x459B, dissolved to a fault.
  *
  * 0x459B is entered on exactly two transfers, both anti-tamper derails: 0x176A jumps here when a
  * caption glyph read off the screen is not the genuine one, and 0x43F0 (at 0x4646) jumps here when
@@ -35,7 +35,7 @@ import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { ROUTINES as TRANSLATED } from "../../routines.js";
-import { stepMotherShipWarpFlashFrame } from "../stepMotherShipWarpFlashFrame.js";
+import { derailIntoMotherShipWreckCountdown } from "../derailIntoMotherShipWreckCountdown.js";
 import { paintReadoutsThenSampleWitnessOrDerail } from "../paintReadoutsThenSampleWitnessOrDerail.js";
 import { retireMotherShipAndReleaseRoundHold } from "../loc_43f0.js";
 import { loc_459b as oracle } from "../../translated/loc_459b.js";
@@ -160,7 +160,7 @@ const TWINS = [
 test("THROWS: the entry raises NotImplemented before writing a byte, on every state", { skip }, () => {
   const all = states();
   for (const [label, s] of all) {
-    assert.equal(faultsClean(stepMotherShipWarpFlashFrame, s), null, `${label}: the entry did not fault cleanly`);
+    assert.equal(faultsClean(derailIntoMotherShipWreckCountdown, s), null, `${label}: the entry did not fault cleanly`);
   }
   console.log(`  THROWS: ${all.length} states (${captureDrifts().length} captured, ${CRAFTS.length} crafted) raise NotImplemented, nothing written`);
 });
@@ -271,7 +271,7 @@ function raisesHere(fn) {
   try {
     fn();
   } catch (e) {
-    return e instanceof NotImplemented && String(e.message).includes("stepMotherShipWarpFlashFrame");
+    return e instanceof NotImplemented && String(e.message).includes("derailIntoMotherShipWreckCountdown");
   }
   return false;
 }

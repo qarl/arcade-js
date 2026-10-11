@@ -108,7 +108,7 @@ import { serviceEra1EnemyCraftSlot } from "../serviceEra1EnemyCraftSlot.js";
 import { serviceEra2EnemyCraftSlot } from "../serviceEra2EnemyCraftSlot.js";
 import { serviceEra3EnemyCraftSlot } from "../serviceEra3EnemyCraftSlot.js";
 import { serviceEra4EnemyCraftSlot } from "../serviceEra4EnemyCraftSlot.js";
-import { stepRoundStartIntroAnimation } from "../stepRoundStartIntroAnimation.js";
+import { stepRoundWonBandAnimation } from "../stepRoundWonBandAnimation.js";
 
 const TARGET = 0x28a1;
 /** The era-keyed dispatch each sibling hands its seated pair to. */
@@ -475,7 +475,7 @@ function realTwinCounts() {
 const LIFTED_HANDLERS = [
   [0x2927, serviceEra0EnemyCraftSlot], [0x294c, serviceEra1EnemyCraftSlot],
   [0x2984, serviceEra2EnemyCraftSlot], [0x29b0, serviceEra3EnemyCraftSlot],
-  [0x29d5, serviceEra4EnemyCraftSlot], [0x1323, stepRoundStartIntroAnimation],
+  [0x29d5, serviceEra4EnemyCraftSlot], [0x1323, stepRoundWonBandAnimation],
 ];
 
 /** The cursor pair each sibling seats, in chain order. */

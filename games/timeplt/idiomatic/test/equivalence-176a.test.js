@@ -7,7 +7,7 @@
  *
  * ★ WHERE THE LIVE-OUT COMES FROM. The routine is not reached by any `call` in the image; it is a
  *   table-dispatched sequence arm whose two transfers both leave through the return the dispatcher
- *   parked — the wrong-glyph derail into stepMotherShipWarpFlashFrame (0x459b) and the tail step
+ *   parked — the wrong-glyph derail into derailIntoMotherShipWreckCountdown (0x459b) and the tail step
  *   through advanceSequenceSubStep (0x0f1a). Each successor reloads every register it uses before
  *   reading one, so NO register is live out and the live-out is memory only. The register ceiling
  *   below is wide for that reason, not because the rewrite is untidy.
@@ -51,7 +51,7 @@ import assert from "node:assert/strict";
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { paintReadoutsThenSampleWitnessOrDerail } from "../paintReadoutsThenSampleWitnessOrDerail.js";
 import { checkTheCopyrightLineColoursOrDerail } from "../checkTheCopyrightLineColoursOrDerail.js";
-import { stepMotherShipWarpFlashFrame } from "../stepMotherShipWarpFlashFrame.js";
+import { derailIntoMotherShipWreckCountdown } from "../derailIntoMotherShipWreckCountdown.js";
 import { postCommand } from "../postCommand.js";
 import { paintFiveLabelledNumericReadouts } from "../paintFiveLabelledNumericReadouts.js";
 import { advanceSequenceSubStep } from "../advanceSequenceSubStep.js";
@@ -226,7 +226,7 @@ function brokenNoOp() {}
 /** BUG: never checks the copyright colours, so a tampered image is not derailed. */
 function brokenNoColourGuard(m) {
   const { mem8 } = m;
-  if (mem8[TAMPER_GLYPH_SOURCE_CELL] !== EXPECTED_GLYPH) { stepMotherShipWarpFlashFrame(m); return; }
+  if (mem8[TAMPER_GLYPH_SOURCE_CELL] !== EXPECTED_GLYPH) { derailIntoMotherShipWreckCountdown(m); return; }
   postCommand(m, 0x01, 0x13);
   paintFiveLabelledNumericReadouts(m);
   mem8[TAMPER_GLYPH_READBACK] = mem8[TAMPER_SAMPLE_GLYPH_CELL];
@@ -238,7 +238,7 @@ function brokenNoColourGuard(m) {
 function brokenNoCaption(m) {
   const { mem8 } = m;
   checkTheCopyrightLineColoursOrDerail(m);
-  if (mem8[TAMPER_GLYPH_SOURCE_CELL] !== EXPECTED_GLYPH) { stepMotherShipWarpFlashFrame(m); return; }
+  if (mem8[TAMPER_GLYPH_SOURCE_CELL] !== EXPECTED_GLYPH) { derailIntoMotherShipWreckCountdown(m); return; }
   paintFiveLabelledNumericReadouts(m);
   mem8[TAMPER_GLYPH_READBACK] = mem8[TAMPER_SAMPLE_GLYPH_CELL];
   mem8[TAMPER_COLOUR_READBACK] = mem8[TAMPER_SAMPLE_COLOUR_CELL];
@@ -249,7 +249,7 @@ function brokenNoCaption(m) {
 function brokenNoPaint(m) {
   const { mem8 } = m;
   checkTheCopyrightLineColoursOrDerail(m);
-  if (mem8[TAMPER_GLYPH_SOURCE_CELL] !== EXPECTED_GLYPH) { stepMotherShipWarpFlashFrame(m); return; }
+  if (mem8[TAMPER_GLYPH_SOURCE_CELL] !== EXPECTED_GLYPH) { derailIntoMotherShipWreckCountdown(m); return; }
   postCommand(m, 0x01, 0x13);
   mem8[TAMPER_GLYPH_READBACK] = mem8[TAMPER_SAMPLE_GLYPH_CELL];
   mem8[TAMPER_COLOUR_READBACK] = mem8[TAMPER_SAMPLE_COLOUR_CELL];
@@ -260,7 +260,7 @@ function brokenNoPaint(m) {
 function brokenSampleOnePlane(m) {
   const { mem8 } = m;
   checkTheCopyrightLineColoursOrDerail(m);
-  if (mem8[TAMPER_GLYPH_SOURCE_CELL] !== EXPECTED_GLYPH) { stepMotherShipWarpFlashFrame(m); return; }
+  if (mem8[TAMPER_GLYPH_SOURCE_CELL] !== EXPECTED_GLYPH) { derailIntoMotherShipWreckCountdown(m); return; }
   postCommand(m, 0x01, 0x13);
   paintFiveLabelledNumericReadouts(m);
   mem8[TAMPER_GLYPH_READBACK] = mem8[TAMPER_SAMPLE_GLYPH_CELL];
@@ -272,7 +272,7 @@ function brokenSampleOnePlane(m) {
 function brokenNoAdvance(m) {
   const { mem8 } = m;
   checkTheCopyrightLineColoursOrDerail(m);
-  if (mem8[TAMPER_GLYPH_SOURCE_CELL] !== EXPECTED_GLYPH) { stepMotherShipWarpFlashFrame(m); return; }
+  if (mem8[TAMPER_GLYPH_SOURCE_CELL] !== EXPECTED_GLYPH) { derailIntoMotherShipWreckCountdown(m); return; }
   postCommand(m, 0x01, 0x13);
   paintFiveLabelledNumericReadouts(m);
   mem8[TAMPER_GLYPH_READBACK] = mem8[TAMPER_SAMPLE_GLYPH_CELL];

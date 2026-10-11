@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** stepMotherShipWarpFlashFrame — the misaligned entry to an object's warp/flash step, taken only as
+/** derailIntoMotherShipWreckCountdown — the misaligned entry to an object's warp/flash step, taken only as
  * an anti-tamper derail. It is reached on exactly two transfers, each behind a guard that a genuine
  * image always passes: a caption glyph read off the screen that is not the one a genuine image
  * paints there, and a tamper-witness pair that does not hold the values a genuine image plants and
@@ -13,9 +13,9 @@
 
 import { NotImplemented } from "../../../boards/timeplt/io.js";
 
-export function stepMotherShipWarpFlashFrame() {
+export function derailIntoMotherShipWreckCountdown() {
   throw new NotImplemented(
-    "stepMotherShipWarpFlashFrame: a tamper guard failed and the original enters the warp/flash step " +
+    "derailIntoMotherShipWreckCountdown: a tamper guard failed and the original enters the warp/flash step " +
       "through a misaligned prologue that destroys the stack frame; a genuine image never takes this entry",
   );
 }

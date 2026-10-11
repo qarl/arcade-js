@@ -19,7 +19,7 @@
  *
  * LIVE-OUT: memory only. */
 
-import { ERA_INDEX, KILLS_REMAINING, KILL_QUOTA, MOTHER_SHIP_ARMED, ROUND_ARMED, ROUND_NUMBER, ROUND_TRANSITION_HOLD, START_RUNG, START_RUNG_ROUNDS_11_UP, START_RUNG_ROUNDS_1_5, START_RUNG_ROUNDS_6_10 } from "./names.js";
+import { ERA_INDEX, KILLS_REMAINING, KILL_QUOTA, MOTHER_SHIP_ARMED, ROUND_INTRO_PENDING, ROUND_NUMBER, ROUND_TRANSITION_HOLD, START_RUNG, START_RUNG_ROUNDS_11_UP, START_RUNG_ROUNDS_1_5, START_RUNG_ROUNDS_6_10 } from "./names.js";
 import { u8 } from "../../../core/int.js";
 
 // Eras run 0-4; the ROM compares the stepped value against 5 (`cp 0x05`) and wraps to 0.
@@ -61,5 +61,5 @@ export function startNextRound(m) {
   mem8[MOTHER_SHIP_ARMED] = 0;
   mem8[ROUND_TRANSITION_HOLD] = 0;
   // Arm the round: the gate stays up until the round-intro fly-in timer expires.
-  mem8[ROUND_ARMED] = ARMED;
+  mem8[ROUND_INTRO_PENDING] = ARMED;
 }

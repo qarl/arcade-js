@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * enqueueSoundIfGameOrAttract — memory-equivalent to the frozen oracle at ROM 0x5617.
+ * enqueueSoundIfGameOrDemoSoundsOn — memory-equivalent to the frozen oracle at ROM 0x5617.
  * WHAT IT IS, AND WHAT SEPARATES IT FROM 0x560C. Same shape as its sibling — spill the command byte, test
  * permission, tail-jump into the enqueue body at 0x562A — but it tests TWO cells and either one on its own
  * admits the request. The first is the play-active flag its sibling uses. The second is 0xA9C6, and the two
@@ -50,7 +50,7 @@ import {
   realDiff,
   show,
 } from "./_soundQueue.js";
-import { enqueueSoundIfGameOrAttract } from "../enqueueSoundIfGameOrAttract.js";
+import { enqueueSoundIfGameOrDemoSoundsOn } from "../enqueueSoundIfGameOrDemoSoundsOn.js";
 import { appendSoundCommandToQueue } from "../appendSoundCommandToQueue.js";
 import { PLAY_ACTIVE } from "../names.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
@@ -112,13 +112,13 @@ function oraclePosts(play, demo) {
 
 // ── the gate ────────────────────────────────────────────────────────────────────────────
 
-test("EQUAL at the real dispatch: enqueueSoundIfGameOrAttract == oracle on RAM", { skip }, () => {
+test("EQUAL at the real dispatch: enqueueSoundIfGameOrDemoSoundsOn == oracle on RAM", { skip }, () => {
   const entry = entryState();
-  assert.equal(realDispatchDiff(enqueueSoundIfGameOrAttract), null, "RAM diverged at the real dispatch");
+  assert.equal(realDispatchDiff(enqueueSoundIfGameOrDemoSoundsOn), null, "RAM diverged at the real dispatch");
   const a = entry.clone();
   const b = entry.clone();
   oracle(a);
-  enqueueSoundIfGameOrAttract(b);
+  enqueueSoundIfGameOrDemoSoundsOn(b);
   assert.ok(allDiffs(a, b).length > 0, "no divergence at all — the scratch push vanished");
   console.log(
     `  EQUAL: entry sp=${hex4(entry.regs.sp)} play=${entry.mem8[PLAY_ACTIVE]} ` +
@@ -132,7 +132,7 @@ test("EXCLUDED, deliberately: registers, pc and the scratch window and nothing e
   const a = entry.clone();
   const b = entry.clone();
   oracle(a);
-  enqueueSoundIfGameOrAttract(b);
+  enqueueSoundIfGameOrDemoSoundsOn(b);
   const moved = REG_FIELDS.filter((k) => a.regs[k] !== b.regs[k]);
   assert.deepEqual(moved, ["sp"], "the excluded set changed shape: only the stack pointer may move");
   assert.notEqual(a.pc, b.pc, "the oracle's return moves pc; the rewrite returns to JS");
@@ -147,7 +147,7 @@ test("EXCLUDED, deliberately: registers, pc and the scratch window and nothing e
 test("EXHAUSTIVE over both permission cells: the full cross is identical", { skip }, () => {
   for (let play = 0; play < 256; play++) {
     for (const demo of DEMO_VALUES) {
-      const d = craftedDiff(enqueueSoundIfGameOrAttract, play, demo, 3);
+      const d = craftedDiff(enqueueSoundIfGameOrDemoSoundsOn, play, demo, 3);
       assert.equal(d, null, `play=${play} demo=${demo}: ${show(d)}`);
     }
   }
@@ -164,7 +164,7 @@ test("THE TRUTH TABLE: either cell admits the request; only both clear drops it"
 
 test("EXHAUSTIVE over the queue length", { skip }, () => {
   for (let length = 0; length < 256; length++) {
-    const d = craftedDiff(enqueueSoundIfGameOrAttract, 0x00, 0x01, length);
+    const d = craftedDiff(enqueueSoundIfGameOrDemoSoundsOn, 0x00, 0x01, length);
     assert.equal(d, null, `length=${length}: ${show(d)}`);
   }
   console.log("  EXHAUSTIVE: 256 queue lengths identical on the second cell's branch alone");

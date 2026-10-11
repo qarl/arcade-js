@@ -22,7 +22,7 @@
  * LIVE-OUT: memory. */
 
 import { u8 } from "../../../core/int.js";
-import { enqueueTransitionSoundBurst } from "./enqueueTransitionSoundBurst.js";
+import { enqueueTransitionSoundStops } from "./enqueueTransitionSoundStops.js";
 import { hideAllSprites } from "./hideAllSprites.js";
 import { startNextRound } from "./startNextRound.js";
 import { postGameOverBanner } from "./postGameOverBanner.js";
@@ -43,7 +43,7 @@ export function loseLifeAndHandOver(m) {
    * life starts in the next era. Then the fixed transition sound burst is queued. */
   hideAllSprites(m);
   if (mem8[ROUND_TRANSITION_HOLD] !== 0) startNextRound(m);
-  enqueueTransitionSoundBurst(m);
+  enqueueTransitionSoundStops(m);
 
   /* Step 2 -- take the life and checkpoint (0x11FD-0x1214). LIVES_REMAINING is decremented, then
    * the whole live block is copied out to the active player's save block, so the saved copy

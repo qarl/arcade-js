@@ -17,7 +17,7 @@
 //
 // Which search runs depends on KILLS_REMAINING (0xAD02) [seen], the manual's kill quota before the
 // Mother-Ship appears: with nothing owed, loc_3793 seats the five-slot run; while kills are owed, the
-// search runs from slot 6 (CRAFT_RECORD_SLOT6 / CRAFT_ENTRY_SLOT6) downward for ROUND_CRAFT_COUNT
+// search runs from slot 6 (CRAFT_RECORD_SLOT6 / CRAFT_ENTRY_SLOT6) downward for CRAFT_SPAWN_SLOT_COUNT
 // (0xACC1) [seen] turns.
 //
 // LIVE-OUT: memory -- whatever the free-slot search stages; nothing when the gate is shut or the band
@@ -26,7 +26,7 @@
 import { u16 } from "../../../core/int.js";
 import { loc_3793 } from "./loc_3793.js";
 import { spawnEnemyIntoFreeSlotElseStepSearch } from "./spawnEnemyIntoFreeSlotElseStepSearch.js";
-import { CRAFT_ENTRY_SLOT6, CRAFT_RECORD_SLOT0, CRAFT_RECORD_SLOT6, KILLS_REMAINING, ROUND_CRAFT_COUNT } from "./names.js";
+import { CRAFT_ENTRY_SLOT6, CRAFT_RECORD_SLOT0, CRAFT_RECORD_SLOT6, KILLS_REMAINING, CRAFT_SPAWN_SLOT_COUNT } from "./names.js";
 
 // Band geometry (`ld hl,0xa850 / ld de,0x0010 / ld bc,0x0700` at 0x37A6-0x37AC), the busy ceiling
 // (`ld a,c / cp 0x02` at 0x37B8-0x37B9), and the second gate value (`cp 0x30` at 0x37A3).
@@ -55,5 +55,5 @@ export function spawnEnemyCraftWhenBandUnderTwo(m, phaseCell = m.regs.hl) {
   if (mem8[KILLS_REMAINING] === 0x00) return loc_3793(m);
 
   // the owed run: the round's craft count of turns, from the slot-6 record and its entry downward
-  return spawnEnemyIntoFreeSlotElseStepSearch(m, CRAFT_RECORD_SLOT6, CRAFT_ENTRY_SLOT6, mem8[ROUND_CRAFT_COUNT]);
+  return spawnEnemyIntoFreeSlotElseStepSearch(m, CRAFT_RECORD_SLOT6, CRAFT_ENTRY_SLOT6, mem8[CRAFT_SPAWN_SLOT_COUNT]);
 }

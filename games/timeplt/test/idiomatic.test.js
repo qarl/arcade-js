@@ -5,7 +5,7 @@
 // NOT runFrames) from reset, through boot -> attract -> coin -> start -> real play, and asserts the
 // whole-machine invariants a regression in any spine routine would break:
 //   * boot completes the full frame budget with NO translation gap (stopError null, frames == budget);
-//   * the coin banks a credit (COIN_ACCEPTED pulses, CREDIT_COUNT rises above its power-on value);
+//   * the coin banks a credit (COIN_COUNTER_PULSES_OWED pulses, CREDIT_COUNT rises above its power-on value);
 //   * play actually starts (PLAY_ACTIVE reaches its in-play 0xff -- the ONE cell that separates real
 //     play from the attract demo, which runs the same round engine with the flag clear);
 //   * gameplay ADVANCES (SEQUENCE_PHASE reaches the input-gated credit state 2, and the free-running
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { Machine, resolveAllIdiomatic } from "../machine.js";
 import manifest from "../manifest.js";
 import {
-  COIN_ACCEPTED,
+  COIN_COUNTER_PULSES_OWED,
   CREDIT_COUNT,
   PLAY_ACTIVE,
   SEQUENCE_PHASE,
@@ -131,7 +131,7 @@ async function runIdiomatic(live, mutate = null, nmis = NMIS) {
       const phase = mm.mem.read8(SEQUENCE_PHASE);
       if (obs.creditInit === null) obs.creditInit = credit;
       obs.creditMax = Math.max(obs.creditMax, credit);
-      if (mm.mem.read8(COIN_ACCEPTED)) obs.coinEver = true;
+      if (mm.mem.read8(COIN_COUNTER_PULSES_OWED)) obs.coinEver = true;
       if (mm.mem.read8(PLAY_ACTIVE) === 0xff) obs.playEver = true;
       if (phase === 2) obs.phaseCreditEver = true;
       obs.phases.add(phase);
@@ -168,7 +168,7 @@ test("the coin banks a credit, and only when a coin is inserted", async () => {
 
   assert.ok(
     played.obs.coinEver,
-    "COIN_ACCEPTED never pulsed on the driven run, so the coin path never ran",
+    "COIN_COUNTER_PULSES_OWED never pulsed on the driven run, so the coin path never ran",
   );
   assert.ok(
     played.obs.creditMax > played.obs.creditInit,
@@ -176,7 +176,7 @@ test("the coin banks a credit, and only when a coin is inserted", async () => {
   );
   // The control: without the coin press, no credit banks. This is what makes the arm above input-driven
   // rather than something the machine does on its own.
-  assert.equal(idle.obs.coinEver, false, "the undriven run pulsed COIN_ACCEPTED; the arm is not coin-driven");
+  assert.equal(idle.obs.coinEver, false, "the undriven run pulsed COIN_COUNTER_PULSES_OWED; the arm is not coin-driven");
   assert.equal(
     idle.obs.creditMax,
     idle.obs.creditInit,

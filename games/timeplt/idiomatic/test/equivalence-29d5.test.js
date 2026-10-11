@@ -19,10 +19,10 @@ import { loc_290e as dispatcher } from "../../translated/loc_290e.js";
 import { hasReachedRetireLine } from "../hasReachedRetireLine.js";
 import { releaseHeldObject } from "../releaseHeldObject.js";
 import { stepDyingObjectState } from "../stepDyingObjectState.js";
-import { steerEnemyTowardShip } from "../steerEnemyTowardShip.js";
+import { steerEra4CraftTowardAimHeadingThenFly } from "../steerEra4CraftTowardAimHeadingThenFly.js";
 import { retireSlotAndSubPixel } from "../retireSlotAndSubPixel.js";
 import { animateSelectedShapeCycle } from "../animateSelectedShapeCycle.js";
-import { launchBankEnemyWhenAimedNearPlayer } from "../launchBankEnemyWhenAimedNearPlayer.js";
+import { fireCraftShotWhenAimedNearPlayer } from "../fireCraftShotWhenAimedNearPlayer.js";
 import { launchAttackerIntoFreeSlot } from "../launchAttackerIntoFreeSlot.js";
 import { ERA_INDEX } from "../names.js";
 
@@ -146,10 +146,10 @@ function brokenHeldAsDying(m) {
   const s = m.mem8[m.regs.ix];
   if (s === FREE) return;
   if (s !== LIVE) return stepDyingObjectState(m);
-  steerEnemyTowardShip(m);
+  steerEra4CraftTowardAimHeadingThenFly(m);
   if (hasReachedRetireLine(m)) return retireSlotAndSubPixel(m);
   animateSelectedShapeCycle(m);
-  launchBankEnemyWhenAimedNearPlayer(m);
+  fireCraftShotWhenAimedNearPlayer(m);
   launchAttackerIntoFreeSlot(m);
 }
 
@@ -158,10 +158,10 @@ function brokenDyingAsHeld(m) {
   const s = m.mem8[m.regs.ix];
   if (s === FREE) return;
   if (s !== LIVE) return releaseHeldObject(m);
-  steerEnemyTowardShip(m);
+  steerEra4CraftTowardAimHeadingThenFly(m);
   if (hasReachedRetireLine(m)) return retireSlotAndSubPixel(m);
   animateSelectedShapeCycle(m);
-  launchBankEnemyWhenAimedNearPlayer(m);
+  fireCraftShotWhenAimedNearPlayer(m);
   launchAttackerIntoFreeSlot(m);
 }
 
@@ -171,7 +171,7 @@ function brokenAlwaysRetire(m) {
   if (s === FREE) return;
   if (s === HELD) return releaseHeldObject(m);
   if (s !== LIVE) return stepDyingObjectState(m);
-  steerEnemyTowardShip(m);
+  steerEra4CraftTowardAimHeadingThenFly(m);
   return retireSlotAndSubPixel(m);
 }
 
@@ -181,9 +181,9 @@ function brokenNeverRetire(m) {
   if (s === FREE) return;
   if (s === HELD) return releaseHeldObject(m);
   if (s !== LIVE) return stepDyingObjectState(m);
-  steerEnemyTowardShip(m);
+  steerEra4CraftTowardAimHeadingThenFly(m);
   animateSelectedShapeCycle(m);
-  launchBankEnemyWhenAimedNearPlayer(m);
+  fireCraftShotWhenAimedNearPlayer(m);
   launchAttackerIntoFreeSlot(m);
 }
 
@@ -193,10 +193,10 @@ function brokenState1Free(m) {
   if (s <= 1) return;
   if (s === HELD) return releaseHeldObject(m);
   if (s !== LIVE) return stepDyingObjectState(m);
-  steerEnemyTowardShip(m);
+  steerEra4CraftTowardAimHeadingThenFly(m);
   if (hasReachedRetireLine(m)) return retireSlotAndSubPixel(m);
   animateSelectedShapeCycle(m);
-  launchBankEnemyWhenAimedNearPlayer(m);
+  fireCraftShotWhenAimedNearPlayer(m);
   launchAttackerIntoFreeSlot(m);
 }
 

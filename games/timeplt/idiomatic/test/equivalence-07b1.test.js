@@ -73,7 +73,7 @@ import { Severed, severAtDirectCall, recordHardwareWrites } from "./_spineSever.
 const TARGET = 0x07b1;
 const CONTINUATION = 0x0069;
 /** The continuation as the rewrite reaches it (a direct call), and the store it makes first. */
-const CONTINUATION_NAME = "clearWorkRamAndSpriteBanksThenColdInit";
+const CONTINUATION_NAME = "clearWorkRamAndSpriteBank1ThenColdInit";
 const WATCHDOG = 0xc200;
 /** The reset vector, which jumps here; the positive control for the REACH arm. */
 const RESET_VECTOR = 0x0000;

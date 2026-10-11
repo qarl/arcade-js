@@ -13,8 +13,8 @@ import { SECOND_FASTEST_VELOCITY_TABLE } from "./names.js";
  * select. It is a rank over tables, not over movement: loc_58aa's doubled 206 moves farther per step
  * (names.js "why" for 0x5860).
  *
- * ROLE IN THE MACHINE: its one entry is the jump at 0x2A19 in steerEnemyTowardShip (0x29F7), which the era-4 arm
- * of the per-slot handler table at 0x2914 (serviceEra4EnemyCraftSlot, 0x29D5) calls. steerEnemyTowardShip alternates on bit 1 of the frame tick between this entry and
+ * ROLE IN THE MACHINE: its one entry is the jump at 0x2A19 in steerEra4CraftTowardAimHeadingThenFly (0x29F7), which the era-4 arm
+ * of the per-slot handler table at 0x2914 (serviceEra4EnemyCraftSlot, 0x29D5) calls. steerEra4CraftTowardAimHeadingThenFly alternates on bit 1 of the frame tick between this entry and
  * loc_58aa (the bottom-rung table under the double-velocity mover), so the object does not stay on one
  * rung.
  *

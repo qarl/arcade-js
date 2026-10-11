@@ -20,7 +20,7 @@ import { scrollWorldAtTheEraPace } from "./scrollWorldAtTheEraPace.js";
 import { PLAYER_ENTRY, PLAYER_HEADING, PLAYER_STATE, PLAY_ACTIVE } from "./names.js";
 
 // The alive value of PLAYER_STATE; the ROM tests for it with `inc a` (zero only for 0xFF).
-const WOUND = 0xff;
+const ALIVE = 0xff;
 
 export function dispatchPlayerFrameByState(m) {
   const { mem8 } = m;
@@ -30,7 +30,7 @@ export function dispatchPlayerFrameByState(m) {
    * how the death sequence plays out; 0xFF (alive) -> go on to steer. */
   const state = mem8[PLAYER_STATE];
   if (state === 0) return;
-  if (state !== WOUND) return advancePlayerAnimationStrip(m, PLAYER_STATE, PLAYER_ENTRY);
+  if (state !== ALIVE) return advancePlayerAnimationStrip(m, PLAYER_STATE, PLAYER_ENTRY);
 
   /* No live game (PLAY_ACTIVE 0xAD30 zero, 0x1EF0-0x1EF6): the attract demo's autopilot flies the
    * ship from its script (0x214B). */

@@ -12,7 +12,7 @@
  * equals the units digit is serviced -- its flight script stepped and the steering order obeyed --
  * so each of slots 0-6 comes up twice per pass of the counter through 00-59 (units
  * digits 7-9 service nothing).
- * On every other tens digit the pass instead goes to layOutEnemyAimPointsFromScrollAngle (0x326C
+ * On every other tens digit the pass instead goes to layOutEnemyAimPointsFromPlayerHeading (0x326C
  * [seen]), which rebuilds those aim points around the ship. A craft's record (CRAFT_RECORD_SLOT0
  * 0xA850 [seen], 16 bytes a slot) holds its occupancy at +0, aim heading at +1 (the heading it turns toward;
  * it flies on +2) and steering order at +8; its
@@ -23,7 +23,7 @@
  */
 
 import { u8 } from "../../../core/int.js";
-import { layOutEnemyAimPointsFromScrollAngle } from "./layOutEnemyAimPointsFromScrollAngle.js";
+import { layOutEnemyAimPointsFromPlayerHeading } from "./layOutEnemyAimPointsFromPlayerHeading.js";
 import { stepCraftFlightScript } from "./stepCraftFlightScript.js";
 import { headingToward } from "./headingToward.js";
 import { offsetAddress } from "./offsetAddress.js";
@@ -38,8 +38,8 @@ const HELD = 0x10;
 // Order 0x11: aim directly away from the table base (the ship anchor), then latch to HELD.
 const TURN_AWAY_THEN_HOLD = 0x11;
 // The two tens digits (high nibble of the packed-decimal counter) on which a craft is serviced.
-const TENTHS_00 = 0x00;
-const TENTHS_30 = 0x30;
+const TENS_DIGIT_0 = 0x00;
+const TENS_DIGIT_3 = 0x30;
 
 export function reaimEnemyCraftByFlightScriptOnPhaseTick(m) {
   const { mem8 } = m;
@@ -50,7 +50,7 @@ export function reaimEnemyCraftByFlightScriptOnPhaseTick(m) {
   // pass, handed on with the whole counter byte (the ROM's `jp nz,0x326c`, C still holding it); that
   // routine itself only acts when the units digit is 7.
   const tens = phase & 0xf0;
-  if (tens !== TENTHS_00 && tens !== TENTHS_30) return layOutEnemyAimPointsFromScrollAngle(m, phase);
+  if (tens !== TENS_DIGIT_0 && tens !== TENS_DIGIT_3) return layOutEnemyAimPointsFromPlayerHeading(m, phase);
 
   // Step 2: the units digit is the slot number. Out-of-range slots (7-9) do nothing. The record is
   // 16 bytes a slot and the sprite entry 2 bytes a slot (the ROM builds 16*slot and 2*slot by

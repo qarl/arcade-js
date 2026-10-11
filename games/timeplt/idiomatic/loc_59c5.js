@@ -9,7 +9,7 @@
  * circle — into two perpendicular 16-bit velocity components read from a table of samples, each
  * doubled. It takes the table in HL and the heading in A. This shim seats the table and tail-jumps
  * in, so the heading is whatever value the caller put in A; unlike loc_598e it does not read an
- * object record. Its caller is spawnAimedEnemyIntoEraBankWhenInWindow, which hands in the heading
+ * object record. Its caller is fireBomberShotWhenClearOfPlayer, which hands in the heading
  * it has just aimed and stores the returned pair as the new enemy's velocity.
  *
  * The table is SLOWEST_VELOCITY_TABLE (0x59D7), the ROM table of 256 16-bit velocity words — the same table

@@ -11,7 +11,7 @@ whose role is only partly pinned, carry a terse caveat.
 | Address | Name | Description |
 | --- | --- | --- |
 | a800 | playerState | State byte of the player's own record, which begins at this address. |
-| a801 | playerRecordSpareByte | work-RAM byte after PLAYER_STATE (0xA800): zeroed at every life start by resetPlayfieldAndArmNewRound (`ld (0xa801),a` at 0x1A1F) and by the block wipes, and read by no code -- the only reads of it are the wipes' own LDIR source fetches |
+| a801 | playerRecordSpareByte | work-RAM byte after PLAYER_STATE (0xA800): zeroed at every life start by resetPlayfieldForLifeStart (`ld (0xa801),a` at 0x1A1F) and by the block wipes, and read by no code -- the only reads of it are the wipes' own LDIR source fetches |
 | a802 | playerHeading | The heading the player's ship is flying, a full byte = 256 steps of the circle. |
 | a808 | worldScrollY | World scroll, the component that lands in a sprite entry's NATIVE-Y byte. |
 | a80a | worldScrollX | World scroll, the component that lands in a sprite entry's NATIVE-X byte. |
@@ -19,12 +19,12 @@ whose role is only partly pinned, carry a terse caveat.
 | a811 | waveKillCountdown | How many more qualifying kills until the current wave's shared claim fires. |
 | a812 | waveClaimTimer | Frame-countdown window during which a spawned wave's shared claim is armed. |
 | a814 | bankLaunchCooldownPeriod | Reload period (interval constant) that re-arms BANK_LAUNCH_COOLDOWN after a launch; never decremented. |
-| a817 | bankLaunchCooldown | Live per-vblank cooldown for the bank-launch arm (launchBankEnemyWhenAimedNearPlayer) and the Mother-Ship's aimed shot, and in attract the tamper self-check's checksum verdict. |
+| a817 | bankLaunchCooldown | Live per-vblank cooldown for the bank-launch arm (fireCraftShotWhenAimedNearPlayer) and the Mother-Ship's aimed shot, and in attract the tamper self-check's checksum verdict. |
 | a820 | actorRecordSlot1 | Actor slot 1's record head. |
 | a821 | claimToken | The shared "last of the wave" token, holding one claimant at a time. |
 | a827 | bankLaunchNearHalfWidth | Near-band proximity half-width gating a bank launch, the same value on both axes. |
 | a830 | actorRecordSlot2 | Actor slot 2's record head; also the free-slot-search band base. |
-| a837 | bankLaunchHeadingHalfWidth | Half-width of the heading window for a bank launch: launchBankEnemyWhenAimedNearPlayer fires only when the craft's heading lies within this of PLAYER_HEADING. |
+| a837 | bankLaunchHeadingHalfWidth | Half-width of the heading window for a bank launch: fireCraftShotWhenAimedNearPlayer fires only when the craft's heading lies within this of PLAYER_HEADING. |
 | a840 | actorRecordSlot3 | Actor slot 3's record head; also doubles as the aimed-spawn era "bank A" record seat. |
 | a844 | bankLaunchSlotCount | Count of records the bank-launch arm scans for a free slot (loop bound; zero disables the arm). |
 | a850 | craftRecordSlot0 | Slot 0's record, and the iteration base of the whole 7-slot craft band. |
@@ -41,7 +41,7 @@ whose role is only partly pinned, carry a terse caveat.
 | a8d0 | eraObjectRecordSlot1 | Era-object bank slot 1's record head (second of the grouped three). |
 | a8d4 | attackerSpawnAimSideToggle | The attacker (era-bank) aimed-spawn aim-side toggle: incremented each spawn, bit 0 picks a +0x18 or -0x18 offset off the aim heading. |
 | a8d6 | attackerSpawnWindowHalf | Half-width of the proximity window deciding WHETHER the era attacker bank spawns (doubled into a window). |
-| a8dc | hitsRemaining | How many more hits the big two-slot object can absorb before it dies. |
+| a8dc | bomberHitsToAbsorb | How many more hits the big two-slot object can absorb before it dies. |
 | a8e0 | eraObjectRecordSlot2 | Era-object bank slot 2's record head; also doubles as the aimed-spawn era "bank B" record seat. |
 | a8e6 | attackerSpawnAimWindowHalf | Half-width of the final launch-facing window for the attacker spawn. |
 | a8f0 | parachutistRecord | The parachutist's record head (array slot 15); its +7 is PARACHUTIST_RUNG 0xa8f7. |
@@ -49,10 +49,10 @@ whose role is only partly pinned, carry a terse caveat.
 | a8f6 | attackerSpawnCooldownPeriod | Reload period (interval constant) for ATTACKER_SPAWN_COOLDOWN; never decremented. |
 | a8f7 | parachutistRung | How many rescue awards this life has already been paid, which is the rung the next one takes. |
 | a900 | sceneryRecordSlot0 | Scenery record base, scenery slot 0 (array slot 16); the record cursor runSceneryForEra starts from (paired with SCENERY_ENTRY_SLOT0). |
-| a97f | playerStateBlockEnd | inclusive top of the player/actor-state RAM block cleared from PLAYER_STATE when armRoundStartThenStepSequence sets up an attract-demo round (PLAY_ACTIVE clear) |
+| a97f | playerStateBlockEnd | inclusive top of the player/actor-state RAM block cleared from PLAYER_STATE when armNewGameThenStepSequence sets up an attract-demo round (PLAY_ACTIVE clear) |
 | a980 | frameTick | Frame counter, advanced once per vblank service. |
-| a981 | coinAccepted | Coin-counter pulses the machine still OWES the mechanical counter. |
-| a982 | coinAcceptedSlot2 | slot-2 twin of COIN_ACCEPTED (0xa981) |
+| a981 | coinCounterPulsesOwed | Coin-counter pulses the machine still OWES the mechanical counter. |
+| a982 | coinCounterPulsesOwedSlot2 | slot-2 twin of COIN_COUNTER_PULSES_OWED (0xa981) |
 | a983 | serviceCreditDebounce | IN0 bit-2 service-credit input debounce; a clean edge awards one credit |
 | a984 | coinPulseTimer | Steps left in coin slot 1's current mechanical-counter pulse, counted down by its driver once a frame and once more on a frame where a coin or service input reaches the crediting tail. |
 | a985 | coinPulseTimerSlot2 | slot-2 twin of COIN_PULSE_TIMER (0xa984) |
@@ -112,11 +112,11 @@ whose role is only partly pinned, carry a terse caveat.
 | a9e7 | penRowStep | Signed 8.8 per-step row increment ((target - PEN_ROW_POS)/16, sign kept), added to PEN_ROW_POS each step. |
 | a9e9 | penColumnStep | Signed 8.8 per-step column increment, added to PEN_COLUMN_POS each step. |
 | a9eb | sequenceDelay | The sequence machine's shared one-shot delay: ticks still to wait before its next step. |
-| a9f0 | introAnimationStep | Step selector (0..5) of the between-eras band animation that plays after a round is won and before the next round: stepRoundStartIntroAnimation dispatches on it, and each sub-animation writes the step it hands off to (flash->1, band-to-2->2, colour-cycle->3, band-to-4->4, flood->5). |
-| a9f1 | playerFlashTick | Tick of the player-ship white flash (intro step 0/1): bit 0 alternates the sprite colour; at tick 8 it advances INTRO_ANIMATION_STEP and requests the spawn-flash sound. |
-| a9f2 | bandTo2PassCountdown | Per-pass countdown for advanceScriptedCharPlaneBandTo2 (bit 0 selects a blank vs draw pass), decremented each pass and zeroed at the script's end, which sets INTRO_ANIMATION_STEP to 2. |
-| a9f3 | spriteColourCycleCountdown | Countdown driving a sprite's colour field during the colour-cycle step: seeded 4 and stepped down once per call, so bit 2 is set only on the first call (colour 0x37) and clear for the rest (0x3F); when it reads zero the step sets INTRO_ANIMATION_STEP to 3, and the counter then wraps below zero. |
-| a9f4 | bandTo4PassCountdown | Per-pass countdown for advanceScriptedCharPlaneBandTo4 (bit 0 selects blank vs draw), zeroed at the script's end, which sets INTRO_ANIMATION_STEP to 4. |
+| a9f0 | roundWonAnimationStep | Step selector (0..5) of the between-eras band animation that plays after a round is won and before the next round: stepRoundWonBandAnimation dispatches on it, and each sub-animation writes the step it hands off to (flash->1, band-to-2->2, colour-cycle->3, band-to-4->4, flood->5). |
+| a9f1 | playerFlashTick | Tick of the player-ship white flash (intro step 0/1): bit 0 alternates the sprite colour; at tick 8 it advances ROUND_WON_ANIMATION_STEP and requests the spawn-flash sound. |
+| a9f2 | bandTo2PassCountdown | Per-pass countdown for advanceScriptedCharPlaneBandTo2 (bit 0 selects a blank vs draw pass), decremented each pass and zeroed at the script's end, which sets ROUND_WON_ANIMATION_STEP to 2. |
+| a9f3 | spriteColourCycleCountdown | Countdown driving a sprite's colour field during the colour-cycle step: seeded 4 and stepped down once per call, so bit 2 is set only on the first call (colour 0x37) and clear for the rest (0x3F); when it reads zero the step sets ROUND_WON_ANIMATION_STEP to 3, and the counter then wraps below zero. |
+| a9f4 | bandTo4PassCountdown | Per-pass countdown for advanceScriptedCharPlaneBandTo4 (bit 0 selects blank vs draw), zeroed at the script's end, which sets ROUND_WON_ANIMATION_STEP to 4. |
 | a9f6 | colourFloodCountdown | Countdown stepped down once as floodColourPlaneWithSavedPlayerColour finishes painting the colour plane (intro step 4); nothing but that stepper reads it. |
 | a9f7 | bandScriptCursor | 16-bit cursor walking the char-plane band script (a byte per plane cell); shared by the band-to-2 / band-to-4 drawers and stepThirteenScriptedGlyphCells, left where it ended. |
 | aa10 | playerEntry | The player's sprite entry (array slot 0's X-seat), and the iteration base of the whole entry band. |
@@ -151,7 +151,7 @@ whose role is only partly pinned, carry a terse caveat.
 | aa80 | playerShotArray | Base of the player's six-slot shot record array. |
 | aa81 | shotBurstPending | Countdown of shots still owed from the current fire press. |
 | aa82 | shotSpawnCooldown | Inter-shot fire-rate cooldown: shot-engine passes left before the next player shot may seed. |
-| aadf | playerShotArrayEnd | inclusive top of the player-shot RAM block cleared from PLAYER_SHOT_ARRAY when armRoundStartThenStepSequence sets up an attract-demo round (PLAY_ACTIVE clear) |
+| aadf | playerShotArrayEnd | inclusive top of the player-shot RAM block cleared from PLAYER_SHOT_ARRAY when armNewGameThenStepSequence sets up an attract-demo round (PLAY_ACTIVE clear) |
 | ab08 | highScoreTableBase | base of the five 8-byte high-score records (+0 rank, +1..+3 score lo/mid/hi, +4..+6 initials, +7 0xF1 pad) |
 | ab0b | highScoreRec0ScoreHi | record 0 score high byte (rank +0, score lo/mid/hi +1..+3): the insertion compare's starting point |
 | ab10 | highScoreRec1Base | record 1 base (rank byte) |
@@ -173,10 +173,10 @@ whose role is only partly pinned, carry a terse caveat.
 | ac75 | enemyStandoffAimSet | X byte of one of the two selectable ship-standoff aim points (pair 0xAC74 = Y). |
 | ac79 | enemyStandoffAimClear | X byte of the sibling standoff aim point (pair 0xAC78 = Y), chosen when that selector bit is CLEAR. |
 | ac7f | enemyStandoffAimMain | X byte of the most-referenced ship-standoff aim point (pair 0xAC7E = Y). |
-| ac83 | enemyStandoffAimBlockEnd | Last byte (base + 0x0F) of that sixteen-byte aim-coordinate block: the inclusive end of armRoundStartThenStepSequence's 0x80 clear loop. |
+| ac83 | enemyStandoffAimBlockEnd | Last byte (base + 0x0F) of that sixteen-byte aim-coordinate block: the inclusive end of armNewGameThenStepSequence's 0x80 clear loop. |
 | acbe | lineWipeSampleRecord | 2-byte work-RAM record the sampled cell's glyph+colour is copied into (parkSpritesAndArmLineWipeThenAdvanceSequence); also written by the attract high-score patch list and copyThreeTilemapCellsFromBothPlanes; no role read by any routine |
 | acc0 | eraRung | The escalation rung inside the current era: the low nibble of the (era << 4) + rung index. |
-| acc1 | roundCraftCount | Per-round enemy-craft quota: how many craft a round should field. |
+| acc1 | craftSpawnSlotCount | Per-round enemy-craft quota: how many craft a round should field. |
 | acc2 | waveSpawnBusyFlag | work-RAM busy flag =0xff around the inline wave-build loop, =0 after; no routine reads it back by address, so it locks nothing (driveEnemyWaveForLifePhase) |
 | acc3 | waveDescriptorIndex | Descriptor-table selector for the current inline wave: (2 * era) + a random parity bit. |
 | acc4 | scriptPickThreshold | Per-round threshold that decides how each spawning craft's movement script is chosen. |
@@ -195,7 +195,7 @@ whose role is only partly pinned, carry a terse caveat.
 | ad0b | penGlyph | The active caption/pen glyph (active context +0x0B, companion of PEN_COLOUR at +0x0C). |
 | ad0c | penColour | The live caption/pen colour attribute (active context +0x0C; the saved per-player copies are at 0xAD1C/0xAD2C). |
 | ad0d | motherShipArmed | Raised while this round's Mother-Ship has been armed. |
-| ad0e | roundArmed | Active context +0xE: the round-armed gate -- set when a round starts (0xFF from startNextRound; the game's first round loads the saved copy's 1), cleared when the round-intro fly-in timer expires; mirrors PLAYER_ONE/TWO_ROUND_ARMED. |
+| ad0e | roundIntroPending | Active context +0xE: the round-armed gate -- set when a round starts (0xFF from startNextRound; the game's first round loads the saved copy's 1), cleared when the round-intro fly-in timer expires; mirrors PLAYER_ONE/TWO_ROUND_ARMED. |
 | ad10 | playerOneLives | Player one's lives, in their saved sixteen-byte context block at 0xAD10. |
 | ad11 | playerOneRoundNumber | Player one's copy of ROUND_NUMBER (0xAD01), the unwrapped round ordinal. |
 | ad12 | playerOneKillsRemaining | Player one's copy of KILLS_REMAINING (0xAD02): craft still to destroy this round, seeded from KILL_QUOTA (0xA9CD). |
@@ -206,7 +206,7 @@ whose role is only partly pinned, carry a terse caveat.
 | ad1b | playerOnePenGlyph | Player one's saved copy of PEN_GLYPH (saved context +0x0B). |
 | ad1c | playerOnePenColour | Player one's saved copy of PEN_COLOUR (saved context +0x0C); the source floodColourPlaneWithSavedPlayerColour reads when ACTIVE_PLAYER selects player one. |
 | ad1d | playerOneMotherShipArmed | Player one's copy of MOTHER_SHIP_ARMED (0xAD0D). |
-| ad1e | playerOneRoundArmed | Player one's copy of the round-armed gate (active 0xAD0E, which startNextRound sets to 0xFF and the ROM tests as a boolean `and a; ret z`). |
+| ad1e | playerOneRoundIntroPending | Player one's copy of the round-armed gate (active 0xAD0E, which startNextRound sets to 0xFF and the ROM tests as a boolean `and a; ret z`). |
 | ad20 | playerTwoLives | Player two's lives, in their saved context block at 0xAD20 -- the same byte, the other block. |
 | ad21 | playerTwoRoundNumber | Player two's copy of ROUND_NUMBER -- the same field as PLAYER_ONE_ROUND_NUMBER, the other block. |
 | ad22 | playerTwoKillsRemaining | Player two's copy of KILLS_REMAINING; the twin of PLAYER_ONE_KILLS_REMAINING, seeded from KILL_QUOTA. |
@@ -217,7 +217,7 @@ whose role is only partly pinned, carry a terse caveat.
 | ad2b | playerTwoPenGlyph | Player two's saved copy of PEN_GLYPH (saved context +0x0B); the twin of PLAYER_ONE_PEN_GLYPH. |
 | ad2c | playerTwoPenColour | Player two's saved copy of PEN_COLOUR; the twin of PLAYER_ONE_PEN_COLOUR. |
 | ad2d | playerTwoMotherShipArmed | Player two's copy of MOTHER_SHIP_ARMED; the twin of PLAYER_ONE_MOTHER_SHIP_ARMED. |
-| ad2e | playerTwoRoundArmed | Player two's copy of the round-armed gate; the twin of PLAYER_ONE_ROUND_ARMED. |
+| ad2e | playerTwoRoundIntroPending | Player two's copy of the round-armed gate; the twin of PLAYER_ONE_ROUND_INTRO_PENDING. |
 | ad30 | playActive | Flag set while play is active. |
 | ad31 | twoPlayerGame | Two-player-game flag: 0xFF for a two-player game, 0x00 for one player / attract. |
 | ad32 | activePlayer | Which of the two players is up: 0 for player one, 1 for player two. |

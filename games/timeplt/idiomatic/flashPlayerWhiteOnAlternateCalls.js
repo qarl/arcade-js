@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** flashPlayerWhiteEveryOtherFrame — one frame of an animation that flips a sprite entry's colour field between two
+/** flashPlayerWhiteOnAlternateCalls — one frame of an animation that flips a sprite entry's colour field between two
  * values as its own tick counter alternates, leaving the top two bits of that byte — the pair the
  * shape's mirroring lives in — exactly as they were. On the one tick where the counter reads the
  * threshold it also moves the step cell on and asks for a sound; every other tick only recolours.
@@ -8,7 +8,7 @@
  * ROM 0x1367-0x1392 (lift: translated/loc_1367.js). Grounding: [seen] (names.js ROUTINES 0x1367).
  *
  * ROLE IN THE MACHINE. The first part of the between-eras band animation that plays after a round
- * is won: stepRoundStartIntroAnimation dispatches on INTRO_ANIMATION_STEP 0xA9F0 [seen] and runs
+ * is won: stepRoundWonBandAnimation dispatches on ROUND_WON_ANIMATION_STEP 0xA9F0 [seen] and runs
  * this for its flash steps, running the player's ship white and back (mechanisms.md, round won).
  * The byte recoloured is PLAYER_SPRITE_ATTRIBUTE 0xAA40 [seen], the player's sprite colour + flip
  * byte, which the sprite publisher copies to the hardware. Under MAME the ship's pixels were seen
@@ -16,8 +16,8 @@
  * LIVE-OUT: memory. */
 
 import { u8 } from "../../../core/int.js";
-import { requestPlayerSpawnFlashSound } from "./requestPlayerSpawnFlashSound.js";
-import { INTRO_ANIMATION_STEP, PLAYER_FLASH_TICK, PLAYER_SPRITE_ATTRIBUTE } from "./names.js";
+import { requestPlayerWhiteFlashSound } from "./requestPlayerWhiteFlashSound.js";
+import { ROUND_WON_ANIMATION_STEP, PLAYER_FLASH_TICK, PLAYER_SPRITE_ATTRIBUTE } from "./names.js";
 
 
 // The two flip (mirroring) bits kept from the attribute byte (`and 0xc0` at 0x1385).
@@ -33,16 +33,16 @@ const SECOND_COLOUR = 0;
 const SOUND_AT_TICK = 8;
 const NEXT_STEP = 1;
 
-export function flashPlayerWhiteEveryOtherFrame(m) {
+export function flashPlayerWhiteOnAlternateCalls(m) {
   const { mem8 } = m;
 
   /* Step 1 -- the threshold tick (0x136A-0x1376). When PLAYER_FLASH_TICK 0xA9F1 [seen] reads 8,
-   * hand the animation on to its next step by writing INTRO_ANIMATION_STEP, and ask for the
-   * spawn-flash sound (requestPlayerSpawnFlashSound, which only sounds while a game is being
+   * hand the animation on to its next step by writing ROUND_WON_ANIMATION_STEP, and ask for the
+   * spawn-flash sound (requestPlayerWhiteFlashSound, which only sounds while a game is being
    * played). The recolour below still happens on this tick. */
   if (mem8[PLAYER_FLASH_TICK] === SOUND_AT_TICK) {
-    mem8[INTRO_ANIMATION_STEP] = NEXT_STEP;
-    requestPlayerSpawnFlashSound(m);
+    mem8[ROUND_WON_ANIMATION_STEP] = NEXT_STEP;
+    requestPlayerWhiteFlashSound(m);
   }
 
   /* Step 2 -- recolour (0x1379-0x138B). An even tick selects 62, an odd one 0, so the ship

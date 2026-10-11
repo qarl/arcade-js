@@ -16,7 +16,7 @@ import { steerTowardAimHeading } from "../steerTowardAimHeading.js";
 import { flyAtFastestSpeed } from "../flyAtFastestSpeed.js";
 import { hasReachedRetireLine } from "../hasReachedRetireLine.js";
 import { retireSlotAndSubPixel } from "../retireSlotAndSubPixel.js";
-import { launchBankEnemyWhenAimedNearPlayer } from "../launchBankEnemyWhenAimedNearPlayer.js";
+import { fireCraftShotWhenAimedNearPlayer } from "../fireCraftShotWhenAimedNearPlayer.js";
 import { dressSpriteForCoarseHeading } from "../dressSpriteForCoarseHeading.js";
 import { launchAttackerIntoFreeSlot } from "../launchAttackerIntoFreeSlot.js";
 import { releaseHeldObject } from "../releaseHeldObject.js";
@@ -142,7 +142,7 @@ function twinSwapDyingRelease(m) {
   if (s !== 0xff) { if (s === 0xfe) return stepDyingObjectState(m); return releaseHeldObject(m); }
   steerTowardAimHeading(m); flyAtFastestSpeed(m);
   if (hasReachedRetireLine(m)) return retireSlotAndSubPixel(m);
-  launchBankEnemyWhenAimedNearPlayer(m); dressSpriteForCoarseHeading(m); return launchAttackerIntoFreeSlot(m);
+  fireCraftShotWhenAimedNearPlayer(m); dressSpriteForCoarseHeading(m); return launchAttackerIntoFreeSlot(m);
 }
 function twinSkipRetire(m) {
   const s = m.mem8[m.regs.ix];
@@ -150,7 +150,7 @@ function twinSkipRetire(m) {
   if (s !== 0xff) { if (s === 0xfe) return releaseHeldObject(m); return stepDyingObjectState(m); }
   steerTowardAimHeading(m); flyAtFastestSpeed(m);
   hasReachedRetireLine(m);
-  launchBankEnemyWhenAimedNearPlayer(m); dressSpriteForCoarseHeading(m); return launchAttackerIntoFreeSlot(m);
+  fireCraftShotWhenAimedNearPlayer(m); dressSpriteForCoarseHeading(m); return launchAttackerIntoFreeSlot(m);
 }
 function twinHeldAsDying(m) {
   const s = m.mem8[m.regs.ix];
@@ -158,7 +158,7 @@ function twinHeldAsDying(m) {
   if (s !== 0xff) return stepDyingObjectState(m);
   steerTowardAimHeading(m); flyAtFastestSpeed(m);
   if (hasReachedRetireLine(m)) return retireSlotAndSubPixel(m);
-  launchBankEnemyWhenAimedNearPlayer(m); dressSpriteForCoarseHeading(m); return launchAttackerIntoFreeSlot(m);
+  fireCraftShotWhenAimedNearPlayer(m); dressSpriteForCoarseHeading(m); return launchAttackerIntoFreeSlot(m);
 }
 const TWINS = [
   ["no-op", twinNoOp],

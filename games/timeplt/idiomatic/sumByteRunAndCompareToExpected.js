@@ -9,7 +9,7 @@
  * ROM 0x0B4C-0x0B53 (frozen lift translated/loc_0b4c.js). Grounding: [seen].
  *
  * Role in the machine: a simple eight-bit additive checksum, one of the game's anti-tamper
- * tripwires. Its one caller, seatEraSceneryRowThenClearAndRunScenery (ROM 0x30A5), sums the
+ * tripwires. Its one caller, seatEraSceneryCodesThenSetAttributesAndRunScenery (ROM 0x30A5), sums the
  * sixteen bytes at 0x086B against 0x22 before seating the era's scenery row; names.js records that
  * check as a discarded tripwire. This routine only computes and compares.
  *

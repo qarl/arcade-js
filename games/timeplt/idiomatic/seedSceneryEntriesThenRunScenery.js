@@ -2,7 +2,7 @@
 /**
  * seedSceneryEntriesThenRunScenery — ROM 0x3117 [seen]
  *
- * WHAT IT IS. The below-era-4 half of scenery set-up. clearSceneryEntriesThenRunEraScenery clears
+ * WHAT IT IS. The below-era-4 half of scenery set-up. setSceneryAttributesThenRunEraScenery clears
  * eight scenery sprite cells and, for eras 0-3, continues here; this seeds the first eight scenery
  * sprite slots from a four-row ROM table and then hands on to the frame's scenery run
  * (runSceneryForEra, 0x2CBC [seen]) with a tail jump.

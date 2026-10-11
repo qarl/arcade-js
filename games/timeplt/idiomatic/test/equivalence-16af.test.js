@@ -65,7 +65,7 @@ const SEQUENCE_PHASE = 0xa9ab;
 const SEQUENCE_SUBSTEP = 0xa9ac;
 const FRAME_TICK = 0xa980;
 const SEQUENCE_DELAY = 0xa9eb;
-const ROUND_ARMED = 0xad0e;
+const ROUND_INTRO_PENDING = 0xad0e;
 const ERA_INDEX = 0xad04;
 const FOLD_BLOCK = 0x4d9f;
 const PINNED_SCANLINE = 0xff;
@@ -138,17 +138,17 @@ function craft(pokes) {
 }
 
 const CRAFTED = [
-  ["expiry", [[FRAME_TICK, 0x01], [SEQUENCE_DELAY, 0x01], [ROUND_ARMED, 0xff]]],
-  ["count-down wraps from 0", [[FRAME_TICK, 0x03], [SEQUENCE_DELAY, 0x00], [ROUND_ARMED, 0xff]]],
-  ["count-down, nibble 5", [[FRAME_TICK, 0x15], [SEQUENCE_DELAY, 0x07], [ROUND_ARMED, 0xff], [ERA_INDEX, 0x02]]],
-  ["even, nibble 0", [[FRAME_TICK, 0x20], [SEQUENCE_DELAY, 0x07], [ROUND_ARMED, 0x01], [ERA_INDEX, 0x00]]],
-  ["even, nibble 10", [[FRAME_TICK, 0x3a], [SEQUENCE_DELAY, 0x07], [ROUND_ARMED, 0xff], [ERA_INDEX, 0x04]]],
-  ["even, unlisted nibble", [[FRAME_TICK, 0x04], [SEQUENCE_DELAY, 0x07], [ROUND_ARMED, 0xff]]],
-  ["odd, unlisted nibble", [[FRAME_TICK, 0x07], [SEQUENCE_DELAY, 0x07], [ROUND_ARMED, 0xff]]],
-  ["disarmed, nibble 0", [[FRAME_TICK, 0x10], [SEQUENCE_DELAY, 0x07], [ROUND_ARMED, 0x00]]],
-  ["disarmed, count-down", [[FRAME_TICK, 0x05], [SEQUENCE_DELAY, 0x09], [ROUND_ARMED, 0x00]]],
+  ["expiry", [[FRAME_TICK, 0x01], [SEQUENCE_DELAY, 0x01], [ROUND_INTRO_PENDING, 0xff]]],
+  ["count-down wraps from 0", [[FRAME_TICK, 0x03], [SEQUENCE_DELAY, 0x00], [ROUND_INTRO_PENDING, 0xff]]],
+  ["count-down, nibble 5", [[FRAME_TICK, 0x15], [SEQUENCE_DELAY, 0x07], [ROUND_INTRO_PENDING, 0xff], [ERA_INDEX, 0x02]]],
+  ["even, nibble 0", [[FRAME_TICK, 0x20], [SEQUENCE_DELAY, 0x07], [ROUND_INTRO_PENDING, 0x01], [ERA_INDEX, 0x00]]],
+  ["even, nibble 10", [[FRAME_TICK, 0x3a], [SEQUENCE_DELAY, 0x07], [ROUND_INTRO_PENDING, 0xff], [ERA_INDEX, 0x04]]],
+  ["even, unlisted nibble", [[FRAME_TICK, 0x04], [SEQUENCE_DELAY, 0x07], [ROUND_INTRO_PENDING, 0xff]]],
+  ["odd, unlisted nibble", [[FRAME_TICK, 0x07], [SEQUENCE_DELAY, 0x07], [ROUND_INTRO_PENDING, 0xff]]],
+  ["disarmed, nibble 0", [[FRAME_TICK, 0x10], [SEQUENCE_DELAY, 0x07], [ROUND_INTRO_PENDING, 0x00]]],
+  ["disarmed, count-down", [[FRAME_TICK, 0x05], [SEQUENCE_DELAY, 0x09], [ROUND_INTRO_PENDING, 0x00]]],
   // The fold nets out only for some phase values; this one it moves, so the fold itself is exercised.
-  ["phase the fold moves", [[SEQUENCE_PHASE, 0x00], [FRAME_TICK, 0x04], [SEQUENCE_DELAY, 0x07], [ROUND_ARMED, 0xff]]],
+  ["phase the fold moves", [[SEQUENCE_PHASE, 0x00], [FRAME_TICK, 0x04], [SEQUENCE_DELAY, 0x07], [ROUND_INTRO_PENDING, 0xff]]],
 ];
 
 const craftedEntries = () => CRAFTED.map(([label, pokes]) => [label, craft(pokes)]);
@@ -171,7 +171,7 @@ function pin(mm, from = null) {
 
 /** A real entry whose last multiplex slot holds a request the fixups leave to the multiplex pass. */
 function heldRequestEntry() {
-  const e = craft([[FRAME_TICK, 0x04], [SEQUENCE_DELAY, 0x07], [ROUND_ARMED, 0xff], [LAST_MUX_REQUEST, HELD_REQUEST]]);
+  const e = craft([[FRAME_TICK, 0x04], [SEQUENCE_DELAY, 0x07], [ROUND_INTRO_PENDING, 0xff], [LAST_MUX_REQUEST, HELD_REQUEST]]);
   beamBeforeHold.set(e, BEAM_BEFORE_HOLD);
   return e;
 }
@@ -248,13 +248,13 @@ function timer(m, { parity = 1, rearm = 0x2a, clearArmed = true, advance = true,
     m.mem8[SEQUENCE_DELAY] = d;
     if (d === 0) {
       for (const e of [0x09, 0x0e, 0x1a]) postCommand(m, 0x03, e);
-      if (clearArmed) m.mem8[ROUND_ARMED] = 0;
+      if (clearArmed) m.mem8[ROUND_INTRO_PENDING] = 0;
       m.mem8[SEQUENCE_DELAY] = rearm;
       if (advance) advanceSequenceSubStep(m);
       return;
     }
   }
-  if (guard && m.mem8[ROUND_ARMED] === 0) return;
+  if (guard && m.mem8[ROUND_INTRO_PENDING] === 0) return;
   const c = cmds[tick & 0x0f];
   if (c === undefined) return;
   postCommand(m, c, (m.mem8[ERA_INDEX] + 0x1a) & 0xff);
@@ -313,7 +313,7 @@ test("CRAFTED ARMS: every forced branch is identical, and the branches really di
     const a = e.clone();
     pin(a);
     oracle(a);
-    footprints.set(label, [a.mem8[SEQUENCE_SUBSTEP], a.mem8[SEQUENCE_DELAY], a.mem8[ROUND_ARMED]].join("."));
+    footprints.set(label, [a.mem8[SEQUENCE_SUBSTEP], a.mem8[SEQUENCE_DELAY], a.mem8[ROUND_INTRO_PENDING]].join("."));
   }
   const expired = craft(CRAFTED[0][1]);
   const subBefore = expired.mem8[SEQUENCE_SUBSTEP];
@@ -321,7 +321,7 @@ test("CRAFTED ARMS: every forced branch is identical, and the branches really di
   oracle(expired);
   assert.equal(expired.mem8[SEQUENCE_SUBSTEP], (subBefore + 1) & 0xff, "the expiry arm did not advance the sub-step");
   assert.equal(expired.mem8[SEQUENCE_DELAY], 0x2a, "the expiry arm did not re-arm the delay");
-  assert.equal(expired.mem8[ROUND_ARMED], 0x00, "the expiry arm did not disarm the round");
+  assert.equal(expired.mem8[ROUND_INTRO_PENDING], 0x00, "the expiry arm did not disarm the round");
   console.log(`  CRAFTED ARMS: ${CRAFTED.length} identical; ${new Set(footprints.values()).size} distinct timer outcomes`);
 });
 

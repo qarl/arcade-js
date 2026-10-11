@@ -18,9 +18,9 @@ import { loc_0774 as oracle } from "../../translated/loc_0774.js";
 import { advanceSequencePhase } from "../advanceSequencePhase.js";
 import { postCommand } from "../postCommand.js";
 import { drawKillMeter } from "../drawKillMeter.js";
-import { resetPlayfieldAndArmNewRound } from "../resetPlayfieldAndArmNewRound.js";
+import { resetPlayfieldForLifeStart } from "../resetPlayfieldForLifeStart.js";
 import { advanceSequenceSubStep } from "../advanceSequenceSubStep.js";
-import { PLAY_ACTIVE, ACTIVE_PLAYER, ROUND_ARMED, SEQUENCE_PHASE } from "../names.js";
+import { PLAY_ACTIVE, ACTIVE_PLAYER, ROUND_INTRO_PENDING, SEQUENCE_PHASE } from "../names.js";
 
 const TARGET = 0x0774;
 const HOT_CONTROL = 0x37bd; // fires hundreds of times, so the tap is known to see dispatches
@@ -119,7 +119,7 @@ function tamper(m) {
 const setup = (active, player, armed, free = true) => (m) => {
   m.mem8[PLAY_ACTIVE] = active;
   m.mem8[ACTIVE_PLAYER] = player;
-  m.mem8[ROUND_ARMED] = armed;
+  m.mem8[ROUND_INTRO_PENDING] = armed;
   ring(m, free);
 };
 
@@ -151,11 +151,11 @@ function twin({ guard = true, player = true, armedCmd = 7, armedBranch = true, i
     } else {
       const argument = 9 + (player && mem8[ACTIVE_PLAYER] !== 0 ? 1 : 0);
       postCommand(m, 2, argument);
-      if (armedBranch && mem8[ROUND_ARMED] !== 0) postCommand(m, armedCmd, argument);
+      if (armedBranch && mem8[ROUND_INTRO_PENDING] !== 0) postCommand(m, armedCmd, argument);
       else postCommand(m, 2, 2);
     }
     if (meter) drawKillMeter(m);
-    if (reset) resetPlayfieldAndArmNewRound(m);
+    if (reset) resetPlayfieldForLifeStart(m);
     if (substep) advanceSequenceSubStep(m);
   };
 }
@@ -184,7 +184,7 @@ test("EQUAL at real dispatches: RAM identical outside the masked stack scratch",
     assert.ok(r.low > DATA_TOP, `the stack window ${hex4(r.low)} reached down into game data`);
   }
   // ★ The real entries cover the inactive, the armed and the unarmed arms between them.
-  const arms = new Set(entries.map((e) => (e.mem8[PLAY_ACTIVE] === 0 ? "inactive" : e.mem8[ROUND_ARMED] === 0 ? "unarmed" : "armed")));
+  const arms = new Set(entries.map((e) => (e.mem8[PLAY_ACTIVE] === 0 ? "inactive" : e.mem8[ROUND_INTRO_PENDING] === 0 ? "unarmed" : "armed")));
   assert.deepEqual([...arms].sort(), ["armed", "inactive", "unarmed"], "the captured dispatches no longer span the three arms");
   console.log(`  EQUAL: ${entries.length} real dispatches identical; arms ${[...arms].sort().join("/")}`);
 });

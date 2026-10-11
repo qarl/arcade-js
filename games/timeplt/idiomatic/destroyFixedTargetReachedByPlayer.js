@@ -8,7 +8,7 @@
  *
  * ROLE. Both must still be live, and both coordinates must fall inside a wrapped window around the
  * meeting point, the window along one axis being wider than the other. When all four tests pass,
- * both are marked destroyed, the target's HITS_REMAINING is zeroed so the contact kills it outright
+ * both are marked destroyed, the target's BOMBER_HITS_TO_ABSORB is zeroed so the contact kills it outright
  * rather than costing it a hit, and the score is posted. Any test failing leaves everything
  * untouched, so this is a whole-or-nothing check. Undriven play never meets the four tests; under
  * MAME a poked run that brings the ship onto a fixed target does, and all three stores fire.
@@ -18,7 +18,7 @@
 
 import { postChainedHitScore } from "./postChainedHitScore.js";
 import { u8 } from "../../../core/int.js";
-import { ERA_OBJECT_ENTRY_SLOT0, ERA_OBJECT_RECORD_SLOT0, ERA_OBJECT_SPRITE_Y_SLOT0, HITS_REMAINING, PLAYER_ENTRY, PLAYER_SPRITE_Y, PLAYER_STATE } from "./names.js";
+import { ERA_OBJECT_ENTRY_SLOT0, ERA_OBJECT_RECORD_SLOT0, ERA_OBJECT_SPRITE_Y_SLOT0, BOMBER_HITS_TO_ABSORB, PLAYER_ENTRY, PLAYER_SPRITE_Y, PLAYER_STATE } from "./names.js";
 
 // The contact box, as a wrapped window: (target - player + SLACK) mod 256 < WINDOW accepts a
 // difference from -SLACK up to WINDOW - SLACK - 1. First axis: -6..+6; second: -0x18..+8.
@@ -45,10 +45,10 @@ export function destroyFixedTargetReachedByPlayer(m) {
   const along = u8(mem8[ERA_OBJECT_SPRITE_Y_SLOT0] - mem8[PLAYER_SPRITE_Y] + SECOND_AXIS_SLACK);
   if (along >= SECOND_AXIS_WINDOW) return;
 
-  // Contact: both start to die, the target's remaining hits are cleared (HITS_REMAINING 0xA8DC)
+  // Contact: both start to die, the target's remaining hits are cleared (BOMBER_HITS_TO_ABSORB 0xA8DC)
   // so nothing survives the contact, and the ROM tail-jumps to postChainedHitScore (0x51DE).
   mem8[PLAYER_STATE] = DESTROYED;
   mem8[ERA_OBJECT_RECORD_SLOT0] = DESTROYED;
-  mem8[HITS_REMAINING] = 0;
+  mem8[BOMBER_HITS_TO_ABSORB] = 0;
   postChainedHitScore(m);
 }

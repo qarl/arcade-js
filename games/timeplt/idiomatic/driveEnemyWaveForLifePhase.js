@@ -34,26 +34,26 @@ import { turnFiveCraftAway } from "./turnFiveCraftAway.js";
 import { gateTheFreeSlotSearchAndPickItsRun } from "./gateTheFreeSlotSearchAndPickItsRun.js";
 import { spawnEnemyCraftWhenBandUnderTwo } from "./spawnEnemyCraftWhenBandUnderTwo.js";
 import { requestEnemyWaveSound } from "./requestEnemyWaveSound.js";
-import { CRAFT_ENTRY_SLOT0, CRAFT_RECORD_SLOT0, ERA_INDEX, KILLS_REMAINING, LIFE_TICKS_LOW, LIFE_TICKS_MID, PLAYER_HEADING, ROUND_CRAFT_COUNT, ROUND_TRANSITION_HOLD, WAVE_CLAIM_TIMER, WAVE_DESCRIPTOR_INDEX, WAVE_KILL_COUNTDOWN, WAVE_HEADING_BIAS_TABLE, WAVE_EDGE_POSITION_TABLE, WAVE_DESCRIPTOR_TABLE, WAVE_SPAWN_BUSY_FLAG } from "./names.js";
+import { CRAFT_ENTRY_SLOT0, CRAFT_RECORD_SLOT0, ERA_INDEX, KILLS_REMAINING, LIFE_TICKS_LOW, LIFE_TICKS_MID, PLAYER_HEADING, CRAFT_SPAWN_SLOT_COUNT, ROUND_TRANSITION_HOLD, WAVE_CLAIM_TIMER, WAVE_DESCRIPTOR_INDEX, WAVE_KILL_COUNTDOWN, WAVE_HEADING_BIAS_TABLE, WAVE_EDGE_POSITION_TABLE, WAVE_DESCRIPTOR_TABLE, WAVE_SPAWN_BUSY_FLAG } from "./names.js";
 
 // Era 4 (2001) has its own spawner.
-const BOSS_ERA = 4;
+const FINAL_ERA = 4;
 // Slots walked (and the "full wave" threshold) once the kill quota is spent.
 const DEFAULT_COUNT = 5;
 // One object record is sixteen bytes.
 const RECORD_STRIDE = 16;
 // Value seeded into each new craft's record +0x09 flight-script position.
-const PRIMED_TIMER = 0x20;
+const SCRIPT_START_POSITION = 0x20;
 // Half a circle: the craft is aimed opposite the player's heading, i.e. back at the player.
 const AIM_OFFSET = 0x80;
 // Preload for WAVE_CLAIM_TIMER whenever a wave spawns.
-const READY_STATUS = 0xe4;
+const CLAIM_WINDOW_FRAMES = 0xe4;
 
 export function driveEnemyWaveForLifePhase(m) {
   const { mem8 } = m;
   // No wave work during a round / Mother-Ship transition; era 4 always uses its dedicated spawner.
   if (mem8[ROUND_TRANSITION_HOLD] !== 0) return;
-  if (mem8[ERA_INDEX] === BOSS_ERA) return spawnEnemyWaveIntoFreeSlots(m);
+  if (mem8[ERA_INDEX] === FINAL_ERA) return spawnEnemyWaveIntoFreeSlots(m);
 
   // Pick the life phase from the low nibble of the middle life-tick place, and hand the early
   // phases to their spawners: 0-6 the free-slot search, 7 turns five craft away, 8 spawns
@@ -82,10 +82,10 @@ export function driveEnemyWaveForLifePhase(m) {
   // Point at the descriptor row in the ROM table at 0x397B: sixteen bytes per row, two per slot.
   let descriptor = offsetAddress(m, WAVE_DESCRIPTOR_TABLE, u8(16 * mem8[WAVE_DESCRIPTOR_INDEX])); // two-byte entries, one consumed per filled slot
 
-  // How many slots to walk: the round's craft quota (ROUND_CRAFT_COUNT 0xACC1) while kills remain
+  // How many slots to walk: the round's craft quota (CRAFT_SPAWN_SLOT_COUNT 0xACC1) while kills remain
   // before the Mother-Ship, else five. WAVE_KILL_COUNTDOWN (0xA811) is zeroed and used as the
   // filled-slot tally during the build.
-  const count = mem8[KILLS_REMAINING] !== 0 ? mem8[ROUND_CRAFT_COUNT] : DEFAULT_COUNT;
+  const count = mem8[KILLS_REMAINING] !== 0 ? mem8[CRAFT_SPAWN_SLOT_COUNT] : DEFAULT_COUNT;
   mem8[WAVE_KILL_COUNTDOWN] = 0;
   let record = CRAFT_RECORD_SLOT0;
   let entry = CRAFT_ENTRY_SLOT0;
@@ -117,7 +117,7 @@ export function driveEnemyWaveForLifePhase(m) {
       // the craft starts with an order from its script.
       mem8[record + 0x03] = 0;
       mem8[record + 0x05] = 0;
-      mem8[record + 0x09] = PRIMED_TIMER;
+      mem8[record + 0x09] = SCRIPT_START_POSITION;
       stepCraftFlightScript(m, record);
 
       // Mark the slot held (0xFE) while its +0x0E delay is non-zero, live (0xFF) when it is clear -- and tally it.
@@ -132,13 +132,13 @@ export function driveEnemyWaveForLifePhase(m) {
 
   // Build finished: drop the busy flag and preload the wave's claim window.
   mem8[WAVE_SPAWN_BUSY_FLAG] = 0;
-  mem8[WAVE_CLAIM_TIMER] = READY_STATUS;
+  mem8[WAVE_CLAIM_TIMER] = CLAIM_WINDOW_FRAMES;
   // Five or more filled: the tally stands as the wave's kill countdown, and the wave sound is
   // requested. Otherwise the countdown becomes the round's craft quota, and the sound is still
   // requested when the fill reached that quota.
   const filled = mem8[WAVE_KILL_COUNTDOWN];
   if (filled >= DEFAULT_COUNT) return requestEnemyWaveSound(m);
-  const owed = mem8[ROUND_CRAFT_COUNT];
+  const owed = mem8[CRAFT_SPAWN_SLOT_COUNT];
   mem8[WAVE_KILL_COUNTDOWN] = owed;
   if (filled >= owed) return requestEnemyWaveSound(m);
 }

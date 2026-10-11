@@ -5,8 +5,8 @@
  * WHAT IT IS. The set-up for the between-eras band animation a won round plays (the time-warp
  * effect before the next era begins). It is sequence sub-step 13 of the round engine; the
  * animation itself is then run, on calls that find FRAME_TICK bit 1 clear, by
- * stepRoundStartIntroAnimation, which dispatches on
- * INTRO_ANIMATION_STEP.
+ * stepRoundWonBandAnimation, which dispatches on
+ * ROUND_WON_ANIMATION_STEP.
  *
  * ROLE. It stocks the animation's control block (0xA9F0-0xA9F8, all but 0xA9F5) (the step seed, the flash tick, the two
  * band pass countdowns, the colour-cycle and colour-flood countdowns and the band script's start),
@@ -27,7 +27,7 @@ import { u8, u16 } from "../../../core/int.js";
 import { fillCellRun } from "./fillCellRun.js";
 import { setSavedPenFromEra } from "./setSavedPenFromEra.js";
 import { advanceSequenceSubStep } from "./advanceSequenceSubStep.js";
-import { PEN_COLOUR, INTRO_ANIMATION_STEP, PLAYER_FLASH_TICK, BAND_TO2_PASS_COUNTDOWN, SPRITE_COLOUR_CYCLE_COUNTDOWN, BAND_TO4_PASS_COUNTDOWN, COLOUR_FLOOD_COUNTDOWN, BAND_SCRIPT_CURSOR, CHAR_PLANE_BASE, INTRO_ANIMATION_STEP_SEED, BAND_SCRIPT_START, CHAR_PLANE_LOWER_RUN_BOTTOM, CHAR_PLANE_UPPER_RUN_BOTTOM, CHAR_PLANE_STUB_UPPER_LEFT, CHAR_PLANE_COLUMN_MID_BOTTOM, CHAR_PLANE_STUB_LOWER_LEFT } from "./names.js";
+import { PEN_COLOUR, ROUND_WON_ANIMATION_STEP, PLAYER_FLASH_TICK, BAND_TO2_PASS_COUNTDOWN, SPRITE_COLOUR_CYCLE_COUNTDOWN, BAND_TO4_PASS_COUNTDOWN, COLOUR_FLOOD_COUNTDOWN, BAND_SCRIPT_CURSOR, CHAR_PLANE_BASE, ROUND_WON_ANIMATION_STEP_SEED, BAND_SCRIPT_START, CHAR_PLANE_LOWER_RUN_BOTTOM, CHAR_PLANE_UPPER_RUN_BOTTOM, CHAR_PLANE_STUB_UPPER_LEFT, CHAR_PLANE_COLUMN_MID_BOTTOM, CHAR_PLANE_STUB_LOWER_LEFT } from "./names.js";
 
 // One character row in cell addresses; the ROM adds DE = 0xFFE0, which fillCellRun leaves behind.
 const ROW_STEP = -32;
@@ -38,7 +38,7 @@ export function armRoundWonBandAnimationThenStepSequence(m) {
   const { mem8 } = m;
 
   // --- The control block, 0xA9F0-0xA9F8 (ROM 0x4A0F-0x4A34) ---
-  // INTRO_ANIMATION_STEP, the step selector: seeded from ROM byte 0x3213 (INTRO_ANIMATION_STEP_SEED, a
+  // ROUND_WON_ANIMATION_STEP, the step selector: seeded from ROM byte 0x3213 (ROUND_WON_ANIMATION_STEP_SEED, a
   //    code byte that happens to be 0x00), so the animation starts at step 0;
   // PLAYER_FLASH_TICK, the flash tick, 0;
   // BAND_TO2_PASS_COUNTDOWN and BAND_TO4_PASS_COUNTDOWN, the two band pass countdowns, 0xFF each;
@@ -46,7 +46,7 @@ export function armRoundWonBandAnimationThenStepSequence(m) {
   // COLOUR_FLOOD_COUNTDOWN, the colour-flood countdown, 8;
   // BAND_SCRIPT_CURSOR (a word), aimed at the script's ROM start BAND_SCRIPT_START (0x56F1), stored
   //    little-endian.
-  mem8[INTRO_ANIMATION_STEP] = mem8[INTRO_ANIMATION_STEP_SEED];
+  mem8[ROUND_WON_ANIMATION_STEP] = mem8[ROUND_WON_ANIMATION_STEP_SEED];
   mem8[PLAYER_FLASH_TICK] = 0x00;
   mem8[BAND_TO2_PASS_COUNTDOWN] = 0xff;
   mem8[SPRITE_COLOUR_CYCLE_COUNTDOWN] = 0x04;

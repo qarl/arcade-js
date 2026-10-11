@@ -10,7 +10,7 @@
  *
  * ROLE IN THE MACHINE. The sequence machine's "pen" walks a fixed route as an 8.8 fixed-point
  * interpolator (names.js, the pen route block 0xA9E2-0xA9EA): each frame one arm calls this
- * routine to draw one leg. blankCaptionThenAdvancePenRunStep (phase 3, the round engine, step 2),
+ * routine to draw one leg. blankKillMeterThenAdvancePenRunStep (phase 3, the round engine, step 2),
  * advancePenRunAnimationStep and erasePenRouteThenOpenInitialsEntry all do, and all stay on their step until the route reseats on row
  * zero -- the live-out below (mechanisms.md). What a leg leaves on screen is whatever the pen
  * pair holds: plotPenCell stamps PEN_GLYPH into the character plane and PEN_COLOUR into the colour

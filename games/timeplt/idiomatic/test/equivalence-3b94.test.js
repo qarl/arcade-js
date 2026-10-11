@@ -18,7 +18,7 @@ import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { ROUTINES as TRANSLATED } from "../../routines.js";
 import { advanceHitSoakingObjectThenAnimateDeath } from "../advanceHitSoakingObjectThenAnimateDeath.js";
 import { loc_3b94 as oracle } from "../../translated/loc_3b94.js";
-import { HITS_REMAINING } from "../names.js";
+import { BOMBER_HITS_TO_ABSORB } from "../names.js";
 import { u8 } from "../../../../core/int.js";
 import { requestTwoSounds } from "../requestTwoSounds.js";
 import { retireObjectAndHold } from "../retireObjectAndHold.js";
@@ -61,7 +61,7 @@ function craft(hits, head, rich) {
   const c = captureBases()[5].clone();
   c.regs.ix = RECORD_BASE;
   c.regs.iy = ENTRY_BASE;
-  c.mem8[HITS_REMAINING] = hits;
+  c.mem8[BOMBER_HITS_TO_ABSORB] = hits;
   c.mem8[RECORD_BASE] = head;
   c.regs.a = u8(head + 1);
   if (rich) {
@@ -141,15 +141,15 @@ function brokenNoOp() {}
 
 function brokenSkipHits(m) {
   const { regs, mem8 } = m;
-  if (mem8[HITS_REMAINING] !== 0) { mem8[regs.ix] = 0xff; requestTwoSounds(m); return m.call(0x3b77); }
+  if (mem8[BOMBER_HITS_TO_ABSORB] !== 0) { mem8[regs.ix] = 0xff; requestTwoSounds(m); return m.call(0x3b77); }
   return advanceHitSoakingObjectThenAnimateDeath(m);
 }
 
 function brokenSkipDrift(m) {
   const { regs, mem8 } = m;
   const record = regs.ix, entry = regs.iy, head = u8(regs.a - 1);
-  if (mem8[HITS_REMAINING] !== 0) {
-    mem8[HITS_REMAINING] = mem8[HITS_REMAINING] - 1; mem8[record] = 0xff; requestTwoSounds(m); return m.call(0x3b77);
+  if (mem8[BOMBER_HITS_TO_ABSORB] !== 0) {
+    mem8[BOMBER_HITS_TO_ABSORB] = mem8[BOMBER_HITS_TO_ABSORB] - 1; mem8[record] = 0xff; requestTwoSounds(m); return m.call(0x3b77);
   }
   if (head >= 0x61) { mem8[record] = 0x61; requestTwoSounds(m); mem8[entry + 0x30] = 0x3d; mem8[entry + 0x32] = 0x3d; }
   mem8[record] = mem8[record] - 1;
@@ -161,8 +161,8 @@ function brokenSkipDrift(m) {
 function brokenShapeOff(m) {
   const { regs, mem8 } = m;
   const record = regs.ix, entry = regs.iy, head = u8(regs.a - 1);
-  if (mem8[HITS_REMAINING] !== 0) {
-    mem8[HITS_REMAINING] = mem8[HITS_REMAINING] - 1; mem8[record] = 0xff; requestTwoSounds(m); return m.call(0x3b77);
+  if (mem8[BOMBER_HITS_TO_ABSORB] !== 0) {
+    mem8[BOMBER_HITS_TO_ABSORB] = mem8[BOMBER_HITS_TO_ABSORB] - 1; mem8[record] = 0xff; requestTwoSounds(m); return m.call(0x3b77);
   }
   if (head >= 0x61) { mem8[record] = 0x61; requestTwoSounds(m); mem8[entry + 0x30] = 0x3d; mem8[entry + 0x32] = 0x3d; }
   mem8[record] = mem8[record] - 1;
@@ -177,8 +177,8 @@ function brokenShapeOff(m) {
 function brokenNoRetire(m) {
   const { regs, mem8 } = m;
   const record = regs.ix, entry = regs.iy, head = u8(regs.a - 1);
-  if (mem8[HITS_REMAINING] !== 0) {
-    mem8[HITS_REMAINING] = mem8[HITS_REMAINING] - 1; mem8[record] = 0xff; requestTwoSounds(m); return m.call(0x3b77);
+  if (mem8[BOMBER_HITS_TO_ABSORB] !== 0) {
+    mem8[BOMBER_HITS_TO_ABSORB] = mem8[BOMBER_HITS_TO_ABSORB] - 1; mem8[record] = 0xff; requestTwoSounds(m); return m.call(0x3b77);
   }
   if (head >= 0x61) { mem8[record] = 0x61; requestTwoSounds(m); mem8[entry + 0x30] = 0x3d; mem8[entry + 0x32] = 0x3d; }
   mem8[record] = mem8[record] - 1;

@@ -28,7 +28,7 @@ import { FRAME_TICK } from "./names.js";
 
 // The frame counter's low two bits (`and 0x03` at 0x4222): the one frame in four where both are
 // clear is the idle tick, on which a dispatch does not turn.
-const IDLE_PHASE = 3;
+const FOUR_FRAME_PHASE_MASK = 3;
 
 // Record bytes: the heading the object wants, and the heading it is flying on.
 const AIM_HEADING = 1;
@@ -46,7 +46,7 @@ export function steerTowardAimAtFixedRate(m, object = m.regs.ix) {
   const { mem8 } = m;
 
   // Rest on the idle tick: FRAME_TICK advances once per vblank, so this skips one frame in four.
-  if ((mem8[FRAME_TICK] & IDLE_PHASE) === 0) return;
+  if ((mem8[FRAME_TICK] & FOUR_FRAME_PHASE_MASK) === 0) return;
 
   // Measure how far the aim lies ahead of the heading, as an eight-bit angle that wraps round the
   // circle, and add the offset. Gaps of 0 and 255 (on the aim, or one step past it) become 1 and 0,

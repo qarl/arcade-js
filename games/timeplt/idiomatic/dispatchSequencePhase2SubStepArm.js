@@ -10,7 +10,7 @@ import { NotImplemented } from "../../../boards/timeplt/io.js";
 import { SEQUENCE_SUBSTEP } from "./names.js";
 import { parkSpritesAndArmLineWipeThenAdvanceSequence } from "./parkSpritesAndArmLineWipeThenAdvanceSequence.js";
 import { blankOneLineThenGuardBlockOrDerailSequence } from "./blankOneLineThenGuardBlockOrDerailSequence.js";
-import { postAttractInfoCaptions } from "./postAttractInfoCaptions.js";
+import { postPushStartScreenCaptions } from "./postPushStartScreenCaptions.js";
 import { stepCopyrightScreenAwaitingStart } from "./stepCopyrightScreenAwaitingStart.js";
 import { stepTwoCreditCopyrightScreenAwaitingStart } from "./stepTwoCreditCopyrightScreenAwaitingStart.js";
 import { noOpSequencePhase2Tail } from "./noOpSequencePhase2Tail.js";
@@ -30,7 +30,7 @@ export function dispatchSequencePhase2SubStepArm(m) {
     // then the shared tail below runs.
     case 0: parkSpritesAndArmLineWipeThenAdvanceSequence(m); break;
     case 1: blankOneLineThenGuardBlockOrDerailSequence(m); break;
-    case 2: postAttractInfoCaptions(m); break;
+    case 2: postPushStartScreenCaptions(m); break;
     case 3: stepCopyrightScreenAwaitingStart(m); break;
     case 4: stepTwoCreditCopyrightScreenAwaitingStart(m); break;
     // The remaining slots address bytes this port has not transcribed as routines; the inline

@@ -11,7 +11,7 @@
  * ROM 0x3CE9-0x3D24 (frozen lift translated/loc_3ce9.js). Grounding: [seen] (names.js ROUTINES 0x3ce9).
  *
  * Role in the machine: the "dressing" step for the big two-sprite object whose hit counter is
- * HITS_REMAINING 0xA8DC [seen] -- names.js ties that counter to the second era's bomber, which is armed
+ * BOMBER_HITS_TO_ABSORB 0xA8DC [seen] -- names.js ties that counter to the second era's bomber, which is armed
  * with 3 and so absorbs three hits and dies on the fourth. A sprite entry only says where the object is;
  * dressing writes its shape code (+1) and its attribute -- colour and flip bits -- (+0x30), which
  * publishSpriteShadow later copies to the hardware (mechanisms.md, "Dressing a sprite for heading and
@@ -28,7 +28,7 @@
  */
 
 import { u8 } from "../../../core/int.js";
-import { FRAME_TICK, HITS_REMAINING } from "./names.js";
+import { FRAME_TICK, BOMBER_HITS_TO_ABSORB } from "./names.js";
 
 // Shape selection: FRAME_TICK bit 1 (adds 0 or 2; bit 1 of a per-frame counter changes every two frames),
 // the largest hit count an object is armed with, four shape codes per damage block, and the first
@@ -61,7 +61,7 @@ export function mirrorTwoTileObjectByHeading(m, object = m.regs.ix, entry = m.re
   // block of four further on, and FRAME_TICK [seen] bit 1 flips between the first and second pair of
   // the block so the sprite animates.
   const alternate = mem8[FRAME_TICK] & ALTERNATE_BIT;
-  const damage = u8(MOST_HITS - mem8[HITS_REMAINING]);
+  const damage = u8(MOST_HITS - mem8[BOMBER_HITS_TO_ABSORB]);
   const shape = u8(FIRST_SHAPE + SHAPES_PER_DAMAGE_STEP * damage + alternate);
 
   // Step 2 -- which half of the compass is the object heading in? The ROM's `add a,0x40 / cp 0x80`:

@@ -20,7 +20,7 @@ import { steerTowardAimHeading } from "../steerTowardAimHeading.js";
 import { flyAtSlowestSpeed } from "../flyAtSlowestSpeed.js";
 import { hasReachedRetireLine } from "../hasReachedRetireLine.js";
 import { retireSlotAndSubPixel } from "../retireSlotAndSubPixel.js";
-import { launchBankEnemyWhenAimedNearPlayer } from "../launchBankEnemyWhenAimedNearPlayer.js";
+import { fireCraftShotWhenAimedNearPlayer } from "../fireCraftShotWhenAimedNearPlayer.js";
 import { dressSpriteForFineHeading } from "../dressSpriteForFineHeading.js";
 import { launchAttackerIntoFreeSlot } from "../launchAttackerIntoFreeSlot.js";
 import { releaseHeldObject } from "../releaseHeldObject.js";
@@ -201,7 +201,7 @@ function twinSkipFly(m) {
   if (s === ACTIVE) {
     if ((mem8[FRAME_TICK] & 3) < 3) steerTowardAimHeading(m);
     if (hasReachedRetireLine(m)) return retireSlotAndSubPixel(m);
-    launchBankEnemyWhenAimedNearPlayer(m); dressSpriteForFineHeading(m); launchAttackerIntoFreeSlot(m);
+    fireCraftShotWhenAimedNearPlayer(m); dressSpriteForFineHeading(m); launchAttackerIntoFreeSlot(m);
     return;
   }
   if (s === HELD) return releaseHeldObject(m);
@@ -239,7 +239,7 @@ function loc_2984Active(m) {
   if ((mem8[FRAME_TICK] & 3) < 3) steerTowardAimHeading(m);
   flyAtSlowestSpeed(m);
   if (hasReachedRetireLine(m)) return retireSlotAndSubPixel(m);
-  launchBankEnemyWhenAimedNearPlayer(m); dressSpriteForFineHeading(m); launchAttackerIntoFreeSlot(m);
+  fireCraftShotWhenAimedNearPlayer(m); dressSpriteForFineHeading(m); launchAttackerIntoFreeSlot(m);
 }
 function twinMovesIx(m) { serviceEra2EnemyCraftSlot(m); m.regs.ix = (m.regs.ix + 1) & 0xffff; }
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** paintCaptionColourBandAndStepSequence — paint a caption's colour band from a base colour. Starting at the cursor the caller
+/** paintRoundWonBandTailThenStepSequence — paint a caption's colour band from a base colour. Starting at the cursor the caller
  * leaves in HL it lays the caller's A over one cell, then a run of the caller's C, then a short
  * fixed tail; next it reads the base colour and fills two thirteen-cell colour-RAM runs and six scattered colour
  * cells, every value the base plus a fixed offset. Last it seeds the saved pen from the era and
@@ -34,7 +34,7 @@ import { PEN_COLOUR, CAPTION_COLOUR_LOWER_RUN_BOTTOM, CAPTION_COLOUR_UPPER_RUN_B
 
 // The run shape the ROM writes after the lead byte: `ld b,0x0d` cells of the caller's C, then
 // `ld a,0x0e / ld b,0x04` — four cells of the fixed tail byte 0x0E. ROW is one tilemap row (32).
-const HEAD_RUN = 13;
+const BODY_RUN = 13;
 const TAIL_RUN = 4;
 const TAIL_FILL = 0x0e;
 const ROW = 0x20;
@@ -43,7 +43,7 @@ const ROW = 0x20;
 // names.js) are already folded through `res 2,h` into colour RAM; each cell's second value sits one
 // row (ROW) back.
 
-export function paintCaptionColourBandAndStepSequence(m, head = m.regs.a, body = m.regs.c, cursor = m.regs.hl) {
+export function paintRoundWonBandTailThenStepSequence(m, head = m.regs.a, body = m.regs.c, cursor = m.regs.hl) {
   const { mem8 } = m;
 
   /* Step 1 — the byte run (ROM 0x4A42-0x4A52). `inc hl / ld (hl),a` puts the lead byte one past
@@ -51,7 +51,7 @@ export function paintCaptionColourBandAndStepSequence(m, head = m.regs.a, body =
    * `ld (hl),a / inc hl` under `djnz` the four 0x0E tail bytes, each at the next address up. */
   let cur = u16(cursor + 1);
   mem8[cur] = head;
-  for (let i = 0; i < HEAD_RUN; i++) mem8[cur = u16(cur + 1)] = body;
+  for (let i = 0; i < BODY_RUN; i++) mem8[cur = u16(cur + 1)] = body;
   for (let i = 0; i < TAIL_RUN; i++) mem8[cur = u16(cur + 1)] = TAIL_FILL;
 
   /* Step 2 — the base colour. `ld a,(0xad0c) / ld c,a`: PEN_COLOUR, the live caption/pen colour

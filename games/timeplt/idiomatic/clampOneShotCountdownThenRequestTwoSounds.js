@@ -12,7 +12,7 @@
  * when the value read before that decrement was 0x3C or more, calls this to overwrite it with 0x3B. The handover is
  * requestTwoSounds (0x5683), which queues two sound codes read from program bytes
  * (TWO_SOUND_REQUEST_FIRST_CODE 0x07A6 and TWO_SOUND_REQUEST_SECOND_CODE 0x4CDA), admitted while
- * PLAY_ACTIVE or DEMO_SOUNDS_ENABLE is set (enqueueSoundIfGameOrAttract, 0x5617).
+ * PLAY_ACTIVE or DEMO_SOUNDS_ENABLE is set (enqueueSoundIfGameOrDemoSoundsOn, 0x5617).
  *
  * `object` is the record base -- the index register the caller has seated on the current slot. */
 

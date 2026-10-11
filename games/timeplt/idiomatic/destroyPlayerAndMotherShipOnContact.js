@@ -3,7 +3,7 @@
  * destroyPlayerAndMotherShipOnContact — ROM 0x50EE [seen]
  *
  * WHAT IT IS. The ramming test between the player's ship and the Mother-Ship: flying into it
- * destroys both. Its caller ramTestPlayerVsMotherShip selects this arm in eras 0 and 4 because its
+ * destroys both. Its caller destroyPlayerAndMotherShipOnContactByEra selects this arm in eras 0 and 4 because its
  * first-axis window is the wider of the two; the other eras run the same destruction inline with a
  * narrower window.
  *

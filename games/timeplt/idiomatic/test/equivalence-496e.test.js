@@ -28,7 +28,7 @@ const TAIL = 0x4984;
 
 const FREE_PLAY = 0xa9c0;
 const CREDIT_COUNT = 0xa986;
-const COIN_ACCEPTED = 0xa981;
+const COIN_COUNTER_PULSES_OWED = 0xa981;
 const COIN_PULSE_TIMER = 0xa984;
 const COUNTER_LINE = 0xc30a;
 const SATURATED = 0x99;
@@ -123,7 +123,7 @@ const ACCEPTED = [0, 1, 2, 255];
 function skipCross() {
   const out = [];
   for (const t of TIMERS) for (const ac of ACCEPTED) {
-    out.push(craft((m) => { m.mem8[FREE_PLAY] = 1; m.mem8[COIN_PULSE_TIMER] = t; m.mem8[COIN_ACCEPTED] = ac; }));
+    out.push(craft((m) => { m.mem8[FREE_PLAY] = 1; m.mem8[COIN_PULSE_TIMER] = t; m.mem8[COIN_COUNTER_PULSES_OWED] = ac; }));
   }
   return out;
 }

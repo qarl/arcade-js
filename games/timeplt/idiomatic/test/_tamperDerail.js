@@ -21,7 +21,7 @@
 import { NotImplemented } from "../../../../boards/timeplt/io.js";
 
 export const DERAILS = new Map([
-  [0x459b, "stepMotherShipWarpFlashFrame"],
+  [0x459b, "derailIntoMotherShipWreckCountdown"],
   [0x49fa, "checkTheCopyrightLineColoursOrDerail"],
 ]);
 

@@ -16,13 +16,13 @@
 // slot's own accumulator (COIN_SLOT_2_ACCUMULATOR, 0xA9CB) by 0x10 -- one coin in the high nibble --
 // and a payout happens only once that count has passed the setting's coins-minus-one.
 //
-// LIVE-OUT: COIN_SLOT_2_DEBOUNCE, and on an accepted coin a sound request, COIN_ACCEPTED_SLOT_2 and
+// LIVE-OUT: COIN_SLOT_2_DEBOUNCE, and on an accepted coin a sound request, COIN_COUNTER_PULSES_OWED_SLOT_2 and
 // COIN_SLOT_2_ACCUMULATOR; on a payout, whatever awardCoinCreditThenPulseCoinCounter writes (the
 // credit count, its on-screen field, the coin-counter pulse).
 
 import { requestCoinSound } from "./requestCoinSound.js";
 import { awardCoinCreditThenPulseCoinCounter } from "./awardCoinCreditThenPulseCoinCounter.js";
-import { COIN_ACCEPTED_SLOT_2, COIN_SLOT_2_ACCUMULATOR, COIN_SLOT_2_DEBOUNCE, IN0_MIRROR, COIN_SLOT_2_RATIO } from "./names.js";
+import { COIN_COUNTER_PULSES_OWED_SLOT_2, COIN_SLOT_2_ACCUMULATOR, COIN_SLOT_2_DEBOUNCE, IN0_MIRROR, COIN_SLOT_2_RATIO } from "./names.js";
 
 // One coin is worth 0x10 in the accumulator, so the coin count sits in the high nibble where it can be
 // compared against the setting's high nibble (`add a,0x10` at 0x492C).
@@ -44,9 +44,9 @@ export function meterCoinageTowardCreditOnEdge(m) {
   if ((mem8[COIN_SLOT_2_DEBOUNCE] & PHASE_MASK) !== READY) return;
 
   // A coin has been accepted: ask for the coin sound (requestCoinSound, 0x57F1) and count the coin
-  // in COIN_ACCEPTED_SLOT_2 (0xA982, `inc (hl)` at 0x4928), the slot-2 twin of COIN_ACCEPTED.
+  // in COIN_COUNTER_PULSES_OWED_SLOT_2 (0xA982, `inc (hl)` at 0x4928), the slot-2 twin of COIN_COUNTER_PULSES_OWED.
   requestCoinSound(m);
-  mem8[COIN_ACCEPTED_SLOT_2] = (mem8[COIN_ACCEPTED_SLOT_2] + 1);
+  mem8[COIN_COUNTER_PULSES_OWED_SLOT_2] = (mem8[COIN_COUNTER_PULSES_OWED_SLOT_2] + 1);
 
   // Meter the coin: one more 0x10 into the accumulator. While the setting byte is still at or above the
   // new total (`sub b / ret nc` at 0x4932) the coins so far are not yet enough -- e.g. with a two-coins

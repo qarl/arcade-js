@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { advanceRoundWhenFieldCleared } from "../advanceRoundWhenFieldCleared.js";
-import { enqueueTransitionSoundBurst } from "../enqueueTransitionSoundBurst.js";
+import { enqueueTransitionSoundStops } from "../enqueueTransitionSoundStops.js";
 import { loc_1271 as oracle } from "../../translated/loc_1271.js";
 
 const TARGET = 0x1271;
@@ -95,7 +95,7 @@ function arm(m, mut = {}) {
   if (!mut.ig3) {
     for (let i = 0; i < SLOT_COUNT; i++) if (mem8[SLOTS + i * SLOT_STRIDE] !== 0) return;
   }
-  if (!mut.skipSound) enqueueTransitionSoundBurst(m);
+  if (!mut.skipSound) enqueueTransitionSoundStops(m);
   if (mem8[RESET_SEL] === 0) {
     mem8[ARM] = mem8[0x07d1];
     if (!mut.omit) m.push16(0x12c4);

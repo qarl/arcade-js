@@ -74,7 +74,7 @@ import { readFileSync } from "node:fs";
 import { makeMachine, COIN_FRAME, START_FRAME, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { requestDestructionSoundBurst } from "../requestDestructionSoundBurst.js";
 import { enqueueSoundIfGameInProgress } from "../enqueueSoundIfGameInProgress.js";
-import { enqueueSoundIfGameOrAttract } from "../enqueueSoundIfGameOrAttract.js";
+import { enqueueSoundIfGameOrDemoSoundsOn } from "../enqueueSoundIfGameOrDemoSoundsOn.js";
 import { appendSoundCommandToQueue } from "../appendSoundCommandToQueue.js";
 import { requestInterRoundSoundPair } from "../requestInterRoundSoundPair.js";
 import { PLAY_ACTIVE } from "../names.js";
@@ -371,9 +371,9 @@ function brokenNoOp() {}
 /** BUG: the three go through the LOOSER test, so the attract loop makes sounds it must not. */
 function brokenLoosePermissionThroughout(m) {
   const { mem8 } = m;
-  enqueueSoundIfGameOrAttract(m, mem8[FIRST_CODE_CELL]);
-  enqueueSoundIfGameOrAttract(m, mem8[SECOND_CODE_CELL]);
-  enqueueSoundIfGameOrAttract(m, mem8[THIRD_CODE_CELL]);
+  enqueueSoundIfGameOrDemoSoundsOn(m, mem8[FIRST_CODE_CELL]);
+  enqueueSoundIfGameOrDemoSoundsOn(m, mem8[SECOND_CODE_CELL]);
+  enqueueSoundIfGameOrDemoSoundsOn(m, mem8[THIRD_CODE_CELL]);
   requestInterRoundSoundPair(m);
 }
 

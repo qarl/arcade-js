@@ -40,7 +40,7 @@ import { readPlayerControls } from "./readPlayerControls.js";
 import { rearmHeldControlRepeat } from "./rearmHeldControlRepeat.js";
 import { fetchTableByte } from "./fetchTableByte.js";
 import { advanceCharCursor } from "./advanceCharCursor.js";
-import { enqueueTransitionSoundBurst } from "./enqueueTransitionSoundBurst.js";
+import { enqueueTransitionSoundStops } from "./enqueueTransitionSoundStops.js";
 import { advanceSequenceSubStep } from "./advanceSequenceSubStep.js";
 import { hideAllSprites } from "./hideAllSprites.js";
 import { startOnePlayerGame } from "./startOnePlayerGame.js";
@@ -193,10 +193,10 @@ function entryClockRanOut(m) {
 }
 
 // Finish: reload SEQUENCE_DELAY for the next arm, queue the seven transition sound codes
-// (enqueueTransitionSoundBurst, 0x5634 [seen]), and step the sequence sub-step (`jp 0x0f1a`).
+// (enqueueTransitionSoundStops, 0x5634 [seen]), and step the sequence sub-step (`jp 0x0f1a`).
 function finishEntry(m) {
   m.mem8[SEQUENCE_DELAY] = ENTRY_CLOCK_RELOAD;
-  enqueueTransitionSoundBurst(m);
+  enqueueTransitionSoundStops(m);
   advanceSequenceSubStep(m);
 }
 

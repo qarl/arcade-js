@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** postAttractInfoCaptions — one arm of the two-level sequence machine: stamps the copyright strip,
+/** postPushStartScreenCaptions — one arm of the two-level sequence machine: stamps the copyright strip,
  * flashes the copyright line, then posts a fixed run of caption codes to the command ring as
  * (1, code) pairs, three of them chosen by two work cells, then bumps the sequence counter twice on the
  * high branch and once on the low.
@@ -37,7 +37,7 @@ const TWO_CREDITS = 2;
 const TWO_CREDIT_CAPTION = 0x19;
 const ONE_CREDIT_CAPTION = 0x17;
 
-export function postAttractInfoCaptions(m) {
+export function postPushStartScreenCaptions(m) {
   const { mem8 } = m;
   // Every caption goes out as a (1, code) request on the command ring.
   const post = (code) => postCommand(m, CAPTION_COMMAND, code);

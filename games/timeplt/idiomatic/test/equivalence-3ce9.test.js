@@ -39,7 +39,7 @@ import {
   wholeMachineEquivalence,
 } from "../../../../core/equivalence.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
-import { FRAME_TICK, HITS_REMAINING } from "../names.js";
+import { FRAME_TICK, BOMBER_HITS_TO_ABSORB } from "../names.js";
 
 const TARGET = 0x3ce9;
 
@@ -105,7 +105,7 @@ function unitDiff(candidate, machine) {
 
 const caught = (candidate, machine) => unitDiff(candidate, machine) !== null;
 const shapeOf = (m) =>
-  `${m.mem8[HITS_REMAINING]}/${m.mem8[m.regs.ix + HEADING]}/${m.mem8[FRAME_TICK] & ALTERNATE_BIT}`;
+  `${m.mem8[BOMBER_HITS_TO_ABSORB]}/${m.mem8[m.regs.ix + HEADING]}/${m.mem8[FRAME_TICK] & ALTERNATE_BIT}`;
 
 // ── the corpus ──────────────────────────────────────────────────────────────────────────
 
@@ -132,7 +132,7 @@ function captureCorpus() {
 function craft(heading, stage, alternate) {
   const m = entryState().clone();
   m.mem8[m.regs.ix + HEADING] = heading;
-  m.mem8[HITS_REMAINING] = stage;
+  m.mem8[BOMBER_HITS_TO_ABSORB] = stage;
   m.mem8[FRAME_TICK] = (m.mem8[FRAME_TICK] & ~ALTERNATE_BIT) | alternate;
   return m;
 }
@@ -166,7 +166,7 @@ const replay = (candidate) =>
 
 const shapeFor = (m) =>
   (FIRST_SHAPE +
-    SHAPES_PER_STAGE * ((LAST_STAGE - m.mem8[HITS_REMAINING]) & 0xff) +
+    SHAPES_PER_STAGE * ((LAST_STAGE - m.mem8[BOMBER_HITS_TO_ABSORB]) & 0xff) +
     (m.mem8[FRAME_TICK] & ALTERNATE_BIT)) &
   0xff;
 const reversedAt = (m) => ((m.mem8[m.regs.ix + HEADING] + QUARTER_TURN) & 0xff) < HALF_TURN;
@@ -204,7 +204,7 @@ function brokenBoundaryOffByQuarter(m) {
 /** BUG: the stage counts upward, so a big object is drawn small and the other way round. */
 function brokenStageNotInverted(m) {
   const reversed = reversedAt(m);
-  const shape = (FIRST_SHAPE + SHAPES_PER_STAGE * m.mem8[HITS_REMAINING] +
+  const shape = (FIRST_SHAPE + SHAPES_PER_STAGE * m.mem8[BOMBER_HITS_TO_ABSORB] +
     (m.mem8[FRAME_TICK] & ALTERNATE_BIT)) & 0xff;
   m.mem8[m.regs.iy + (reversed ? SECOND_ENTRY_SHAPE : FIRST_ENTRY_SHAPE)] = shape;
   m.mem8[m.regs.iy + (reversed ? FIRST_ENTRY_SHAPE : SECOND_ENTRY_SHAPE)] = shape + 1;
@@ -216,7 +216,7 @@ function brokenStageNotInverted(m) {
 /** BUG: the object never flickers, so one of its two frames is never shown. */
 function brokenNoAlternate(m) {
   const reversed = reversedAt(m);
-  const shape = (FIRST_SHAPE + SHAPES_PER_STAGE * ((LAST_STAGE - m.mem8[HITS_REMAINING]) & 0xff)) & 0xff;
+  const shape = (FIRST_SHAPE + SHAPES_PER_STAGE * ((LAST_STAGE - m.mem8[BOMBER_HITS_TO_ABSORB]) & 0xff)) & 0xff;
   m.mem8[m.regs.iy + (reversed ? SECOND_ENTRY_SHAPE : FIRST_ENTRY_SHAPE)] = shape;
   m.mem8[m.regs.iy + (reversed ? FIRST_ENTRY_SHAPE : SECOND_ENTRY_SHAPE)] = shape + 1;
   const attribute = reversed ? ATTRIBUTE_REVERSED : ATTRIBUTE_FORWARD;

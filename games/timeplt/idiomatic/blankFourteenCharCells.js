@@ -10,7 +10,7 @@
  * written only with the blanking glyph, and in the colour plane only those cells' twins 0x400 below, each written with 0x16 (names.js).
  *
  * Role in the machine: a clean-up step run before the screen is redrawn. Its two callers are
- * blankCaptionThenAdvancePenRunStep and loadActivePlayerContextAndPostRoundHud, and each calls it
+ * blankKillMeterThenAdvancePenRunStep and loadActivePlayerContextAndPostRoundHud, and each calls it
  * first, before doing anything else. The fixed start cell is KILL_METER_BAR_START_CELL (0xA79F), the
  * same cell drawKillMeter starts the kill-meter bar from, walking the same -0x20 stride.
  *

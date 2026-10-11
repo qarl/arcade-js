@@ -27,9 +27,9 @@
 import { advanceSequencePhase } from "./advanceSequencePhase.js";
 import { postCommand } from "./postCommand.js";
 import { drawKillMeter } from "./drawKillMeter.js";
-import { resetPlayfieldAndArmNewRound } from "./resetPlayfieldAndArmNewRound.js";
+import { resetPlayfieldForLifeStart } from "./resetPlayfieldForLifeStart.js";
 import { advanceSequenceSubStep } from "./advanceSequenceSubStep.js";
-import { PLAY_ACTIVE, ACTIVE_PLAYER, ROUND_ARMED, ROUND_START_CHECKSUM_BASE } from "./names.js";
+import { PLAY_ACTIVE, ACTIVE_PLAYER, ROUND_INTRO_PENDING, ROUND_START_CHECKSUM_BASE } from "./names.js";
 
 // Anti-tamper guard: the XOR of 256 program bytes must be 0x6B. (The ROM tests it as
 // `add a,0x95`, which is zero exactly when the fold is 0x6B.)
@@ -64,17 +64,17 @@ export function postRoundStartCaptionsAndResetPlayfield(m) {
     // (`inc e`) for the second player.
     const argument = PLAYER_ARGUMENT + (mem8[ACTIVE_PLAYER] === 0 ? 0 : 1);
     postCommand(m, CAPTION_COMMAND, argument);
-    // Then, if ROUND_ARMED (0xAD0E, [seen]) is clear, " READY " again; if it is set, the same
+    // Then, if ROUND_INTRO_PENDING (0xAD0E, [seen]) is clear, " READY " again; if it is set, the same
     // argument re-posted under command 7 (drawRoundNumberCaption) -- the ROM just swaps the
     // command byte (`ld d,0x07`) and posts again.
-    if (mem8[ROUND_ARMED] === 0) postCommand(m, CAPTION_COMMAND, DEFAULT_ARGUMENT);
+    if (mem8[ROUND_INTRO_PENDING] === 0) postCommand(m, CAPTION_COMMAND, DEFAULT_ARGUMENT);
     else postCommand(m, ARMED_COMMAND, argument);
   }
 
   // Repaint the kill meter (drawKillMeter, 0x0809), reset the playfield and arm the round's
-  // settings (resetPlayfieldAndArmNewRound, 0x19F0), then step the inner sequence index
+  // settings (resetPlayfieldForLifeStart, 0x19F0), then step the inner sequence index
   // (advanceSequenceSubStep, 0x0F1A, a ROM tail jump) so the next frame runs the next arm.
   drawKillMeter(m);
-  resetPlayfieldAndArmNewRound(m);
+  resetPlayfieldForLifeStart(m);
   advanceSequenceSubStep(m);
 }

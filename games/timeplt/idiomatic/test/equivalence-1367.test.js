@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * flashPlayerWhiteEveryOtherFrame — memory-equivalent to the frozen oracle at ROM 0x1367.
+ * flashPlayerWhiteOnAlternateCalls — memory-equivalent to the frozen oracle at ROM 0x1367.
  *
  * GATE: crafted-entry, because the strict one CANNOT run here. Neither the shared coin -> start
  *   tape nor an undriven session dispatches 0x1367 in two thousand frames, so unitEquivalence
@@ -40,8 +40,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
-import { flashPlayerWhiteEveryOtherFrame } from "../flashPlayerWhiteEveryOtherFrame.js";
-import { requestPlayerSpawnFlashSound } from "../requestPlayerSpawnFlashSound.js";
+import { flashPlayerWhiteOnAlternateCalls } from "../flashPlayerWhiteOnAlternateCalls.js";
+import { requestPlayerWhiteFlashSound } from "../requestPlayerWhiteFlashSound.js";
 import { loc_1367 as oracle } from "../../translated/loc_1367.js";
 import { unitEquivalence } from "../../../../core/equivalence.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
@@ -81,7 +81,7 @@ function sessionRun() {
   let host = null;
   let threw = null;
   try {
-    unitEquivalence((overrides) => (host = makeMachine(overrides)), TARGET, oracle, flashPlayerWhiteEveryOtherFrame, {
+    unitEquivalence((overrides) => (host = makeMachine(overrides)), TARGET, oracle, flashPlayerWhiteOnAlternateCalls, {
       maxFrames: ENTRY_FRAMES,
     });
   } catch (e) {
@@ -156,7 +156,7 @@ function frame(m, {
   const { mem8 } = m;
   if (mem8[ANIMATION_TICK] === soundTick) {
     mem8[ANIMATION_STEP] = NEXT_STEP;
-    if (sound) requestPlayerSpawnFlashSound(m);
+    if (sound) requestPlayerWhiteFlashSound(m);
   }
   const colour = (mem8[ANIMATION_TICK] & bit) === 0 ? first : second;
   mem8[SPRITE_ATTRIBUTE] = (mem8[SPRITE_ATTRIBUTE] & mask) + colour;
@@ -231,7 +231,7 @@ test("EXCLUDED, deliberately: registers and pc, and the scratch pushes", { skip 
   const a = craft(LIVE_POINT);
   const b = a.clone();
   oracle(a);
-  flashPlayerWhiteEveryOtherFrame(b);
+  flashPlayerWhiteOnAlternateCalls(b);
   const moved = REG_FIELDS.filter((k) => a.regs[k] !== b.regs[k]);
   const unexpected = moved.filter((k) => !EXCLUDED.includes(k));
   assert.deepEqual(
@@ -244,7 +244,7 @@ test("EXCLUDED, deliberately: registers and pc, and the scratch pushes", { skip 
 });
 
 test("EXHAUSTIVE: every tick value against five attribute priors", { skip }, () => {
-  assert.equal(sweepCaught(flashPlayerWhiteEveryOtherFrame), 0, "the rewrite diverged somewhere in the crafted space");
+  assert.equal(sweepCaught(flashPlayerWhiteOnAlternateCalls), 0, "the rewrite diverged somewhere in the crafted space");
   assert.ok(POINTS.some(([tick]) => tick === SOUND_AT_TICK), "vacuous: the sweep never asks for " +
     "the sound, so the whole of the routine's first arm is uncovered");
   assert.ok(POINTS.some(([tick]) => tick === 255), "vacuous: the tick counter never wraps");
@@ -253,7 +253,7 @@ test("EXHAUSTIVE: every tick value against five attribute priors", { skip }, () 
 
 test("THE MIRRORING BITS SURVIVE: both are kept from a prior that has them set", { skip }, () => {
   const m = craft([1, 0xff]);
-  flashPlayerWhiteEveryOtherFrame(m);
+  flashPlayerWhiteOnAlternateCalls(m);
   assert.equal(m.mem8[SPRITE_ATTRIBUTE] & MIRROR_BITS, MIRROR_BITS, "the mirroring bits were lost");
   assert.equal(m.mem8[SPRITE_ATTRIBUTE] & ~MIRROR_BITS, SECOND_COLOUR, "the colour is wrong");
   console.log(`  MIRRORING: 0xff -> ${hex4(m.mem8[SPRITE_ATTRIBUTE])}, top two bits intact`);

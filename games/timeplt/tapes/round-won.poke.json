@@ -43,6 +43,6 @@
     { "frame": 1090, "addr": "0xad34", "val": "0x99", "dur": 1 }
   ],
   "responded": {"cell": "0xa8a0", "op": "eq", "val": "0xe4"},
-  "reaches": ["armRoundWonBandAnimationThenStepSequence", "stepRoundStartIntroAnimation", "startNextRound", "advanceScriptedCharPlaneBandTo2", "advanceScriptedCharPlaneBandTo4", "floodColourPlaneWithSavedPlayerColour", "requestBonusLifeSound", "turnShipTowardTargetHeading"],
+  "reaches": ["armRoundWonBandAnimationThenStepSequence", "stepRoundWonBandAnimation", "startNextRound", "advanceScriptedCharPlaneBandTo2", "advanceScriptedCharPlaneBandTo4", "floodColourPlaneWithSavedPlayerColour", "requestBonusLifeSound", "turnShipTowardTargetHeading"],
   "idiomatic_residual_frames": 98
 }

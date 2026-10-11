@@ -11,7 +11,7 @@
  * board. Producers reach that queue through one of three gates, which differ only in when they
  * let a request through:
  *   - enqueueSoundUnconditional (0x5628): always;
- *   - enqueueSoundIfGameOrAttract (0x5617): in play, or in attract when attract sounds are on;
+ *   - enqueueSoundIfGameOrDemoSoundsOn (0x5617): in play, or in attract when attract sounds are on;
  *   - this one: in play only.
  *
  * "In play" is PLAY_ACTIVE (0xAD30) [seen]. It is the only thing separating real play from the

@@ -12,7 +12,7 @@
  * with each component shifted left once (ROM `sla e / rl d`, `sla c / rl b`). Three small shims
  * each fix a table and tail-jump here. The calls at 0x3DAE, 0x3F63 and 0x3F68 bank the returned pair
  * straight into an object record's +0x0A..+0x0D, which flyAlongStoredVelocity then adds to the object
- * at each step (layOutEnemyAimPointsFromScrollAngle instead uses loc_59d1's pair to place aim points) --
+ * at each step (layOutEnemyAimPointsFromPlayerHeading instead uses loc_59d1's pair to place aim points) --
  * so the doubling is the speed those objects fly at, not an artefact.
  *
  * Parameters: `table` is the base of the component table (the ROM's HL) and `heading` the heading

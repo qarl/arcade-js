@@ -7,7 +7,7 @@
  * ROM 0x1393-0x13CB (frozen lift translated/loc_1393.js). Grounding: [seen].
  *
  * Role in the machine: part of the between-eras band animation that plays after a round is won.
- * stepRoundStartIntroAnimation dispatches on INTRO_ANIMATION_STEP (0xA9F0), and its step 2 -- the
+ * stepRoundWonBandAnimation dispatches on ROUND_WON_ANIMATION_STEP (0xA9F0), and its step 2 -- the
  * one call site -- runs this and then advanceScriptedCharPlaneBandTo4. The byte written,
  * PLAYER_SPRITE_ATTRIBUTE (0xAA40), is the shadow of the player ship's sprite attribute (colour +
  * flip bits), which publishSpriteShadow copies to the hardware.
@@ -19,7 +19,7 @@
  * LIVE-OUT: memory. */
 
 import { u8 } from "../../../core/int.js";
-import { INTRO_ANIMATION_STEP, PLAYER_SPRITE_ATTRIBUTE, SPRITE_COLOUR_CYCLE_COUNTDOWN } from "./names.js";
+import { ROUND_WON_ANIMATION_STEP, PLAYER_SPRITE_ATTRIBUTE, SPRITE_COLOUR_CYCLE_COUNTDOWN } from "./names.js";
 
 
 // Bits 6-7 of the attribute byte carry the sprite's mirroring and are kept (ROM `and 0xc0`).
@@ -39,7 +39,7 @@ export function cyclePlayerSpriteColourThenAdvanceStepAtZero(m) {
   const remaining = mem8[SPRITE_COLOUR_CYCLE_COUNTDOWN];
 
   // Count already exhausted: hand the animation on to step 3. The colour below is still written.
-  if (remaining === 0) mem8[INTRO_ANIMATION_STEP] = NEXT_STEP;
+  if (remaining === 0) mem8[ROUND_WON_ANIMATION_STEP] = NEXT_STEP;
 
   /* Pick the colour from bit 2 of the count and merge it under the kept mirroring bits (the ROM
    * adds rather than ORs, which is the same here because the colour codes never reach bit 6). */

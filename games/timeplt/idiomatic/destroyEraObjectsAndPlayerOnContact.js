@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** destroyTargetsReachedByFixedAttacker — destroy every target ONE fixed attacker has reached, and post the score for each.
+/** destroyEraObjectsAndPlayerOnContact — destroy every target ONE fixed attacker has reached, and post the score for each.
  *
  * The attacker is not a parameter: its state byte and its two screen coordinates live at fixed
  * cells, so this sweeps a caller's run of target slots against that one object. It returns at
@@ -30,7 +30,7 @@ const DESTROYED = 240;
 const ENTRY_STRIDE = 2;
 const ENTRY_SECOND_AXIS = 49;
 
-export function destroyTargetsReachedByFixedAttacker(m, target = m.regs.de, entry = m.regs.iy, targets = m.regs.b, reach = m.regs.l, span = m.regs.h) {
+export function destroyEraObjectsAndPlayerOnContact(m, target = m.regs.de, entry = m.regs.iy, targets = m.regs.b, reach = m.regs.l, span = m.regs.h) {
   const { mem8, regs } = m;
   // Attacker not live: neither cursor moves (declared live-out); the tuple echoes the seated inputs.
   if (mem8[PLAYER_STATE] !== LIVE) return { target: u16(target), entry: u16(entry) };

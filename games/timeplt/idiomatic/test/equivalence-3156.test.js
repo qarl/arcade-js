@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * seatFinalEraSceneryFillThenClearEraScenery — poked-natural dispatch, then a MASKED diff on independent clones. Choose the fill
+ * setFinalEraSceneryAttributesThenRunEraScenery — poked-natural dispatch, then a MASKED diff on independent clones. Choose the fill
  * byte, then transfer into the routine that owns the cells it fills. The dissolved callee drops its
  * tail return, so the frozen side re-seats two bytes higher and leaves a return address in the dead
  * stack scratch the rewrite never writes; that window is masked, its floor proved above every data
@@ -13,7 +13,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
-import { seatFinalEraSceneryFillThenClearEraScenery } from "../seatFinalEraSceneryFillThenClearEraScenery.js";
+import { setFinalEraSceneryAttributesThenRunEraScenery } from "../setFinalEraSceneryAttributesThenRunEraScenery.js";
 import { loc_3156 as oracle } from "../../translated/loc_3156.js";
 import { ERA_INDEX } from "../names.js";
 
@@ -102,7 +102,7 @@ test("NEGATIVE CONTROL: with the era left alone the game never dispatches", { sk
 });
 
 test("EQUAL at the poked dispatch: masked RAM identical, the drift asserted", { skip: SKIP }, () => {
-  const r = compare(seatFinalEraSceneryFillThenClearEraScenery, entryState());
+  const r = compare(setFinalEraSceneryAttributesThenRunEraScenery, entryState());
   assert.equal(r.escaped, null, r.escaped && `escaped the mask at ${hex4(r.escaped.addr)}`);
   assert.ok(r.low > DATA_TOP, `the stack window ${hex4(r.low)} reached down into game data`);
   assert.equal(r.spDiff, 2, "the frozen side pops a return the rewrite leaves, so sp+2 is owed");
@@ -111,7 +111,7 @@ test("EQUAL at the poked dispatch: masked RAM identical, the drift asserted", { 
 
 test("THE BYTE LANDS: the filled run holds the chosen byte, so the RAM arm is not vacuous", { skip: SKIP }, () => {
   const m = entryState().clone();
-  seatFinalEraSceneryFillThenClearEraScenery(m);
+  setFinalEraSceneryAttributesThenRunEraScenery(m);
   assert.deepEqual(filledRun(m), new Array(FILLED_RUN_CELLS).fill(FILL_BYTE), "every filled cell must hold it");
   assert.notEqual(FILL_BYTE, THE_OTHER_FILL_BYTE, "the two fill bytes must actually differ");
   console.log(`  LANDS: ${FILLED_RUN_CELLS} cells from ${hex4(FILLED_RUN_START)} all read ${FILL_BYTE}`);

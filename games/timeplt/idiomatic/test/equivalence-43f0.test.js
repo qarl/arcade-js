@@ -20,7 +20,7 @@ import assert from "node:assert/strict";
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { ROUTINES as TRANSLATED } from "../../routines.js";
 import { loc_43f0 as candidate } from "../loc_43f0.js";
-import { stepMotherShipWarpFlashFrame } from "../stepMotherShipWarpFlashFrame.js";
+import { derailIntoMotherShipWreckCountdown } from "../derailIntoMotherShipWreckCountdown.js";
 import { loc_598e } from "../loc_598e.js";
 import { loc_5994 } from "../loc_5994.js";
 import { loc_43f0 as oracle } from "../../translated/loc_43f0.js";
@@ -300,7 +300,7 @@ function compareToDerail(cand, machine) {
 /** BUG: ignores the tamper gate and ends the spent sequence cleanly. */
 const noDerail = (m) => { m.mem8[TAMPER_GLYPH_COPY] = 0x7c; m.mem8[TAMPER_GLYPH_COPY + 1] = 0x10; candidate(m); };
 /** BUG: takes the right landing, but before the spent sequence goes back to idle. */
-const derailsEarly = () => stepMotherShipWarpFlashFrame();
+const derailsEarly = () => derailIntoMotherShipWreckCountdown();
 
 test("DERAIL: a tampered glyph copy stops both sides at 0x459b after the same work", { skip }, () => {
   let n = 0;

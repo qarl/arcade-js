@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** launchBankEnemyWhenAimedNearPlayer — one gated attempt by a craft to fire a shot into a free enemy-shot slot. Four gates guard it: a
+/** fireCraftShotWhenAimedNearPlayer — one gated attempt by a craft to fire a shot into a free enemy-shot slot. Four gates guard it: a
  * phase key that only lets one bank phase through, a launch cooldown that must have run out, a non-zero scan bound, and a
  * free record in the bank being found by a strided upward scan. When all pass, three window tests
  * follow: the craft must NOT sit near the player's fixed screen position on both axes, its heading
@@ -53,7 +53,7 @@ const COORD_Y = 0x31;
 const VELOCITY = 0x0a;
 const RECORD_STRIDE = 0x10;
 
-export function launchBankEnemyWhenAimedNearPlayer(m, ixEntry = m.regs.ix, iyEntry = m.regs.iy) {
+export function fireCraftShotWhenAimedNearPlayer(m, ixEntry = m.regs.ix, iyEntry = m.regs.iy) {
   const { mem8, mem16 } = m;
 
   // GATE 1 -- THIS CRAFT'S TURN (0x3ED6-0x3EE0). FRAME_TICK's low three bits count 0-7, plus 5; only

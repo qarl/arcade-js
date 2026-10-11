@@ -4,8 +4,8 @@
 # A line no site still needs is stale and blocks.
 PEN_ROW_POS     2  the 8.8 row position word; drawInterpolatedPenRun reseats the whole word (fraction 0, whole part = the leg's start row) as its low then high byte, so +1 (PEN_ROW_CELL) is that word's high byte, not a separate write
 PEN_COLUMN_POS  2  the 8.8 column position word; drawInterpolatedPenRun reseats it the same way, so +1 (PEN_COLUMN_CELL) is that word's high byte
-PLAYER1_SCORE_MID       2  player one's score middle and high packed-BCD bytes; armRoundStartThenStepSequence zeroes both with one word store, so +1 (PLAYER1_SCORE_HI) is that word's high byte
+PLAYER1_SCORE_MID       2  player one's score middle and high packed-BCD bytes; armNewGameThenStepSequence zeroes both with one word store, so +1 (PLAYER1_SCORE_HI) is that word's high byte
 PLAYER2_SCORE_MID       2  the same word for player two; +1 (PLAYER2_SCORE_HI) is its high byte
-LIFE_TICKS_MID          2  the play-time counter's middle and high places; resetPlayfieldAndArmNewRound zeroes both with one word store, so +1 (LIFE_TICKS_HIGH) is that word's high byte
+LIFE_TICKS_MID          2  the play-time counter's middle and high places; resetPlayfieldForLifeStart zeroes both with one word store, so +1 (LIFE_TICKS_HIGH) is that word's high byte
 DEMO_SCRIPT_POINTER_LO  2  the attract-demo script cursor, a little-endian word; flyDemoShipByScript reads, steps and stores it whole, so +1 (DEMO_SCRIPT_POINTER_HI) is its high byte
 PEN_ROUTE_START_ROW     2  the ROM 8.8 word the pen route starts on; armThePenRouteThenColdStartOnATamperedImage copies it whole into PEN_ROW_POS, so +1 (PLAYER_SHOT_SLOT_STRIDE_WORD, the same ROM byte read as the shot stride's low byte) is that word's high byte

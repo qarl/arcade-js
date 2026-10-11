@@ -10,7 +10,7 @@
  * the world moves past it. The ship has no position of its own: once a pass
  * scrollWorldAtTheEraPace looks up the velocity pair its heading calls for (at the era's pace) and
  * hands it here, and apart from bulk RAM clears this routine is one of only two writers of the scroll
- * cells (the other, resetPlayfieldAndArmNewRound, zeroes them — mechanisms.md). World-fixed objects then add
+ * cells (the other, resetPlayfieldForLifeStart, zeroes them — mechanisms.md). World-fixed objects then add
  * WORLD_SCROLL_Y / WORLD_SCROLL_X (or a fraction of them, for parallax) to their own coordinates
  * through driftWithWorldScroll and its wrappers, so storing the NEGATED velocity there is what
  * makes the world drift opposite to the ship's travel — the camera.

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * destroyFixedTargetHitByShots — ROM 0x4F7E [seen]
+ * markEra1BomberAndShotHitByShots — ROM 0x4F7E [seen]
  *
  * WHAT IT IS. The collision test between the player's bullets and the one fixed target held in
  * era-object slot 0 (record ERA_OBJECT_RECORD_SLOT0 0xA8C0, sprite entry ERA_OBJECT_ENTRY_SLOT0
@@ -44,7 +44,7 @@ const SECOND_AXIS_WINDOW = 0x1f;
 const LIVE = 0xff;
 const DESTROYED = 0xf0;
 
-export function destroyFixedTargetHitByShots(m) {
+export function markEra1BomberAndShotHitByShots(m) {
   const { mem8 } = m;
   // No live target, nothing to hit (ROM: inc a / ret nz on the state byte at 0xA8C0).
   if (mem8[ERA_OBJECT_RECORD_SLOT0] !== LIVE) return;

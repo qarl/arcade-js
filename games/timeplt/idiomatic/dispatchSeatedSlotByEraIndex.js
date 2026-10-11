@@ -34,7 +34,7 @@ import { serviceEra1EnemyCraftSlot } from "./serviceEra1EnemyCraftSlot.js";
 import { serviceEra2EnemyCraftSlot } from "./serviceEra2EnemyCraftSlot.js";
 import { serviceEra3EnemyCraftSlot } from "./serviceEra3EnemyCraftSlot.js";
 import { serviceEra4EnemyCraftSlot } from "./serviceEra4EnemyCraftSlot.js";
-import { stepRoundStartIntroAnimation } from "./stepRoundStartIntroAnimation.js";
+import { stepRoundWonBandAnimation } from "./stepRoundWonBandAnimation.js";
 
 // The ROM's `and 0x07`: only the low three bits of the era index choose a table word (eight words).
 const ARM_MASK = 0x07;
@@ -56,7 +56,7 @@ export function dispatchSeatedSlotByEraIndex(m, record = m.regs.ix, entry = m.re
     case 4: return serviceEra4EnemyCraftSlot(m, record, entry);
     // Word 7: the round-won band animation (sequence step 14, 0x1323), which takes no slot arguments,
     // so the seated record is not passed.
-    case 7: return stepRoundStartIntroAnimation(m);
+    case 7: return stepRoundWonBandAnimation(m);
     // The two remaining words point past the program image into unmapped space, where the inline
     // dispatch would jump and fault; surface the same fault here.
     default:

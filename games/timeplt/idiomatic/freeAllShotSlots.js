@@ -6,7 +6,7 @@
  *
  * Role in the machine: the player's shots live in their own six-record array at PLAYER_SHOT_ARRAY
  * (0xAA80, 16-byte records, no sprite entries). Freeing them belongs to the start of a life: the
- * only caller is the life-start routine resetPlayfieldAndArmNewRound, and under MAME the store fired
+ * only caller is the life-start routine resetPlayfieldForLifeStart, and under MAME the store fired
  * exactly as often as the life-start store wrote the player alive. Each record's +0 is its
  * occupancy byte; +4 is a byte of its position (see the shot-array note in names.js). No other
  * byte of a record is touched.

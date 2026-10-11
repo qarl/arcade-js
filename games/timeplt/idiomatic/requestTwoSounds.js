@@ -20,17 +20,17 @@
  *
  * LIVE-OUT: memory only -- the sound queue, up to two entries. */
 
-import { enqueueSoundIfGameOrAttract } from "./enqueueSoundIfGameOrAttract.js";
+import { enqueueSoundIfGameOrDemoSoundsOn } from "./enqueueSoundIfGameOrDemoSoundsOn.js";
 import { TWO_SOUND_REQUEST_FIRST_CODE, TWO_SOUND_REQUEST_SECOND_CODE } from "./names.js";
 
 export function requestTwoSounds(m) {
   const { mem8 } = m;
   // First code: the byte at 0x07A6 (TWO_SOUND_REQUEST_FIRST_CODE), handed to the door at
-  // 0x5617 (enqueueSoundIfGameOrAttract) as an ordinary call. The door admits it while a game
+  // 0x5617 (enqueueSoundIfGameOrDemoSoundsOn) as an ordinary call. The door admits it while a game
   // is being played or the demo-sounds cell 0xA9C6 is set.
-  enqueueSoundIfGameOrAttract(m, mem8[TWO_SOUND_REQUEST_FIRST_CODE]);
+  enqueueSoundIfGameOrDemoSoundsOn(m, mem8[TWO_SOUND_REQUEST_FIRST_CODE]);
   // Second code: the byte at 0x4CDA (TWO_SOUND_REQUEST_SECOND_CODE), through the same door --
   // in the ROM a tail jump, so the door's own return ends this routine. Each request is judged
   // by the door on its own; neither depends on whether the other was admitted.
-  enqueueSoundIfGameOrAttract(m, mem8[TWO_SOUND_REQUEST_SECOND_CODE]);
+  enqueueSoundIfGameOrDemoSoundsOn(m, mem8[TWO_SOUND_REQUEST_SECOND_CODE]);
 }

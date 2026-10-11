@@ -16,8 +16,8 @@
  * object must move by the world scroll as well as by its own motion. The shared displacement is
  * WORLD_SCROLL_Y (0xA808) and WORLD_SCROLL_X (0xA80A) — named for the NATIVE sprite axes; under the
  * board's ROT90 native Y is the display's horizontal. The velocity words at +0x0A..+0x0D are
- * banked by other routines (e.g. spawnAimedEnemyIntoEraBankWhenInWindow and
- * launchBankEnemyWhenAimedNearPlayer), never by this one; its sibling flyAlongHeading looks the
+ * banked by other routines (e.g. fireBomberShotWhenClearOfPlayer and
+ * fireCraftShotWhenAimedNearPlayer), never by this one; its sibling flyAlongHeading looks the
  * velocity up from a heading instead. Callers include serviceSlotByHeadByte, runParachutistSlot,
  * flyAndRetireSlotCyclingShapeInEra4 and advanceTwoTileObjectThenTryAimedSpawn.
  *

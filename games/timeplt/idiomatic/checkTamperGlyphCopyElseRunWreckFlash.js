@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** setUpTwoPlayerStartObjectOnce — fire once when a watched pair of cells stops agreeing: step a counter the caller points at down,
+/** checkTamperGlyphCopyElseRunWreckFlash — fire once when a watched pair of cells stops agreeing: step a counter the caller points at down,
  * seat two shape codes and two attribute bytes (read as a sprite entry) into one object slot, ask for the Mother-Ship warp
  * sound while the player is live, and post a 3,000-point score award (ring command 4, award entry 13). When the pair still agrees it does nothing.
  * LIVE-OUT: memory.
@@ -34,7 +34,7 @@ const SLOT_SHAPE_B = 0x03;
 const SLOT_ATTRIBUTE_A = 0x30;
 const SLOT_ATTRIBUTE_B = 0x32;
 
-export function setUpTwoPlayerStartObjectOnce(m, counterBase = m.regs.ix, slotBase = m.regs.iy) {
+export function checkTamperGlyphCopyElseRunWreckFlash(m, counterBase = m.regs.ix, slotBase = m.regs.iy) {
   const { mem8 } = m;
   // Step 1 -- the witness check. Equal cells (the genuine case) end the routine here.
   if (mem8[TAMPER_GLYPH_COPY] === mem8[TAMPER_GLYPH_SOURCE_CELL]) return;
@@ -45,7 +45,7 @@ export function setUpTwoPlayerStartObjectOnce(m, counterBase = m.regs.ix, slotBa
   // Count the caller's counter down by one, then seat the four fixed bytes into the slot.
   if (counterBase === null || slotBase === null) {
     throw new NotImplemented(
-      "setUpTwoPlayerStartObjectOnce: the anti-tamper witness pair disagrees, so the acting arm would step " +
+      "checkTamperGlyphCopyElseRunWreckFlash: the anti-tamper witness pair disagrees, so the acting arm would step " +
         "the pointers the caller left in IX and IY -- a direct caller carries none; the oracle's measured two-player dispatch arrived with the pair equal and IX in ROM, where the frozen routine's own first store would fault too",
     );
   }

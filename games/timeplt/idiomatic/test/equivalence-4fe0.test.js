@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * destroyMotherShipAndShotOnMutualHit — memory-equivalent to the frozen oracle at ROM 0x4FE0.
+ * markMotherShipAndShotHitByShots — memory-equivalent to the frozen oracle at ROM 0x4FE0.
  *
  * WHAT IT IS. A sweep of six slots to see which one a single roaming thing has reached: both must be
  * live, and both coordinates must fall inside a box whose first axis is widened by two of the era
@@ -30,7 +30,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMachine, romsPresent } from "./_harness.js";
-import { destroyMotherShipAndShotOnMutualHit } from "../destroyMotherShipAndShotOnMutualHit.js";
+import { markMotherShipAndShotHitByShots } from "../markMotherShipAndShotHitByShots.js";
 import { postChainedHitScore } from "../postChainedHitScore.js";
 import { ERA_INDEX, MOTHER_SHIP_STATE } from "../names.js";
 import { loc_4fe0 as oracle } from "../../translated/loc_4fe0.js";
@@ -262,7 +262,7 @@ test("EQUAL on every sampled real state", { skip }, () => {
   const states = realStates();
   assert.equal(states.length, SAMPLES, "the number of sampled states moved");
   let bad = 0;
-  for (const s of states) if (unitDiff(destroyMotherShipAndShotOnMutualHit, s)) bad++;
+  for (const s of states) if (unitDiff(markMotherShipAndShotHitByShots, s)) bad++;
   assert.equal(bad, 0, `the rewrite diverged on ${bad} of ${states.length} sampled states`);
   console.log(`  EQUAL: ${states.length} real states, identical on each`);
 });
@@ -273,7 +273,7 @@ test("NOT VACUOUS: a no-op candidate FAILS in the crafted space", { skip }, () =
 });
 
 test("EXCLUDED, deliberately: bounded over the whole crafted space", { skip }, () => {
-  const moved = movedRegisters(destroyMotherShipAndShotOnMutualHit);
+  const moved = movedRegisters(markMotherShipAndShotHitByShots);
   const unexpected = moved.filter((k) => !EXCLUDED.includes(k));
   assert.deepEqual(unexpected, [], "a register diverged outside the excluded set");
   console.log(`  EXCLUDED: ${EXCLUDED.join(", ")} and pc`);
@@ -289,7 +289,7 @@ test("BOTH WIDTHS ARE REAL: a difference the wide box admits and the narrow one 
 });
 
 test("CRAFTED: both axes swept whole, on both box widths, plus the four gate combinations", { skip }, () => {
-  assert.equal(sweepCaught(destroyMotherShipAndShotOnMutualHit), 0, "the rewrite diverged somewhere in the crafted space");
+  assert.equal(sweepCaught(markMotherShipAndShotHitByShots), 0, "the rewrite diverged somewhere in the crafted space");
   console.log(`  CRAFTED: ${SWEEP_SIZE()} comparisons identical`);
 });
 

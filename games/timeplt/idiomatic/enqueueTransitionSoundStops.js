@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * enqueueTransitionSoundBurst — queue seven sound requests back to back.
+ * enqueueTransitionSoundStops — queue seven sound requests back to back.
  *
  * WHAT IT IS: ROM 0x5634-0x565E, tag [seen] (names.js ROUTINES 0x5634). The sound side of the game is
  * fed through a small queue of sound codes; this routine drops seven codes into it in one go. Six of the
@@ -45,7 +45,7 @@ const FIXED_CODE_SOURCES = [
 /* The base the era index is added to for the seventh code: the ROM's `add a,0x8c`. */
 const ERA_CODE_BASE = 140;
 
-export function enqueueTransitionSoundBurst(m) {
+export function enqueueTransitionSoundStops(m) {
   const { mem8 } = m;
   /*
    * Codes one to six: fetch each byte from the program image and queue it. The ROM does this as six

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** seatEraSceneryRowThenClearAndRunScenery — seat one era-keyed object band, then hand the frame's scenery on. A fixed run is
+/** seatEraSceneryCodesThenSetAttributesAndRunScenery — seat one era-keyed object band, then hand the frame's scenery on. A fixed run is
  * summed against a constant as a tamper tripwire whose answer is dropped, eight bytes of the row the
  * era indexes are copied into a stride-two cell run, and control transfers into the scenery clear +
  * run: at era four with the fill byte 0x28, otherwise 0xCC. The era and the entry cursor ride into the
@@ -11,21 +11,21 @@
 /*
  * ROM 0x30A5-0x30D0 (then into 0x30D1 / 0x3156), grounding [seen] (names.js ROUTINES 0x30a5).
  *
- * ROLE. Part of the playfield reset for a new round: its one caller, resetPlayfieldAndArmNewRound
+ * ROLE. Part of the playfield reset for a new round: its one caller, resetPlayfieldForLifeStart
  * (0x19F0), calls it once the object slots are retired. It gives the eight scenery sprites the shape
  * codes of the current era and then runs the era's scenery setup.
  *
  * PARAMETERS. `entryCursor` is the sprite-entry pointer the caller leaves behind (IY in the ROM,
  * defaulting to ERA_OBJECT_ENTRY_SLOT0, 0xAA28, where the caller last pointed it); `recordCursor` is
- * the record pointer the caller leaves behind (IX; resetPlayfieldAndArmNewRound's numbering walk ends
+ * the record pointer the caller leaves behind (IX; resetPlayfieldForLifeStart's numbering walk ends
  * it one record past the object run). Both are only passed on to the scenery chain, where only the
  * seed step's tamper divert reads them.
  */
 
 import { sumByteRunAndCompareToExpected } from "./sumByteRunAndCompareToExpected.js";
 import { offsetAddress } from "./offsetAddress.js";
-import { seatFinalEraSceneryFillThenClearEraScenery } from "./seatFinalEraSceneryFillThenClearEraScenery.js";
-import { clearSceneryEntriesThenRunEraScenery } from "./clearSceneryEntriesThenRunEraScenery.js";
+import { setFinalEraSceneryAttributesThenRunEraScenery } from "./setFinalEraSceneryAttributesThenRunEraScenery.js";
+import { setSceneryAttributesThenRunEraScenery } from "./setSceneryAttributesThenRunEraScenery.js";
 import { u8, u16 } from "../../../core/int.js";
 import { SCENERY_SPRITE_CODE_SLOT0, ERA_INDEX, COPYRIGHT_CAPTION_RECORD, ERA_OBJECT_ENTRY_SLOT0, ERA_SCENERY_ROW_TABLE } from "./names.js";
 
@@ -41,7 +41,7 @@ const SEAT_COUNT = 8;
 const ERA_FOUR = 0x04;
 const FILL_BYTE = 0xcc;
 
-export function seatEraSceneryRowThenClearAndRunScenery(m, entryCursor = ERA_OBJECT_ENTRY_SLOT0, recordCursor = m.regs.ix) {
+export function seatEraSceneryCodesThenSetAttributesAndRunScenery(m, entryCursor = ERA_OBJECT_ENTRY_SLOT0, recordCursor = m.regs.ix) {
   const { mem8 } = m;
 
   // Anti-tamper tripwire. The ROM sums the 16-byte copyright caption record at 0x086B
@@ -65,9 +65,9 @@ export function seatEraSceneryRowThenClearAndRunScenery(m, entryCursor = ERA_OBJ
 
   // Hand on to the scenery clear + run (0x30D1), which fills a stride-two run of eight object cells
   // with the fill byte and then sets up the era's scenery by era. Era 4 enters via
-  // seatFinalEraSceneryFillThenClearEraScenery (0x3156), whose only job is to choose 0x28; every
+  // setFinalEraSceneryAttributesThenRunEraScenery (0x3156), whose only job is to choose 0x28; every
   // other era falls into 0x30D1 with 0xCC. Both are ROM jumps, so control does not come back here.
   // fill byte 0x28 at era four, else 0xCC
-  if (era === ERA_FOUR) return seatFinalEraSceneryFillThenClearEraScenery(m, era, entryCursor, recordCursor);
-  return clearSceneryEntriesThenRunEraScenery(m, FILL_BYTE, era, entryCursor, recordCursor);
+  if (era === ERA_FOUR) return setFinalEraSceneryAttributesThenRunEraScenery(m, era, entryCursor, recordCursor);
+  return setSceneryAttributesThenRunEraScenery(m, FILL_BYTE, era, entryCursor, recordCursor);
 }

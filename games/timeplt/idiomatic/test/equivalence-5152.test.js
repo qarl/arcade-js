@@ -72,7 +72,7 @@ const DISPATCHES = { shared: 300, attract: 440 };
 // a/f are dissolved-arithmetic residue; b is the loop counter the rewrite leaves at its entry value
 // where the oracle's djnz lands on 0; sp reflects the oracle's nested score-post pushes. E and IY are
 // NOT excluded: they carry the record/entry cursor thread on into the next unarmed sweep
-// (destroyTargetsReachedByFixedAttacker), so the rewrite hands them back exactly as loc_5152 does.
+// (destroyEraObjectsAndPlayerOnContact), so the rewrite hands them back exactly as loc_5152 does.
 const EXCLUDED = ["a", "f", "b", "sp"];
 
 const hex4 = (v) => "0x" + (v & 0xffff).toString(16).padStart(4, "0");

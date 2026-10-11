@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** spawnAimedEnemyIntoEraBankWhenInWindow — spawn one aimed enemy, but only when the spawn slot is free, the cooldown at
+/** fireBomberShotWhenClearOfPlayer — spawn one aimed enemy, but only when the spawn slot is free, the cooldown at
  * ATTACKER_SPAWN_COOLDOWN is clear, the era count is live, and some object in the caller's two-slot bank passes
  * the doubled-window test (step 2 below). Draws a heading toward the standoff aim point ENEMY_STANDOFF_AIM_MAIN, alternates the aim's
  * side each spawn via ATTACKER_SPAWN_AIM_SIDE_TOGGLE, then seats coords, the doubled velocity pair, a shape code and an
@@ -55,7 +55,7 @@ const NEW_ATTRIBUTE = 0x62;
 // era count != 1 with bank B's head byte clear selects the second bank; the guard and the seat both ask.
 const useSecondBank = (m) => m.mem8[ATTACKER_SPAWN_SLOT_COUNT] !== 1 && m.mem8[ERA_OBJECT_RECORD_SLOT2] === 0;
 
-export function spawnAimedEnemyIntoEraBankWhenInWindow(m, record = m.regs.ix, entry = m.regs.iy) {
+export function fireBomberShotWhenClearOfPlayer(m, record = m.regs.ix, entry = m.regs.iy) {
   const { mem8 } = m;
 
   // Step 1 -- the gates, each an early return in the ROM: the caller's head byte, the shared

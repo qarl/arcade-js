@@ -1,7 +1,7 @@
 {
   "name": "boss-armed",
   "description": "Arm and render the Mother-Ship (the counter-7 boss) plus its player-collision test, vs MAME.",
-  "_grounding": "coin@400 + 1P start@500, passive; hold KILLS_REMAINING 0xAD02=0x00 from f620 so the kill quota stays empty and the game ARMS the Mother-Ship: MOTHER_SHIP_ARMED 0xAD0D 0x00->0xFF at f960 (game-set), on screen f1056-1196 (MOTHER_SHIP_STATE 0xA8A0=0xFF with the counter-7 at 0xA8A4=0x07; PNG = the large orange craft). Exercises runAllCollisionSweepsThisFrame (0x4E63) and ramTestPlayerVsMotherShip (0x50B1), whose era-0 wide box is destroyPlayerAndMotherShipOnContact (0x50EE). The frame-parity split splitCollisionWorkByFrameParity (0x4EBC) runs only in era 1 (mothership-era1.poke.json). Grounded at era 0.",
+  "_grounding": "coin@400 + 1P start@500, passive; hold KILLS_REMAINING 0xAD02=0x00 from f620 so the kill quota stays empty and the game ARMS the Mother-Ship: MOTHER_SHIP_ARMED 0xAD0D 0x00->0xFF at f960 (game-set), on screen f1056-1196 (MOTHER_SHIP_STATE 0xA8A0=0xFF with the counter-7 at 0xA8A4=0x07; PNG = the large orange craft). Exercises runAllCollisionSweepsThisFrame (0x4E63) and destroyPlayerAndMotherShipOnContactByEra (0x50B1), whose era-0 wide box is destroyPlayerAndMotherShipOnContact (0x50EE). The frame-parity split splitCollisionWorkByFrameParity (0x4EBC) runs only in era 1 (mothership-era1.poke.json). Grounded at era 0.",
   "coin": 400,
   "start": 500,
   "hold": 8,

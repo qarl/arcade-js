@@ -5,7 +5,7 @@
  * ROM 0x565F-0x5663 (frozen lift loc_565f). Grounding: [seen] (names.js ROUTINES 0x565F).
  *
  * Role in the machine: the sound of an enemy being launched. Its callers are
- * spawnAimedEnemyIntoEraBankWhenInWindow, loc_43f0, and requestEraKeyedLaunchSound — the
+ * fireBomberShotWhenClearOfPlayer, loc_43f0, and requestEraKeyedLaunchSound — the
  * last picks this code in the first three eras (ERA_INDEX 0-2) and its sibling
  * requestEnemyLaunchSoundLateEra from the fourth era on (ERA_INDEX 3 and 4).
  *

@@ -30,17 +30,17 @@ import { retireEntryPairIntoCooldown } from "./retireEntryPairIntoCooldown.js";
 import { offsetAddress } from "./offsetAddress.js";
 import { restartAnimationCounterThenDressFlutterSprite } from "./restartAnimationCounterThenDressFlutterSprite.js";
 import { dressSpriteFlutterShapesByFrameTickBit } from "./dressSpriteFlutterShapesByFrameTickBit.js";
-import { ERA_INDEX, FRAME_TICK, HEADING_SHAPE_PAIR_TABLE, ERA_SPRITE_COLOUR_TABLE } from "./names.js";
+import { ERA_INDEX, FRAME_TICK, MOTHER_SHIP_SHAPE_PAIR_TABLE, ERA_SPRITE_COLOUR_TABLE } from "./names.js";
 
 // The era value on which the object flutters instead of facing its heading (`cp 0x04` at 0x4451).
 const FLUTTER_ERA = 0x04;
 // A quadrant seed of 7 skips the wind-down counter entirely (`cp 0x07` at 0x44A6).
-const SETTLED = 0x07;
+const HITS_WHEN_ARMED = 0x07;
 
 // Record offsets (mechanisms.md, object record layout): +2 the current heading, +4 the quadrant
 // seed in this routine, +6 this routine's wind-down counter.
 const HEADING = 2;
-const QUADRANT_SEED = 4;
+const HITS_TO_ABSORB = 4;
 const WIND_DOWN = 6;
 
 // Sprite-entry offsets: +1 / +3 the two shape bytes (bank 0), +0x30 / +0x32 their colour/flip
@@ -79,8 +79,8 @@ export function dressSpriteForHeadingOrRetireAtEdge(m, record = m.regs.ix, entry
    * holds each flutter pose for four frames (bit 2 flips every fourth tick) no matter which way it
    * is heading. */
   if (era === FLUTTER_ERA) {
-    const seed = mem8[record + QUADRANT_SEED];
-    if (seed !== SETTLED) {
+    const seed = mem8[record + HITS_TO_ABSORB];
+    if (seed !== HITS_WHEN_ARMED) {
       const counter = u8(mem8[record + WIND_DOWN] + 1);
       mem8[record + WIND_DOWN] = counter;
       if (counter & CLOSED_OUT) return restartAnimationCounterThenDressFlutterSprite(m, counter, record, entry);
@@ -95,14 +95,14 @@ export function dressSpriteForHeadingOrRetireAtEdge(m, record = m.regs.ix, entry
   }
 
   /* Step 3 -- pick the shape pair and the colour (0x4456-0x447C). The index into
-   * HEADING_SHAPE_PAIR_TABLE (0x44F1) is built as era * 16 (four `add a,a`), plus FRAME_TICK bit 1
+   * MOTHER_SHIP_SHAPE_PAIR_TABLE (0x44F1) is built as era * 16 (four `add a,a`), plus FRAME_TICK bit 1
    * -- a two-frame pose, each pose two bytes -- plus 4 bytes per quadrant, where the quadrant is the
    * record's +4 seed folded as ((7 - seed) >> 1) & 3. The two bytes there are the two tiles'
    * shapes. The colour is one byte per era from ERA_SPRITE_COLOUR_TABLE (0x4531). offsetAddress is
    * the ROM's `rst 0x18` (HL += A). */
   const index = u8(u8(era * 16) + (mem8[FRAME_TICK] & 0x02));
-  const quadrant = (u8(SETTLED - mem8[record + QUADRANT_SEED]) >> 1) & 0x03;
-  const shapePtr = offsetAddress(m, HEADING_SHAPE_PAIR_TABLE, u8(quadrant * 4 + index));
+  const quadrant = (u8(HITS_WHEN_ARMED - mem8[record + HITS_TO_ABSORB]) >> 1) & 0x03;
+  const shapePtr = offsetAddress(m, MOTHER_SHIP_SHAPE_PAIR_TABLE, u8(quadrant * 4 + index));
   const shapeLo = mem8[shapePtr];
   const shapeHi = mem8[u16(shapePtr + 1)];
   const colourPtr = offsetAddress(m, ERA_SPRITE_COLOUR_TABLE, era);

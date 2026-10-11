@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** clearSceneryEntriesThenRunEraScenery — clear a stride-two run of eight object cells to the fill byte the caller hands in A,
+/** setSceneryAttributesThenRunEraScenery — clear a stride-two run of eight object cells to the fill byte the caller hands in A,
  * then branch on the era and two runtime guards. Below era four one path seats and runs the whole
  * frame's scenery; at era four and up, when the guard pair reads its expected values a second packed
  * table fills eight entry cells before the scenery runs; a guard that reads wrong transfers into a
@@ -10,7 +10,7 @@
  * ROM 0x30D1-0x3113 (frozen lift translated/loc_30d1.js). Grounding: [seen] in names.js.
  *
  * Role in the machine: part of setting up the scenery (the backdrop objects that scroll past the
- * ship — clouds in the sky eras, asteroids in space, per gameplay.md) for the era being entered. Its caller, seatEraSceneryRowThenClearAndRunScenery
+ * ship — clouds in the sky eras, asteroids in space, per gameplay.md) for the era being entered. Its caller, seatEraSceneryCodesThenSetAttributesAndRunScenery
  * (0x30A5), has just copied the era's row from the 0x3176 table and tails in here with the era in C
  * and the fill byte in A (0x28 at era four, else 0xCC).
  *
@@ -42,7 +42,7 @@ const SEAT_COUNT = 8;
 const SEAT_SHADOW = 0x31; // byte0 of each packed pair lands at the entry cell +0x31
 const CLEAR_SPENT = 0; // the clear loop runs its count down to nothing
 
-export function clearSceneryEntriesThenRunEraScenery(m, fillByte = m.regs.a, era = m.regs.c, entryCursor = m.regs.iy, recordCursor = m.regs.ix) {
+export function setSceneryAttributesThenRunEraScenery(m, fillByte = m.regs.a, era = m.regs.c, entryCursor = m.regs.iy, recordCursor = m.regs.ix) {
   const { mem8 } = m;
 
   /* Step 1 (0x30D1-0x30DC): clear eight object cells, stride two, to the fill byte. They start at

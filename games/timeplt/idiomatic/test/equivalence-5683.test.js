@@ -55,7 +55,7 @@ import {
   withPokedImage,
 } from "./_soundQueue.js";
 import { requestTwoSounds } from "../requestTwoSounds.js";
-import { enqueueSoundIfGameOrAttract } from "../enqueueSoundIfGameOrAttract.js";
+import { enqueueSoundIfGameOrDemoSoundsOn } from "../enqueueSoundIfGameOrDemoSoundsOn.js";
 import { PLAY_ACTIVE } from "../names.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
 
@@ -217,36 +217,36 @@ function brokenNoOp() {}
 
 /** BUG: asks for the first sound only. */
 function brokenFirstOnly(m) {
-  enqueueSoundIfGameOrAttract(m, m.mem8[FIRST_SOUND_CODE_CELL]);
+  enqueueSoundIfGameOrDemoSoundsOn(m, m.mem8[FIRST_SOUND_CODE_CELL]);
 }
 
 /** BUG: asks for the second sound only. */
 function brokenSecondOnly(m) {
-  enqueueSoundIfGameOrAttract(m, m.mem8[SECOND_SOUND_CODE_CELL]);
+  enqueueSoundIfGameOrDemoSoundsOn(m, m.mem8[SECOND_SOUND_CODE_CELL]);
 }
 
 /** BUG: the two go out the other way round. */
 function brokenSwapped(m) {
-  enqueueSoundIfGameOrAttract(m, m.mem8[SECOND_SOUND_CODE_CELL]);
-  enqueueSoundIfGameOrAttract(m, m.mem8[FIRST_SOUND_CODE_CELL]);
+  enqueueSoundIfGameOrDemoSoundsOn(m, m.mem8[SECOND_SOUND_CODE_CELL]);
+  enqueueSoundIfGameOrDemoSoundsOn(m, m.mem8[FIRST_SOUND_CODE_CELL]);
 }
 
 /** BUG: asks for the first sound twice. */
 function brokenSameTwice(m) {
-  enqueueSoundIfGameOrAttract(m, m.mem8[FIRST_SOUND_CODE_CELL]);
-  enqueueSoundIfGameOrAttract(m, m.mem8[FIRST_SOUND_CODE_CELL]);
+  enqueueSoundIfGameOrDemoSoundsOn(m, m.mem8[FIRST_SOUND_CODE_CELL]);
+  enqueueSoundIfGameOrDemoSoundsOn(m, m.mem8[FIRST_SOUND_CODE_CELL]);
 }
 
 /** BUG: reads the bytes beside the two sources. */
 function brokenWrongSources(m) {
-  enqueueSoundIfGameOrAttract(m, m.mem8[FIRST_SOUND_CODE_CELL + 1]);
-  enqueueSoundIfGameOrAttract(m, m.mem8[SECOND_SOUND_CODE_CELL + 1]);
+  enqueueSoundIfGameOrDemoSoundsOn(m, m.mem8[FIRST_SOUND_CODE_CELL + 1]);
+  enqueueSoundIfGameOrDemoSoundsOn(m, m.mem8[SECOND_SOUND_CODE_CELL + 1]);
 }
 
 /** BUG: carries both codes as immediates instead of reading the image for them. */
 function brokenBakedConstants(m) {
-  enqueueSoundIfGameOrAttract(m, EXPECTED_FIRST);
-  enqueueSoundIfGameOrAttract(m, EXPECTED_SECOND);
+  enqueueSoundIfGameOrDemoSoundsOn(m, EXPECTED_FIRST);
+  enqueueSoundIfGameOrDemoSoundsOn(m, EXPECTED_SECOND);
 }
 
 for (const [label, twin] of [

@@ -119,12 +119,12 @@ directly-called ones by host call-stack attribution on a read their own body mak
 | countdown-slot | stepCountdownSlotThenCloseTurn, serviceSlotByMarkerThenCloseSweepTurn |
 | game-over | fileScoreAfterGameOverHoldElsePassTurn — **reached, pixel-invisible** (see below) |
 | high-score | fileScoreAfterGameOverHoldElsePassTurn (its filing arm), erasePenRouteThenOpenInitialsEntry, stepHighScoreInitialsEntry, startTwoPlayerGame |
-| round-won | armRoundWonBandAnimationThenStepSequence, stepRoundStartIntroAnimation, startNextRound, advanceScriptedCharPlaneBandTo2, advanceScriptedCharPlaneBandTo4, floodColourPlaneWithSavedPlayerColour, requestBonusLifeSound, turnShipTowardTargetHeading |
+| round-won | armRoundWonBandAnimationThenStepSequence, stepRoundWonBandAnimation, startNextRound, advanceScriptedCharPlaneBandTo2, advanceScriptedCharPlaneBandTo4, floodColourPlaneWithSavedPlayerColour, requestBonusLifeSound, turnShipTowardTargetHeading |
 | mothership-era1 | setMotherShipVelocityFromHeading, splitCollisionWorkByFrameParity, startNextRound |
 | mothership-era2 | setMotherShipVelocityFromHeading, loc_5994, serviceEra2EnemyCraftSlot, startNextRound |
 | mothership-era3 | setMotherShipVelocityFromHeading, loc_5994, startNextRound |
 | mothership-era4 | setMotherShipVelocityFromHeading, spawnEnemyWaveIntoFreeSlots, startNextRound, loseLifeAndHandOver |
-| mothership-ram | ramTestPlayerVsMotherShip, loseLifeAndHandOver, startNextRound |
+| mothership-ram | destroyPlayerAndMotherShipOnContactByEra, loseLifeAndHandOver, startNextRound |
 | mothership-ram-wide | destroyPlayerAndMotherShipOnContact, loseLifeAndHandOver, startNextRound |
 | pass-turn | passTurnToOtherPlayerIfLivesElseStepSequence, handPlayOverToOtherPlayer, loadActivePlayerContextAndPostRoundHud |
 | parachutist | showParachutistAward, postNextParachutistBonus |

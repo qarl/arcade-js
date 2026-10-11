@@ -24,9 +24,9 @@
 
 import { SEQUENCE_SUBSTEP } from "./names.js";
 import { advanceAttractTowardGameStart } from "./advanceAttractTowardGameStart.js";
-import { armRoundStartThenStepSequence } from "./armRoundStartThenStepSequence.js";
+import { armNewGameThenStepSequence } from "./armNewGameThenStepSequence.js";
 import { seatCaptionPenFromEraFoldingTamperIntoPhase } from "./seatCaptionPenFromEraFoldingTamperIntoPhase.js";
-import { blankCaptionThenAdvancePenRunStep } from "./blankCaptionThenAdvancePenRunStep.js";
+import { blankKillMeterThenAdvancePenRunStep } from "./blankKillMeterThenAdvancePenRunStep.js";
 import { loadActivePlayerContextAndPostRoundHud } from "./loadActivePlayerContextAndPostRoundHud.js";
 import { postRoundStartCaptionsAndResetPlayfield } from "./postRoundStartCaptionsAndResetPlayfield.js";
 import { flyRoundIntroFlashingEraYearThenEraseIntroCaptions } from "./flyRoundIntroFlashingEraYearThenEraseIntroCaptions.js";
@@ -38,7 +38,7 @@ import { stepHighScoreInitialsEntry } from "./stepHighScoreInitialsEntry.js";
 import { holdThenPassTurnToOtherPlayerIfLivesElseStepSequence } from "./holdThenPassTurnToOtherPlayerIfLivesElseStepSequence.js";
 import { restartAttractSequence } from "./restartAttractSequence.js";
 import { armRoundWonBandAnimationThenStepSequence } from "./armRoundWonBandAnimationThenStepSequence.js";
-import { stepRoundStartIntroAnimation } from "./stepRoundStartIntroAnimation.js";
+import { stepRoundWonBandAnimation } from "./stepRoundWonBandAnimation.js";
 import { loc_15b5 } from "./loc_15b5.js";
 
 // Only the low nibble picks a slot, so the table's sixteen words are the whole of the choice.
@@ -56,9 +56,9 @@ export function dispatchSequenceSubStepArm(m) {
     //
     // Arms 0-7: getting a round going, up to and including the round engine (arm 7), which runs the
     // game's subsystem services in a fixed order and then reads the player's state.
-    case 0: armRoundStartThenStepSequence(m); break;
+    case 0: armNewGameThenStepSequence(m); break;
     case 1: seatCaptionPenFromEraFoldingTamperIntoPhase(m); break;
-    case 2: blankCaptionThenAdvancePenRunStep(m); break;
+    case 2: blankKillMeterThenAdvancePenRunStep(m); break;
     case 3: loadActivePlayerContextAndPostRoundHud(m); break;
     case 4: postRoundStartCaptionsAndResetPlayfield(m); break;
     case 5: flyRoundIntroFlashingEraYearThenEraseIntroCaptions(m); break;
@@ -74,7 +74,7 @@ export function dispatchSequenceSubStepArm(m) {
     case 11: holdThenPassTurnToOtherPlayerIfLivesElseStepSequence(m); break; // the delay countdown (SEQUENCE_DELAY), then the turn hand-over
     case 12: restartAttractSequence(m); break;
     case 13: armRoundWonBandAnimationThenStepSequence(m); break;
-    case 14: stepRoundStartIntroAnimation(m); break;
+    case 14: stepRoundWonBandAnimation(m); break;
     // Slot 15 is a lone `ret` (names.js: unreachable filler, [code]); arm 14 overwrites the sub-step
     // in the same interrupt it steps it to 15, so no dispatch reads 15.
     case 15: loc_15b5(m); break;

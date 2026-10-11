@@ -7,7 +7,7 @@
  * ROM 0x14C5-0x1562. Grounding: [seen] (names.js ROUTINES 0x14C5).
  *
  * ROLE IN THE MACHINE. After a round is won, armRoundWonBandAnimationThenStepSequence stocks the
- * animation's control block at INTRO_ANIMATION_STEP (0xA9F0) [seen], and stepRoundStartIntroAnimation
+ * animation's control block at ROUND_WON_ANIMATION_STEP (0xA9F0) [seen], and stepRoundWonBandAnimation
  * (sequence sub-step 14) dispatches on that step byte. Steps 2 and 3 run this routine (step 2 alongside
  * the player-ship colour cycle). The "band" is a column of character cells centred on the player's jet
  * (names.js: the CHAR_PLANE_STUB_* cells are the warp-band flare corners around the jet's centre column,
@@ -22,7 +22,7 @@
  * band (advanceScriptedCharPlaneBandTo2) and stepThirteenScriptedGlyphCells, left wherever it ended.
  *
  * END OF SCRIPT. A drawing pass whose current script byte has any bit above bit 0 set (ROM `and 0xfe`)
- * is the terminator: it zeroes the countdown, sets INTRO_ANIMATION_STEP to 4, asks for the inter-round
+ * is the terminator: it zeroes the countdown, sets ROUND_WON_ANIMATION_STEP to 4, asks for the inter-round
  * sound pair, steps the cursor up one byte off the terminator (this half reads the script downward)
  * and returns WITHOUT the final decrement.
  *
@@ -38,7 +38,7 @@ import { gatherCharColumnIntoBackingRun } from "./gatherCharColumnIntoBackingRun
 import {
   BAND_SCRIPT_CURSOR,
   BAND_TO4_PASS_COUNTDOWN,
-  INTRO_ANIMATION_STEP,
+  ROUND_WON_ANIMATION_STEP,
   CHAR_PLANE_COLUMN_BASE,
   CHAR_PLANE_UPPER_RUN_BOTTOM,
   CHAR_PLANE_STUB_UPPER_RIGHT,
@@ -78,7 +78,7 @@ export function advanceScriptedCharPlaneBandTo4(m) {
     // pass data only use bit 0, so any higher bit marks the end of this band's script.
     if ((mem8[mem16[BAND_SCRIPT_CURSOR]] & 0xfe) !== 0) {
       mem8[BAND_TO4_PASS_COUNTDOWN] = 0;
-      mem8[INTRO_ANIMATION_STEP] = NEXT_STEP;
+      mem8[ROUND_WON_ANIMATION_STEP] = NEXT_STEP;
       requestInterRoundSoundPair(m);
       mem16[BAND_SCRIPT_CURSOR] = u16(mem16[BAND_SCRIPT_CURSOR] + 1);
       return;

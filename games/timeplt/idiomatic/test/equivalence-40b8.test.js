@@ -39,7 +39,7 @@ import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { askForSoundWhileTheGroupIsClear } from "../askForSoundWhileTheGroupIsClear.js";
 import { loc_40b8 as oracle } from "../../translated/loc_40b8.js";
 import { ERA_INDEX, FRAME_TICK } from "../names.js";
-import { requestLateEraProgressSound } from "../requestLateEraProgressSound.js";
+import { requestSoundSixStopWhilePlaying } from "../requestSoundSixStopWhilePlaying.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
 
 const TARGET = 0x40b8;
@@ -225,7 +225,7 @@ test("CORPUS: every dispatch of a driven session replays identically", { skip },
 const brokenNoOp = () => {};
 
 /** BUG: asks unconditionally — no test at all. */
-const brokenAsksAlways = (m) => requestLateEraProgressSound(m);
+const brokenAsksAlways = (m) => requestSoundSixStopWhilePlaying(m);
 
 /** BUG: the era threshold is one out, so an era too early asks. */
 function brokenEraOffByOne(m) {
@@ -233,7 +233,7 @@ function brokenEraOffByOne(m) {
   if (mem8[ERA_INDEX] < 1) return;
   if (mem8[FRAME_TICK] % 32 !== 0) return;
   if (WATCHED.some((cell) => mem8[cell] === ALL_ONES)) return;
-  requestLateEraProgressSound(m);
+  requestSoundSixStopWhilePlaying(m);
 }
 
 /** BUG: the counter test admits twice as many values, so it asks twice as often. */
@@ -242,7 +242,7 @@ function brokenAsksTwiceAsOften(m) {
   if (mem8[ERA_INDEX] < 2) return;
   if (mem8[FRAME_TICK] % 16 !== 0) return;
   if (WATCHED.some((cell) => mem8[cell] === ALL_ONES)) return;
-  requestLateEraProgressSound(m);
+  requestSoundSixStopWhilePlaying(m);
 }
 
 /** BUG: only the first of the three watched bytes is tested. */
@@ -251,7 +251,7 @@ function brokenChecksOneWatchedByte(m) {
   if (mem8[ERA_INDEX] < 2) return;
   if (mem8[FRAME_TICK] % 32 !== 0) return;
   if (mem8[WATCHED[0]] === ALL_ONES) return;
-  requestLateEraProgressSound(m);
+  requestSoundSixStopWhilePlaying(m);
 }
 
 /** BUG: the watched test is inverted — it asks only when one of them IS all-ones. */
@@ -260,7 +260,7 @@ function brokenWatchedInverted(m) {
   if (mem8[ERA_INDEX] < 2) return;
   if (mem8[FRAME_TICK] % 32 !== 0) return;
   if (!WATCHED.some((cell) => mem8[cell] === ALL_ONES)) return;
-  requestLateEraProgressSound(m);
+  requestSoundSixStopWhilePlaying(m);
 }
 
 /** BUG: the counter test is dropped, so it asks on every frame of a late era. */
@@ -268,7 +268,7 @@ function brokenIgnoresTheCounter(m) {
   const { mem8 } = m;
   if (mem8[ERA_INDEX] < 2) return;
   if (WATCHED.some((cell) => mem8[cell] === ALL_ONES)) return;
-  requestLateEraProgressSound(m);
+  requestSoundSixStopWhilePlaying(m);
 }
 
 const TWINS = [

@@ -33,7 +33,7 @@ import { NotImplemented } from "../../../boards/timeplt/io.js";
 // The value a genuine image's self-check fold must land on.
 const EXPECTED_SIGNATURE = 0x76;
 // The outer sequence's last phase — where the attract demo run lives.
-const DEMO_PHASE = 0x03;
+const ROUND_ENGINE_PHASE = 0x03;
 // One life for the autopilot demonstration.
 const DEMO_LIVES = 0x01;
 
@@ -56,5 +56,5 @@ export function verifyImageSignatureThenStartAttractDemoOrDerail(m) {
   mem8[PLAY_ACTIVE] = 0;
   mem8[SEQUENCE_SUBSTEP] = 0;
   mem8[PLAYER_ONE_LIVES] = DEMO_LIVES;
-  mem8[SEQUENCE_PHASE] = DEMO_PHASE;
+  mem8[SEQUENCE_PHASE] = ROUND_ENGINE_PHASE;
 }

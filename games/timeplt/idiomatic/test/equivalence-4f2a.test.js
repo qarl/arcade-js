@@ -17,7 +17,7 @@ import { loc_4f2a as oracle } from "../../translated/loc_4f2a.js";
 import { loc_4e4f as caller } from "../../translated/loc_4e4f.js";
 import { runAllCollisionSweepsThisFrame } from "../runAllCollisionSweepsThisFrame.js";
 import { destroyTargetsHitByShots } from "../destroyTargetsHitByShots.js";
-import { destroyMotherShipAndShotOnMutualHit } from "../destroyMotherShipAndShotOnMutualHit.js";
+import { markMotherShipAndShotHitByShots } from "../markMotherShipAndShotHitByShots.js";
 
 const TARGET = 0x4f2a;
 const CALLER = 0x4e4f;
@@ -181,7 +181,7 @@ function oddArm(m, { count = null, skipCursors = false, seat = null, skipArmed =
   regs.h = 0x0f;
   if (armed && !skipArmed) {
     destroyTargetsHitByShots(m);
-    return destroyMotherShipAndShotOnMutualHit(m);
+    return markMotherShipAndShotHitByShots(m);
   }
   return destroyTargetsHitByShots(m);
 }

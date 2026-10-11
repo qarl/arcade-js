@@ -17,7 +17,7 @@
 
 import { runAllCollisionSweepsThisFrame } from "./runAllCollisionSweepsThisFrame.js";
 import { destroyTargetsHitByShots } from "./destroyTargetsHitByShots.js";
-import { destroyMotherShipAndShotOnMutualHit } from "./destroyMotherShipAndShotOnMutualHit.js";
+import { markMotherShipAndShotHitByShots } from "./markMotherShipAndShotHitByShots.js";
 import { ACTOR_ENTRY_SLOT0, ACTOR_RECORD_SLOT0, FRAME_TICK, MOTHER_SHIP_ARMED, PLAYER_SHOT_ARRAY, SCRATCH_PTR_A, SCRATCH_PTR_B } from "./names.js";
 
 // The sweep's parameters, as the ROM loads them before `call 0x5211`: six player shots (`ld c,0x06`),
@@ -54,7 +54,7 @@ export function dispatchEra4CollisionByFrameParity(m) {
       m, PLAYER_SHOT_ARRAY, ACTOR_ENTRY_SLOT0, ACTOR_RECORD_SLOT0,
       targets, targets, SHOTS, REACH, SPAN,
     );
-    return destroyMotherShipAndShotOnMutualHit(m);
+    return markMotherShipAndShotHitByShots(m);
   }
   return destroyTargetsHitByShots(
     m, PLAYER_SHOT_ARRAY, ACTOR_ENTRY_SLOT0, ACTOR_RECORD_SLOT0,

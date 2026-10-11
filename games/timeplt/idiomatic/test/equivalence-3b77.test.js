@@ -15,7 +15,7 @@ import { flyAlongStoredVelocity } from "../flyAlongStoredVelocity.js";
 import { hasReachedBoundaryBandSelectedByHeading } from "../hasReachedBoundaryBandSelectedByHeading.js";
 import { retireObjectAndHold } from "../retireObjectAndHold.js";
 import { mirrorTwoTileObjectByHeading } from "../mirrorTwoTileObjectByHeading.js";
-import { spawnAimedEnemyIntoEraBankWhenInWindow } from "../spawnAimedEnemyIntoEraBankWhenInWindow.js";
+import { fireBomberShotWhenClearOfPlayer } from "../fireBomberShotWhenClearOfPlayer.js";
 import { u8, u16 } from "../../../../core/int.js";
 
 const TARGET = 0x3b77;
@@ -193,12 +193,12 @@ test("STACK: the drift is exactly two bytes and the mask floor clears the data",
 // carry entry, the spawn twin the crafted body.
 const SPAWN_ENTRY = () => captureAttract()[0];
 const TWINS = [
-  ["no-fly", (m) => { const { regs, mem8 } = m; const s = regs.iy; mem8[u16(s + SECOND_TILE_Y)] = u8(mem8[u16(s + TILE_Y)] + 0x10); mem8[u16(s + SECOND_TILE_X)] = mem8[u16(s)]; if (hasReachedBoundaryBandSelectedByHeading(m)) return retireObjectAndHold(m); mirrorTwoTileObjectByHeading(m); return spawnAimedEnemyIntoEraBankWhenInWindow(m); }, SPAWN_ENTRY],
-  ["wrong-drop", (m) => { const { regs, mem8 } = m; const s = regs.iy; flyAlongStoredVelocity(m); mem8[u16(s + SECOND_TILE_Y)] = u8(mem8[u16(s + TILE_Y)] + 0x08); mem8[u16(s + SECOND_TILE_X)] = mem8[u16(s)]; if (hasReachedBoundaryBandSelectedByHeading(m)) return retireObjectAndHold(m); mirrorTwoTileObjectByHeading(m); return spawnAimedEnemyIntoEraBankWhenInWindow(m); }, SPAWN_ENTRY],
-  ["no-second-x", (m) => { const { regs, mem8 } = m; const s = regs.iy; flyAlongStoredVelocity(m); mem8[u16(s + SECOND_TILE_Y)] = u8(mem8[u16(s + TILE_Y)] + 0x10); if (hasReachedBoundaryBandSelectedByHeading(m)) return retireObjectAndHold(m); mirrorTwoTileObjectByHeading(m); return spawnAimedEnemyIntoEraBankWhenInWindow(m); }, SPAWN_ENTRY],
-  ["skip-mirror", (m) => { const { regs, mem8 } = m; const s = regs.iy; flyAlongStoredVelocity(m); mem8[u16(s + SECOND_TILE_Y)] = u8(mem8[u16(s + TILE_Y)] + 0x10); mem8[u16(s + SECOND_TILE_X)] = mem8[u16(s)]; if (hasReachedBoundaryBandSelectedByHeading(m)) return retireObjectAndHold(m); return spawnAimedEnemyIntoEraBankWhenInWindow(m); }, SPAWN_ENTRY],
+  ["no-fly", (m) => { const { regs, mem8 } = m; const s = regs.iy; mem8[u16(s + SECOND_TILE_Y)] = u8(mem8[u16(s + TILE_Y)] + 0x10); mem8[u16(s + SECOND_TILE_X)] = mem8[u16(s)]; if (hasReachedBoundaryBandSelectedByHeading(m)) return retireObjectAndHold(m); mirrorTwoTileObjectByHeading(m); return fireBomberShotWhenClearOfPlayer(m); }, SPAWN_ENTRY],
+  ["wrong-drop", (m) => { const { regs, mem8 } = m; const s = regs.iy; flyAlongStoredVelocity(m); mem8[u16(s + SECOND_TILE_Y)] = u8(mem8[u16(s + TILE_Y)] + 0x08); mem8[u16(s + SECOND_TILE_X)] = mem8[u16(s)]; if (hasReachedBoundaryBandSelectedByHeading(m)) return retireObjectAndHold(m); mirrorTwoTileObjectByHeading(m); return fireBomberShotWhenClearOfPlayer(m); }, SPAWN_ENTRY],
+  ["no-second-x", (m) => { const { regs, mem8 } = m; const s = regs.iy; flyAlongStoredVelocity(m); mem8[u16(s + SECOND_TILE_Y)] = u8(mem8[u16(s + TILE_Y)] + 0x10); if (hasReachedBoundaryBandSelectedByHeading(m)) return retireObjectAndHold(m); mirrorTwoTileObjectByHeading(m); return fireBomberShotWhenClearOfPlayer(m); }, SPAWN_ENTRY],
+  ["skip-mirror", (m) => { const { regs, mem8 } = m; const s = regs.iy; flyAlongStoredVelocity(m); mem8[u16(s + SECOND_TILE_Y)] = u8(mem8[u16(s + TILE_Y)] + 0x10); mem8[u16(s + SECOND_TILE_X)] = mem8[u16(s)]; if (hasReachedBoundaryBandSelectedByHeading(m)) return retireObjectAndHold(m); return fireBomberShotWhenClearOfPlayer(m); }, SPAWN_ENTRY],
   ["always-retire", (m) => { const { regs, mem8 } = m; const s = regs.iy; flyAlongStoredVelocity(m); mem8[u16(s + SECOND_TILE_Y)] = u8(mem8[u16(s + TILE_Y)] + 0x10); mem8[u16(s + SECOND_TILE_X)] = mem8[u16(s)]; hasReachedBoundaryBandSelectedByHeading(m); return retireObjectAndHold(m); }, SPAWN_ENTRY],
-  ["ignore-carry", (m) => { const { regs, mem8 } = m; const s = regs.iy; flyAlongStoredVelocity(m); mem8[u16(s + SECOND_TILE_Y)] = u8(mem8[u16(s + TILE_Y)] + 0x10); mem8[u16(s + SECOND_TILE_X)] = mem8[u16(s)]; hasReachedBoundaryBandSelectedByHeading(m); mirrorTwoTileObjectByHeading(m); return spawnAimedEnemyIntoEraBankWhenInWindow(m); }, craftRetire],
+  ["ignore-carry", (m) => { const { regs, mem8 } = m; const s = regs.iy; flyAlongStoredVelocity(m); mem8[u16(s + SECOND_TILE_Y)] = u8(mem8[u16(s + TILE_Y)] + 0x10); mem8[u16(s + SECOND_TILE_X)] = mem8[u16(s)]; hasReachedBoundaryBandSelectedByHeading(m); mirrorTwoTileObjectByHeading(m); return fireBomberShotWhenClearOfPlayer(m); }, craftRetire],
   ["skip-spawn", (m) => { const { regs, mem8 } = m; const s = regs.iy; flyAlongStoredVelocity(m); mem8[u16(s + SECOND_TILE_Y)] = u8(mem8[u16(s + TILE_Y)] + 0x10); mem8[u16(s + SECOND_TILE_X)] = mem8[u16(s)]; if (hasReachedBoundaryBandSelectedByHeading(m)) return retireObjectAndHold(m); mirrorTwoTileObjectByHeading(m); }, craftSpawn],
 ];
 

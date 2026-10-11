@@ -10,7 +10,7 @@
  * Role in the machine: the game's moving objects each own a sixteen-byte record. The run from
  * ACTOR_RECORD_SLOT0 (0xA810) through 0xA970 is the actor band plus the scenery band — every slot
  * but the player's. Clearing +0 (the occupancy byte) frees every slot at once; the only caller is
- * the life-start routine resetPlayfieldAndArmNewRound, so this runs once per life, not per frame.
+ * the life-start routine resetPlayfieldForLifeStart, so this runs once per life, not per frame.
  *
  * Why stamp a number: the +0x0F byte is an IDENTITY other code selects by. When a timer expires,
  * countTheKillAndGrantTheSharedToken writes a record's own stamp (plus a top bit) into a shared

@@ -33,7 +33,7 @@ const ERA_INDEX = 0xad04;
 const LIFE_PHASE = 0xad06;
 const LIFE_TICKS_LOW = 0xad05;
 const KILLS_REMAINING = 0xad02;
-const ROUND_CRAFT_COUNT = 0xacc1;
+const CRAFT_SPAWN_SLOT_COUNT = 0xacc1;
 const PLAYER_HEADING = 0xa802;
 const WAVE_MARK = 0xacc2;
 const STRIDE_INDEX = 0xacc3;
@@ -132,7 +132,7 @@ function craft(o) {
   c.mem8[LIFE_PHASE] = o.phase ?? 0x09;
   c.mem8[LIFE_TICKS_LOW] = o.low ?? 0;
   c.mem8[KILLS_REMAINING] = o.kills ?? 0;
-  c.mem8[ROUND_CRAFT_COUNT] = o.round ?? SLOTS;
+  c.mem8[CRAFT_SPAWN_SLOT_COUNT] = o.round ?? SLOTS;
   if (o.hl !== undefined) c.regs.hl = o.hl;
   if (o.occ !== undefined) {
     for (let i = 0; i < SLOTS; i++) c.mem8[CRAFT_BAND + i * RECORD_STRIDE] = (o.occ >> i) & 1 ? 0xff : 0;
@@ -183,7 +183,7 @@ function twin(opts) {
     regs.hl = DESCRIPTOR_TABLE;
     let descriptor = offsetAddress(m);
 
-    const count = mem8[KILLS_REMAINING] !== 0 ? mem8[ROUND_CRAFT_COUNT] : SLOTS;
+    const count = mem8[KILLS_REMAINING] !== 0 ? mem8[CRAFT_SPAWN_SLOT_COUNT] : SLOTS;
     mem8[FILLED_SLOTS] = 0;
     let record = CRAFT_BAND;
     let entry = ENTRY_BAND;
@@ -218,7 +218,7 @@ function twin(opts) {
     mem8[WAVE_STATUS] = 0xe4;
     const filled = mem8[FILLED_SLOTS];
     if (filled >= SLOTS) return requestEnemyWaveSound(m);
-    const owed = mem8[ROUND_CRAFT_COUNT];
+    const owed = mem8[CRAFT_SPAWN_SLOT_COUNT];
     mem8[FILLED_SLOTS] = owed;
     if (filled >= owed) return requestEnemyWaveSound(m);
   };

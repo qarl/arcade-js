@@ -33,7 +33,7 @@
 
 import { u8, u16 } from "../../../core/int.js";
 import { loc_1f2e } from "./loc_1f2e.js";
-import { requestLateEraProgressSound } from "./requestLateEraProgressSound.js";
+import { requestSoundSixStopWhilePlaying } from "./requestSoundSixStopWhilePlaying.js";
 import { requestDestructionSoundBurst } from "./requestDestructionSoundBurst.js";
 import { offsetAddress } from "./offsetAddress.js";
 import {
@@ -52,20 +52,20 @@ import {
 
 // Record and sprite-entry offsets. PHASE is the record's head byte -- for the player, PLAYER_STATE.
 const PHASE = 0x00; // record byte holding the animation phase
-const PAIR_FLAG = 0x01; // paired-entry byte flagged on the opening frame
+const SPRITE_CODE = 0x01; // paired-entry byte flagged on the opening frame
 const FIRST_FRAME = 0xb4; // phases at or above this are the opening frame; clamp to it
 // 0xFF written to the sprite entry's +1 byte (PLAYER_SPRITE_CODE for the player). Per mechanisms.md,
 // sprite 255 in the sprite ROM is empty, so writing it makes the ship's own sprite disappear -- the
 // tile fireball replaces it.
-const PAIR_MARK = 0xff;
+const EMPTY_SPRITE_CODE = 0xff;
 // The late-era sound is asked for only from ERA_INDEX 2 up (`cp 0x02` / `call nc,0x5679`).
 
 const EXTRA_CUE_LEVEL = 0x02;
 // The anti-tamper witnesses' genuine values: the sampled caption glyph must be 0xA5 (`cp 0xa5` at
 // 0x202D) and its colour 0x05 or 0x10 (`cp 0x05` / `cp 0x10` at 0x2036-0x203B).
-const RUNNING = 0xa5;
-const STATE_DRAW_A = 0x05;
-const STATE_DRAW_B = 0x10;
+const GENUINE_GLYPH = 0xa5;
+const GENUINE_COLOUR_A = 0x05;
+const GENUINE_COLOUR_B = 0x10;
 const COLOUR_BIAS = 0xc1; // added to the level to pick the strip's colour attribute
 // The character plane is 32 cells to a row; after a row of five tiles, adding 0x1B (27) more lands
 // on the first cell of the row below (`ld a,0x1b` / `rst 0x18`).
@@ -101,8 +101,8 @@ export function advancePlayerAnimationStrip(m, record = m.regs.ix, entry = m.reg
   if (mem8[X(PHASE)] >= FIRST_FRAME) {
     // opening frame: clamp the phase, flag the paired entry, request the opening-frame sound cues
     mem8[X(PHASE)] = FIRST_FRAME;
-    mem8[Y(PAIR_FLAG)] = PAIR_MARK;
-    if (mem8[ERA_INDEX] >= EXTRA_CUE_LEVEL) requestLateEraProgressSound(m);
+    mem8[Y(SPRITE_CODE)] = EMPTY_SPRITE_CODE;
+    if (mem8[ERA_INDEX] >= EXTRA_CUE_LEVEL) requestSoundSixStopWhilePlaying(m);
     requestDestructionSoundBurst(m);
 
     // two tamper-witness cells divert the frame into the tamper trap when either departs from its genuine value
@@ -110,9 +110,9 @@ export function advancePlayerAnimationStrip(m, record = m.regs.ix, entry = m.reg
     // TAMPER_COLOUR_STRIP (0xABFF) its colour, both [seen]. On a genuine image they always pass; a
     // patched caption sends the frame into loc_1f2e ([code]), a table whose bytes then run as code.
     const glyph = mem8[TAMPER_GLYPH_STRIP];
-    if (glyph !== RUNNING) return loc_1f2e(m);
+    if (glyph !== GENUINE_GLYPH) return loc_1f2e(m);
     const drawState = mem8[TAMPER_COLOUR_STRIP];
-    if (drawState !== STATE_DRAW_A && drawState !== STATE_DRAW_B) return loc_1f2e(m);
+    if (drawState !== GENUINE_COLOUR_A && drawState !== GENUINE_COLOUR_B) return loc_1f2e(m);
   }
 
   // STEP 2 -- COUNT DOWN (`dec (ix+0x00)` at 0x2040). Every pass, the opening one included.

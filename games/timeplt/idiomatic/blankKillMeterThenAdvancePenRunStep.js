@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * blankCaptionThenAdvancePenRunStep — a sequence arm that blanks the fourteen kill-meter cells and advances the
+ * blankKillMeterThenAdvancePenRunStep — a sequence arm that blanks the fourteen kill-meter cells and advances the
  * interpolated pen run; once the run has finished (reseated to a zero row integer) it runs two
  * anti-tamper folds and steps the sequence on.
  *
@@ -36,7 +36,7 @@ const XOR_TARGET = 0x1c;
 const SUM_LEN = 20;
 const SUM_BIAS = 0x77;
 
-export function blankCaptionThenAdvancePenRunStep(m) {
+export function blankKillMeterThenAdvancePenRunStep(m) {
   const { mem8 } = m;
   // Blank the fixed fourteen-cell kill-meter run (ROM call 0x07D2), every frame this arm runs.
   blankFourteenCharCells(m);

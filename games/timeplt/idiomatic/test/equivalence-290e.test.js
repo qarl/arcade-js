@@ -82,7 +82,7 @@ import { serviceEra1EnemyCraftSlot } from "../serviceEra1EnemyCraftSlot.js";
 import { serviceEra2EnemyCraftSlot } from "../serviceEra2EnemyCraftSlot.js";
 import { serviceEra3EnemyCraftSlot } from "../serviceEra3EnemyCraftSlot.js";
 import { serviceEra4EnemyCraftSlot } from "../serviceEra4EnemyCraftSlot.js";
-import { stepRoundStartIntroAnimation } from "../stepRoundStartIntroAnimation.js";
+import { stepRoundWonBandAnimation } from "../stepRoundWonBandAnimation.js";
 
 const TARGET = 0x290e;
 const ARM_TABLE = 0x2914;
@@ -144,7 +144,7 @@ const SLOT_MODULES = [
   (m) => serviceEra4EnemyCraftSlot(m, m.regs.ix),
   null,
   null,
-  (m) => stepRoundStartIntroAnimation(m),
+  (m) => stepRoundWonBandAnimation(m),
 ];
 const SELECTOR_VALUES = 256;
 

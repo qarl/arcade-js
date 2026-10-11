@@ -26,7 +26,7 @@ import { steerTowardAimHeading } from "./steerTowardAimHeading.js";
 import { flyAtSlowestSpeed } from "./flyAtSlowestSpeed.js";
 import { hasReachedRetireLine } from "./hasReachedRetireLine.js";
 import { retireSlotAndSubPixel } from "./retireSlotAndSubPixel.js";
-import { launchBankEnemyWhenAimedNearPlayer } from "./launchBankEnemyWhenAimedNearPlayer.js";
+import { fireCraftShotWhenAimedNearPlayer } from "./fireCraftShotWhenAimedNearPlayer.js";
 import { dressSpriteForFineHeading } from "./dressSpriteForFineHeading.js";
 import { launchAttackerIntoFreeSlot } from "./launchAttackerIntoFreeSlot.js";
 import { releaseHeldObject } from "./releaseHeldObject.js";
@@ -60,7 +60,7 @@ export function serviceEra2EnemyCraftSlot(m, record = m.regs.ix, entry = m.regs.
     // Still in play: one gated bank launch when aimed near the player (0x3ED6); dress the sprite to
     // face its heading, resolved to thirty-two sectors (dressSpriteForFineHeading, 0x2A97); then the
     // attacker launch into a free slot on this object's turn (launchAttackerIntoFreeSlot, 0x4243).
-    launchBankEnemyWhenAimedNearPlayer(m, record, entry);
+    fireCraftShotWhenAimedNearPlayer(m, record, entry);
     dressSpriteForFineHeading(m, entry, record);
     launchAttackerIntoFreeSlot(m, record, entry);
     return;

@@ -4,7 +4,7 @@
  *
  * THE DESTINATION REFUSES TO RUN, so this is a poked dispatch with negative controls, judged by a
  * hand-rolled two-clone run rather than unitEquivalence. 0x315B is three bytes, `jp 0x3176`, and
- * 0x3176 is a data table (seatEraSceneryRowThenClearAndRunScenery loads it `ld hl,0x3176` and indexes it with `rst 0x18`). Its
+ * 0x3176 is a data table (seatEraSceneryCodesThenSetAttributesAndRunScenery loads it `ld hl,0x3176` and indexes it with `rst 0x18`). Its
  * frozen transcription decodes DATA and throws on entry; the rewrite raises NotImplemented in place
  * rather than jumping there, so BOTH arms refuse — unitEquivalence cannot catch. The contract is:
  * the frozen side refuses, the rewrite refuses with NotImplemented (not any error), and neither

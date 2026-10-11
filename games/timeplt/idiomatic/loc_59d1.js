@@ -9,8 +9,8 @@
  * different velocity table in HL and tail-jump — nothing pushed — into doubledVelocityForHeading
  * (0x59A0). That body looks up the two perpendicular 16-bit velocity components a heading (a
  * point on a 256-step circle, handed in by the caller in A) calls for, and doubles each.
- * Callers: launchBankEnemyWhenAimedNearPlayer (when ERA_INDEX is nonzero) and
- * layOutEnemyAimPointsFromScrollAngle, which asks for the player's heading and the heading a
+ * Callers: fireCraftShotWhenAimedNearPlayer (when ERA_INDEX is nonzero) and
+ * layOutEnemyAimPointsFromPlayerHeading, which asks for the player's heading and the heading a
  * quarter turn from it to place enemy aim points.
  *
  * The table is OPENING_ERA_VELOCITY_TABLE (0x5E00), the ROM table scrollWorldAtTheEraPace uses as

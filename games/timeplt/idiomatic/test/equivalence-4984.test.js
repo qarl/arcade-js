@@ -37,7 +37,7 @@ import assert from "node:assert/strict";
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { pulseSlot1CoinCounter } from "../pulseSlot1CoinCounter.js";
 import { loc_4984 as oracle } from "../../translated/loc_4984.js";
-import { COIN_ACCEPTED, COIN_PULSE_TIMER } from "../names.js";
+import { COIN_COUNTER_PULSES_OWED, COIN_PULSE_TIMER } from "../names.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
 import { recordHardwareWrites } from "./_spineSever.js";
 
@@ -100,7 +100,7 @@ function replay(candidate) {
   const timers = new Set();
   const m = makeMachine(new Map([[TARGET, (mm) => {
     dispatches++;
-    debts.add(mm.mem8[COIN_ACCEPTED]);
+    debts.add(mm.mem8[COIN_COUNTER_PULSES_OWED]);
     timers.add(mm.mem8[COIN_PULSE_TIMER]);
     if (captured === null) captured = mm.clone();
     if (compare(candidate, mm)) caught++;
@@ -120,7 +120,7 @@ function entryState() {
 /** A real captured machine with the debt and the pulse timer forced. */
 function craft(debt, timer) {
   const m = entryState().clone();
-  m.mem8[COIN_ACCEPTED] = debt;
+  m.mem8[COIN_COUNTER_PULSES_OWED] = debt;
   m.mem8[COIN_PULSE_TIMER] = timer;
   return m;
 }
@@ -154,7 +154,7 @@ test("EQUAL at the real dispatch: every byte identical, the stack scratch includ
     "the excluded set changed shape: neither of these outlives the entry",
   );
   console.log(
-    `  EQUAL: debt ${entry.mem8[COIN_ACCEPTED]}, timer ${entry.mem8[COIN_PULSE_TIMER]}; identical`,
+    `  EQUAL: debt ${entry.mem8[COIN_COUNTER_PULSES_OWED]}, timer ${entry.mem8[COIN_PULSE_TIMER]}; identical`,
   );
 });
 
@@ -184,7 +184,7 @@ test("EVERY ARM REACHED: the cross contains all five outcomes", { skip }, () => 
         assert.equal(latch(after), 1, "starting a pulse must drive the line high");
         arms.starts++;
       } else if (timer === 1) {
-        assert.equal(after.mem8[COIN_ACCEPTED], debt - 1, "the debt must fall as the pulse ends");
+        assert.equal(after.mem8[COIN_COUNTER_PULSES_OWED], debt - 1, "the debt must fall as the pulse ends");
         arms.pays++;
       } else if (timer === 25) {
         assert.equal(latch(after), 0, "the line must drop at the half-way count");
@@ -221,21 +221,21 @@ const brokenNoOp = () => {};
 
 /** BUG: runs the pulse whether or not anything is owed. */
 function brokenIgnoresTheDebt(m) {
-  const was = m.mem8[COIN_ACCEPTED];
-  m.mem8[COIN_ACCEPTED] = was === 0 ? 1 : was;
+  const was = m.mem8[COIN_COUNTER_PULSES_OWED];
+  m.mem8[COIN_COUNTER_PULSES_OWED] = was === 0 ? 1 : was;
   pulseSlot1CoinCounter(m);
-  if (was === 0) m.mem8[COIN_ACCEPTED] = 0;
+  if (was === 0) m.mem8[COIN_COUNTER_PULSES_OWED] = 0;
 }
 
 /** BUG: drops the line one count late, so the pulse is a frame longer than it should be. */
 function brokenDropsLate(m) {
   const remaining = m.mem8[COIN_PULSE_TIMER];
-  if (m.mem8[COIN_ACCEPTED] !== 0 && remaining !== 0 && remaining - 1 === 23) {
+  if (m.mem8[COIN_COUNTER_PULSES_OWED] !== 0 && remaining !== 0 && remaining - 1 === 23) {
     m.mem8[COIN_PULSE_TIMER] = remaining - 1;
     m.mem.write8(0xc30a, 0, 10);
     return;
   }
-  if (m.mem8[COIN_ACCEPTED] !== 0 && remaining - 1 === 24) {
+  if (m.mem8[COIN_COUNTER_PULSES_OWED] !== 0 && remaining - 1 === 24) {
     m.mem8[COIN_PULSE_TIMER] = remaining - 1;
     return;
   }
@@ -245,7 +245,7 @@ function brokenDropsLate(m) {
 /** BUG: never drops the line, which no RAM comparison can see. */
 function brokenNeverDropsTheLine(m) {
   const remaining = m.mem8[COIN_PULSE_TIMER];
-  if (m.mem8[COIN_ACCEPTED] !== 0 && remaining !== 0 && remaining - 1 === 24) {
+  if (m.mem8[COIN_COUNTER_PULSES_OWED] !== 0 && remaining !== 0 && remaining - 1 === 24) {
     m.mem8[COIN_PULSE_TIMER] = remaining - 1;
     return;
   }
@@ -254,9 +254,9 @@ function brokenNeverDropsTheLine(m) {
 
 /** BUG: pays the debt off as the pulse starts instead of when it finishes. */
 function brokenPaysEarly(m) {
-  if (m.mem8[COIN_ACCEPTED] === 0) return;
+  if (m.mem8[COIN_COUNTER_PULSES_OWED] === 0) return;
   if (m.mem8[COIN_PULSE_TIMER] === 0) {
-    m.mem8[COIN_ACCEPTED] = m.mem8[COIN_ACCEPTED] - 1;
+    m.mem8[COIN_COUNTER_PULSES_OWED] = m.mem8[COIN_COUNTER_PULSES_OWED] - 1;
     m.mem8[COIN_PULSE_TIMER] = 48;
     m.mem.write8(0xc30a, 1, 10);
     return;

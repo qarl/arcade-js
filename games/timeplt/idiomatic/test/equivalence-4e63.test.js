@@ -8,7 +8,7 @@
  *   tail-jump into it, so none reads one back. HOLE: attract never reaches this address, so the
  *   armed branch and the collision hits are POKED, not observed in a natural run — which is how a
  *   missing DE/IY write-back in destroySlotsAndPlayerOnContact shipped: the unarmed branch threads
- *   that cursor straight into destroyTargetsReachedByFixedAttacker, and no scenario exercised a kill
+ *   that cursor straight into destroyEraObjectsAndPlayerOnContact, and no scenario exercised a kill
  *   that depended on it. The unarmed-target-loaded scenario and the skip-writeback twin close it. Run:
  *   node --test games/timeplt/idiomatic/test/equivalence-4e63.test.js
  */
@@ -22,8 +22,8 @@ import { loc_4e63 as oracle } from "../../translated/loc_4e63.js";
 import { stagePlayerShotSweepAgainstTargetsAndRun } from "../stagePlayerShotSweepAgainstTargetsAndRun.js";
 import { destroyPlayerAndObjectsTouchingIt } from "../destroyPlayerAndObjectsTouchingIt.js";
 import { destroySlotsAndPlayerOnContact } from "../destroySlotsAndPlayerOnContact.js";
-import { ramTestPlayerVsMotherShip } from "../ramTestPlayerVsMotherShip.js";
-import { destroyTargetsReachedByFixedAttacker } from "../destroyTargetsReachedByFixedAttacker.js";
+import { destroyPlayerAndMotherShipOnContactByEra } from "../destroyPlayerAndMotherShipOnContactByEra.js";
+import { destroyEraObjectsAndPlayerOnContact } from "../destroyEraObjectsAndPlayerOnContact.js";
 import { markObjectsTouchingPlayer } from "../markObjectsTouchingPlayer.js";
 import { MOTHER_SHIP_ARMED, PLAYER_STATE } from "../names.js";
 
@@ -47,7 +47,7 @@ const ARMED_MARK_ENTRY = 0xaa2e;
 // its tooth — and it is a record the break-cursor-thread twin's corrupted cursor also misses.
 const UNARMED_HIT_SLOT = 0xa8b0;
 const UNARMED_HIT_ENTRY = 0xaa26;
-// The FIRST slot destroyTargetsReachedByFixedAttacker sweeps, reachable ONLY if the preceding
+// The FIRST slot destroyEraObjectsAndPlayerOnContact sweeps, reachable ONLY if the preceding
 // destroySlotsAndPlayerOnContact handed its DE/IY cursor thread back. No destroy-sweep before it
 // touches this slot, so a live object here is hit by destroyTargets alone — this is the real-game
 // last-life collision at ROM frame 2086 — and any chain that drops the cursor thread misses it.
@@ -176,13 +176,13 @@ function twin({ skipShots = false, invertBranch = false, skipMark = false, break
       regs.h = 15;
       if (breakThread) { regs.de = 0xa810; regs.iy = 0xaa12; }
       destroySlots(m);
-      ramTestPlayerVsMotherShip(m);
+      destroyPlayerAndMotherShipOnContactByEra(m);
       regs.b = 3;
       regs.de = 0xa8c0;
       regs.iy = 0xaa28;
       regs.l = 6;
       regs.h = 13;
-      destroyTargetsReachedByFixedAttacker(m);
+      destroyEraObjectsAndPlayerOnContact(m);
       regs.b = 1;
       regs.l = 8;
       regs.h = 17;
@@ -196,7 +196,7 @@ function twin({ skipShots = false, invertBranch = false, skipMark = false, break
     regs.b = 3;
     regs.l = 6;
     regs.h = 13;
-    destroyTargetsReachedByFixedAttacker(m);
+    destroyEraObjectsAndPlayerOnContact(m);
     regs.b = 1;
     regs.l = 8;
     regs.h = 17;

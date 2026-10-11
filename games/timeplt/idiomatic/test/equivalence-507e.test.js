@@ -41,7 +41,7 @@ import { loc_507e as oracle } from "../../translated/loc_507e.js";
 import { unitEquivalence } from "../../../../core/equivalence.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
 import { postChainedHitScore } from "../postChainedHitScore.js";
-import { HITS_REMAINING, PLAYER_STATE } from "../names.js";
+import { BOMBER_HITS_TO_ABSORB, PLAYER_STATE } from "../names.js";
 
 const TARGET = 0x507e;
 
@@ -161,7 +161,7 @@ function craft(targetFlag, moverFlag, across, along) {
   m.mem8[TARGET_ENTRY + TARGET_SECOND_AXIS] = 0x60;
   m.mem8[MOVER_FIRST_AXIS] = (0x80 + across) & 0xff;
   m.mem8[MOVER_SECOND_AXIS] = (0x60 + along) & 0xff;
-  m.mem8[HITS_REMAINING] = 2; // non-zero, so the twin that fails to reset it has something to fail at
+  m.mem8[BOMBER_HITS_TO_ABSORB] = 2; // non-zero, so the twin that fails to reset it has something to fail at
   return m;
 }
 
@@ -237,7 +237,7 @@ const along = (m) => (m.mem8[MOVER_SECOND_AXIS] - m.mem8[TARGET_ENTRY + TARGET_S
 function destroy(m, { keepStage = false, keepTarget = false, keepMover = false, noScore = false } = {}) {
   if (!keepTarget) m.mem8[PLAYER_STATE] = DESTROYED;
   if (!keepMover) m.mem8[MOVER_FLAG] = DESTROYED;
-  if (!keepStage) m.mem8[HITS_REMAINING] = 0;
+  if (!keepStage) m.mem8[BOMBER_HITS_TO_ABSORB] = 0;
   if (!noScore) postChainedHitScore(m);
 }
 

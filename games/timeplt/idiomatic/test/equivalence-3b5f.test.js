@@ -17,7 +17,7 @@ import assert from "node:assert/strict";
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { serviceEra1BomberObject } from "../serviceEra1BomberObject.js";
 import { loc_3b5f as oracle } from "../../translated/loc_3b5f.js";
-import { ERA_INDEX, FRAME_TICK, HITS_REMAINING, MOTHER_SHIP_ARMED } from "../names.js";
+import { ERA_INDEX, FRAME_TICK, BOMBER_HITS_TO_ABSORB, MOTHER_SHIP_ARMED } from "../names.js";
 import { armBomberSlotWhenTimerFires } from "../armBomberSlotWhenTimerFires.js";
 import { loc_5942 } from "../loc_5942.js";
 import { advanceHitSoakingObjectThenAnimateDeath } from "../advanceHitSoakingObjectThenAnimateDeath.js";
@@ -224,7 +224,7 @@ test("HEAD THRESHOLD: the advanced head reaches the hit arm, where its threshold
   let caught = 0;
   for (const head of THRESHOLD_HEADS) {
     const m = craft(ACTIVE_ERA, head);
-    m.mem8[HITS_REMAINING] = 0;
+    m.mem8[BOMBER_HITS_TO_ABSORB] = 0;
     assert.equal(unitDiff(serviceEra1BomberObject, m), null, `head ${hex4(head)} diverged`);
     if (unitDiff(brokenHeadNotAdvanced, m)) caught++;
   }

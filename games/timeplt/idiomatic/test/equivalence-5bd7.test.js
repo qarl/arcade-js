@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * blankCaptionThenAdvancePenRunStep — memory-equivalent to the frozen oracle at ROM 0x5BD7.
+ * blankKillMeterThenAdvancePenRunStep — memory-equivalent to the frozen oracle at ROM 0x5BD7.
  * GATE: unit-capture at every real dispatch of the coin-start tape (both branches present), plus
  *   crafted full-path entries seating the pen run on a zero-row prior. RAM compared with the dead
  *   stack scratch below the seated SP masked out (the oracle nests calls, the rewrite dissolves the
@@ -15,7 +15,7 @@ import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { withOmittedRet } from "../../machine.js";
-import { blankCaptionThenAdvancePenRunStep as candidate } from "../blankCaptionThenAdvancePenRunStep.js";
+import { blankKillMeterThenAdvancePenRunStep as candidate } from "../blankKillMeterThenAdvancePenRunStep.js";
 import { loc_5bd7 as oracle } from "../../translated/loc_5bd7.js";
 import { blankFourteenCharCells } from "../blankFourteenCharCells.js";
 import { drawInterpolatedPenRun } from "../drawInterpolatedPenRun.js";
@@ -145,7 +145,7 @@ function scenarios() {
 
 // ── the twins ─────────────────────────────────────────────────────────────────────────────
 
-/** The rewrite with one deliberate defect each; every parameter matches blankCaptionThenAdvancePenRunStep by default. */
+/** The rewrite with one deliberate defect each; every parameter matches blankKillMeterThenAdvancePenRunStep by default. */
 function build({ blank = true, branch = "nz", phase = "clean", bias = SUM_BIAS, store = true, step = true }) {
   return (m) => {
     const { mem8 } = m;

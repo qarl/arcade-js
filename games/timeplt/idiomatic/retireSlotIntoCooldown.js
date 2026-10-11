@@ -26,7 +26,7 @@ const DELAY = 0x0e;
 /** A sprite entry's two coordinates live in parallel tables forty-nine (0x31) bytes apart. */
 const SECOND_AXIS_OFFSET = 0x31;
 /** The delay armed here. */
-const DELAY_FRAMES = 0xf0;
+const DELAY_COUNT = 0xf0;
 
 export function retireSlotIntoCooldown(m, record = m.regs.ix, entry = m.regs.iy) {
   const { mem8 } = m;
@@ -37,5 +37,5 @@ export function retireSlotIntoCooldown(m, record = m.regs.ix, entry = m.regs.iy)
   mem8[entry + SECOND_AXIS_OFFSET] = 0;
   // Step 2: arm the cooldown, so the per-slot handler counts the slot down before anything may spawn
   // into it again (ROM `ld (ix+0x0e),0xf0`).
-  mem8[record + DELAY] = DELAY_FRAMES;
+  mem8[record + DELAY] = DELAY_COUNT;
 }

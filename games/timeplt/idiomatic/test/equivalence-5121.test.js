@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * destroyTargetsReachedByFixedAttacker — memory-equivalent to the frozen oracle at ROM 0x5121.
+ * destroyEraObjectsAndPlayerOnContact — memory-equivalent to the frozen oracle at ROM 0x5121.
  *
  * WHAT IT IS. A sweep of a caller's run of target slots against ONE attacker whose state byte and
  * two screen coordinates live at fixed cells. Every hit destroys the target and the attacker and
@@ -52,7 +52,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMachine, COIN_FRAME, START_FRAME, ENTRY_FRAMES, romsPresent } from "./_harness.js";
-import { destroyTargetsReachedByFixedAttacker } from "../destroyTargetsReachedByFixedAttacker.js";
+import { destroyEraObjectsAndPlayerOnContact } from "../destroyEraObjectsAndPlayerOnContact.js";
 import { postChainedHitScore } from "../postChainedHitScore.js";
 import { loc_5121 as oracle } from "../../translated/loc_5121.js";
 import { unitEquivalence } from "../../../../core/equivalence.js";
@@ -140,7 +140,7 @@ function gate(candidate) {
 }
 
 function entryState() {
-  if (entry === null) gate(destroyTargetsReachedByFixedAttacker);
+  if (entry === null) gate(destroyEraObjectsAndPlayerOnContact);
   return entry;
 }
 
@@ -249,7 +249,7 @@ function replaySession(factory, candidate) {
 let sessionCache = null;
 function sessions() {
   if (sessionCache) return sessionCache;
-  sessionCache = SESSIONS.map(([label, factory]) => ({ label, ...replaySession(factory, destroyTargetsReachedByFixedAttacker) }));
+  sessionCache = SESSIONS.map(([label, factory]) => ({ label, ...replaySession(factory, destroyEraObjectsAndPlayerOnContact) }));
   return sessionCache;
 }
 
@@ -364,14 +364,14 @@ const TWINS = [
 // ── the gate ────────────────────────────────────────────────────────────────────────────
 
 test("EQUAL at the real dispatch: identical outside the scratch window", { skip }, () => {
-  gate(destroyTargetsReachedByFixedAttacker);
+  gate(destroyEraObjectsAndPlayerOnContact);
   assert.notEqual(entry, null, "vacuous: the session never reached the routine");
   const e = entryState();
   const sp = e.regs.sp;
   const a = e.clone();
   const b = e.clone();
   oracle(a);
-  destroyTargetsReachedByFixedAttacker(b);
+  destroyEraObjectsAndPlayerOnContact(b);
   const all = allDiffs(a, b);
   const strays = all.filter((d) => !inScratch(d.addr, sp));
   console.log(
@@ -404,7 +404,7 @@ test("EXCLUDED, deliberately: only scratch registers move, over the whole cross"
     const a = craft(p);
     const b = a.clone();
     oracle(a);
-    destroyTargetsReachedByFixedAttacker(b);
+    destroyEraObjectsAndPlayerOnContact(b);
     for (const k of REG_FIELDS) if (a.regs[k] !== b.regs[k]) moved.add(k);
     for (const k of LIVE_OUT) assert.equal(a.regs[k], b.regs[k], `live-out ${k}`);
   }
@@ -435,7 +435,7 @@ test("CORPUS: every dispatch of three real sessions replays identically", { skip
 
 test("CRAFTED: every attacker x target x box x cursor combination is identical", { skip }, () => {
   for (const p of cross()) {
-    const d = unitDiff(destroyTargetsReachedByFixedAttacker, craft(p));
+    const d = unitDiff(destroyEraObjectsAndPlayerOnContact, craft(p));
     assert.equal(d, null, `${JSON.stringify(p)}: ${show(d)}`);
   }
   console.log(`  CRAFTED: ${cross().length} entries identical`);
@@ -455,7 +455,7 @@ test("THE HIT PATH IS REACHED: the crafted cross destroys and scores", { skip },
 });
 
 test("WHOLE-MACHINE: a driven session differs only in stack scratch", { skip }, () => {
-  const r = wholeRunCells(destroyTargetsReachedByFixedAttacker);
+  const r = wholeRunCells(destroyEraObjectsAndPlayerOnContact);
   console.log(
     `  WHOLE-MACHINE: ${r.frames} frames, ${r.fired} dispatches, cells [${r.cells.map(hex4).join(" ")}]`,
   );

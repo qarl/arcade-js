@@ -26,19 +26,19 @@ import { drawRandomByte } from "./drawRandomByte.js";
 import { fetchTableByte } from "./fetchTableByte.js";
 import { stepCraftFlightScript } from "./stepCraftFlightScript.js";
 import { u8, u16 } from "../../../core/int.js";
-import { CRAFT_ENTRY_SLOT0, CRAFT_RECORD_SLOT0, MOTHER_SHIP_ARMED, ROUND_CRAFT_COUNT, WAVE_CLAIM_TIMER, ENEMY_SPAWN_RECORD_TABLE, WAVE_RUN_SELECTOR_TABLE } from "./names.js";
+import { CRAFT_ENTRY_SLOT0, CRAFT_RECORD_SLOT0, MOTHER_SHIP_ARMED, CRAFT_SPAWN_SLOT_COUNT, WAVE_CLAIM_TIMER, ENEMY_SPAWN_RECORD_TABLE, WAVE_RUN_SELECTOR_TABLE } from "./names.js";
 
 // One record per sixteen bytes; five slots while the Mother-Ship holds the other two.
 const SLOT_STRIDE = 0x10;
 const DEFAULT_COUNT = 5;
 // Loaded into WAVE_CLAIM_TIMER 0xA812 [seen] when the pass ends.
-const STATUS_VALUE = 0xe4;
+const CLAIM_WINDOW_FRAMES = 0xe4;
 
 export function spawnEnemyWaveIntoFreeSlots(m) {
   const { mem8 } = m;
-  // Step 1 -- how many slots to walk: the round's craft quota ROUND_CRAFT_COUNT 0xACC1 [seen],
+  // Step 1 -- how many slots to walk: the round's craft quota CRAFT_SPAWN_SLOT_COUNT 0xACC1 [seen],
   // or five while the Mother-Ship is armed.
-  const configuredCount = mem8[ROUND_CRAFT_COUNT];
+  const configuredCount = mem8[CRAFT_SPAWN_SLOT_COUNT];
   const count = mem8[MOTHER_SHIP_ARMED] === 0 ? configuredCount : DEFAULT_COUNT;
 
   // Step 2 -- walk the band from its first slot, record and sprite entry in lockstep.
@@ -81,5 +81,5 @@ export function spawnEnemyWaveIntoFreeSlots(m) {
   } while (remaining !== 0);
 
   // Step 6 -- arm the wave-claim window with its fixed starting value.
-  mem8[WAVE_CLAIM_TIMER] = STATUS_VALUE;
+  mem8[WAVE_CLAIM_TIMER] = CLAIM_WINDOW_FRAMES;
 }

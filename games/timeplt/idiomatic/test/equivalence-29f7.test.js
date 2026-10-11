@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * steerEnemyTowardShip — memory-equivalent to the frozen oracle at ROM 0x29F7.
+ * steerEra4CraftTowardAimHeadingThenFly — memory-equivalent to the frozen oracle at ROM 0x29F7.
  * GATE: crafted entries plus a poked corpus; RAM compared with the dead stack scratch below the
  *   seated SP masked out (the oracle's tail pops a return address this rewrite dissolved away), the
  *   +2 SP drift and the return value asserted, registers not compared. Neither tape reaches the
@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { ROUTINES as TRANSLATED } from "../../routines.js";
-import { steerEnemyTowardShip as candidate } from "../steerEnemyTowardShip.js";
+import { steerEra4CraftTowardAimHeadingThenFly as candidate } from "../steerEra4CraftTowardAimHeadingThenFly.js";
 import { loc_29f7 as oracle } from "../../translated/loc_29f7.js";
 import { steerTowardAimHeading } from "../steerTowardAimHeading.js";
 import { loc_58aa } from "../loc_58aa.js";

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * destroyCraftAndMotherShipHitByShots — memory-equivalent to the frozen oracle at ROM 0x4FBF.
+ * sweepShotsOverFiveCraftThenMotherShip — memory-equivalent to the frozen oracle at ROM 0x4FBF.
  *
  * WHAT IT IS. Two sweeps. The first is a shared routine that is ALREADY DECOMPILED, handed its
  * runs, counts and box outright, so the rewrite calls it directly and dissolving that call belongs
@@ -44,7 +44,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMachine, romsPresent } from "./_harness.js";
-import { destroyCraftAndMotherShipHitByShots } from "../destroyCraftAndMotherShipHitByShots.js";
+import { sweepShotsOverFiveCraftThenMotherShip } from "../sweepShotsOverFiveCraftThenMotherShip.js";
 import { destroyTargetsHitByShots } from "../destroyTargetsHitByShots.js";
 import { postChainedHitScore } from "../postChainedHitScore.js";
 import { loc_4fbf as oracle } from "../../translated/loc_4fbf.js";
@@ -166,7 +166,7 @@ function replay(candidate) {
 }
 
 function entryState() {
-  if (entry === null) replay(destroyCraftAndMotherShipHitByShots);
+  if (entry === null) replay(sweepShotsOverFiveCraftThenMotherShip);
   assert.notEqual(entry, null, "vacuous: the attract session never reached the routine");
   return entry;
 }
@@ -239,7 +239,7 @@ function sweepCaught(candidate) {
 /** True when the crafted entry ends with the standing object destroyed. */
 function hits(era, state, axis, offset) {
   const m = craft(era, state, axis, offset);
-  destroyCraftAndMotherShipHitByShots(m);
+  sweepShotsOverFiveCraftThenMotherShip(m);
   return m.mem8[MOTHER_SHIP_STATE] === DESTROYED;
 }
 
@@ -341,12 +341,12 @@ const TWINS = [
 
 // ── the gate ────────────────────────────────────────────────────────────────────────────
 
-test("EQUAL at the real dispatch: destroyCraftAndMotherShipHitByShots == oracle outside the scratch window", { skip }, () => {
+test("EQUAL at the real dispatch: sweepShotsOverFiveCraftThenMotherShip == oracle outside the scratch window", { skip }, () => {
   const sp = entryState().regs.sp;
   const a = entryState().clone();
   const b = entryState().clone();
   oracle(a);
-  destroyCraftAndMotherShipHitByShots(b);
+  sweepShotsOverFiveCraftThenMotherShip(b);
   const strays = allDiffs(a, b).filter((d) => !inScratch(d.addr, sp));
   assert.deepEqual(strays, [], `a divergence escaped the scratch window: ${show(strays[0])}`);
   console.log(`  EQUAL: sp=${hex4(sp)}; identical outside ${SCRATCH_BYTES} scratch bytes`);
@@ -363,7 +363,7 @@ test("EXCLUDED, deliberately: a bounded register set, and nothing else", { skip 
   const a = entryState().clone();
   const b = entryState().clone();
   oracle(a);
-  destroyCraftAndMotherShipHitByShots(b);
+  sweepShotsOverFiveCraftThenMotherShip(b);
   const moved = REG_FIELDS.filter((k) => a.regs[k] !== b.regs[k]);
   const unexpected = moved.filter((k) => !EXCLUDED.includes(k));
   assert.deepEqual(unexpected, [], "a register diverged outside the excluded set");
@@ -371,7 +371,7 @@ test("EXCLUDED, deliberately: a bounded register set, and nothing else", { skip 
 });
 
 test("CORPUS: every dispatch of a real attract session replays identically", { skip }, () => {
-  const r = replay(destroyCraftAndMotherShipHitByShots);
+  const r = replay(sweepShotsOverFiveCraftThenMotherShip);
   assert.equal(r.dispatches, DISPATCHES, "the dispatch count moved");
   assert.equal(r.caught, 0, "the rewrite diverged on a real dispatch");
   console.log(
@@ -384,14 +384,14 @@ test("THE CURSOR CELLS ARE STAGED before the shared sweep reads them", { skip },
   const m = craft(0, LIVE, 0, 0);
   m.mem16[TARGET_RECORD_CURSOR] = 0x0000;
   m.mem16[TARGET_ENTRY_CURSOR] = 0x0000;
-  destroyCraftAndMotherShipHitByShots(m);
+  sweepShotsOverFiveCraftThenMotherShip(m);
   assert.equal(m.mem16[TARGET_RECORD_CURSOR], TARGET_RECORDS, "the record cursor");
   assert.equal(m.mem16[TARGET_ENTRY_CURSOR], TARGET_ENTRIES, "the entry cursor");
   console.log(`  STAGED: ${hex4(TARGET_RECORD_CURSOR)} and ${hex4(TARGET_ENTRY_CURSOR)} rewritten`);
 });
 
 test("CRAFTED: the whole era x state x offset grid behaves as the oracle", { skip }, () => {
-  assert.equal(sweepCaught(destroyCraftAndMotherShipHitByShots), 0, "the rewrite diverged somewhere in the crafted space");
+  assert.equal(sweepCaught(sweepShotsOverFiveCraftThenMotherShip), 0, "the rewrite diverged somewhere in the crafted space");
   let hitCount = 0;
   let missCount = 0;
   sweep((era, state, axis, offset) => (hits(era, state, axis, offset) ? hitCount++ : missCount++));

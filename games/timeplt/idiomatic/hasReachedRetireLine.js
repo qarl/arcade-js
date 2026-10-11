@@ -15,7 +15,7 @@
  * Objects leave play by their SCREEN position -- the whole bytes of their sprite entry -- because the
  * world itself has no edge.
  *
- * Why these two lines: resetPlayfieldAndArmNewRound pins the player's own sprite entry at (0x84, 0x78)
+ * Why these two lines: resetPlayfieldForLifeStart pins the player's own sprite entry at (0x84, 0x78)
  * and nothing that flies the ship moves it, so 0xF8 and 0x04 are each exactly 0x80 -- half the wrapping
  * coordinate range -- away from the player's: its antipode in a coordinate that wraps at 256 (names.js "why").
  *

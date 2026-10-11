@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * resetPlayfieldAndArmNewRound — memory-equivalent to the frozen oracle at ROM 0x19F0.
+ * resetPlayfieldForLifeStart — memory-equivalent to the frozen oracle at ROM 0x19F0.
  * GATE: strict unit-capture at the two real dispatches the coin -> start tape produces, masked over
  *   the dead stack scratch the frozen side leaves (it pushes below its seat and takes a return the
  *   rewrite does not, so SP drifts two and the window under the seat is scribbled); plus crafted
@@ -12,7 +12,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
-import { resetPlayfieldAndArmNewRound } from "../resetPlayfieldAndArmNewRound.js";
+import { resetPlayfieldForLifeStart } from "../resetPlayfieldForLifeStart.js";
 import { loc_19f0 as oracle } from "../../translated/loc_19f0.js";
 
 import { dressPlayerSpriteForHeading } from "../dressPlayerSpriteForHeading.js";
@@ -22,7 +22,7 @@ import { retireSlotIntoSharedCooldown } from "../retireSlotIntoSharedCooldown.js
 import { retireSlotIntoCooldown } from "../retireSlotIntoCooldown.js";
 import { retireSlotAndSubPixel } from "../retireSlotAndSubPixel.js";
 import { freeAndNumberEveryObjectSlot } from "../freeAndNumberEveryObjectSlot.js";
-import { seatEraSceneryRowThenClearAndRunScenery } from "../seatEraSceneryRowThenClearAndRunScenery.js";
+import { seatEraSceneryCodesThenSetAttributesAndRunScenery } from "../seatEraSceneryCodesThenSetAttributesAndRunScenery.js";
 import { fetchTableWord } from "../fetchTableWord.js";
 import { u8 } from "../../../../core/int.js";
 
@@ -128,7 +128,7 @@ function runBody(m, { slots = 7, band = "shift", scatter = "full", clearEntries 
   }
   freeAndNumberEveryObjectSlot(m);
   if (clearEntries) for (const off of [0, 2, 4, 6, 0x31, 0x33, 0x35, 0x37]) mem8[0xaa28 + off] = 0;
-  seatEraSceneryRowThenClearAndRunScenery(m);
+  seatEraSceneryCodesThenSetAttributesAndRunScenery(m);
   const shifted = band === "shift" ? (mem8[ERA_INDEX] & 0x0f) << 4 : mem8[ERA_INDEX] & 0x0f;
   regs.a = u8(mem8[BAND_SOURCE] + shifted);
   regs.hl = RECORD_TABLE;
@@ -170,12 +170,12 @@ test("EQUAL at the real dispatches: masked dump identical, SP drifts exactly two
   const es = capture();
   assert.equal(es.length, DISPATCHES, "the dispatch count moved");
   for (const e of es) {
-    const r = windowed(resetPlayfieldAndArmNewRound, e);
+    const r = windowed(resetPlayfieldForLifeStart, e);
     assert.equal(r.first, null, `a real dispatch diverged: ${show(r.first)}`);
     assert.equal(r.spDiff, SP_DRIFT, `the frozen side no longer re-seats two bytes higher (${r.spDiff})`);
     assert.ok(r.low > DATA_TOP, `the stack window ${hex4(r.low)} reached down into game data`);
   }
-  console.log(`  EQUAL: ${es.length} dispatches identical; window floor ${hex4(windowed(resetPlayfieldAndArmNewRound, es[0]).low)}`);
+  console.log(`  EQUAL: ${es.length} dispatches identical; window floor ${hex4(windowed(resetPlayfieldForLifeStart, es[0]).low)}`);
 });
 
 test("NOT VACUOUS: a no-op candidate FAILS on a real cell", { skip }, () => {
@@ -187,7 +187,7 @@ test("NOT VACUOUS: a no-op candidate FAILS on a real cell", { skip }, () => {
 
 test("CRAFTED: identical from every seeded era", { skip }, () => {
   for (const e of craftedAll()) {
-    assert.equal(diffAt(resetPlayfieldAndArmNewRound, e), null, "a crafted era diverged");
+    assert.equal(diffAt(resetPlayfieldForLifeStart, e), null, "a crafted era diverged");
   }
   console.log(`  CRAFTED: ${ERAS.length} eras identical`);
 });

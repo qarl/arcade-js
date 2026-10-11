@@ -9,7 +9,7 @@
  * circle, so their difference taken as a wrapped byte says how far round the aim lies: under half a
  * turn away and the short way is forward (add), otherwise it is back (subtract). The size of a step
  * is not the object's own -- it is fetched from TURN_RATE_BY_ERA_TABLE (five entries at 0x2C1D)
- * indexed by whatever ERA_INDEX holds at the call; steerEnemyTowardShip forces that cell to 0 around
+ * indexed by whatever ERA_INDEX holds at the call; steerEra4CraftTowardAimHeadingThenFly forces that cell to 0 around
  * some of its turns (mechanisms.md), so two objects turning in one frame need not turn alike.
  *
  * ROM 0x2BEF-0x2C1C (frozen lift translated/loc_2bef.js). Grounding: [seen] (names.js ROUTINES

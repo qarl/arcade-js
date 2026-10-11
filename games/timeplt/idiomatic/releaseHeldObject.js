@@ -17,7 +17,7 @@ import { u8 } from "../../../core/int.js";
 
 // Record offsets and values: the countdown sits at +0x0E, and is re-armed with 0x80 on release.
 const RELEASE_DELAY = 14;
-const DELAY_RELOAD = 128;
+const RELEASED_FROM_HOLD_MARK = 128;
 
 export function releaseHeldObject(m, slot = m.regs.ix) {
   const { mem8 } = m;
@@ -29,5 +29,5 @@ export function releaseHeldObject(m, slot = m.regs.ix) {
   // Expired: step the state byte from held to live (inc (ix+0x00)), and reload the same cell with
   // 128 (ld (ix+0x0e),0x80); names.js records other routines re-arming this cell as a cooldown.
   mem8[slot] = mem8[slot] + 1;
-  mem8[slot + RELEASE_DELAY] = DELAY_RELOAD;
+  mem8[slot + RELEASE_DELAY] = RELEASED_FROM_HOLD_MARK;
 }

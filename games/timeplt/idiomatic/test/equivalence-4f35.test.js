@@ -65,7 +65,7 @@ import { readFileSync } from "node:fs";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { dispatchShotSweepByMotherShipArmed } from "../dispatchShotSweepByMotherShipArmed.js";
-import { destroyCraftAndMotherShipHitByShots } from "../destroyCraftAndMotherShipHitByShots.js";
+import { sweepShotsOverFiveCraftThenMotherShip } from "../sweepShotsOverFiveCraftThenMotherShip.js";
 import { destroyTargetsHitByShots } from "../destroyTargetsHitByShots.js";
 import { loc_4f35 as oracle } from "../../translated/loc_4f35.js";
 import { ERA_INDEX, MOTHER_SHIP_ARMED } from "../names.js";
@@ -120,7 +120,7 @@ const read = (rel) => readFileSync(new URL(rel, import.meta.url), "utf8");
 const hex4 = (v) => "0x" + (v & 0xffff).toString(16).padStart(4, "0");
 
 const HELPERS = [
-  ["destroyCraftAndMotherShipHitByShots", "../destroyCraftAndMotherShipHitByShots.js", "WIDE_ERAS"],
+  ["sweepShotsOverFiveCraftThenMotherShip", "../sweepShotsOverFiveCraftThenMotherShip.js", "WIDE_ERAS"],
   ["destroyTargetsHitByShots", "../destroyTargetsHitByShots.js", "FIRST_AXIS_BAND"],
 ];
 
@@ -324,7 +324,7 @@ function build(o = {}) {
     const { mem8, mem16 } = m;
     const armed = opt.alwaysArmed || (opt.honourFlag && mem8[MOTHER_SHIP_ARMED] !== 0);
     if (armed) {
-      destroyCraftAndMotherShipHitByShots(m);
+      sweepShotsOverFiveCraftThenMotherShip(m);
       return;
     }
     if (opt.stage) {

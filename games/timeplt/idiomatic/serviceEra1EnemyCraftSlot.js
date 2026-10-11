@@ -28,7 +28,7 @@ import { steerTowardAimHeading } from "./steerTowardAimHeading.js";
 import { loc_5854 } from "./loc_5854.js";
 import { hasReachedRetireLine } from "./hasReachedRetireLine.js";
 import { retireSlotAndSubPixel } from "./retireSlotAndSubPixel.js";
-import { launchBankEnemyWhenAimedNearPlayer } from "./launchBankEnemyWhenAimedNearPlayer.js";
+import { fireCraftShotWhenAimedNearPlayer } from "./fireCraftShotWhenAimedNearPlayer.js";
 import { refreshSecondEraSpriteFromHeading } from "./refreshSecondEraSpriteFromHeading.js";
 import { releaseHeldObject } from "./releaseHeldObject.js";
 import { stepDyingObjectState } from "./stepDyingObjectState.js";
@@ -55,6 +55,6 @@ export function serviceEra1EnemyCraftSlot(m, record = m.regs.ix, entry = m.regs.
   if (hasReachedRetireLine(m, entry)) return retireSlotAndSubPixel(m, record, entry);
   // Otherwise: one gated attempt to launch an enemy into the object bank, then redraw the sprite
   // pointing the way it is heading, in the second era's shape bank.
-  launchBankEnemyWhenAimedNearPlayer(m, record, entry);
+  fireCraftShotWhenAimedNearPlayer(m, record, entry);
   return refreshSecondEraSpriteFromHeading(m, record, entry);
 }

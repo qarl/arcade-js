@@ -32,7 +32,7 @@
 import { NotImplemented } from "../../../boards/timeplt/io.js";
 import { SEQUENCE_SUBSTEP } from "./names.js";
 import { advanceSequenceElseStartFreePlayGame } from "./advanceSequenceElseStartFreePlayGame.js";
-import { erasePenRouteThenAdvanceStep } from "./erasePenRouteThenAdvanceStep.js";
+import { armPenRouteInColour5ThenAdvanceStep } from "./armPenRouteInColour5ThenAdvanceStep.js";
 import { advancePenRunAnimationStep } from "./advancePenRunAnimationStep.js";
 import { showCreditLine } from "./showCreditLine.js";
 import { buildCopyrightScreenThenVerifyImage } from "./buildCopyrightScreenThenVerifyImage.js";
@@ -59,7 +59,7 @@ export function dispatchSequencePhase1SubStepArm(m) {
     // paint the readouts and sample the witness, hold and verify the glyph, two guard-block steps, fold
     // the image block into the signature, step under the checksum, a bare trampoline step, and finally
     // verify the signature and start the attract demo. Each arm returns, then the shared tail runs.
-    case 0: erasePenRouteThenAdvanceStep(m); break;
+    case 0: armPenRouteInColour5ThenAdvanceStep(m); break;
     case 1: advancePenRunAnimationStep(m); break;
     case 2: showCreditLine(m); break;
     case 3: buildCopyrightScreenThenVerifyImage(m); break;

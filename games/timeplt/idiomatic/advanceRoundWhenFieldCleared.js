@@ -24,7 +24,7 @@
  * LIVE-OUT: memory only.
  */
 
-import { enqueueTransitionSoundBurst } from "./enqueueTransitionSoundBurst.js";
+import { enqueueTransitionSoundStops } from "./enqueueTransitionSoundStops.js";
 import { hideAllSprites } from "./hideAllSprites.js";
 import { startNextRound } from "./startNextRound.js";
 import { ACTOR_RECORD_SLOT0, ACTOR_SPRITE_Y_SLOT0, ROUND_TRANSITION_HOLD } from "./names.js";
@@ -45,7 +45,7 @@ export function advanceRoundWhenFieldCleared(m) {
 
   // The field is clear: queue the round-transition sound burst (ROM call 0x5634 — seven sound codes,
   // six fetched from program-image cells and one keyed by the era index).
-  enqueueTransitionSoundBurst(m);
+  enqueueTransitionSoundStops(m);
 
   // ARM A — attract demo (PLAY_ACTIVE clear, ROM 0x12BB onward). Reload the transition hold from the
   // ROM byte at 0x07D1 (0x00, so this disarms gate 2), hide every sprite (ROM 0x15B6), then restart the

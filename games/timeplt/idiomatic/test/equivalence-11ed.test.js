@@ -20,7 +20,7 @@ import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { loseLifeAndHandOver } from "../loseLifeAndHandOver.js";
-import { enqueueTransitionSoundBurst } from "../enqueueTransitionSoundBurst.js";
+import { enqueueTransitionSoundStops } from "../enqueueTransitionSoundStops.js";
 import { hideAllSprites } from "../hideAllSprites.js";
 import { startNextRound } from "../startNextRound.js";
 import { postGameOverBanner } from "../postGameOverBanner.js";
@@ -141,7 +141,7 @@ function brokenNoOp() {}
 function brokenNoHide(m) {
   const { mem8 } = m;
   if (mem8[EVENT_FLAG] !== 0) startNextRound(m);
-  enqueueTransitionSoundBurst(m);
+  enqueueTransitionSoundStops(m);
   const count = u8(mem8[RECORD] - 1);
   mem8[RECORD] = count;
   const dest = mem8[SELECTOR] === 0 ? SLOT_A : SLOT_B;
@@ -174,7 +174,7 @@ function brokenNoDecrement(m) {
   const { mem8 } = m;
   hideAllSprites(m);
   if (mem8[EVENT_FLAG] !== 0) startNextRound(m);
-  enqueueTransitionSoundBurst(m);
+  enqueueTransitionSoundStops(m);
   const count = u8(mem8[RECORD] - 1);
   const dest = mem8[SELECTOR] === 0 ? SLOT_A : SLOT_B;
   for (let i = 0; i < RECORD_LEN; i++) mem8[dest + i] = mem8[RECORD + i];
@@ -190,7 +190,7 @@ function brokenWrongSlot(m) {
   const { mem8 } = m;
   hideAllSprites(m);
   if (mem8[EVENT_FLAG] !== 0) startNextRound(m);
-  enqueueTransitionSoundBurst(m);
+  enqueueTransitionSoundStops(m);
   const count = u8(mem8[RECORD] - 1);
   mem8[RECORD] = count;
   const dest = mem8[SELECTOR] === 0 ? SLOT_B : SLOT_A;
@@ -207,7 +207,7 @@ function brokenNoStamp(m) {
   const { mem8 } = m;
   hideAllSprites(m);
   if (mem8[EVENT_FLAG] !== 0) startNextRound(m);
-  enqueueTransitionSoundBurst(m);
+  enqueueTransitionSoundStops(m);
   const count = u8(mem8[RECORD] - 1);
   mem8[RECORD] = count;
   const dest = mem8[SELECTOR] === 0 ? SLOT_A : SLOT_B;
@@ -222,7 +222,7 @@ function brokenNoToggle(m) {
   const { mem8 } = m;
   hideAllSprites(m);
   if (mem8[EVENT_FLAG] !== 0) startNextRound(m);
-  enqueueTransitionSoundBurst(m);
+  enqueueTransitionSoundStops(m);
   const count = u8(mem8[RECORD] - 1);
   mem8[RECORD] = count;
   const dest = mem8[SELECTOR] === 0 ? SLOT_A : SLOT_B;
@@ -237,7 +237,7 @@ function brokenSkipTail(m) {
   const { mem8 } = m;
   hideAllSprites(m);
   if (mem8[EVENT_FLAG] !== 0) startNextRound(m);
-  enqueueTransitionSoundBurst(m);
+  enqueueTransitionSoundStops(m);
   const count = u8(mem8[RECORD] - 1);
   mem8[RECORD] = count;
   const dest = mem8[SELECTOR] === 0 ? SLOT_A : SLOT_B;
@@ -252,7 +252,7 @@ function brokenSkipTail(m) {
 function brokenNoEventCall(m) {
   const { mem8 } = m;
   hideAllSprites(m);
-  enqueueTransitionSoundBurst(m);
+  enqueueTransitionSoundStops(m);
   const count = u8(mem8[RECORD] - 1);
   mem8[RECORD] = count;
   const dest = mem8[SELECTOR] === 0 ? SLOT_A : SLOT_B;

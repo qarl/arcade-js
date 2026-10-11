@@ -803,7 +803,7 @@ def verify_import_allowlist(game, from_index, read=None):
 
 
 # --- OFFSET ALIAS (SHORT_ADDR_GAMES): a names.js cell reached as ANOTHER cell's name plus an offset ---
-# `mem8[INTRO_ANIMATION_STEP + 1]` writes PLAYER_FLASH_TICK without naming it, so the reader cannot see
+# `mem8[ROUND_WON_ANIMATION_STEP + 1]` writes PLAYER_FLASH_TICK without naming it, so the reader cannot see
 # which cell it is. An operand `BASE +/- offsets` counts when its value is the address of a DIFFERENT
 # names.js export -- unless BASE's export is a reviewed record/word base in games/<game>/idiomatic-bases.txt
 # (`NAME  SPAN  reason`) and the offset lies inside its SPAN bytes (a word's high byte, a record's field).
