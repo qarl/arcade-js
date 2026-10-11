@@ -12,7 +12,7 @@
  * 0x1253-0x1318 also inlines the restartAttractSequence body at 0x12FB). Grounding: [seen]
  * (names.js ROUTINES 0x1253).
  *
- * ROLE IN THE MACHINE. loseLifeAndHandOver calls this when the active player's life count reaches
+ * ROLE IN THE MACHINE. loseLifeAndHandOver branches here (a `jr z` at 0x1214, not a call) when the active player's life count reaches
  * zero. Captions are not drawn here: the main loop's command ring carries (command, argument)
  * pairs to drawing routines run later, and postCommand queues one pair. names.js records, from
  * MAME, that command 2 is drawCaptionInPenColour and command 10 its sibling

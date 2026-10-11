@@ -10,7 +10,7 @@
  * sumImageBlockForTheTamperCheck (0x43E8) folds a block of the image into an eight-bit total and
  * jumps here; this entry hands on to advanceSequenceUnlessImageTampered (0x5303), which steps the
  * attract sequence on the one genuine total and springs the tamper trap on any other. In the ROM
- * the verdict's helper (0x200C) runs `add hl,de` and `rst 0x18`, both of which clobber A, and ends
+ * the verdict's helper (0x200C) runs `add hl,de` and `rst 0x18`, the second of which clobbers A, and ends
  * with `ld a,b` -- which is why the total must be parked in B here first. Nothing is read or
  * written and no flag moves.
  *

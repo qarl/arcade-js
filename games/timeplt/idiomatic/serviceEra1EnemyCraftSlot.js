@@ -17,7 +17,7 @@
  * ROLE IN THE MACHINE. Index 1 of the per-era slot-service table at 0x2914 (ERA_INDEX & 7 == 1): the
  * era-1 member of the family serviceEra0/2/3/4EnemyCraftSlot, which share the same status ladder. The
  * era-1 specifics are the flight step (paced by the velocity table at 0x5E00, where era 0 uses
- * 0x5840) and the second era's sprite shapes and tint.
+ * the 0x59D7 table through 0x5840) and the second era's sprite shapes and tint.
  *
  * PARAMETERS. `record` is the slot's object record, `entry` its sprite entry.
  *

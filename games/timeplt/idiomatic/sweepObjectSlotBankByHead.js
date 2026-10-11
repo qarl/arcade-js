@@ -52,8 +52,8 @@ export function sweepObjectSlotBankByHead(m, firstRecord = m.regs.ix, firstEntry
     // (flyAlongBallisticArc [seen]) flies it one frame — a fixed sideways step plus a velocity that
     // grows every frame, carried with the world scroll, retiring the slot once it leaves the field.
     // Any other non-zero head is a countdown: 0x4008 `call 0x406c` (runOneShotAnimatedObjectSlot
-    // [seen]) runs the slot's shape cycle one frame — drift with the world, count down, retire the
-    // sprite at zero.
+    // [seen]) runs the slot's shape cycle one frame — clamp a count at or above 0x3C to 0x3B (with a sound request), count down,
+    // retire the slot at zero, otherwise drift with the world and, while the count is still 0x1C or more, pick the shape.
     const head = mem8[record];
     if (head === BALLISTIC) flyAlongBallisticArc(m, record, entry);
     else if (head !== 0) runOneShotAnimatedObjectSlot(m, record, entry);

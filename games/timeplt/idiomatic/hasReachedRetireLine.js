@@ -20,15 +20,16 @@
  * coordinate range -- away from the player's: its antipode in a coordinate that wraps at 256 (names.js "why").
  *
  * Parameter: entry — the address of the actor's sprite entry; the ROM hands it in IY. The entry's +0
- * byte is its horizontal coordinate and its +0x31 byte its vertical one.
+ * byte is its native-X coordinate (the display's vertical under ROT90) and its +0x31 byte its native-Y
+ * one (the display's horizontal); see WORLD_SCROLL_X/Y in names.js.
  */
 
 import { u8, u16 } from "../../../core/int.js";
 
-// Offset of the entry's vertical (row) coordinate byte from the entry's first byte; the ROM reads
+// Offset of the entry's native-Y coordinate byte (the display's horizontal) from the entry's first byte; the ROM reads
 // it as (iy+0x31).
 const SCREEN_ROW_CELL = 49;
-// The horizontal retire line (tested on the +0 byte) and the vertical one (tested on +0x31).
+// The retire line tested on the +0 (native-X) byte and the one tested on the +0x31 (native-Y) byte.
 const RETIRE_COLUMN = 4;
 const RETIRE_ROW = 248;
 

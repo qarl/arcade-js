@@ -7,9 +7,10 @@
  *
  * ROM 0x596E-0x598D (frozen lift translated/loc_596e.js). Grounding: [seen].
  *
- * Role in the machine: turns a heading into a velocity for the movers. Its callers include
+ * Role in the machine: turns a heading into a velocity for the movers. In this port its callers include
  * flyAlongHeading, flyAlongHeadingAtDoubleVelocity and doubledVelocityForHeading, each passing the
- * table that sets its speed; scrollWorldAtTheEraPace passes an era-chosen table, and
+ * table that sets its speed (in the ROM those three movers repeat the lookup inline at 0x58BC, 0x58FE
+ * and 0x59A0 rather than calling 0x596E); scrollWorldAtTheEraPace passes an era-chosen table, and
  * negateVelocityIntoWorldScrollThenDressSprite negates the pair this returns into the scroll cells
  * that driftWithWorldScroll adds to every world-static object — negated player velocity applied to
  * everything else is the camera. The selectable tables hold a near-constant magnitude around the

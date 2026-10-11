@@ -9,7 +9,7 @@
  * RAM, which the frame service feeds to the audio board. enqueueSoundIfGameInProgress (0x560C) is
  * the gate that lets a code into that queue only while PLAY_ACTIVE is set, dropping it otherwise.
  * Two routines lead here: commissionStagedAttackerByEra tail-exits into it when it commissions a
- * late-era attacker, and requestTwoSoundsWhilePlaying calls it as the second of its pair of
+ * late-era attacker, and requestTwoSoundsWhilePlaying runs straight on into it (no call) as the second of its pair of
  * requests (names.js notes that only era 4 reaches the code directly, era 3 folding into the
  * mid-era path).
  *

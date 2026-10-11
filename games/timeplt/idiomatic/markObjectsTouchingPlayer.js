@@ -11,7 +11,7 @@
  * one page, and the coordinate cursor by an entry stride. A count of zero walks the whole 256, which
  * is what the count register means rather than a special case.
  *
- * The guard steps the reference's own state byte; a value that is not all-ones bails there,
+ * The guard tests the reference's own state byte (`inc a / ret nz` on a register copy, so nothing is written); a value that is not all-ones bails there,
  * touching nothing else.
  * LIVE-OUT: the state bytes.
  * ROM 0x51B3-0x51DD. Grounding: [seen] (names.js ROUTINES 0x51B3). */
@@ -43,7 +43,7 @@ export function markObjectsTouchingPlayer(m, offset = m.regs.l, width = m.regs.h
       mem8[state] = MARKED;
     }
     // The state cursor steps a record in its low byte only, with no carry into the page, so a run
-    // that starts near the end of a page wraps back to its first record.
+    // that starts near the end of a page wraps back to the first record of that page.
     state = (state & PAGE_MASK) | u8(state + STATE_STRIDE);
     entry = u16(entry + ENTRY_STRIDE);
     left = u8(left - 1);

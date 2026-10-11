@@ -2,7 +2,7 @@
 /** scrollWorldAtTheEraPace — move the world past the ship at the pace the era sets. It READS the heading rather than
  * deciding it: some paths in write it first and others arrive with whatever is already there. One of
  * three fixed velocity tables is picked from ERA_INDEX alone — the opening era its own, the next two sharing a second,
- * everything from the third era up sharing a third — and the pair that table gives for the ship's heading is handed on to
+ * everything from the fourth era (ERA_INDEX 3) up sharing a third — and the pair that table gives for the ship's heading is handed on to
  * be negated into the world scroll. The three tables are one curve at three sizes: peaks of 256, 306 and 331, within 0.75%
  * of pure scaling of one another, rungs on a ladder of six that climbs in steps of 25. What the era picks is a rung.
  * LIVE-OUT: memory.

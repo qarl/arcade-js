@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** fireAndSweepPlayerShots — on a fire-button rising edge arm and seed one shot into a free slot of the
+/** fireAndSweepPlayerShots — on a fire-button rising edge arm a three-shot burst; while a shot is owed (in the attract demo,
+ * whenever) and the fire-rate cooldown has run out, seed one shot into a free slot of the
  * six-slot player-shot bank, aimed along the ship heading; then move every live shot by the world scroll,
  * dropping any that leaves the field or whose head byte is stale.
  *

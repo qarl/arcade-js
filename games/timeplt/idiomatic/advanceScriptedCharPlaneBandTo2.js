@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** advanceScriptedCharPlaneBandTo2 — advance one frame of the scripted character-plane animation, chosen by bit 0 of a
- * per-pass counter. Even passes blank two plane columns and six loose cells to the blank tile. Odd
+ * per-pass counter. Even passes blank the band column's two thirteen-cell runs and six loose cells to the blank tile. Odd
  * passes read the byte under the script cursor: 0xff ends the script — the counter is zeroed, the
  * stage set to 2 and the cursor stepped back one, returning early with no decrement. Otherwise the
- * saved run is laid back down a column, two cursor bits each nudge a set of row counters up, the
+ * saved run is laid back down a column, two cursor bits each step a set of glyph cells on by one tile code, the
  * column's shapes are stepped twice through the script, and the column is gathered back into its
  * run. Every non-early pass ends by decrementing the counter. LIVE-OUT: memory.
  *

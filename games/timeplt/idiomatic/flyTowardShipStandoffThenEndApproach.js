@@ -89,7 +89,9 @@ export function flyTowardShipStandoffThenEndApproach(m, record = m.regs.ix, entr
 
   /*
    * Finally (the ROM's tail `jp 0x2b83`): has the sprite entry drifted onto one of the two fixed retire
-   * lines? The answer goes back to the caller; the callers that act on it free the slot.
+   * lines? The answer goes back to the caller, but its one caller
+   * (the call at 0x419E, in the era-4 sweep arm at 0x4194) ignores it and closes the sweep turn
+   * (`jp 0x410b`), so a yes frees nothing on this path.
    */
   return hasReachedRetireLine(m, entry);
 }

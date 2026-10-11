@@ -41,6 +41,6 @@ export function askForSoundWhileTheGroupIsClear(m) {
   if (mem8[FRAME_TICK] % ONE_FRAME_IN !== 0) return;
   // Test 3: no record of the group may be live — any one live object silences the request.
   if (WATCHED.some((cell) => mem8[cell] === ALL_ONES)) return;
-  // All four passed: ask for the sound (the ROM tail-jumps to 0x5679).
+  // Every test passed: ask for the sound (the ROM tail-jumps to 0x5679).
   requestLateEraProgressSound(m);
 }

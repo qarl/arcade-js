@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** driftNearestSceneryTriTile — drift one scenery object with the world scroll, over-travelling it a quarter, then
- * place the tile abutting it and the one cornering it, and step both cursors past.
+ * place a tile abutting it and a third set diagonally off that one, and step both cursors past.
  *
  * ROM 0x2D21-0x2D2C: three calls and a tail jump into advanceToNextSlot (0x309B).
  * Grounding: [seen] (names.js ROUTINES 0x2D21).
@@ -9,7 +9,7 @@
  * over the eight scenery slots (SCENERY_RECORD_SLOT0 0xA900 / SCENERY_ENTRY_SLOT0 0xAA30). It is
  * the NEAR object of the 1940-1982 eras (eras 1-3): at five-quarter pace it moves faster than the
  * world and so reads as in front of the playfield, and its three tiles sit on three corners of a
- * square -- one abutting straight on, one cornering diagonally; the fourth corner is never written
+ * square -- the second abutting the head on one axis, the third set diagonally off the second, which puts it beside the head on the other axis; the fourth corner, diagonal to the head, is never written
  * (mechanisms.md, scenery; names.js placeDiagonallyAbuttingTile). Only the first tile drifts; the
  * others are rebuilt from it every frame, so the object never comes apart. It uses three slots.
  *

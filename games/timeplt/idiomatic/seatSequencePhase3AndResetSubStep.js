@@ -10,8 +10,9 @@
  *
  * ROLE IN THE MACHINE: this seats phase 3, the round engine, at its first sub-step. Both stores are
  * constants and neither cell is read first, so this is an unconditional jump of the sequence machine
- * to a fixed place rather than a step of it. Every phase-entry site writes the pair in this same idiom:
- * set the outer cell to a small constant, zero the inner one.
+ * to a fixed place rather than a step of it. Phase-entry sites mostly write the pair together, but not always as a constant outer value and a
+ * zeroed inner one: advanceSequencePhase (0x0F11) steps the outer cell with `inc`, and
+ * armAttractScreenShowingHighScore seats the inner one at 2 (0x162C-0x1632).
  *
  * LIVE-OUT: memory only -- those two cells.
  */

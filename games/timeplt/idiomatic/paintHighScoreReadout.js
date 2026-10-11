@@ -26,7 +26,7 @@ const DIGIT_COLOUR = 0x10;
 
 export function paintHighScoreReadout(m) {
   // Seat the triple and fall straight into the printer at 0x0D73:
-  //   source -- HIGH_SCORE_HI (0xA98D; high-score group tagged [code] in names.js), the MOST significant
+  //   source -- HIGH_SCORE_HI (0xA98D; tagged [seen] in names.js), the MOST significant
   //             byte, because the printer walks its source pointer backwards (`ld hl,0xa98d`);
   //   target -- HIGH_SCORE_READOUT_BASE (0xA641), the leftmost digit's cell (`ld de,0xa641`);
   //   colour -- DIGIT_COLOUR.

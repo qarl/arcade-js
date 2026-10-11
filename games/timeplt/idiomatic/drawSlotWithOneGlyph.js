@@ -8,9 +8,9 @@
  *
  * ROM 0x0E8D-0x0E9B (frozen lift translated/loc_0e8d.js). Grounding: [seen] (names.js ROUTINES).
  *
- * ROLE IN THE MACHINE. One of three slot painters that step the same character cursor by the same
- * amount: paintDoubleTile fills both cells of a two-cell slot with glyphs, paintQuadTile writes
- * four, and this one uses only one cell and blanks the other half (0xF1). Among its callers is
+ * ROLE IN THE MACHINE. One of three slot painters that step the same character cursor:
+ * paintDoubleTile fills both cells of a two-cell slot with glyphs and steps the cursor one row,
+ * as this one does; paintQuadTile writes four (a two-by-two block) and steps it two rows; and this one uses only one cell and blanks the other half (0xF1). Among its callers is
  * drawCountAsPictogramStrip, which lays a row of such slots. The blank is the unused half of a
  * fixed-width slot, not leading-zero suppression.
  *

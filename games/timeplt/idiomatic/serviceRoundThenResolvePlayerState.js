@@ -85,7 +85,7 @@ export function serviceRoundThenResolvePlayerState(m) {
   multiplexSpriteSlotsSkipping(m);
   // Era 0's three-slot ballistic-object bank; then, with everything moved, the collision pass (chosen
   // by era); then a sound request made on every thirty-second frame from the third era on, only
-  // while three fixed object records are all empty.
+  // while none of three fixed object records reads 0xFF (live).
   serviceEra0BallisticObjectBank(m);
   dispatchCollisionPassByEra(m);
   askForSoundWhileTheGroupIsClear(m);

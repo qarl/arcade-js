@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** layOutEnemyAimPointsFromScrollAngle — when the mode byte in C selects sub-mode 7, lay a sprite object's twelve coordinate
- * fields (0x10-0x1b) out as six XY pairs around centre (0x78 across, 0x84 down): the scroll angle
+/** layOutEnemyAimPointsFromScrollAngle — when the mode byte in C selects sub-mode 7, lay the enemy aim anchor's twelve coordinate
+ * fields (0xAC64 +0x10..+0x1b, the standoff aim points) out as six XY pairs around centre (0x78 across, 0x84 down): the scroll angle
  * turned a quarter and the scroll angle itself, each drawn through the velocity table at an x8 and an
  * x16 radius, the quarter-turned direction also mirrored to its negatives; every other sub-mode
  * returns without a write.

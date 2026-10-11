@@ -11,7 +11,7 @@
  * ROM: 0x52D2. Tag [seen] (names.js). Role in the machine: the middle step of
  * drainBothDeferredCellLists, run at vertical blank. The player's shots are not hardware sprites;
  * queueTileStampForObject turns each shot into a two-by-two block of character cells and appends one entry
- * per cell to the list behind DEFERRED_WRITE_CURSOR 0xAE00 [seen], entries starting at DEFERRED_WRITE_LIST
+ * per cell whose glyph byte is not zero to the list behind DEFERRED_WRITE_CURSOR 0xAE00 [seen], entries starting at DEFERRED_WRITE_LIST
  * 0xAE04 [seen]. This routine is where those queued cells actually reach the screen; the step before it
  * blanks last pass's cells, and the step after copies this list onto the blank list for the next pass.
  */

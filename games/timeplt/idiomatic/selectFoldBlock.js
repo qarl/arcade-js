@@ -10,7 +10,7 @@
  *
  * ROLE IN THE MACHINE: one step of the game's anti-tamper machinery. The only transfer into this
  * address is a tail jump from 0x4BD9, whose single caller loads a seed byte and then runs the summing
- * loop at 0x291E (`add a,(hl)` / `inc hl` / `djnz`) over exactly this pointer and count, banking the
+ * loop at 0x291E (`add a,(hl)` / `inc hl` / `djnz`, with a DE walk interleaved) over exactly this pointer and count, banking the
  * total in a cell a later sequence arm reads. Patch those thirty bytes and the total moves; this entry
  * is where the block to be summed is chosen.
  *

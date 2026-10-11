@@ -19,14 +19,23 @@
 ; the centre of the screen and turns to face the way you steer, while the
 ; whole world scrolls and banks around it, and you gun down swarms of enemy
 ; craft; shoot enough of them to bring on the era's Mother-Ship, and
-; destroying it warps you forward to the next of five eras, each faster and
-; more crowded than the last; parachutists drifting down are worth extra
+; destroying it warps you forward to the next of five eras, your fighter
+; flying faster in the later ones; parachutists drifting down are worth extra
 ; points if you collect them. Run out of fighters to end the game.
 ;
 ; Architecture: on reset ($0000) the CPU jumps to
 ; probeExpansionThenSettleControlLatch ($07B1). What follows is the code
-; reached from the reset and interrupt entry points, shown as instructions;
+; reached from the reset and interrupt entry points and from the extra entry
+; points the static trace could not follow to (restart vectors, table- and
+; ring-dispatched handlers, runs observed executing), shown as instructions;
 ; spans never reached appear as data (the "---- data ----" blocks).
+;
+; Axes: X and Y in the comments are the board's native raster axes, before the
+; monitor's quarter-turn mounting in the upright cabinet. A sprite entry's
+; +$00 byte is X and its +$31 byte is Y; an object record keeps the matching
+; fractions at +$05 (X) and +$03 (Y), and the world-scroll words are $A808 (Y)
+; and $A80A (X). On the glass, native Y runs across the screen and native X
+; runs up and down it.
 
 
 ; a bare transfer to 0x07B1 and no return; no cell is read or written and
@@ -82,7 +91,7 @@ offsetAddress:
 ; drawn
 advanceCharCursor:
 0020: 7B              LD      A,E                 
-0021: D6 20           SUB     $20                 ; drop the cursor thirty-two addresses on to the next cell of the line
+0021: D6 20           SUB     $20                 ; take thirty-two off the cursor's address: the next cell on along the line
 0023: 5F              LD      E,A                 
 0024: D0              RET     NC                  ; no borrow -- the cursor's high byte stands
 0025: 15              DEC     D                   ; borrow into the cursor's high byte
@@ -95,7 +104,7 @@ advanceCharCursor:
 ; the inverse of the advance vector
 retreatCharCursor:
 0028: 7B              LD      A,E                 
-0029: C6 20           ADD     A,$20               ; push the cursor thirty-two addresses back, one cell along the line
+0029: C6 20           ADD     A,$20               ; add thirty-two to the cursor's address: one cell back along the line
 002B: 5F              LD      E,A                 
 002C: D0              RET     NC                  ; no carry -- the cursor's high byte stands
 002D: 14              INC     D                   ; carry into the cursor's high byte
@@ -1698,12 +1707,12 @@ stampCopyrightStrip:
 0B06: FD 21 10 AA     LD      IY,$AA10            ; point at the strip's four display-list entries
 0B0A: 06 04           LD      B,$04               ; four pieces to lay
 0B0C: 0E 04           LD      C,$04               ; first shape number, counting up one per piece
-0B0E: 16 A0           LD      D,$A0               ; the leading edge on the stepping axis
-0B10: 1E D8           LD      E,$D8               ; the shared position on the fixed axis
+0B0E: 16 A0           LD      D,$A0               ; the leading edge in Y, the axis the pieces step along
+0B10: 1E D8           LD      E,$D8               ; the shared X position
 
 loc_0b12:
-0B12: FD 72 31        LD      (IY+$31),D          ; set this piece's position on the stepping axis
-0B15: FD 73 00        LD      (IY+$00),E          ; set its position on the fixed axis
+0B12: FD 72 31        LD      (IY+$31),D          ; set this piece's Y
+0B15: FD 73 00        LD      (IY+$00),E          ; set its X
 0B18: FD 71 01        LD      (IY+$01),C          ; set its shape number
 0B1B: FD 36 30 6C     LD      (IY+$30),$6C        ; set its colour and attributes
 0B1F: FD 23           INC     IY                  
@@ -1725,7 +1734,7 @@ hideCaptionSprites:
 0B33: AF              XOR     A                   ; the value that hides them: zero
 
 loc_0b34:
-0B34: 77              LD      (HL),A              ; push this sprite above the top line by zeroing its vertical byte
+0B34: 77              LD      (HL),A              ; push this sprite above the top line by zeroing its Y byte
 0B35: 19              ADD     HL,DE               
 0B36: 10 FC           DJNZ    $0B34               ; {code.loc_0b34}
 0B38: C9              RET                         
@@ -2555,7 +2564,7 @@ multiplexSpriteSlotsSkipping:
 0FAA: E6 7F           AND     $7F                 ; clear bit 7 -- shifts the slot half a screen and clears its request
 0FAC: 32 11 B4        LD      ($B411),A           ; store the moved Y byte
 0FAF: 3A 10 B0        LD      A,($B010)           ; read the slot's paired X byte
-0FB2: C6 80           ADD     A,$80               ; add half a screen across
+0FB2: C6 80           ADD     A,$80               ; add half a screen in X
 0FB4: 32 10 B0        LD      ($B010),A           ; store it -- the same sprite draws again half a screen away, with no extra hardware slot
 
 loc_0fb7:
@@ -2574,7 +2583,7 @@ loc_0fb7:
 0FCA: E6 7F           AND     $7F                 ; clear bit 7 -- shift half a screen, clear the request
 0FCC: 32 13 B4        LD      ($B413),A           ; store the moved Y byte
 0FCF: 3A 12 B0        LD      A,($B012)           ; read the paired X byte
-0FD2: C6 80           ADD     A,$80               ; add half a screen across
+0FD2: C6 80           ADD     A,$80               ; add half a screen in X
 0FD4: 32 12 B0        LD      ($B012),A           ; store it -- second image placed
 
 loc_0fd7:
@@ -2593,7 +2602,7 @@ loc_0fd7:
 0FEA: E6 7F           AND     $7F                 ; clear bit 7 -- shift half a screen, clear the request
 0FEC: 32 15 B4        LD      ($B415),A           ; store the moved Y byte
 0FEF: 3A 14 B0        LD      A,($B014)           ; read the paired X byte
-0FF2: C6 80           ADD     A,$80               ; add half a screen across
+0FF2: C6 80           ADD     A,$80               ; add half a screen in X
 0FF4: 32 14 B0        LD      ($B014),A           ; store it -- second image placed
 
 loc_0ff7:
@@ -2612,7 +2621,7 @@ loc_0ff7:
 100A: E6 7F           AND     $7F                 ; clear bit 7 -- shift half a screen, clear the request
 100C: 32 37 B4        LD      ($B437),A           ; store the moved Y byte
 100F: 3A 36 B0        LD      A,($B036)           ; read the paired X byte
-1012: C6 80           ADD     A,$80               ; add half a screen across
+1012: C6 80           ADD     A,$80               ; add half a screen in X
 1014: 32 36 B0        LD      ($B036),A           ; store it -- second image placed
 
 loc_1017:
@@ -2631,7 +2640,7 @@ loc_1017:
 102A: E6 7F           AND     $7F                 ; clear bit 7 -- shift half a screen, clear the request
 102C: 32 39 B4        LD      ($B439),A           ; store the moved Y byte
 102F: 3A 38 B0        LD      A,($B038)           ; read the paired X byte
-1032: C6 80           ADD     A,$80               ; add half a screen across
+1032: C6 80           ADD     A,$80               ; add half a screen in X
 1034: 32 38 B0        LD      ($B038),A           ; store it -- second image placed
 
 loc_1037:
@@ -2650,7 +2659,7 @@ loc_1037:
 104A: E6 7F           AND     $7F                 ; clear bit 7 -- shift half a screen, clear the request
 104C: 32 3B B4        LD      ($B43B),A           ; store the moved Y byte
 104F: 3A 3A B0        LD      A,($B03A)           ; read the paired X byte
-1052: C6 80           ADD     A,$80               ; add half a screen across
+1052: C6 80           ADD     A,$80               ; add half a screen in X
 1054: 32 3A B0        LD      ($B03A),A           ; store it -- second image placed
 
 loc_1057:
@@ -2669,7 +2678,7 @@ loc_1057:
 106A: E6 7F           AND     $7F                 ; clear bit 7 -- shift half a screen, clear the request
 106C: 32 3D B4        LD      ($B43D),A           ; store the moved Y byte
 106F: 3A 3C B0        LD      A,($B03C)           ; read the paired X byte
-1072: C6 80           ADD     A,$80               ; add half a screen across
+1072: C6 80           ADD     A,$80               ; add half a screen in X
 1074: 32 3C B0        LD      ($B03C),A           ; store it -- second image placed
 
 loc_1077:
@@ -2688,7 +2697,7 @@ loc_1077:
 108A: E6 7F           AND     $7F                 ; clear bit 7 -- shift half a screen, clear the request
 108C: 32 3F B4        LD      ($B43F),A           ; store the moved Y byte
 108F: 3A 3E B0        LD      A,($B03E)           ; read the paired X byte
-1092: C6 80           ADD     A,$80               ; add half a screen across
+1092: C6 80           ADD     A,$80               ; add half a screen in X
 1094: 32 3E B0        LD      ($B03E),A           ; store it -- second image placed
 
 loc_1097:
@@ -2713,7 +2722,7 @@ multiplexSpriteSlots:
 10AB: E6 7F           AND     $7F                 ; clear bit 7 -- shift the slot half a screen, clear its request
 10AD: 32 11 B4        LD      ($B411),A           ; store the moved Y byte
 10B0: 3A 10 B0        LD      A,($B010)           ; read the paired X byte
-10B3: C6 80           ADD     A,$80               ; add half a screen across
+10B3: C6 80           ADD     A,$80               ; add half a screen in X
 10B5: 32 10 B0        LD      ($B010),A           ; store it -- second image placed
 
 loc_10b8:
@@ -2732,7 +2741,7 @@ loc_10b8:
 10CB: E6 7F           AND     $7F                 ; clear bit 7 -- shift half a screen, clear the request
 10CD: 32 13 B4        LD      ($B413),A           ; store the moved Y byte
 10D0: 3A 12 B0        LD      A,($B012)           ; read the paired X byte
-10D3: C6 80           ADD     A,$80               ; add half a screen across
+10D3: C6 80           ADD     A,$80               ; add half a screen in X
 10D5: 32 12 B0        LD      ($B012),A           ; store it -- second image placed
 
 loc_10d8:
@@ -2751,7 +2760,7 @@ loc_10d8:
 10EB: E6 7F           AND     $7F                 ; clear bit 7 -- shift half a screen, clear the request
 10ED: 32 15 B4        LD      ($B415),A           ; store the moved Y byte
 10F0: 3A 14 B0        LD      A,($B014)           ; read the paired X byte
-10F3: C6 80           ADD     A,$80               ; add half a screen across
+10F3: C6 80           ADD     A,$80               ; add half a screen in X
 10F5: 32 14 B0        LD      ($B014),A           ; store it -- second image placed
 
 ; give five display-list slots a second appearance half a screen away: a
@@ -2785,7 +2794,7 @@ spinRemainingSpriteMultiplexSlots:
 110B: E6 7F           AND     $7F                 ; clear bit 7 -- shift half a screen, clear the request
 110D: 32 37 B4        LD      ($B437),A           ; store the moved Y byte
 1110: 3A 36 B0        LD      A,($B036)           ; read the paired X byte
-1113: C6 80           ADD     A,$80               ; add half a screen across
+1113: C6 80           ADD     A,$80               ; add half a screen in X
 1115: 32 36 B0        LD      ($B036),A           ; store it -- second image placed
 
 loc_1118:
@@ -2804,7 +2813,7 @@ loc_1118:
 112B: E6 7F           AND     $7F                 ; clear bit 7 -- shift half a screen, clear the request
 112D: 32 39 B4        LD      ($B439),A           ; store the moved Y byte
 1130: 3A 38 B0        LD      A,($B038)           ; read the paired X byte
-1133: C6 80           ADD     A,$80               ; add half a screen across
+1133: C6 80           ADD     A,$80               ; add half a screen in X
 1135: 32 38 B0        LD      ($B038),A           ; store it -- second image placed
 
 loc_1138:
@@ -2823,7 +2832,7 @@ loc_1138:
 114B: E6 7F           AND     $7F                 ; clear bit 7 -- shift half a screen, clear the request
 114D: 32 3B B4        LD      ($B43B),A           ; store the moved Y byte
 1150: 3A 3A B0        LD      A,($B03A)           ; read the paired X byte
-1153: C6 80           ADD     A,$80               ; add half a screen across
+1153: C6 80           ADD     A,$80               ; add half a screen in X
 1155: 32 3A B0        LD      ($B03A),A           ; store it -- second image placed
 
 loc_1158:
@@ -2842,7 +2851,7 @@ loc_1158:
 116B: E6 7F           AND     $7F                 ; clear bit 7 -- shift half a screen, clear the request
 116D: 32 3D B4        LD      ($B43D),A           ; store the moved Y byte
 1170: 3A 3C B0        LD      A,($B03C)           ; read the paired X byte
-1173: C6 80           ADD     A,$80               ; add half a screen across
+1173: C6 80           ADD     A,$80               ; add half a screen in X
 1175: 32 3C B0        LD      ($B03C),A           ; store it -- second image placed
 
 loc_1178:
@@ -2861,7 +2870,7 @@ loc_1178:
 118B: E6 7F           AND     $7F                 ; clear bit 7 -- shift half a screen, clear the request
 118D: 32 3F B4        LD      ($B43F),A           ; store the moved Y byte
 1190: 3A 3E B0        LD      A,($B03E)           ; read the paired X byte
-1193: C6 80           ADD     A,$80               ; add half a screen across
+1193: C6 80           ADD     A,$80               ; add half a screen in X
 1195: 32 3E B0        LD      ($B03E),A           ; store it -- second image placed
 
 loc_1198:
@@ -2989,8 +2998,12 @@ loc_1264:
 
 ; gated two-arm state transition: fires only when 0xad02=0, 0xacc6!=0 and
 ; all 15 slots at 0xa810 are empty, then queues the fixed sound set and
-; runs one of two arms on 0xad30 — disarm+reset a cell cluster, or clear a
-; strided run and copy a 16-byte record into 0xad10/0xad20
+; runs one of two arms on 0xad30 — with no game running, disarm+reset a
+; cell cluster and restart the attract sequence; in a game, clear a
+; strided run of sprite-shadow cells from 0xaa43, call startNextRound
+; (0x2DB8) to open the next round, copy the 16-byte live context at 0xad00
+; into the active player's saved block 0xad10/0xad20, and seat the
+; sequence sub-step from the program byte at 0x4A35
 advanceRoundWhenFieldCleared:
 1271: 3A 02 AD        LD      A,($AD02)           ; {hard.workRam+502} read the kills still owed this round
 1274: A7              AND     A                   ; is it clear?
@@ -3610,14 +3623,14 @@ loc_15b5:
 ; zero every slot of the vertical sprite shadow band, which parks all of
 ; them above the first visible line, hiding them without retiring any
 hideAllSprites:
-15B6: 21 41 AA        LD      HL,$AA41            ; point at the sprite vertical-position band
+15B6: 21 41 AA        LD      HL,$AA41            ; point at the sprite Y-position band
 15B9: 06 18           LD      B,$18               ; twenty-four sprite slots
 15BB: AF              XOR     A                   ; zero -- the value that parks a slot
 
 loc_15bc:
 15BC: 77              LD      (HL),A              ; park this slot above the top line, hiding it
 15BD: 2C              INC     L                   
-15BE: 2C              INC     L                   ; skip two cells to the next slot's vertical byte
+15BE: 2C              INC     L                   ; skip two cells to the next slot's Y byte
 15BF: 10 FB           DJNZ    $15BC               ; {code.loc_15bc} over all twenty-four slots
 15C1: C9              RET                         
 
@@ -5240,7 +5253,7 @@ loc_2449:
 244C: AF              XOR     A                   
 244D: 67              LD      H,A                 
 244E: 6F              LD      L,A                 
-244F: ED 4B 08 A8     LD      BC,($A808)          ; {hard.workRam+8} read the world scroll along one axis
+244F: ED 4B 08 A8     LD      BC,($A808)          ; {hard.workRam+8} read the world scroll in Y
 2453: ED 42           SBC     HL,BC               ; negate it
 2455: 29              ADD     HL,HL               
 2456: 29              ADD     HL,HL               ; scale it up four times
@@ -5249,7 +5262,7 @@ loc_2449:
 245D: AF              XOR     A                   
 245E: 67              LD      H,A                 
 245F: 6F              LD      L,A                 
-2460: ED 4B 0A A8     LD      BC,($A80A)          ; {hard.workRam+A} read the world scroll along the other axis
+2460: ED 4B 0A A8     LD      BC,($A80A)          ; {hard.workRam+A} read the world scroll in X
 2464: ED 42           SBC     HL,BC               ; negate it
 2466: 29              ADD     HL,HL               
 2467: 29              ADD     HL,HL               ; scale it up four times
@@ -5265,9 +5278,9 @@ loc_2449:
 247B: CD 8C 01        CALL    $018C               ; {code.fetchWideTableWord} fetch the muzzle-position word for this direction
 247E: DD 35 00        DEC     (IX+$00)            ; mark the slot occupied
 2481: DD 36 03 00     LD      (IX+$03),$00        
-2485: DD 73 04        LD      (IX+$04),E          ; set the whole part of the shot's coordinate along one axis
+2485: DD 73 04        LD      (IX+$04),E          ; set the whole part of the shot's Y
 2488: DD 36 05 00     LD      (IX+$05),$00        
-248C: DD 72 06        LD      (IX+$06),D          ; set the whole part of the shot's coordinate along the other axis
+248C: DD 72 06        LD      (IX+$06),D          ; set the whole part of the shot's X
 248F: 21 81 AA        LD      HL,$AA81            ; point at the pending-burst count
 2492: 35              DEC     (HL)                ; one shot fired -- count the burst down
 2493: 23              INC     HL                  
@@ -5291,7 +5304,7 @@ loc_24a6:
 24AB: 28 46           JR      Z,$24F3             ; {code.loc_24f3} empty slot -- on to the next
 24AD: 3C              INC     A                   
 24AE: 20 4C           JR      NZ,$24FC            ; {code.loc_24fc} head is stale, not the live marker -- cull this shot
-24B0: DD 6E 0A        LD      L,(IX+$0A)          ; read the shot's per-frame step along one axis
+24B0: DD 6E 0A        LD      L,(IX+$0A)          ; read the shot's per-frame step in Y
 24B3: DD 66 0B        LD      H,(IX+$0B)          
 24B6: ED 5B 08 A8     LD      DE,($A808)          ; {hard.workRam+8} add the world scroll to it
 24BA: 19              ADD     HL,DE               
@@ -5304,7 +5317,7 @@ loc_24a6:
 24C7: DA FC 24        JP      C,$24FC             ; {code.loc_24fc} off the field edge -- cull this shot
 24CA: DD 74 04        LD      (IX+$04),H          ; store the advanced coordinate back
 24CD: DD 75 03        LD      (IX+$03),L          
-24D0: DD 6E 0C        LD      L,(IX+$0C)          ; read the shot's per-frame step along the other axis
+24D0: DD 6E 0C        LD      L,(IX+$0C)          ; read the shot's per-frame step in X
 24D3: DD 66 0D        LD      H,(IX+$0D)          
 24D6: ED 5B 0A A8     LD      DE,($A80A)          ; {hard.workRam+A} add the world scroll to it
 24DA: 19              ADD     HL,DE               
@@ -5329,8 +5342,8 @@ loc_24f3:
 loc_24fc:
 24FC: AF              XOR     A                   
 24FD: DD 77 00        LD      (IX+$00),A          ; clear the slot's head byte
-2500: DD 77 04        LD      (IX+$04),A          ; clear the whole part of its coordinate along one axis
-2503: DD 77 06        LD      (IX+$06),A          ; clear the whole part of its coordinate along the other axis
+2500: DD 77 04        LD      (IX+$04),A          ; clear the whole part of its Y
+2503: DD 77 06        LD      (IX+$06),A          ; clear the whole part of its X
 2506: C3 F3 24        JP      $24F3               ; {code.loc_24f3} on to the next slot
 
 loc_2509:
@@ -5473,7 +5486,7 @@ freeAllShotSlots:
 
 loc_2766:
 2766: DD 77 00        LD      (IX+$00),A          ; clear the slot's occupancy byte
-2769: DD 77 04        LD      (IX+$04),A          ; clear the slot's second-axis byte
+2769: DD 77 04        LD      (IX+$04),A          ; clear the slot's Y byte
 276C: DD 19           ADD     IX,DE               ; step to the next slot
 276E: 10 F6           DJNZ    $2766               ; {code.loc_2766} clear all six
 2770: C9              RET                         
@@ -6043,15 +6056,15 @@ loc_2b58:
 ; add the frame's world-scroll displacement to one object's two split
 ; 16-bit coordinates
 driftWithWorldScroll:
-2B60: FD 66 31        LD      H,(IY+$31)          ; the object's whole coordinate byte, first axis, from its sprite entry
+2B60: FD 66 31        LD      H,(IY+$31)          ; the object's whole Y byte, from its sprite entry
 2B63: DD 6E 03        LD      L,(IX+$03)          ; its fraction from the record
-2B66: ED 5B 08 A8     LD      DE,($A808)          ; {hard.workRam+8} the frame's world-scroll step for this axis
+2B66: ED 5B 08 A8     LD      DE,($A808)          ; {hard.workRam+8} the frame's world-scroll step in Y
 2B6A: 19              ADD     HL,DE               ; add it into the 16-bit coordinate
 2B6B: FD 74 31        LD      (IY+$31),H          ; store the whole byte back
 2B6E: DD 75 03        LD      (IX+$03),L          ; store the fraction back
-2B71: FD 66 00        LD      H,(IY+$00)          ; the object's whole coordinate byte, second axis
+2B71: FD 66 00        LD      H,(IY+$00)          ; the object's whole X byte
 2B74: DD 6E 05        LD      L,(IX+$05)          ; its fraction from the record
-2B77: ED 5B 0A A8     LD      DE,($A80A)          ; {hard.workRam+A} the frame's world-scroll step for this axis
+2B77: ED 5B 0A A8     LD      DE,($A80A)          ; {hard.workRam+A} the frame's world-scroll step in X
 2B7B: 19              ADD     HL,DE               ; add it into the 16-bit coordinate
 2B7C: FD 74 00        LD      (IY+$00),H          ; store the whole byte back
 2B7F: DD 75 05        LD      (IX+$05),L          ; store the fraction back
@@ -6400,15 +6413,15 @@ driftOneTileSceneryAtHalf:
 ; split coordinates, whole part in the sprite entry and fraction in the
 ; object record
 driftAtFiveQuartersWorldScroll:
-2D6E: FD 56 31        LD      D,(IY+$31)          ; whole part of the first coordinate
+2D6E: FD 56 31        LD      D,(IY+$31)          ; whole part of the Y coordinate
 2D71: DD 5E 03        LD      E,(IX+$03)          ; its fraction -- together one sixteen-bit coordinate
-2D74: 2A 08 A8        LD      HL,($A808)          ; {hard.workRam+8} this frame's vertical world-scroll
+2D74: 2A 08 A8        LD      HL,($A808)          ; {hard.workRam+8} this frame's Y world-scroll
 2D77: CD 31 2E        CALL    $2E31               ; {code.displaceByFiveQuarters} move the coordinate by five quarters of the scroll
 2D7A: FD 74 31        LD      (IY+$31),H          ; store the whole part back
 2D7D: DD 75 03        LD      (IX+$03),L          ; and its fraction
-2D80: FD 56 00        LD      D,(IY+$00)          ; whole part of the second coordinate
+2D80: FD 56 00        LD      D,(IY+$00)          ; whole part of the X coordinate
 2D83: DD 5E 05        LD      E,(IX+$05)          ; its fraction
-2D86: 2A 0A A8        LD      HL,($A80A)          ; {hard.workRam+A} this frame's horizontal world-scroll
+2D86: 2A 0A A8        LD      HL,($A80A)          ; {hard.workRam+A} this frame's X world-scroll
 2D89: CD 31 2E        CALL    $2E31               ; {code.displaceByFiveQuarters} move the coordinate by five quarters of the scroll
 2D8C: FD 74 00        LD      (IY+$00),H          ; store the whole part back
 2D8F: DD 75 05        LD      (IX+$05),L          ; and its fraction
@@ -6418,15 +6431,15 @@ driftAtFiveQuartersWorldScroll:
 ; displacement, applied to both of its split coordinates, whole part in
 ; the sprite entry and fraction in the object record
 driftAtThreeQuartersWorldScroll:
-2D93: FD 56 31        LD      D,(IY+$31)          ; whole part of the first coordinate
+2D93: FD 56 31        LD      D,(IY+$31)          ; whole part of the Y coordinate
 2D96: DD 5E 03        LD      E,(IX+$03)          ; its fraction
-2D99: 2A 08 A8        LD      HL,($A808)          ; {hard.workRam+8} this frame's vertical world-scroll
+2D99: 2A 08 A8        LD      HL,($A808)          ; {hard.workRam+8} this frame's Y world-scroll
 2D9C: CD 3E 30        CALL    $303E               ; {code.displaceByThreeQuarters} move the coordinate by three quarters of the scroll
 2D9F: FD 74 31        LD      (IY+$31),H          ; store the whole part back
 2DA2: DD 75 03        LD      (IX+$03),L          ; and its fraction
-2DA5: FD 56 00        LD      D,(IY+$00)          ; whole part of the second coordinate
+2DA5: FD 56 00        LD      D,(IY+$00)          ; whole part of the X coordinate
 2DA8: DD 5E 05        LD      E,(IX+$05)          ; its fraction
-2DAB: 2A 0A A8        LD      HL,($A80A)          ; {hard.workRam+A} this frame's horizontal world-scroll
+2DAB: 2A 0A A8        LD      HL,($A80A)          ; {hard.workRam+A} this frame's X world-scroll
 2DAE: CD 3E 30        CALL    $303E               ; {code.displaceByThreeQuarters} move the coordinate by three quarters of the scroll
 2DB1: FD 74 00        LD      (IY+$00),H          ; store the whole part back
 2DB4: DD 75 05        LD      (IX+$05),L          ; and its fraction
@@ -6478,15 +6491,15 @@ loc_2ddf:
 ; to both of its split coordinates, whole part in the sprite entry and
 ; fraction in the object record
 driftAtHalfWorldScroll:
-2DF4: FD 56 31        LD      D,(IY+$31)          ; whole part of the first coordinate
+2DF4: FD 56 31        LD      D,(IY+$31)          ; whole part of the Y coordinate
 2DF7: DD 5E 03        LD      E,(IX+$03)          ; its fraction
-2DFA: 2A 08 A8        LD      HL,($A808)          ; {hard.workRam+8} this frame's vertical world-scroll
+2DFA: 2A 08 A8        LD      HL,($A808)          ; {hard.workRam+8} this frame's Y world-scroll
 2DFD: CD 4D 30        CALL    $304D               ; {code.displaceByHalf} move the coordinate by half the scroll
 2E00: FD 74 31        LD      (IY+$31),H          ; store the whole part back
 2E03: DD 75 03        LD      (IX+$03),L          ; and its fraction
-2E06: FD 56 00        LD      D,(IY+$00)          ; whole part of the second coordinate
+2E06: FD 56 00        LD      D,(IY+$00)          ; whole part of the X coordinate
 2E09: DD 5E 05        LD      E,(IX+$05)          ; its fraction
-2E0C: 2A 0A A8        LD      HL,($A80A)          ; {hard.workRam+A} this frame's horizontal world-scroll
+2E0C: 2A 0A A8        LD      HL,($A80A)          ; {hard.workRam+A} this frame's X world-scroll
 2E0F: CD 4D 30        CALL    $304D               ; {code.displaceByHalf} move the coordinate by half the scroll
 2E12: FD 74 00        LD      (IY+$00),H          ; store the whole part back
 2E15: DD 75 05        LD      (IX+$05),L          ; and its fraction
@@ -6599,11 +6612,11 @@ displaceByHalf:
 ; step both cursors onto it
 placeAbuttingTile:
 3058: FD 46 31        LD      B,(IY+$31)          ; read one coordinate byte of the current sprite entry
-305B: FD 4E 00        LD      C,(IY+$00)          ; read the other coordinate byte
+305B: FD 4E 00        LD      C,(IY+$00)          ; read the X byte
 305E: 3E 10           LD      A,$10               ; a sprite's width in pixels...
-3060: 80              ADD     A,B                 ; ...advances the first coordinate one tile on
+3060: 80              ADD     A,B                 ; ...advances Y one tile on
 3061: FD 77 33        LD      (IY+$33),A          ; write it into the next sprite entry
-3064: FD 71 02        LD      (IY+$02),C          ; copy the other coordinate into the next entry unchanged
+3064: FD 71 02        LD      (IY+$02),C          ; copy the X into the next entry unchanged
 3067: C3 9B 30        JP      $309B               ; {code.advanceToNextSlot} step both cursors onto the entry just written
 
 ; ---- $306A-$3073: data ----
@@ -6638,13 +6651,13 @@ loc_307f:
 ; along the low one, in one 16-bit add so the low axis's wrap carries one
 ; into the high axis
 placeDiagonallyAbuttingTile:
-308A: FD 46 31        LD      B,(IY+$31)          ; read the current entry's high-axis coordinate
-308D: FD 4E 00        LD      C,(IY+$00)          ; read its low-axis coordinate
-3090: 26 F0           LD      H,$F0               ; a pitch back along the high axis (-16 in the high byte)...
-3092: 2E 10           LD      L,$10               ; ...and a pitch on along the low axis (+16)
-3094: 09              ADD     HL,BC               ; apply both in one add, so a low-axis wrap carries into the high axis
-3095: FD 74 33        LD      (IY+$33),H          ; write the high-axis coordinate into the next entry
-3098: FD 75 02        LD      (IY+$02),L          ; write the low-axis coordinate into the next entry
+308A: FD 46 31        LD      B,(IY+$31)          ; read the current entry's Y
+308D: FD 4E 00        LD      C,(IY+$00)          ; read its X
+3090: 26 F0           LD      H,$F0               ; a pitch back along Y (-16 in the high byte)...
+3092: 2E 10           LD      L,$10               ; ...and a pitch on along X (+16)
+3094: 09              ADD     HL,BC               ; apply both in one add, so a wrap in X carries into Y
+3095: FD 74 33        LD      (IY+$33),H          ; write the Y into the next entry
+3098: FD 75 02        LD      (IY+$02),L          ; write the X into the next entry
 
 ; step the record cursor and the parallel sprite-entry cursor on to the
 ; next object slot
@@ -7000,7 +7013,7 @@ layOutEnemyAimPointsFromScrollAngle:
 3280: 29              ADD     HL,HL               
 3281: 29              ADD     HL,HL               
 3282: 7C              LD      A,H                 
-3283: C6 78           ADD     A,$78               ; offset the across component from screen centre
+3283: C6 78           ADD     A,$78               ; offset the Y component from the screen centre's Y (0x78)
 3285: DD 77 10        LD      (IX+$10),A          ; store the first aim point's Y
 3288: 7C              LD      A,H                 
 3289: ED 44           NEG                         ; flip the component's sign to mirror it...
@@ -7014,13 +7027,13 @@ layOutEnemyAimPointsFromScrollAngle:
 3298: ED 44           NEG                         ; mirror across centre...
 329A: C6 78           ADD     A,$78               ; ...back from centre
 329C: DD 77 16        LD      (IX+$16),A          ; store its mirror's Y
-329F: 60              LD      H,B                 ; take the down component of the vector
+329F: 60              LD      H,B                 ; take the X component of the vector
 32A0: 69              LD      L,C                 
 32A1: 29              ADD     HL,HL               ; scale left three places to an x8 radius
 32A2: 29              ADD     HL,HL               
 32A3: 29              ADD     HL,HL               
 32A4: 7C              LD      A,H                 
-32A5: C6 84           ADD     A,$84               ; offset from screen centre down
+32A5: C6 84           ADD     A,$84               ; offset it from the screen centre's X (0x84)
 32A7: DD 77 11        LD      (IX+$11),A          ; store the first aim point's X
 32AA: 7C              LD      A,H                 
 32AB: ED 44           NEG                         ; mirror across centre...
@@ -7041,19 +7054,19 @@ layOutEnemyAimPointsFromScrollAngle:
 32C9: 29              ADD     HL,HL               
 32CA: 29              ADD     HL,HL               
 32CB: 7C              LD      A,H                 
-32CC: C6 78           ADD     A,$78               ; offset from centre across
+32CC: C6 78           ADD     A,$78               ; offset from the centre's Y (0x78)
 32CE: DD 77 18        LD      (IX+$18),A          ; store the fifth aim point's Y
 32D1: 29              ADD     HL,HL               ; double to an x16 radius
 32D2: 7C              LD      A,H                 
 32D3: C6 78           ADD     A,$78               ; offset from centre
 32D5: DD 77 1A        LD      (IX+$1A),A          ; store the sixth aim point's Y
-32D8: 60              LD      H,B                 ; take the down component
+32D8: 60              LD      H,B                 ; take the X component
 32D9: 69              LD      L,C                 
 32DA: 29              ADD     HL,HL               ; scale left three places to an x8 radius
 32DB: 29              ADD     HL,HL               
 32DC: 29              ADD     HL,HL               
 32DD: 7C              LD      A,H                 
-32DE: C6 84           ADD     A,$84               ; offset from centre down
+32DE: C6 84           ADD     A,$84               ; offset from the centre's X (0x84)
 32E0: DD 77 19        LD      (IX+$19),A          ; store the fifth aim point's X
 32E3: 29              ADD     HL,HL               ; double to an x16 radius
 32E4: 7C              LD      A,H                 
@@ -7206,44 +7219,44 @@ loc_33ae:
 ; answer at one of thirty-two rungs inside it
 headingToward:
 33B8: 0E 00           LD      C,$00               ; start the sector code at zero
-33BA: FD 46 31        LD      B,(IY+$31)          ; the object's second-axis position
-33BD: 5E              LD      E,(HL)              ; the point's first-axis coordinate -- kept for later
-33BE: 2D              DEC     L                   ; step to the point's second-axis coordinate
+33BA: FD 46 31        LD      B,(IY+$31)          ; the object's Y position
+33BD: 5E              LD      E,(HL)              ; the point's X coordinate -- kept for later
+33BE: 2D              DEC     L                   ; step to the point's Y coordinate
 33BF: 7E              LD      A,(HL)              ; read it
-33C0: 90              SUB     B                   ; reach to the point along the second axis
+33C0: 90              SUB     B                   ; reach to the point in Y
 33C1: 30 04           JR      NC,$33C7            ; {code.loc_33c7} already positive
 33C3: ED 44           NEG                         ; take its magnitude
-33C5: CB C1           SET     0,C                 ; mark the second axis as running negative
+33C5: CB C1           SET     0,C                 ; mark Y as running negative
 
 loc_33c7:
-33C7: 57              LD      D,A                 ; hold the second-axis distance
-33C8: FD 46 00        LD      B,(IY+$00)          ; the object's first-axis position
-33CB: 7B              LD      A,E                 ; recall the point's first-axis coordinate
-33CC: 90              SUB     B                   ; reach along the first axis
+33C7: 57              LD      D,A                 ; hold the Y distance
+33C8: FD 46 00        LD      B,(IY+$00)          ; the object's X position
+33CB: 7B              LD      A,E                 ; recall the point's X coordinate
+33CC: 90              SUB     B                   ; reach in X
 33CD: 30 04           JR      NC,$33D3            ; {code.loc_33d3} already positive
 33CF: ED 44           NEG                         ; take its magnitude
-33D1: CB C9           SET     1,C                 ; mark the first axis as running negative
+33D1: CB C9           SET     1,C                 ; mark X as running negative
 
 loc_33d3:
-33D3: 5F              LD      E,A                 ; hold the first-axis distance
+33D3: 5F              LD      E,A                 ; hold the X distance
 33D4: 08              EX      AF,AF'              
 33D5: 7B              LD      A,E                 
 33D6: 08              EX      AF,AF'              
 33D7: 92              SUB     D                   ; compare the two distances
 33D8: 28 35           JR      Z,$340F             ; {code.loc_340f} equal: read a fixed diagonal heading
-33DA: 30 02           JR      NC,$33DE            ; {code.loc_33de} first axis is the longer
-33DC: CB D1           SET     2,C                 ; first axis is the shorter
+33DA: 30 02           JR      NC,$33DE            ; {code.loc_33de} X is the longer
+33DC: CB D1           SET     2,C                 ; X is the shorter
 
 loc_33de:
 33DE: 2E 00           LD      L,$00               ; clear the low byte of the dividend
 33E0: CB 51           BIT     2,C                 ; which leg is the shorter?
 33E2: 20 03           JR      NZ,$33E7            ; {code.loc_33e7}
-33E4: 62              LD      H,D                 ; shorter = second-axis distance
+33E4: 62              LD      H,D                 ; shorter = Y distance
 33E5: 18 02           JR      $33E9               ; {code.loc_33e9}
 
 loc_33e7:
-33E7: 63              LD      H,E                 ; shorter = first-axis distance
-33E8: 5A              LD      E,D                 ; longer = second-axis distance, the divisor
+33E7: 63              LD      H,E                 ; shorter = X distance
+33E8: 5A              LD      E,D                 ; longer = Y distance, the divisor
 
 loc_33e9:
 33E9: 06 08           LD      B,$08               ; eight quotient bits
@@ -7425,10 +7438,10 @@ loc_3717:
 371F: 81              ADD     A,C                 ; add the heading bias
 3720: 87              ADD     A,A                 ; double it -- two-byte position entries
 3721: 21 E9 38        LD      HL,$38E9            ; point at the edge-position table
-3724: CF              RST     $08                 ; fetch the position's first coordinate
+3724: CF              RST     $08                 ; fetch the position's Y
 3725: FD 77 31        LD      (IY+$31),A          ; write it to the sprite entry's +0x31 coordinate
 3728: 23              INC     HL                  
-3729: 7E              LD      A,(HL)              ; read the position's second coordinate
+3729: 7E              LD      A,(HL)              ; read the position's X
 372A: FD 77 00        LD      (IY+$00),A          ; write it to the sprite entry's +0x00 coordinate
 372D: 3A 02 A8        LD      A,($A802)           ; {hard.workRam+2} read the player heading
 3730: C6 80           ADD     A,$80               ; flip it half a turn
@@ -7577,10 +7590,10 @@ spawnEnemyIntoFreeSlotElseStepSearch:
 37F6: 87              ADD     A,A                 ; times four -- four-byte spawn records
 37F7: 87              ADD     A,A                 
 37F8: 21 3B 3A        LD      HL,$3A3B            ; point at the spawn-record table
-37FB: CF              RST     $08                 ; fetch the record's first coordinate
+37FB: CF              RST     $08                 ; fetch the record's Y
 37FC: FD 77 31        LD      (IY+$31),A          ; write it into the sprite entry
 37FF: 23              INC     HL                  
-3800: 7E              LD      A,(HL)              ; read the spawn record's second coordinate byte
+3800: 7E              LD      A,(HL)              ; read the spawn record's X byte
 3801: FD 77 00        LD      (IY+$00),A          ; write it to the entry head
 3804: 3A 02 A8        LD      A,($A802)           ; {hard.workRam+2} read the player heading
 3807: C6 80           ADD     A,$80               ; flip it half a turn -- the craft's heading
@@ -7686,10 +7699,10 @@ loc_3882:
 388A: CD 4B 4B        CALL    $4B4B               ; {code.drawRandomByte} draw a random byte
 388D: E6 FC           AND     $FC                 ; mask it to a four-byte spawn record
 388F: 21 3B 3A        LD      HL,$3A3B            ; point at the spawn-record table
-3892: CF              RST     $08                 ; fetch the record's first coordinate
+3892: CF              RST     $08                 ; fetch the record's Y
 3893: FD 77 31        LD      (IY+$31),A          ; write it into the sprite entry
 3896: 23              INC     HL                  
-3897: 7E              LD      A,(HL)              ; read the record's second coordinate
+3897: 7E              LD      A,(HL)              ; read the record's X
 3898: FD 77 00        LD      (IY+$00),A          ; write it to the entry head
 389B: 23              INC     HL                  
 389C: 7E              LD      A,(HL)              ; read the slot field byte
@@ -7871,10 +7884,10 @@ retireObjectAndHold:
 3C0D: AF              XOR     A                   
 3C0E: DD 77 00        LD      (IX+$00),A          ; clear this record's head
 3C11: DD 77 10        LD      (IX+$10),A          ; clear the next record's head too
-3C14: FD 77 00        LD      (IY+$00),A          ; clear the sprite entry's first coordinate
-3C17: FD 77 31        LD      (IY+$31),A          ; clear its second coordinate
-3C1A: 32 5B AA        LD      ($AA5B),A           ; {hard.workRam+25B} clear a fixed entry's second coordinate
-3C1D: 32 2A AA        LD      ($AA2A),A           ; {hard.workRam+22A} clear that fixed entry's first coordinate
+3C14: FD 77 00        LD      (IY+$00),A          ; clear the sprite entry's X
+3C17: FD 77 31        LD      (IY+$31),A          ; clear its Y
+3C1A: 32 5B AA        LD      ($AA5B),A           ; {hard.workRam+25B} clear a fixed entry's Y
+3C1D: 32 2A AA        LD      ($AA2A),A           ; {hard.workRam+22A} clear that fixed entry's X
 3C20: DD 36 0E 80     LD      (IX+$0E),$80        ; hold the slot -- set its hold byte non-zero
 3C24: C9              RET                         
 
@@ -7913,10 +7926,10 @@ loc_3c44:
 3C45: 0F              RRCA                        
 3C46: E6 3E           AND     $3E                 ; to an even offset into the edge-position table
 3C48: 21 84 3C        LD      HL,$3C84            ; point at the screen-edge position table
-3C4B: CF              RST     $08                 ; fetch the pair's first coordinate
+3C4B: CF              RST     $08                 ; fetch the pair's Y
 3C4C: FD 77 31        LD      (IY+$31),A          ; seat it as the sprite entry's native-Y coordinate
 3C4F: 23              INC     HL                  
-3C50: 7E              LD      A,(HL)              ; read the pair's second coordinate
+3C50: 7E              LD      A,(HL)              ; read the pair's X
 3C51: FD 77 00        LD      (IY+$00),A          ; seat it as the entry's native-X coordinate
 3C54: 78              LD      A,B                 ; take the heading again
 3C55: C6 C0           ADD     A,$C0               ; rotate three quarters
@@ -7960,12 +7973,12 @@ hasReachedBoundaryBandSelectedByHeading:
 3CC4: DD 7E 02        LD      A,(IX+$02)          ; read the object's heading
 3CC7: C6 40           ADD     A,$40               ; rotate a quarter turn
 3CC9: CB 7F           BIT     7,A                 ; which half of the compass?
-3CCB: C2 D9 3C        JP      NZ,$3CD9            ; {code.hasDriftedOffTheField} one half: test the vertical drift band
-3CCE: FD 7E 31        LD      A,(IY+$31)          ; read the entry's second coordinate
+3CCB: C2 D9 3C        JP      NZ,$3CD9            ; {code.hasDriftedOffTheField} one half: test the Y drift band
+3CCE: FD 7E 31        LD      A,(IY+$31)          ; read the entry's Y
 3CD1: C6 13           ADD     A,$13               ; bias toward the wrap
 3CD3: FE 03           CP      $03                 ; inside the three-wide band?
 3CD5: D8              RET     C                   ; inside: reached the boundary -- carry set
-3CD6: C3 E1 3C        JP      $3CE1               ; {code.hasReachedHorizontalEdgeWindow} outside: test the horizontal edge window
+3CD6: C3 E1 3C        JP      $3CE1               ; {code.hasReachedHorizontalEdgeWindow} outside: test the X edge window
 
 ; answer whether an object has drifted onto the boundary its caller frees
 ; the slot at: the vertical window this arm owns is tested here, and when
@@ -7973,10 +7986,10 @@ hasReachedBoundaryBandSelectedByHeading:
 ; the answer is an OR of two windows on two axes and only the first is
 ; decided here
 hasDriftedOffTheField:
-3CD9: FD 7E 31        LD      A,(IY+$31)          ; read the entry's second coordinate
+3CD9: FD 7E 31        LD      A,(IY+$31)          ; read the entry's Y
 3CDC: C6 10           ADD     A,$10               ; bias toward the wrap
 3CDE: FE 03           CP      $03                 ; inside the three-wide band?
-3CE0: D8              RET     C                   ; inside: reached -- carry set; else fall to the horizontal test
+3CE0: D8              RET     C                   ; inside: reached -- carry set; else fall to the X test
 
 ; answer whether the byte at the head of a sprite entry has reached its
 ; wrap point, testing a four-wide window that straddles zero -- so it
@@ -7984,7 +7997,7 @@ hasDriftedOffTheField:
 ; lets a byte stepping several units at a time land inside the window
 ; instead of over it
 hasReachedHorizontalEdgeWindow:
-3CE1: FD 7E 00        LD      A,(IY+$00)          ; read the entry's head coordinate
+3CE1: FD 7E 00        LD      A,(IY+$00)          ; read the entry's X
 3CE4: C6 02           ADD     A,$02               ; bias across the wrap
 3CE6: FE 04           CP      $04                 ; inside the four-wide window straddling zero?
 3CE8: C9              RET                         ; carry answers whether it reached the edge
@@ -8518,18 +8531,18 @@ advanceSlotThenSweepObjectBankByHead:
 flyAlongBallisticArc:
 4017: FD 56 31        LD      D,(IY+$31)          ; take the whole part of the object's position from the sprite entry
 401A: DD 5E 03        LD      E,(IX+$03)          ; and its fraction from the record -- one 16-bit coordinate
-401D: DD 7E 01        LD      A,(IX+$01)          ; read the record's across-direction flag
+401D: DD 7E 01        LD      A,(IX+$01)          ; read the record's Y-direction flag
 4020: A7              AND     A                   
-4021: 28 05           JR      Z,$4028             ; {code.loc_4028} flag zero: step this axis the positive way
-4023: 21 80 FE        LD      HL,$FE80            ; non-zero: a fixed negative step across
+4021: 28 05           JR      Z,$4028             ; {code.loc_4028} flag zero: step Y the positive way
+4023: 21 80 FE        LD      HL,$FE80            ; non-zero: a fixed negative step in Y
 4026: 18 03           JR      $402B               ; {code.loc_402b}
 
 loc_4028:
-4028: 21 80 01        LD      HL,$0180            ; a fixed positive step across
+4028: 21 80 01        LD      HL,$0180            ; a fixed positive step in Y
 
 loc_402b:
 402B: 19              ADD     HL,DE               ; add the step onto the object's position
-402C: ED 5B 08 A8     LD      DE,($A808)          ; {hard.workRam+8} the frame's world scroll on this axis
+402C: ED 5B 08 A8     LD      DE,($A808)          ; {hard.workRam+8} the frame's world scroll in Y
 4030: 19              ADD     HL,DE               ; carry the object along with the world too
 4031: FD 74 31        LD      (IY+$31),H          ; store the new position back -- whole to the entry, fraction to the record
 4034: DD 75 03        LD      (IX+$03),L          
@@ -8539,18 +8552,18 @@ loc_402b:
 4040: 19              ADD     HL,DE               ; the object accelerates: add nine to its stored speed
 4041: DD 75 07        LD      (IX+$07),L          ; keep the grown speed in the record for next frame
 4044: DD 74 08        LD      (IX+$08),H          
-4047: FD 56 00        LD      D,(IY+$00)          ; the whole part of the object's other-axis position
+4047: FD 56 00        LD      D,(IY+$00)          ; the whole part of the object's X position
 404A: DD 5E 05        LD      E,(IX+$05)          ; and its fraction
-404D: 19              ADD     HL,DE               ; move that axis by the just-grown speed
-404E: ED 5B 0A A8     LD      DE,($A80A)          ; {hard.workRam+A} the world scroll on that axis
+404D: 19              ADD     HL,DE               ; move X by the just-grown speed
+404E: ED 5B 0A A8     LD      DE,($A80A)          ; {hard.workRam+A} the world scroll in X
 4052: 19              ADD     HL,DE               ; carry it along with the world as well
 4053: FD 74 00        LD      (IY+$00),H          ; store the new position back to entry and record
 4056: DD 75 05        LD      (IX+$05),L          
-4059: FD 7E 31        LD      A,(IY+$31)          ; read the first axis's whole part
+4059: FD 7E 31        LD      A,(IY+$31)          ; read Y's whole part
 405C: C6 10           ADD     A,$10               ; shift the wrap point into view
 405E: FE 20           CP      $20                 ; inside a 32-wide band at the edge?
 4060: DA AB 40        JP      C,$40AB             ; {code.retireSlot} yes -- it has left the field: retire the slot
-4063: FD 7E 00        LD      A,(IY+$00)          ; read the other axis's whole part
+4063: FD 7E 00        LD      A,(IY+$00)          ; read X's whole part
 4066: FE F8           CP      $F8                 ; at or past the far limit (248)?
 4068: D2 AB 40        JP      NC,$40AB            ; {code.retireSlot} yes: retire the slot
 406B: C9              RET                         
@@ -8820,11 +8833,11 @@ flyTowardShipStandoffThenEndApproach:
 loc_41cc:
 41CC: CD B8 33        CALL    $33B8               ; {code.headingToward} compute the heading toward the chosen point
 41CF: 47              LD      B,A                 ; hold the heading
-41D0: 7A              LD      A,D                 ; the first axis's distance to the aim point
+41D0: 7A              LD      A,D                 ; the Y distance to the aim point
 41D1: FE 10           CP      $10                 ; within sixteen of it?
 41D3: 30 07           JR      NC,$41DC            ; {code.loc_41dc} no: still approaching, just store the heading
-41D5: 08              EX      AF,AF'              ; recover the second axis's distance
-41D6: FE 10           CP      $10                 ; within sixteen on that axis too?
+41D5: 08              EX      AF,AF'              ; recover the X distance
+41D6: FE 10           CP      $10                 ; within sixteen in X too?
 41D8: DC EC 41        CALL    C,$41EC             ; {code.endApproachNow} both close: it has arrived -- cut the approach countdown to zero
 41DB: 08              EX      AF,AF'              
 
@@ -8957,9 +8970,9 @@ loc_4271:
 427E: 3E 78           LD      A,$78               ; how far the spawner sits from the fixed line 0x78, offset into the window
 4280: FD 96 31        SUB     (IY+$31)            
 4283: 82              ADD     A,D                 
-4284: B9              CP      C                   ; inside the window on this axis?
-4285: 30 08           JR      NC,$428F            ; {code.loc_428f} far enough on the first axis: go ahead and launch
-4287: 3E 84           LD      A,$84               ; else measure its distance from the fixed line 0x84 on the other axis
+4284: B9              CP      C                   ; inside the window in Y?
+4285: 30 08           JR      NC,$428F            ; {code.loc_428f} far enough in Y: go ahead and launch
+4287: 3E 84           LD      A,$84               ; else measure its X distance from the fixed line 0x84
 4289: FD 96 00        SUB     (IY+$00)            
 428C: 82              ADD     A,D                 
 428D: B9              CP      C                   ; inside that window too?
@@ -8991,9 +9004,9 @@ setTheLaunchFacingInsideOneAimWindow:
 42A2: 3E 84           LD      A,$84               ; how far the spawner sits from the fixed line 0x84, offset into the window
 42A4: FD 96 00        SUB     (IY+$00)            
 42A7: 82              ADD     A,D                 
-42A8: B9              CP      C                   ; inside the window on this axis?
+42A8: B9              CP      C                   ; inside the window in X?
 42A9: D0              RET     NC                  ; outside: abandon the launch
-42AA: 3E 78           LD      A,$78               ; measure its distance from the fixed line 0x78 on the other axis
+42AA: 3E 78           LD      A,$78               ; measure its Y distance from the fixed line 0x78
 42AC: FD 96 31        SUB     (IY+$31)            
 42AF: 38 04           JR      C,$42B5             ; {code.loc_42b5} past the line one way: mark the mirror flag
 42B1: 0E 00           LD      C,$00               ; the other way: mirror flag clear
@@ -9017,19 +9030,19 @@ loc_42b5:
 ; 0xA8F6), restores the spawner's own IX/IY, and hands off to a sound
 ; request (eras 1-2 and era 3 share one)
 commissionStagedAttackerByEra:
-42B7: FD 56 31        LD      D,(IY+$31)          ; grab the spawner's first coordinate
-42BA: DD 5E 03        LD      E,(IX+$03)          ; and that axis's low byte
-42BD: FD 66 00        LD      H,(IY+$00)          ; grab its second coordinate
-42C0: DD 6E 05        LD      L,(IX+$05)          ; and that axis's low byte
+42B7: FD 56 31        LD      D,(IY+$31)          ; grab the spawner's Y
+42BA: DD 5E 03        LD      E,(IX+$03)          ; and its Y fraction
+42BD: FD 66 00        LD      H,(IY+$00)          ; grab its X
+42C0: DD 6E 05        LD      L,(IX+$05)          ; and its X fraction
 42C3: D9              EXX                         ; tuck the copied coordinates into the alternate registers
 42C4: DD E5           PUSH    IX                  ; save the spawner's record pointer
 42C6: FD E5           PUSH    IY                  ; save the spawner's entry pointer
 42C8: DD 2A 91 A9     LD      IX,($A991)          ; {hard.workRam+191} point at the staged free record
 42CC: FD 2A 93 A9     LD      IY,($A993)          ; {hard.workRam+193} point at its paired entry
 42D0: D9              EXX                         ; bring the copied coordinates back
-42D1: DD 73 03        LD      (IX+$03),E          ; seat the first coordinate's low byte in the new record
+42D1: DD 73 03        LD      (IX+$03),E          ; seat the Y fraction in the new record
 42D4: FD 72 31        LD      (IY+$31),D          ; and its high byte in the new entry
-42D7: DD 75 05        LD      (IX+$05),L          ; seat the second coordinate's low byte
+42D7: DD 75 05        LD      (IX+$05),L          ; seat the X fraction
 42DA: FD 74 00        LD      (IY+$00),H          ; and its high byte
 42DD: DD 71 01        LD      (IX+$01),C          ; store C -- the facing, or era 0's mirror flag -- in the new record
 42E0: 3A 04 AD        LD      A,($AD04)           ; {hard.workRam+504} read the era index
@@ -9201,7 +9214,7 @@ loc_43f0:
 loc_4403:
 4403: DD 66 0C        LD      H,(IX+$0C)          ; take the object's first velocity word
 4406: DD 6E 0D        LD      L,(IX+$0D)          
-4409: ED 5B 08 A8     LD      DE,($A808)          ; {hard.workRam+8} read the world-scroll for that axis
+4409: ED 5B 08 A8     LD      DE,($A808)          ; {hard.workRam+8} read the world scroll in Y
 440D: 19              ADD     HL,DE               ; add the scroll to the velocity
 440E: FD 56 31        LD      D,(IY+$31)          ; take the object's current coordinate
 4411: DD 5E 03        LD      E,(IX+$03)          
@@ -9210,17 +9223,17 @@ loc_4403:
 4418: DD 75 03        LD      (IX+$03),L          
 441B: DD 66 1C        LD      H,(IX+$1C)          ; take the second velocity word
 441E: DD 6E 1D        LD      L,(IX+$1D)          
-4421: ED 5B 0A A8     LD      DE,($A80A)          ; {hard.workRam+A} read the world-scroll for the other axis
+4421: ED 5B 0A A8     LD      DE,($A80A)          ; {hard.workRam+A} read the world scroll in X
 4425: 19              ADD     HL,DE               ; add the scroll
-4426: FD 56 00        LD      D,(IY+$00)          ; take the other coordinate
+4426: FD 56 00        LD      D,(IY+$00)          ; take the whole X
 4429: DD 5E 05        LD      E,(IX+$05)          
 442C: 19              ADD     HL,DE               ; advance it
 442D: FD 74 00        LD      (IY+$00),H          ; store it back
 4430: DD 75 05        LD      (IX+$05),L          
-4433: FD 7E 31        LD      A,(IY+$31)          ; take the first coordinate
+4433: FD 7E 31        LD      A,(IY+$31)          ; take the Y
 4436: C6 10           ADD     A,$10               ; offset it sixteen for the pair's second sprite
 4438: FD 77 33        LD      (IY+$33),A          ; write it to the second sprite entry
-443B: FD 7E 00        LD      A,(IY+$00)          ; take the second coordinate
+443B: FD 7E 00        LD      A,(IY+$00)          ; take the X
 443E: FD 77 02        LD      (IY+$02),A          ; copy it to the second sprite entry
 4441: CD 47 44        CALL    $4447               ; {code.dressSpriteForHeadingOrRetireAtEdge} dress the sprite for its heading, or retire it at the edge
 4444: C3 F0 46        JP      $46F0               ; {code.loc_46f0} then try to fire a mother-ship shot at the player
@@ -9424,7 +9437,7 @@ loc_4594:
 ; carry can fold in a life-loss
 stepMotherShipWarpFlashFrame:
 45B3: CD 60 2B        CALL    $2B60               ; {code.driftWithWorldScroll} drift the object along with the world scroll
-45B6: FD 7E 31        LD      A,(IY+$31)          ; take its first coordinate
+45B6: FD 7E 31        LD      A,(IY+$31)          ; take its Y
 45B9: 47              LD      B,A                 
 45BA: C6 13           ADD     A,$13               ; is it inside the three-wide band at 0xED-0xEF?
 45BC: FE 03           CP      $03                 
@@ -9432,12 +9445,12 @@ stepMotherShipWarpFlashFrame:
 45C0: 78              LD      A,B                 ; offset the coordinate sixteen for the pair's second sprite
 45C1: C6 10           ADD     A,$10               
 45C3: FD 77 33        LD      (IY+$33),A          ; write it to the second sprite entry
-45C6: FD 7E 00        LD      A,(IY+$00)          ; take its second coordinate
+45C6: FD 7E 00        LD      A,(IY+$00)          ; take its X
 45C9: 47              LD      B,A                 
-45CA: C6 08           ADD     A,$08               ; inside the edge band on that axis?
+45CA: C6 08           ADD     A,$08               ; inside the edge band in X?
 45CC: FE 28           CP      $28                 
 45CE: 38 05           JR      C,$45D5             ; {code.loc_45d5} off that edge: blank its shapes
-45D0: FD 70 02        LD      (IY+$02),B          ; copy the second coordinate to the second sprite entry
+45D0: FD 70 02        LD      (IY+$02),B          ; copy the X to the second sprite entry
 45D3: 18 08           JR      $45DD               ; {code.loc_45dd} carry on to the shape step
 
 loc_45d5:
@@ -9547,9 +9560,9 @@ loc_4678:
 467A: 0F              RRCA                        
 467B: E6 3E           AND     $3E                 
 467D: 21 84 3C        LD      HL,$3C84            ; point at the entry-position table
-4680: CF              RST     $08                 ; read the first coordinate
+4680: CF              RST     $08                 ; read the Y
 4681: FD 77 31        LD      (IY+$31),A          ; seat it
-4684: 23              INC     HL                  ; read the second coordinate
+4684: 23              INC     HL                  ; on to the X
 4685: 7E              LD      A,(HL)              
 4686: FD 77 00        LD      (IY+$00),A          ; seat it
 4689: 78              LD      A,B                 ; which half of the compass the angle faces
@@ -9620,20 +9633,20 @@ loc_46f0:
 4701: 5F              LD      E,A                 
 
 loc_4702:
-4702: FD 7E 00        LD      A,(IY+$00)          ; is this tile within the vertical band?
+4702: FD 7E 00        LD      A,(IY+$00)          ; is this tile within the X band?
 4705: C6 08           ADD     A,$08               
 4707: FE 28           CP      $28                 
 4709: 38 1B           JR      C,$4726             ; {code.loc_4726} off that band: skip this slot
-470B: FD 7E 31        LD      A,(IY+$31)          ; within the horizontal band?
+470B: FD 7E 31        LD      A,(IY+$31)          ; within the Y band?
 470E: C6 10           ADD     A,$10               
 4710: FE 20           CP      $20                 
 4712: 38 12           JR      C,$4726             ; {code.loc_4726} off it: skip this slot
-4714: 3E 84           LD      A,$84               ; inside the near window round the player on one axis?
+4714: 3E 84           LD      A,$84               ; inside the near window round the player in X?
 4716: FD 96 00        SUB     (IY+$00)            
 4719: 82              ADD     A,D                 
 471A: BB              CP      E                   
 471B: 30 17           JR      NC,$4734            ; {code.loc_4734} no -- outside it: fire from this slot
-471D: 3E 78           LD      A,$78               ; inside the near window on the other axis?
+471D: 3E 78           LD      A,$78               ; inside the near window in Y?
 471F: FD 96 31        SUB     (IY+$31)            
 4722: 82              ADD     A,D                 
 4723: BB              CP      E                   
@@ -9829,9 +9842,9 @@ spawnAtEdgeAhead:
 4869: 0F              RRCA                        
 486A: E6 1E           AND     $1E                 
 486C: 21 8D 48        LD      HL,$488D            ; point at the edge-position table
-486F: CF              RST     $08                 ; read the sector's first coordinate
+486F: CF              RST     $08                 ; read the sector's Y
 4870: FD 77 31        LD      (IY+$31),A          ; seat it
-4873: 23              INC     HL                  ; read the second coordinate
+4873: 23              INC     HL                  ; on to the X
 4874: 7E              LD      A,(HL)              
 4875: FD 77 00        LD      (IY+$00),A          ; seat it
 4878: DD 36 0A 00     LD      (IX+$0A),$00        ; clear its velocity sub-pixel
@@ -9850,8 +9863,8 @@ spawnAtEdgeAhead:
 ; leaving it clear, so the slot is held rather than freed
 retireSlotIntoCooldown:
 48AD: DD 36 00 00     LD      (IX+$00),$00        ; clear the record's occupancy byte -- the object leaves play
-48B1: FD 36 00 00     LD      (IY+$00),$00        ; clear the sprite entry's first coordinate
-48B5: FD 36 31 00     LD      (IY+$31),$00        ; clear its second coordinate
+48B1: FD 36 00 00     LD      (IY+$00),$00        ; clear the sprite entry's X
+48B5: FD 36 31 00     LD      (IY+$31),$00        ; clear its Y
 48B9: DD 36 0E F0     LD      (IX+$0E),$F0        ; load the record's delay byte with 0xF0 -- hold the slot on a cooldown rather than freeing it at once
 48BD: C9              RET                         
 
@@ -11065,10 +11078,10 @@ stagePlayerShotSweepAgainstTargetsAndRun:
 ; liveness is tested ONCE, ahead of the sweep, so several shots can be
 ; spent on it in a single pass
 destroyFixedTargetHitByShots:
-4F7E: 2E 06           LD      L,$06               ; the target's hit window -- first-axis slack
-4F80: 26 0D           LD      H,$0D               ; first-axis window width
-4F82: 1E 17           LD      E,$17               ; second-axis slack
-4F84: 16 1F           LD      D,$1F               ; second-axis window width
+4F7E: 2E 06           LD      L,$06               ; the target's hit window -- X slack
+4F80: 26 0D           LD      H,$0D               ; X window width
+4F82: 1E 17           LD      E,$17               ; Y slack
+4F84: 16 1F           LD      D,$1F               ; Y window width
 4F86: FD 21 80 AA     LD      IY,$AA80            ; point at the player-shot array
 4F8A: 06 06           LD      B,$06               ; six shot slots to sweep
 4F8C: 3A C0 A8        LD      A,($A8C0)           ; {hard.workRam+C0} read the target's occupancy
@@ -11079,15 +11092,15 @@ loc_4f91:
 4F91: FD 7E 00        LD      A,(IY+$00)          ; read this shot slot's occupancy
 4F94: 3C              INC     A                   ; is the shot live?
 4F95: 20 1F           JR      NZ,$4FB6            ; {code.loc_4fb6} empty slot: skip to the next
-4F97: 3A 28 AA        LD      A,($AA28)           ; {hard.workRam+228} target's first-axis position
-4F9A: FD 96 06        SUB     (IY+$06)            ; minus the shot's first-axis position
-4F9D: 85              ADD     A,L                 ; plus the first-axis slack
-4F9E: BC              CP      H                   ; within the first-axis window?
+4F97: 3A 28 AA        LD      A,($AA28)           ; {hard.workRam+228} target's X position
+4F9A: FD 96 06        SUB     (IY+$06)            ; minus the shot's X position
+4F9D: 85              ADD     A,L                 ; plus the X slack
+4F9E: BC              CP      H                   ; within the X window?
 4F9F: 30 15           JR      NC,$4FB6            ; {code.loc_4fb6} outside: skip this shot
-4FA1: 3A 59 AA        LD      A,($AA59)           ; {hard.workRam+259} target's second-axis position
-4FA4: FD 96 04        SUB     (IY+$04)            ; minus the shot's second-axis position
-4FA7: 83              ADD     A,E                 ; plus the second-axis slack
-4FA8: BA              CP      D                   ; within the second-axis window?
+4FA1: 3A 59 AA        LD      A,($AA59)           ; {hard.workRam+259} target's Y position
+4FA4: FD 96 04        SUB     (IY+$04)            ; minus the shot's Y position
+4FA7: 83              ADD     A,E                 ; plus the Y slack
+4FA8: BA              CP      D                   ; within the Y window?
 4FA9: 30 0B           JR      NC,$4FB6            ; {code.loc_4fb6} outside: skip this shot
 4FAB: 3E F0           LD      A,$F0               ; hit -- destroyed marker
 4FAD: 32 C0 A8        LD      ($A8C0),A           ; {hard.workRam+C0} mark the target destroyed
@@ -11118,8 +11131,8 @@ destroyCraftAndMotherShipHitByShots:
 4FCF: 0E 06           LD      C,$06               ; six shots to sweep through the run
 4FD1: ED 53 93 A9     LD      ($A993),DE          ; {hard.workRam+193} stash the target-record pointer so each shot pass reloads it
 4FD5: FD 22 91 A9     LD      ($A991),IY          ; {hard.workRam+191} stash the sprite-entry pointer likewise
-4FD9: 2E 07           LD      L,$07               ; box half-reach 7 on the first axis
-4FDB: 26 0F           LD      H,$0F               ; box span 15 on the first axis
+4FD9: 2E 07           LD      L,$07               ; box half-reach 7 in X
+4FDB: 26 0F           LD      H,$0F               ; box span 15 in X
 4FDD: CD 11 52        CALL    $5211               ; {code.destroyTargetsHitByShots} sweep the six shots against the five craft, destroying and scoring each hit -- then fall into the mother-ship sweep
 
 ; sweep the six player-shot slots for one that has reached the single
@@ -11129,15 +11142,15 @@ destroyCraftAndMotherShipHitByShots:
 destroyMotherShipAndShotOnMutualHit:
 4FE0: 3A 04 AD        LD      A,($AD04)           ; {hard.workRam+504} read the era index
 4FE3: A7              AND     A                   ; era 0?
-4FE4: 28 45           JR      Z,$502B             ; {code.loc_502b} era 0: use the wider first-axis box
+4FE4: 28 45           JR      Z,$502B             ; {code.loc_502b} era 0: use the wider X box
 4FE6: FE 04           CP      $04                 ; era 4?
 4FE8: 28 41           JR      Z,$502B             ; {code.loc_502b} era 4: use the wider box too
-4FEA: 2E 06           LD      L,$06               ; narrow first-axis half-reach 6
-4FEC: 26 0D           LD      H,$0D               ; narrow first-axis span 13
+4FEA: 2E 06           LD      L,$06               ; narrow X half-reach 6
+4FEC: 26 0D           LD      H,$0D               ; narrow X span 13
 
 loc_4fee:
-4FEE: 1E 17           LD      E,$17               ; second-axis half-reach 23
-4FF0: 16 1F           LD      D,$1F               ; second-axis span 31
+4FEE: 1E 17           LD      E,$17               ; Y half-reach 23
+4FF0: 16 1F           LD      D,$1F               ; Y span 31
 4FF2: FD 21 80 AA     LD      IY,$AA80            ; point at the six player-shot records
 4FF6: 06 06           LD      B,$06               ; six shots to sweep
 4FF8: 3A A0 A8        LD      A,($A8A0)           ; {hard.workRam+A0} read the mother ship's state
@@ -11148,15 +11161,15 @@ loc_4ffd:
 4FFD: FD 7E 00        LD      A,(IY+$00)          ; read this shot's state
 5000: 3C              INC     A                   
 5001: 20 1F           JR      NZ,$5022            ; {code.loc_5022} dead shot -- skip
-5003: 3A 24 AA        LD      A,($AA24)           ; {hard.workRam+224} the mother ship's first-axis coordinate
-5006: FD 96 06        SUB     (IY+$06)            ; minus this shot's first-axis
-5009: 85              ADD     A,L                 ; add the first-axis half-reach
-500A: BC              CP      H                   ; inside the first-axis span?
+5003: 3A 24 AA        LD      A,($AA24)           ; {hard.workRam+224} the mother ship's X coordinate
+5006: FD 96 06        SUB     (IY+$06)            ; minus this shot's X
+5009: 85              ADD     A,L                 ; add the X half-reach
+500A: BC              CP      H                   ; inside the X span?
 500B: 30 15           JR      NC,$5022            ; {code.loc_5022} outside -- skip
-500D: 3A 55 AA        LD      A,($AA55)           ; {hard.workRam+255} the mother ship's second-axis coordinate
-5010: FD 96 04        SUB     (IY+$04)            ; minus this shot's second-axis
-5013: 83              ADD     A,E                 ; add the second-axis half-reach
-5014: BA              CP      D                   ; inside the second-axis span?
+500D: 3A 55 AA        LD      A,($AA55)           ; {hard.workRam+255} the mother ship's Y coordinate
+5010: FD 96 04        SUB     (IY+$04)            ; minus this shot's Y
+5013: 83              ADD     A,E                 ; add the Y half-reach
+5014: BA              CP      D                   ; inside the Y span?
 5015: 30 0B           JR      NC,$5022            ; {code.loc_5022} outside -- skip
 5017: 3E F0           LD      A,$F0               ; the destroyed code
 5019: 32 A0 A8        LD      ($A8A0),A           ; {hard.workRam+A0} destroy the mother ship
@@ -11171,8 +11184,8 @@ loc_5022:
 502A: C9              RET                         
 
 loc_502b:
-502B: 2E 08           LD      L,$08               ; wider first-axis half-reach 8
-502D: 26 11           LD      H,$11               ; wider first-axis span 17
+502B: 2E 08           LD      L,$08               ; wider X half-reach 8
+502D: 26 11           LD      H,$11               ; wider X span 17
 502F: C3 EE 4F        JP      $4FEE               ; {code.loc_4fee} run the sweep with the wider box
 
 loc_5032:
@@ -11222,15 +11235,15 @@ destroyFixedTargetReachedByPlayer:
 5087: 3A C0 A8        LD      A,($A8C0)           ; {hard.workRam+C0} read the fixed target's state
 508A: 3C              INC     A                   
 508B: C0              RET     NZ                  ; target gone -- nothing to do
-508C: 3A 28 AA        LD      A,($AA28)           ; {hard.workRam+228} the fixed target's first-axis coordinate
-508F: DD 96 00        SUB     (IX+$00)            ; minus the player's first-axis
-5092: C6 06           ADD     A,$06               ; add the first-axis slack (6)
-5094: FE 0D           CP      $0D                 ; inside the first-axis window (13)?
+508C: 3A 28 AA        LD      A,($AA28)           ; {hard.workRam+228} the fixed target's X coordinate
+508F: DD 96 00        SUB     (IX+$00)            ; minus the player's X
+5092: C6 06           ADD     A,$06               ; add the X slack (6)
+5094: FE 0D           CP      $0D                 ; inside the X window (13)?
 5096: D0              RET     NC                  ; outside -- no contact
-5097: 3A 59 AA        LD      A,($AA59)           ; {hard.workRam+259} the fixed target's second-axis coordinate
-509A: DD 96 31        SUB     (IX+$31)            ; minus the player's second-axis
-509D: C6 18           ADD     A,$18               ; add the second-axis slack (24)
-509F: FE 21           CP      $21                 ; inside the second-axis window (33)?
+5097: 3A 59 AA        LD      A,($AA59)           ; {hard.workRam+259} the fixed target's Y coordinate
+509A: DD 96 31        SUB     (IX+$31)            ; minus the player's Y
+509D: C6 18           ADD     A,$18               ; add the Y slack (24)
+509F: FE 21           CP      $21                 ; inside the Y window (33)?
 50A1: D0              RET     NC                  ; outside -- no contact
 50A2: 3E F0           LD      A,$F0               ; the destroyed code
 50A4: 32 00 A8        LD      ($A800),A           ; {hard.workRam} destroy the player
@@ -11259,15 +11272,15 @@ ramTestPlayerVsMotherShip:
 50C4: 3A A0 A8        LD      A,($A8A0)           ; {hard.workRam+A0} read the mother ship's state
 50C7: 3C              INC     A                   
 50C8: C0              RET     NZ                  ; mother ship gone -- nothing to do
-50C9: 3A 24 AA        LD      A,($AA24)           ; {hard.workRam+224} the mother ship's first-axis coordinate
-50CC: DD 96 00        SUB     (IX+$00)            ; minus the player's first-axis
-50CF: C6 06           ADD     A,$06               ; add the narrow first-axis slack (6)
-50D1: FE 0D           CP      $0D                 ; inside the first-axis window (13)?
+50C9: 3A 24 AA        LD      A,($AA24)           ; {hard.workRam+224} the mother ship's X coordinate
+50CC: DD 96 00        SUB     (IX+$00)            ; minus the player's X
+50CF: C6 06           ADD     A,$06               ; add the narrow X slack (6)
+50D1: FE 0D           CP      $0D                 ; inside the X window (13)?
 50D3: D0              RET     NC                  ; outside -- no contact
-50D4: 3A 55 AA        LD      A,($AA55)           ; {hard.workRam+255} the mother ship's second-axis coordinate
-50D7: DD 96 31        SUB     (IX+$31)            ; minus the player's second-axis
-50DA: C6 19           ADD     A,$19               ; add the second-axis slack (25)
-50DC: FE 23           CP      $23                 ; inside the second-axis window (35)?
+50D4: 3A 55 AA        LD      A,($AA55)           ; {hard.workRam+255} the mother ship's Y coordinate
+50D7: DD 96 31        SUB     (IX+$31)            ; minus the player's Y
+50DA: C6 19           ADD     A,$19               ; add the Y slack (25)
+50DC: FE 23           CP      $23                 ; inside the Y window (35)?
 50DE: D0              RET     NC                  ; outside -- no contact
 50DF: 3E F0           LD      A,$F0               ; the destroyed code
 50E1: 32 00 A8        LD      ($A800),A           ; {hard.workRam} destroy the player
@@ -11289,15 +11302,15 @@ destroyPlayerAndMotherShipOnContact:
 50F7: 3A A0 A8        LD      A,($A8A0)           ; {hard.workRam+A0} read the mother ship's state
 50FA: 3C              INC     A                   
 50FB: C0              RET     NZ                  ; mother ship gone -- nothing to do
-50FC: 3A 24 AA        LD      A,($AA24)           ; {hard.workRam+224} the mother ship's first-axis coordinate
-50FF: DD 96 00        SUB     (IX+$00)            ; minus the player's first-axis
-5102: C6 08           ADD     A,$08               ; add the wider first-axis slack (8)
-5104: FE 11           CP      $11                 ; inside the wider first-axis window (17)?
+50FC: 3A 24 AA        LD      A,($AA24)           ; {hard.workRam+224} the mother ship's X coordinate
+50FF: DD 96 00        SUB     (IX+$00)            ; minus the player's X
+5102: C6 08           ADD     A,$08               ; add the wider X slack (8)
+5104: FE 11           CP      $11                 ; inside the wider X window (17)?
 5106: D0              RET     NC                  ; outside -- no contact
-5107: 3A 55 AA        LD      A,($AA55)           ; {hard.workRam+255} the mother ship's second-axis coordinate
-510A: DD 96 31        SUB     (IX+$31)            ; minus the player's second-axis
-510D: C6 19           ADD     A,$19               ; add the second-axis slack (25)
-510F: FE 23           CP      $23                 ; inside the second-axis window (35)?
+5107: 3A 55 AA        LD      A,($AA55)           ; {hard.workRam+255} the mother ship's Y coordinate
+510A: DD 96 31        SUB     (IX+$31)            ; minus the player's Y
+510D: C6 19           ADD     A,$19               ; add the Y slack (25)
+510F: FE 23           CP      $23                 ; inside the Y window (35)?
 5111: D0              RET     NC                  ; outside -- no contact
 5112: 3E F0           LD      A,$F0               ; the destroyed code
 5114: 32 00 A8        LD      ($A800),A           ; {hard.workRam} destroy the player
@@ -11319,13 +11332,13 @@ loc_5126:
 5126: 1A              LD      A,(DE)              ; read this target's state
 5127: 3C              INC     A                   
 5128: 20 1D           JR      NZ,$5147            ; {code.loc_5147} dead target -- skip
-512A: 3A 10 AA        LD      A,($AA10)           ; {hard.workRam+210} the player's first-axis coordinate
-512D: FD 96 00        SUB     (IY+$00)            ; minus this target's first-axis
+512A: 3A 10 AA        LD      A,($AA10)           ; {hard.workRam+210} the player's X coordinate
+512D: FD 96 00        SUB     (IY+$00)            ; minus this target's X
 5130: 85              ADD     A,L                 ; add the caller's slack
 5131: BC              CP      H                   ; inside the caller's window?
 5132: 30 13           JR      NC,$5147            ; {code.loc_5147} outside -- skip
-5134: 3A 41 AA        LD      A,($AA41)           ; {hard.workRam+241} the player's second-axis coordinate
-5137: FD 96 31        SUB     (IY+$31)            ; minus this target's second-axis
+5134: 3A 41 AA        LD      A,($AA41)           ; {hard.workRam+241} the player's Y coordinate
+5137: FD 96 31        SUB     (IY+$31)            ; minus this target's Y
 513A: 85              ADD     A,L                 ; add the same slack
 513B: BC              CP      H                   ; inside the same window?
 513C: 30 09           JR      NC,$5147            ; {code.loc_5147} outside -- skip
@@ -11355,15 +11368,15 @@ loc_5157:
 5157: 1A              LD      A,(DE)              ; read this slot's state
 5158: 3C              INC     A                   
 5159: 20 1F           JR      NZ,$517A            ; {code.loc_517a} slot already hit -- skip
-515B: 3A 10 AA        LD      A,($AA10)           ; {hard.workRam+210} the player's first-axis coordinate
-515E: FD 96 00        SUB     (IY+$00)            ; minus this slot's first-axis
-5161: 85              ADD     A,L                 ; add the caller's first-axis bias
-5162: BC              CP      H                   ; inside the caller's first-axis width?
+515B: 3A 10 AA        LD      A,($AA10)           ; {hard.workRam+210} the player's X coordinate
+515E: FD 96 00        SUB     (IY+$00)            ; minus this slot's X
+5161: 85              ADD     A,L                 ; add the caller's X bias
+5162: BC              CP      H                   ; inside the caller's X width?
 5163: 30 15           JR      NC,$517A            ; {code.loc_517a} outside -- skip
-5165: 3A 41 AA        LD      A,($AA41)           ; {hard.workRam+241} the player's second-axis coordinate
-5168: FD 96 31        SUB     (IY+$31)            ; minus this slot's second-axis
-516B: C6 08           ADD     A,$08               ; add the fixed second-axis bias (8)
-516D: FE 11           CP      $11                 ; inside the fixed second-axis width (17)?
+5165: 3A 41 AA        LD      A,($AA41)           ; {hard.workRam+241} the player's Y coordinate
+5168: FD 96 31        SUB     (IY+$31)            ; minus this slot's Y
+516B: C6 08           ADD     A,$08               ; add the fixed Y bias (8)
+516D: FE 11           CP      $11                 ; inside the fixed Y width (17)?
 516F: 30 09           JR      NC,$517A            ; {code.loc_517a} outside -- skip
 5171: 3E F0           LD      A,$F0               ; the hit code
 5173: 32 00 A8        LD      ($A800),A           ; {hard.workRam} mark the player hit
@@ -11392,13 +11405,13 @@ loc_518a:
 518A: 1A              LD      A,(DE)              ; read this object's state
 518B: 3C              INC     A                   
 518C: 20 1A           JR      NZ,$51A8            ; {code.loc_51a8} dead object -- skip
-518E: 3A 10 AA        LD      A,($AA10)           ; {hard.workRam+210} the player's first-axis coordinate
-5191: FD 96 00        SUB     (IY+$00)            ; minus this object's first-axis
+518E: 3A 10 AA        LD      A,($AA10)           ; {hard.workRam+210} the player's X coordinate
+5191: FD 96 00        SUB     (IY+$00)            ; minus this object's X
 5194: 85              ADD     A,L                 ; add the caller's slack
 5195: BC              CP      H                   ; inside the caller's window?
 5196: 30 10           JR      NC,$51A8            ; {code.loc_51a8} outside -- skip
-5198: 3A 41 AA        LD      A,($AA41)           ; {hard.workRam+241} the player's second-axis coordinate
-519B: FD 96 31        SUB     (IY+$31)            ; minus this object's second-axis
+5198: 3A 41 AA        LD      A,($AA41)           ; {hard.workRam+241} the player's Y coordinate
+519B: FD 96 31        SUB     (IY+$31)            ; minus this object's Y
 519E: 85              ADD     A,L                 ; add the same slack
 519F: BC              CP      H                   ; inside the same window?
 51A0: 30 06           JR      NC,$51A8            ; {code.loc_51a8} outside -- skip
@@ -11428,13 +11441,13 @@ loc_51b8:
 51B8: 1A              LD      A,(DE)              ; read this object's state
 51B9: 3C              INC     A                   
 51BA: 20 17           JR      NZ,$51D3            ; {code.loc_51d3} dead object -- skip
-51BC: 3A 10 AA        LD      A,($AA10)           ; {hard.workRam+210} the player's first-axis coordinate
-51BF: FD 96 00        SUB     (IY+$00)            ; minus this object's first-axis
+51BC: 3A 10 AA        LD      A,($AA10)           ; {hard.workRam+210} the player's X coordinate
+51BF: FD 96 00        SUB     (IY+$00)            ; minus this object's X
 51C2: 85              ADD     A,L                 ; add the caller's offset
 51C3: BC              CP      H                   ; inside the caller's width?
 51C4: 30 0D           JR      NC,$51D3            ; {code.loc_51d3} outside -- skip
-51C6: 3A 41 AA        LD      A,($AA41)           ; {hard.workRam+241} the player's second-axis coordinate
-51C9: FD 96 31        SUB     (IY+$31)            ; minus this object's second-axis
+51C6: 3A 41 AA        LD      A,($AA41)           ; {hard.workRam+241} the player's Y coordinate
+51C9: FD 96 31        SUB     (IY+$31)            ; minus this object's Y
 51CC: 85              ADD     A,L                 ; add the same offset
 51CD: BC              CP      H                   ; inside the same width?
 51CE: 30 03           JR      NC,$51D3            ; {code.loc_51d3} outside -- skip
@@ -11507,21 +11520,21 @@ loc_5217:
 5217: 1A              LD      A,(DE)              ; read this target's state
 5218: 3C              INC     A                   
 5219: 20 2F           JR      NZ,$524A            ; {code.loc_524a} dead target -- skip
-521B: FD 7E 00        LD      A,(IY+$00)          ; the target's first-axis coordinate
+521B: FD 7E 00        LD      A,(IY+$00)          ; the target's X coordinate
 521E: C6 08           ADD     A,$08               ; shift the low end above zero
 5220: FE 19           CP      $19                 ; in the dead band a blank slot leaves near zero?
 5222: 38 26           JR      C,$524A             ; {code.loc_524a} yes -- no real target here, skip
-5224: FD 7E 31        LD      A,(IY+$31)          ; the target's second-axis coordinate
+5224: FD 7E 31        LD      A,(IY+$31)          ; the target's Y coordinate
 5227: C6 10           ADD     A,$10               ; shift the low end above zero
 5229: FE 11           CP      $11                 ; in the near-zero dead band?
 522B: 38 1D           JR      C,$524A             ; {code.loc_524a} yes -- skip
-522D: DD 7E 06        LD      A,(IX+$06)          ; the shot's first-axis coordinate
-5230: FD 96 00        SUB     (IY+$00)            ; minus the target's first-axis
+522D: DD 7E 06        LD      A,(IX+$06)          ; the shot's X coordinate
+5230: FD 96 00        SUB     (IY+$00)            ; minus the target's X
 5233: 85              ADD     A,L                 ; add the half-reach
 5234: BC              CP      H                   ; inside the span?
 5235: 30 13           JR      NC,$524A            ; {code.loc_524a} outside -- skip
-5237: DD 7E 04        LD      A,(IX+$04)          ; the shot's second-axis coordinate
-523A: FD 96 31        SUB     (IY+$31)            ; minus the target's second-axis
+5237: DD 7E 04        LD      A,(IX+$04)          ; the shot's Y coordinate
+523A: FD 96 31        SUB     (IY+$31)            ; minus the target's Y
 523D: 85              ADD     A,L                 ; add the half-reach
 523E: BC              CP      H                   ; inside the span?
 523F: 30 09           JR      NC,$524A            ; {code.loc_524a} outside -- skip
@@ -11741,13 +11754,13 @@ queueTileStampForObject:
 5351: E6 1F           AND     $1F                 ; its tile column
 5353: 83              ADD     A,E                 ; combine row and column -- the block's top-left cell, low byte
 5354: 5F              LD      E,A                 
-5355: 79              LD      A,C                 ; back to the second coordinate
+5355: 79              LD      A,C                 ; back to the X
 5356: 07              RLCA                        
 5357: 07              RLCA                        
 5358: 07              RLCA                        
 5359: E6 38           AND     $38                 ; its low three bits, the sub-cell shift
 535B: 4F              LD      C,A                 
-535C: 78              LD      A,B                 ; the first coordinate again
+535C: 78              LD      A,B                 ; the Y again
 535D: 06 00           LD      B,$00               
 535F: CB 57           BIT     2,A                 ; its bit that overflows the record index into the high byte
 5361: 28 01           JR      Z,$5364             ; {code.loc_5364}
@@ -11756,8 +11769,8 @@ queueTileStampForObject:
 loc_5364:
 5364: 0F              RRCA                        
 5365: 0F              RRCA                        
-5366: E6 C0           AND     $C0                 ; the first coordinate's low bits for the index
-5368: 81              ADD     A,C                 ; add the second coordinate's -- picks one of sixty-four sub-cell records
+5366: E6 C0           AND     $C0                 ; Y's low bits for the index
+5368: 81              ADD     A,C                 ; add X's -- picks one of sixty-four sub-cell records
 5369: 4F              LD      C,A                 
 536A: 21 D4 53        LD      HL,$53D4            ; the table of pre-shifted tile records
 536D: 09              ADD     HL,BC               ; index the chosen record -- four glyph/attribute pairs, one per cell
@@ -12344,17 +12357,17 @@ loc_58d7:
 58D7: 09              ADD     HL,BC               ; reach the perpendicular sample
 58D8: 46              LD      B,(HL)              ; read its high byte
 58D9: 2B              DEC     HL                  
-58DA: 4E              LD      C,(HL)              ; read its low byte -- the second component
-58DB: 2A 08 A8        LD      HL,($A808)          ; {hard.workRam+8} take the shared per-frame vertical world-scroll
-58DE: 19              ADD     HL,DE               ; add this object's first-axis component
-58DF: DD 5E 03        LD      E,(IX+$03)          ; read the fraction of the first coordinate
+58DA: 4E              LD      C,(HL)              ; read its low byte -- the X component
+58DB: 2A 08 A8        LD      HL,($A808)          ; {hard.workRam+8} take the shared per-frame Y world-scroll
+58DE: 19              ADD     HL,DE               ; add this object's Y component
+58DF: DD 5E 03        LD      E,(IX+$03)          ; read the fraction of the Y coordinate
 58E2: FD 56 31        LD      D,(IY+$31)          ; read its whole part from the sprite entry
 58E5: 19              ADD     HL,DE               ; add the displacement onto the coordinate
 58E6: DD 75 03        LD      (IX+$03),L          ; store the new fraction
 58E9: FD 74 31        LD      (IY+$31),H          ; store the new whole part into the sprite entry
-58EC: 2A 0A A8        LD      HL,($A80A)          ; {hard.workRam+A} take the shared per-frame horizontal world-scroll
-58EF: 09              ADD     HL,BC               ; add this object's second-axis component
-58F0: DD 5E 05        LD      E,(IX+$05)          ; read the fraction of the second coordinate
+58EC: 2A 0A A8        LD      HL,($A80A)          ; {hard.workRam+A} take the shared per-frame X world-scroll
+58EF: 09              ADD     HL,BC               ; add this object's X component
+58F0: DD 5E 05        LD      E,(IX+$05)          ; read the fraction of the X coordinate
 58F3: FD 56 00        LD      D,(IY+$00)          ; read its whole part from the sprite entry
 58F6: 19              ADD     HL,DE               ; add the displacement onto the coordinate
 58F7: DD 75 05        LD      (IX+$05),L          ; store the new fraction
@@ -12391,19 +12404,19 @@ loc_5919:
 5919: 09              ADD     HL,BC               ; reach the perpendicular sample
 591A: 46              LD      B,(HL)              ; read its high byte
 591B: 2B              DEC     HL                  
-591C: 4E              LD      C,(HL)              ; read its low byte -- the second component
-591D: 2A 08 A8        LD      HL,($A808)          ; {hard.workRam+8} take the shared per-frame vertical world-scroll
-5920: 19              ADD     HL,DE               ; add this object's first-axis component
+591C: 4E              LD      C,(HL)              ; read its low byte -- the X component
+591D: 2A 08 A8        LD      HL,($A808)          ; {hard.workRam+8} take the shared per-frame Y world-scroll
+5920: 19              ADD     HL,DE               ; add this object's Y component
 5921: 19              ADD     HL,DE               ; add it again -- twice this object's own speed
-5922: DD 5E 03        LD      E,(IX+$03)          ; read the fraction of the first coordinate
+5922: DD 5E 03        LD      E,(IX+$03)          ; read the fraction of the Y coordinate
 5925: FD 56 31        LD      D,(IY+$31)          ; read its whole part from the sprite entry
 5928: 19              ADD     HL,DE               ; add the displacement onto the coordinate
 5929: DD 75 03        LD      (IX+$03),L          ; store the new fraction
 592C: FD 74 31        LD      (IY+$31),H          ; store the new whole part into the sprite entry
-592F: 2A 0A A8        LD      HL,($A80A)          ; {hard.workRam+A} take the shared per-frame horizontal world-scroll
-5932: 09              ADD     HL,BC               ; add this object's second-axis component
+592F: 2A 0A A8        LD      HL,($A80A)          ; {hard.workRam+A} take the shared per-frame X world-scroll
+5932: 09              ADD     HL,BC               ; add this object's X component
 5933: 09              ADD     HL,BC               ; add it again -- twice this object's own speed
-5934: DD 5E 05        LD      E,(IX+$05)          ; read the fraction of the second coordinate
+5934: DD 5E 05        LD      E,(IX+$05)          ; read the fraction of the X coordinate
 5937: FD 56 00        LD      D,(IY+$00)          ; read its whole part from the sprite entry
 593A: 19              ADD     HL,DE               ; add the displacement onto the coordinate
 593B: DD 75 05        LD      (IX+$05),L          ; store the new fraction

@@ -17,7 +17,7 @@
  * 0xA850 [seen], 16 bytes a slot) holds its occupancy at +0, heading at +1 and state byte at +8; its
  * sprite entry (CRAFT_ENTRY_SLOT0 0xAA1A [seen], 2 bytes a slot) is where it is on screen.
  *
- * LIVE-OUT: memory only -- the craft record's shape, heading and state bytes (or the aim-point
+ * LIVE-OUT: memory only -- the craft record's heading (+1), state (+8) and step-timer (+9) bytes (or the aim-point
  * object, on the lay-out passes).
  */
 
@@ -61,7 +61,7 @@ export function reaimAndAnimateEnemyCraftOnPhaseTick(m) {
   if (mem8[record] !== OCCUPIED) return;
 
   // Step 3: every serviced live craft advances its shape animation (`call 0x323a`, stepShapeAnimation
-  // [seen]: count its step timer down and refresh the shape byte from the entry the new count selects).
+  // [seen]: count its step timer at +9 down and reload byte +8 -- the state byte Step 4 reads (stepShapeAnimation calls it the shape byte) -- from the run entry the new count selects).
   stepShapeAnimation(m, record);
 
   // Step 4: the state byte at +8 decides the aim. A holding craft (0x10) keeps its heading.

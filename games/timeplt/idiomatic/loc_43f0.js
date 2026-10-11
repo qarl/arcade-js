@@ -5,7 +5,7 @@
  * the head down and, at one exact value, sweeps the fifteen object records (each live one gets a
  * staggered dying code and pays 200 points, each held one is freed); the live phase drifts the pair
  * with the world, dresses it, and — while off cooldown, with a tile on screen but outside the near
- * band around the player — hands a free slot a homing spawn whose heading and stage-vector are
+ * band around the player — fires a shot into a free enemy-shot slot (it flies straight on a stored velocity and does not home), with a heading and velocity pair
  * computed here. Every callee, the
  * inline jump-table arm included, is reached as a direct call. LIVE-OUT: memory. The record/sprite
  * pair is threaded explicitly through the whole recursion and into every callee. */
@@ -102,7 +102,7 @@ const NEAR_Y = 0x78;
 const ON_SCREEN_X = 0x28;
 const ON_SCREEN_Y = 0x20;
 
-const SECOND_ENTRY = 0x30; // second sprite entry's base offset off the first (mirrors fields 0x00-0x03)
+const SECOND_ENTRY = 0x30; // +0x30 off an entry: its attribute byte (colour and flip), not a second entry
 
 // ── Entry (0x43F0): seat the record (0xA8A0) and entry (0xAA24) and dispatch on the head.
 export function loc_43f0(m) {
@@ -214,8 +214,8 @@ export function sweepFieldOnMotherShipDeathElseStepWreck(m, phase, record, entry
   mem8[Y(0x32)] = SPRITE_SEED;
 }
 
-// ── The dying countdown (0x45B3): one step of the warp-and-flash, run every step the head is below
-// 0xF0 with no hits left, other than the sweep step.
+// ── The dying countdown (0x45B3): one step of the warp-and-flash, run every step the head is neither
+// 0x00 nor 0xFF with no hits left (the fatal hit at head 0xF0 included), other than the sweep step at head 0xEF.
 export function stepMotherShipWreckCountdown(m, record, entry) {
   const { mem8 } = m;
   const X = (offset) => u16(record + offset);

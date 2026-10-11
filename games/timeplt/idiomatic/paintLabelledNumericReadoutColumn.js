@@ -13,7 +13,7 @@
 // paintFiveLabelledNumericReadouts (0x4BDC, [seen]), runs it five times, once per table record: each
 // time with `source` on one of five source records at 0xAB08 (stride 8), `cursor` on that record's first
 // tile-plane cell (from 0xA711, stride 2), and `pen` its colour. names.js lays each record out as
-// +0 rank, +1..+3 score (packed decimal, lo/mid/hi), +4..+7 name glyphs (high-score group, [code]);
+// +0 rank, +1..+3 score (packed decimal, lo/mid/hi), +4..+6 initials and +7 a pad byte (high-score group, [seen]);
 // read that way, one call paints: a three-tile label chosen by the rank byte, the six-digit score,
 // then three name tiles. The screen is rotated, so on the character plane the "line" runs as one
 // column, walked a cell at a time by advanceCharCursor (`rst 0x20`, DE -= 0x20).
@@ -61,7 +61,7 @@ export function paintLabelledNumericReadoutColumn(m, source = m.regs.hl, cursor 
   stamp(m, mem8[u16(record + 2)], cursor, pen);
 
   // STEP 2 -- THE NUMBER (0x4C45-0x4C4B, call 0x0D73).
-  // six-digit field: drop the cursor a pictogram's height and read the digits from the source.
+  // six-digit field: move the cursor four cells on (0x80) from the last pictogram cell and read the digits from the source.
   // The printer is handed source+3 -- the field's most significant byte -- and steps its pointer BACK
   // through the three packed bytes, blanking leading zeros except in the last two digits.
   // the printer takes the source pointer, the cursor and the pen as arguments and hands the pointer

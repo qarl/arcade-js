@@ -7,7 +7,7 @@
  * spent; while it is not, nothing is painted, one unit of allowance goes, and the cursor steps
  * BACK one place — so a caller that steps forward after every digit leaves the blank occupying
  * no space at all. The run pointer the caller was walking is handed back where it was, and the
- * cursor comes back on the glyph side of the two planes whether or not it arrived there.
+ * cursor, whenever a digit is painted, comes back on the glyph side of the two planes whether or not it arrived there.
  *
  * ROM 0x0EEB-0x0F05 (frozen lift translated/loc_0eeb.js). Grounding: [seen] (names.js ROUTINES 0x0EEB).
  *

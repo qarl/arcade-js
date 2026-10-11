@@ -3,7 +3,7 @@
  * cell that a row cell and a column cell name, and hand that cell's video-plane address back. Both
  * coordinates fold rather than run on: the row is scaled a byte at a time, so a row past the
  * thirty-second lands back at the top of the plane, and the column is added to the low half of the
- * address alone, so a column past the end of a row wraps within that row. The returned address is
+ * address alone, so a column past the end of a row runs on into the following rows, wrapping only at the end of the 256-byte (eight-row) page. The returned address is
  * load-bearing -- a caller steps a run of cells by subtracting a target from it.
  * LIVE-OUT: the two cells written, plus the address in HL and the colour in A.
  * ROM 0x026F-0x028F. Grounding: [seen] (names.js ROUTINES 0x026F). */

@@ -11,9 +11,9 @@ V 16–239), displayed turned a quarter-turn for the upright cabinet (MAME `ROT9
 
 A **second Z80** drives the sound hardware — **two AY-3-8910 PSGs** — and takes its
 commands from the main CPU through a sound latch. The main CPU writes the command byte to
-`0xC000`; it then pulses **`0xC304`** (LS259 bit 2) low-then-high, and that rising edge
-fires a maskable interrupt on the sound Z80, which reads the latched byte back through
-AY-3-8910 #1's port A.
+`0xC000`; it then writes 1 and, six `nop`s later, 0 to **`0xC304`** (LS259 bit 2). The
+first write is the low-to-high edge, which fires a maskable interrupt on the sound Z80;
+the sound Z80 reads the latched byte back through AY-3-8910 #1's port A.
 
 Three hardware quirks matter when reading the map below: (1) a read and a write at one
 address can be different devices — `0xC000` **reads** the video scan-line counter and
@@ -36,7 +36,7 @@ and compares it against `0x55` to detect an expansion ROM that is not fitted.
 | a800:afff | workRam | Work RAM, 2048 bytes (see [Work RAM](RAMUse.md)) |
 | b000:b0ff | spriteRam0 | Sprite RAM bank 0 (mirror mask 0x0B00); only 0xB010–0xB03F is used |
 | b400:b4ff | spriteRam1 | Sprite RAM bank 1 (mirror mask 0x0B00); only 0xB410–0xB43F is used |
-| c000 | scanline | R: video scan-line counter — the ROM multiplexes the cloud sprites by it, drawing them twice 128 lines apart |
+| c000 | scanline | R: video scan-line counter — the ROM multiplexes the cloud sprites by it: once the beam has passed a flagged sprite, the ROM moves that sprite 128 pixels on both raster axes (bit 7 of its Y byte cleared, 0x80 added to its X byte), so it is drawn a second time half a screen away |
 | c000 | soundLatch | W: sound-command byte to the audio Z80 |
 | c200 | dsw1 | R: DIP-switch bank SW2 — lives, cabinet, bonus-life, difficulty, demo sounds |
 | c200 | watchdog | W: watchdog reset |
@@ -92,7 +92,7 @@ The latch is an 8-bit LS259 addressable latch (marked **B3** on the board). A wr
 
 | Address | Bit | Line |
 | --- | --- | --- |
-| c300 | 0 | NMI enable — the main loop sets it to arm the vblank NMI |
+| c300 | 0 | NMI enable — cleared at boot, set once just before the foreground loop starts, cleared early in each vblank service (after the sprite copy and the deferred-cell drain) and set again as that service returns; the foreground loop never writes it |
 | c302 | 1 | Flip screen (inverted: a *clear* latch bit flips the screen) |
 | c304 | 2 | Sound-CPU IRQ trigger — a low→high edge fires a maskable interrupt on the audio Z80 |
 | c306 | 3 | Audio mute — DC-mutes the LA4460 amplifier |
@@ -105,13 +105,18 @@ The latch is an 8-bit LS259 addressable latch (marked **B3** on the board). A wr
 
 Moving objects live as **two parallel arrays in work RAM**: a **record** array based at
 `0xA800` (16 bytes per slot) and a **sprite-entry** array based at `0xAA10` (2 bytes per
-slot), locked in step by `entry = 0xAA10 + (record − 0xA800) / 8`. The record carries
-state, headings and the sub-pixel *fraction* of the position; the entry carries the
-whole-pixel X, the tile code, the attribute (colour plus two flip bits) and Y. A per-frame
-DMA — the largest routine in the game — copies two 48-byte shadow bands from the entry
-array into the two hardware sprite banks at `0xB010` and `0xB410`, encoding Y as
-`~(Y + 0x0E)` and reordering the entries so that nearer parallax layers land at the lowest
-hardware offsets (which paint last and so win overlaps).
+slot, with a parallel 2-byte pair `0x30` bytes on), locked in step by
+`entry = 0xAA10 + (record − 0xA800) / 8`. The record carries state, headings and the
+sub-pixel *fraction* of the position; the entry carries the whole-pixel X (`+0x00`) and the
+tile code (`+0x01`), and its parallel pair carries the attribute (colour plus two flip bits,
+`+0x30`) and Y (`+0x31`). A per-frame copy routine built from unrolled `ldi` chains — the
+largest routine in the game — copies two 48-byte shadow bands, `0xAA10`–`0xAA3F` and
+`0xAA40`–`0xAA6F`, into the two hardware sprite banks at `0xB010` and `0xB410`. When the
+picture is not turned round (SCREEN_UNFLIPPED `0xA987` = 1, which includes player one on a
+cocktail table) it encodes Y as `~(Y + 0x0E)`; when it is turned round, X is encoded as
+`~(X + 0x0F)` instead. It also reorders the entries (entries 16–18
+first, then 0–15, then 19–23), and the lowest hardware offsets paint last and so win
+overlaps.
 
 In the hardware banks themselves — the 256-byte regions at `0xB000` (bank 0) and `0xB400`
 (bank 1), of which only `0xB010`–`0xB03F` and `0xB410`–`0xB43F` are used — each sprite is

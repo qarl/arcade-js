@@ -22,7 +22,7 @@
 // HOW A CONTROL IS READ. Each control is debounced by a PRESS HISTORY: a byte its bit is rolled into
 // on every other frame, newest sample in bit 0. The owner acts only when the low three bits read 001
 // -- "not pressed, not pressed, pressed" -- i.e. once, on the leading edge of a press. A held control
-// fills the byte with ones and 001 cannot recur; so once the byte saturates it is emptied
+// fills the byte with ones and 001 cannot recur; so once the forward or back byte saturates it is emptied (the two commit histories never are)
 // (rearmHeldControlRepeat, 0x1980 [seen]), the next sample then reads as a fresh press, and a held
 // control auto-repeats.
 //
@@ -209,7 +209,7 @@ function flashCursor(m) {
 }
 
 /** With both players out of lives, a held start button begins the next game when it may. */
-// This is the tail every frame of the entry falls into unless that frame finished it (0x199D on): once no player has a life left, a
+// This is the tail every frame of the entry falls into unless that frame finished it (0x199A on): once no player has a life left, a
 // new game can be started without waiting for the entry to end. Both lives cells (PLAYER_ONE_LIVES 0xAD10, PLAYER_TWO_LIVES 0xAD20)
 // [seen] must be zero. Every start first hides all sprites (hideAllSprites, 0x15B6 [seen]).
 //   - free play (FREE_PLAY, 0xA9C0 [seen]): either start button begins a game charging no credit

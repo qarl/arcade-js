@@ -3,7 +3,7 @@
  * publishSpriteShadow — publish the sprite shadow into the two hardware banks. Each bank is gathered from three runs of the
  * shadow, in an order that is not the order they sit in memory, into one continuous forty-eight-byte block, and each
  * byte passes through a transform chosen by TWO things: which half of its two-byte sprite it is, and which way round
- * the cabinet has the picture. Three of the four bank-and-orientation pairs transform one half and pass the other
+ * the cabinet has the picture. Of the four bank-and-orientation pairs, one (upright bank 0) passes both halves straight, two transform one half and pass the other
  * through; the fourth transforms both halves, differently. Every transform is byte-wide, so all of them wrap.
  *
  * Afterwards, and only inside one window of the sequence machine, eight of the twenty-four sprites have the top bit

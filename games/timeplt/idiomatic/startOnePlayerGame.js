@@ -16,9 +16,11 @@
  * three tilemap cells into their keeps; and send the sequence machine to its last outer phase, the
  * round engine (0x172A, a tail jump).
  *
- * names.js records that the charge is the ONLY difference from startGameOnFreePlay's one-player arm
- * at 0x1719: the same seven stores in the same order, both ending at 0x172A. This entry alone puts
- * the credit subtract and repaint between them. The store order itself carries no meaning.
+ * Its player-context block matches startGameOnFreePlay's one-player arm
+ * at 0x1719: the same seven instructions (four stores) in the same order, both ending at 0x172A. Around
+ * that block this entry also parks the caption sprites first (0x0B2B) and copies the three tilemap
+ * cells (0x4B30), which the free-play arm does not. This entry alone puts
+ * the credit subtract and repaint between that block and the 0x172A tail. The store order itself carries no meaning.
  * LIVE-OUT: memory only.
  */
 

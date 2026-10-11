@@ -30,8 +30,8 @@ const SECOND_TAP = 16;
 
 export function drawRandomByte(m) {
   const { mem8 } = m;
-  /* Shift the register one place toward the tail. The ROM does it as a 16-byte `lddr` from 0xAB3F
-   * down to 0xAB31 (so no byte is overwritten before it is copied); the oldest byte at 0xAB40 falls
+  /* Shift the register one place toward the tail. The ROM does it as a 16-byte `lddr` copying 0xAB3F..0xAB30
+   * onto 0xAB40..0xAB31, top byte first (so no byte is overwritten before it is copied); the oldest byte at 0xAB40 falls
    * off the end. Copying from the top down here keeps that same order. */
   for (let i = REGISTER_BYTES - 1; i > 0; i--) mem8[RANDOM_REGISTER + i] = mem8[RANDOM_REGISTER + i - 1];
 

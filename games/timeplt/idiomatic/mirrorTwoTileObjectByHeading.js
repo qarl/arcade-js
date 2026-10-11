@@ -5,7 +5,7 @@
  * changes by exactly one bit at the same boundary — so the pair swaps ends together and still reads
  * as one object rather than two. The base of the pair steps in fours by how many hits the object
  * has left, counted from the most it can take, so it wears its damage; and one bit of the
- * free-running frame counter alternates it, so it flickers between two shapes every other frame.
+ * free-running frame counter alternates it, so it switches between two shapes every two frames.
  * LIVE-OUT: memory only — four bytes.
  *
  * ROM 0x3CE9-0x3D24 (frozen lift translated/loc_3ce9.js). Grounding: [seen] (names.js ROUTINES 0x3ce9).

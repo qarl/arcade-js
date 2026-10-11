@@ -8,7 +8,7 @@
  * ROM 0x15FE-0x163E (frozen lift translated/loc_15fe.js); its patch list follows at 0x163F.
  * Grounding: [seen] in names.js.
  *
- * Role in the machine: an arm of the attract sequence. The countdown it ticks is a screen wipe —
+ * Role in the machine: sub-step 6 of sequence phase 0 (the power-on wipe phase), the arm that hands the machine on to the attract phase. The countdown it ticks is a screen wipe —
  * blankNextLine (0x01C2) blanks one line of the character plane per call and counts the lines still
  * owed — so the new screen is only drawn once the old one has been wiped clean. The screen it
  * builds shows the high score: captions posted to the command ring, a pair of marker glyphs, six

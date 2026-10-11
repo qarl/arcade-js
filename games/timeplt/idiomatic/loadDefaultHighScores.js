@@ -9,7 +9,7 @@ import { HIGH_SCORE_TABLE_BASE, DEFAULT_HIGH_SCORE_TABLE } from "./names.js";
  * five-entry high-score table, which is the only way that table is ever initialised").
  *
  * Role in the machine: seeds the high-score board. The table at HIGH_SCORE_TABLE_BASE 0xAB08 is five
- * records of eight bytes -- per record +0 rank, +1..+3 score low/mid/high, +4..+7 name glyphs (names.js,
+ * records of eight bytes -- per record +0 rank, +1..+3 score low/mid/high, +4..+6 initials, +7 a 0xF1 pad (names.js,
  * High score block). The ROM defaults at DEFAULT_HIGH_SCORE_TABLE 0x4BB1 sit immediately after this
  * routine's own `ret` and are monotone decreasing in score. Under MAME the destination took exactly
  * one write, at boot, and none through a full driven game -- a table of defaults, afterwards kept up by

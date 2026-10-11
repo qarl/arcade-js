@@ -20,8 +20,8 @@ import { flyAlongHeadingAtDoubleVelocity } from "./flyAlongHeadingAtDoubleVeloci
 import { SLOWEST_VELOCITY_TABLE } from "./names.js";
 
 /*
- * The table at ROM 0x59D7: 256 16-bit velocity words, the table flyAtSlowestSpeed also uses. It keeps a
- * hex name because the same address is the derail target of the whole-ROM checksum (names.js).
+ * The table at ROM 0x59D7: 256 16-bit velocity words, the table flyAtSlowestSpeed also uses. The
+ * same address is also the derail target of the whole-ROM checksum (names.js).
  */
 const VELOCITY_TABLE = SLOWEST_VELOCITY_TABLE;
 

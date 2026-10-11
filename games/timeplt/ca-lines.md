@@ -10,10 +10,10 @@
 0018	add the unsigned byte offset onto the address
 001A	no carry -- the address's high half stands
 001B	carry into the address's high byte
-0021	drop the cursor thirty-two addresses on to the next cell of the line
+0021	take thirty-two off the cursor's address: the next cell on along the line
 0024	no borrow -- the cursor's high byte stands
 0025	borrow into the cursor's high byte
-0029	push the cursor thirty-two addresses back, one cell along the line
+0029	add thirty-two to the cursor's address: one cell back along the line
 002C	no carry -- the cursor's high byte stands
 002D	carry into the cursor's high byte
 0030	take the inline word table the caller left behind -- its return address points straight at it
@@ -424,10 +424,10 @@
 0B06	point at the strip's four display-list entries
 0B0A	four pieces to lay
 0B0C	first shape number, counting up one per piece
-0B0E	the leading edge on the stepping axis
-0B10	the shared position on the fixed axis
-0B12	set this piece's position on the stepping axis
-0B15	set its position on the fixed axis
+0B0E	the leading edge in Y, the axis the pieces step along
+0B10	the shared X position
+0B12	set this piece's Y
+0B15	set its X
 0B18	set its shape number
 0B1B	set its colour and attributes
 0B23	next shape number
@@ -436,7 +436,7 @@
 0B2E	step two slots at a time
 0B31	four caption sprites to hide
 0B33	the value that hides them: zero
-0B34	push this sprite above the top line by zeroing its vertical byte
+0B34	push this sprite above the top line by zeroing its Y byte
 0B39	read the frame counter
 0B3C	test its low bit, which flips every frame
 0B3E	even frame: queue the other version of the line
@@ -717,7 +717,7 @@
 0FAA	clear bit 7 -- shifts the slot half a screen and clears its request
 0FAC	store the moved Y byte
 0FAF	read the slot's paired X byte
-0FB2	add half a screen across
+0FB2	add half a screen in X
 0FB4	store it -- the same sprite draws again half a screen away, with no extra hardware slot
 0FB7	read the next slot's Y byte
 0FBA	test its request bit
@@ -728,7 +728,7 @@
 0FCA	clear bit 7 -- shift half a screen, clear the request
 0FCC	store the moved Y byte
 0FCF	read the paired X byte
-0FD2	add half a screen across
+0FD2	add half a screen in X
 0FD4	store it -- second image placed
 0FD7	read the next slot's Y byte
 0FDA	test its request bit
@@ -739,7 +739,7 @@
 0FEA	clear bit 7 -- shift half a screen, clear the request
 0FEC	store the moved Y byte
 0FEF	read the paired X byte
-0FF2	add half a screen across
+0FF2	add half a screen in X
 0FF4	store it -- second image placed
 0FF7	read the next slot's Y byte
 0FFA	test its request bit
@@ -750,7 +750,7 @@
 100A	clear bit 7 -- shift half a screen, clear the request
 100C	store the moved Y byte
 100F	read the paired X byte
-1012	add half a screen across
+1012	add half a screen in X
 1014	store it -- second image placed
 1017	read the next slot's Y byte
 101A	test its request bit
@@ -761,7 +761,7 @@
 102A	clear bit 7 -- shift half a screen, clear the request
 102C	store the moved Y byte
 102F	read the paired X byte
-1032	add half a screen across
+1032	add half a screen in X
 1034	store it -- second image placed
 1037	read the next slot's Y byte
 103A	test its request bit
@@ -772,7 +772,7 @@
 104A	clear bit 7 -- shift half a screen, clear the request
 104C	store the moved Y byte
 104F	read the paired X byte
-1052	add half a screen across
+1052	add half a screen in X
 1054	store it -- second image placed
 1057	read the next slot's Y byte
 105A	test its request bit
@@ -783,7 +783,7 @@
 106A	clear bit 7 -- shift half a screen, clear the request
 106C	store the moved Y byte
 106F	read the paired X byte
-1072	add half a screen across
+1072	add half a screen in X
 1074	store it -- second image placed
 1077	read the last slot's Y byte
 107A	test its request bit
@@ -794,7 +794,7 @@
 108A	clear bit 7 -- shift half a screen, clear the request
 108C	store the moved Y byte
 108F	read the paired X byte
-1092	add half a screen across
+1092	add half a screen in X
 1094	store it -- second image placed
 1098	read the first scenery slot's Y byte -- this pass waits on the beam rather than skipping
 109B	test its request bit
@@ -805,7 +805,7 @@
 10AB	clear bit 7 -- shift the slot half a screen, clear its request
 10AD	store the moved Y byte
 10B0	read the paired X byte
-10B3	add half a screen across
+10B3	add half a screen in X
 10B5	store it -- second image placed
 10B8	read the next slot's Y byte
 10BB	test its request bit
@@ -816,7 +816,7 @@
 10CB	clear bit 7 -- shift half a screen, clear the request
 10CD	store the moved Y byte
 10D0	read the paired X byte
-10D3	add half a screen across
+10D3	add half a screen in X
 10D5	store it -- second image placed
 10D8	read the next slot's Y byte
 10DB	test its request bit
@@ -827,7 +827,7 @@
 10EB	clear bit 7 -- shift half a screen, clear the request
 10ED	store the moved Y byte
 10F0	read the paired X byte
-10F3	add half a screen across
+10F3	add half a screen in X
 10F5	store it -- second image placed
 10F8	read the next slot's Y byte
 10FB	test its request bit
@@ -838,7 +838,7 @@
 110B	clear bit 7 -- shift half a screen, clear the request
 110D	store the moved Y byte
 1110	read the paired X byte
-1113	add half a screen across
+1113	add half a screen in X
 1115	store it -- second image placed
 1118	read the next slot's Y byte
 111B	test its request bit
@@ -849,7 +849,7 @@
 112B	clear bit 7 -- shift half a screen, clear the request
 112D	store the moved Y byte
 1130	read the paired X byte
-1133	add half a screen across
+1133	add half a screen in X
 1135	store it -- second image placed
 1138	read the next slot's Y byte
 113B	test its request bit
@@ -860,7 +860,7 @@
 114B	clear bit 7 -- shift half a screen, clear the request
 114D	store the moved Y byte
 1150	read the paired X byte
-1153	add half a screen across
+1153	add half a screen in X
 1155	store it -- second image placed
 1158	read the next slot's Y byte
 115B	test its request bit
@@ -871,7 +871,7 @@
 116B	clear bit 7 -- shift half a screen, clear the request
 116D	store the moved Y byte
 1170	read the paired X byte
-1173	add half a screen across
+1173	add half a screen in X
 1175	store it -- second image placed
 1178	read the last slot's Y byte
 117B	test its request bit
@@ -882,7 +882,7 @@
 118B	clear bit 7 -- shift half a screen, clear the request
 118D	store the moved Y byte
 1190	read the paired X byte
-1193	add half a screen across
+1193	add half a screen in X
 1195	store it -- second image placed
 1199	re-aim and animate the enemy craft for this phase tick
 119C	update the player ship for this frame
@@ -1317,11 +1317,11 @@
 15B1	next run byte
 15B2	read the last cell
 15B3	store it
-15B6	point at the sprite vertical-position band
+15B6	point at the sprite Y-position band
 15B9	twenty-four sprite slots
 15BB	zero -- the value that parks a slot
 15BC	park this slot above the top line, hiding it
-15BE	skip two cells to the next slot's vertical byte
+15BE	skip two cells to the next slot's Y byte
 15BF	over all twenty-four slots
 15C2	take the inner sequence sub-step
 15C5	keep its low three bits -- eight arms
@@ -1936,11 +1936,11 @@
 242C	scan all six
 242E	none free -- just sweep
 2449	ask for the player-shot sound
-244F	read the world scroll along one axis
+244F	read the world scroll in Y
 2453	negate it
 2456	scale it up four times
 2457	seed the shot's per-frame step from it
-2460	read the world scroll along the other axis
+2460	read the world scroll in X
 2464	negate it
 2467	scale it up four times
 2468	seed the shot's other per-frame step
@@ -1951,8 +1951,8 @@
 2478	point at the shot spawn-position table
 247B	fetch the muzzle-position word for this direction
 247E	mark the slot occupied
-2485	set the whole part of the shot's coordinate along one axis
-248C	set the whole part of the shot's coordinate along the other axis
+2485	set the whole part of the shot's Y
+248C	set the whole part of the shot's X
 248F	point at the pending-burst count
 2492	one shot fired -- count the burst down
 2494	reset the spawn cooldown to six frames
@@ -1964,13 +1964,13 @@
 24A7	read the slot's head byte
 24AB	empty slot -- on to the next
 24AE	head is stale, not the live marker -- cull this shot
-24B0	read the shot's per-frame step along one axis
+24B0	read the shot's per-frame step in Y
 24B6	add the world scroll to it
 24BB	add the shot's current position
 24C3	bias the high byte for the edge test
 24C7	off the field edge -- cull this shot
 24CA	store the advanced coordinate back
-24D0	read the shot's per-frame step along the other axis
+24D0	read the shot's per-frame step in X
 24D6	add the world scroll to it
 24DB	add the shot's current position
 24E3	bias for the edge test
@@ -1980,8 +1980,8 @@
 24F6	step to the next slot
 24F9	sweep all six
 24FD	clear the slot's head byte
-2500	clear the whole part of its coordinate along one axis
-2503	clear the whole part of its coordinate along the other axis
+2500	clear the whole part of its Y
+2503	clear the whole part of its X
 2506	on to the next slot
 2511	point at a 64-byte work-RAM block
 2514	sixty-four bytes to paint
@@ -2000,7 +2000,7 @@
 2763	the fill byte doubles as the stride's high byte
 2764	six slots to clear
 2766	clear the slot's occupancy byte
-2769	clear the slot's second-axis byte
+2769	clear the slot's Y byte
 276C	step to the next slot
 276E	clear all six
 27B1	ask for the round-start jingle
@@ -2268,15 +2268,15 @@
 2B55	reached zero: release it
 2B58	step the state code on to the live one
 2B5B	reload the delay with 128
-2B60	the object's whole coordinate byte, first axis, from its sprite entry
+2B60	the object's whole Y byte, from its sprite entry
 2B63	its fraction from the record
-2B66	the frame's world-scroll step for this axis
+2B66	the frame's world-scroll step in Y
 2B6A	add it into the 16-bit coordinate
 2B6B	store the whole byte back
 2B6E	store the fraction back
-2B71	the object's whole coordinate byte, second axis
+2B71	the object's whole X byte
 2B74	its fraction from the record
-2B77	the frame's world-scroll step for this axis
+2B77	the frame's world-scroll step in X
 2B7B	add it into the 16-bit coordinate
 2B7C	store the whole byte back
 2B7F	store the fraction back
@@ -2414,27 +2414,27 @@
 2D65	step both cursors onto the next slot -- no further tile
 2D68	drift this scenery object at half the world scroll -- the farthest, slowest layer
 2D6B	step both cursors onto the next slot
-2D6E	whole part of the first coordinate
+2D6E	whole part of the Y coordinate
 2D71	its fraction -- together one sixteen-bit coordinate
-2D74	this frame's vertical world-scroll
+2D74	this frame's Y world-scroll
 2D77	move the coordinate by five quarters of the scroll
 2D7A	store the whole part back
 2D7D	and its fraction
-2D80	whole part of the second coordinate
+2D80	whole part of the X coordinate
 2D83	its fraction
-2D86	this frame's horizontal world-scroll
+2D86	this frame's X world-scroll
 2D89	move the coordinate by five quarters of the scroll
 2D8C	store the whole part back
 2D8F	and its fraction
-2D93	whole part of the first coordinate
+2D93	whole part of the Y coordinate
 2D96	its fraction
-2D99	this frame's vertical world-scroll
+2D99	this frame's Y world-scroll
 2D9C	move the coordinate by three quarters of the scroll
 2D9F	store the whole part back
 2DA2	and its fraction
-2DA5	whole part of the second coordinate
+2DA5	whole part of the X coordinate
 2DA8	its fraction
-2DAB	this frame's horizontal world-scroll
+2DAB	this frame's X world-scroll
 2DAE	move the coordinate by three quarters of the scroll
 2DB1	store the whole part back
 2DB4	and its fraction
@@ -2463,15 +2463,15 @@
 2DEC	clear the round-transition hold
 2DEF	flip to all-ones
 2DF0	arm the round with it
-2DF4	whole part of the first coordinate
+2DF4	whole part of the Y coordinate
 2DF7	its fraction
-2DFA	this frame's vertical world-scroll
+2DFA	this frame's Y world-scroll
 2DFD	move the coordinate by half the scroll
 2E00	store the whole part back
 2E03	and its fraction
-2E06	whole part of the second coordinate
+2E06	whole part of the X coordinate
 2E09	its fraction
-2E0C	this frame's horizontal world-scroll
+2E0C	this frame's X world-scroll
 2E0F	move the coordinate by half the scroll
 2E12	store the whole part back
 2E15	and its fraction
@@ -2506,11 +2506,11 @@
 3054	displacement minus its half leaves the complementary half
 3056	add that to the coordinate, so it advances at half the pace, the fraction carrying up into the whole
 3058	read one coordinate byte of the current sprite entry
-305B	read the other coordinate byte
+305B	read the X byte
 305E	a sprite's width in pixels...
-3060	...advances the first coordinate one tile on
+3060	...advances Y one tile on
 3061	write it into the next sprite entry
-3064	copy the other coordinate into the next entry unchanged
+3064	copy the X into the next entry unchanged
 3067	step both cursors onto the entry just written
 3074	read a byte at the pointer
 3075	add the running coordinate
@@ -2523,13 +2523,13 @@
 3083	fetch the two-byte entry A selects from the table at the pointer
 3084	step the byte past the entry
 3088	drop a word off the stack into the accumulator and flags
-308A	read the current entry's high-axis coordinate
-308D	read its low-axis coordinate
-3090	a pitch back along the high axis (-16 in the high byte)...
-3092	...and a pitch on along the low axis (+16)
-3094	apply both in one add, so a low-axis wrap carries into the high axis
-3095	write the high-axis coordinate into the next entry
-3098	write the low-axis coordinate into the next entry
+308A	read the current entry's Y
+308D	read its X
+3090	a pitch back along Y (-16 in the high byte)...
+3092	...and a pitch on along X (+16)
+3094	apply both in one add, so a wrap in X carries into Y
+3095	write the Y into the next entry
+3098	write the X into the next entry
 309B	one record stride...
 309E	...steps the record cursor onto the next slot
 30A0	step the entry cursor...
@@ -2697,7 +2697,7 @@
 3279	turn it a quarter-circle
 327B	look up the velocity vector for that direction
 327F	scale the vector left three places to an x8 radius
-3283	offset the across component from screen centre
+3283	offset the Y component from the screen centre's Y (0x78)
 3285	store the first aim point's Y
 3289	flip the component's sign to mirror it...
 328B	...the same distance the other side of centre
@@ -2708,9 +2708,9 @@
 3298	mirror across centre...
 329A	...back from centre
 329C	store its mirror's Y
-329F	take the down component of the vector
+329F	take the X component of the vector
 32A1	scale left three places to an x8 radius
-32A5	offset from screen centre down
+32A5	offset it from the screen centre's X (0x84)
 32A7	store the first aim point's X
 32AB	mirror across centre...
 32AD	...back from centre
@@ -2724,14 +2724,14 @@
 32C1	read the player heading again -- not turned this time
 32C4	look up its velocity vector
 32C8	scale left three places to an x8 radius
-32CC	offset from centre across
+32CC	offset from the centre's Y (0x78)
 32CE	store the fifth aim point's Y
 32D1	double to an x16 radius
 32D3	offset from centre
 32D5	store the sixth aim point's Y
-32D8	take the down component
+32D8	take the X component
 32DA	scale left three places to an x8 radius
-32DE	offset from centre down
+32DE	offset from the centre's X (0x84)
 32E0	store the fifth aim point's X
 32E3	double to an x16 radius
 32E5	offset from centre
@@ -2813,31 +2813,31 @@
 33B3	copy the glyph into the saved-pen record
 33B5	copy the colour after it
 33B8	start the sector code at zero
-33BA	the object's second-axis position
-33BD	the point's first-axis coordinate -- kept for later
-33BE	step to the point's second-axis coordinate
+33BA	the object's Y position
+33BD	the point's X coordinate -- kept for later
+33BE	step to the point's Y coordinate
 33BF	read it
-33C0	reach to the point along the second axis
+33C0	reach to the point in Y
 33C1	already positive
 33C3	take its magnitude
-33C5	mark the second axis as running negative
-33C7	hold the second-axis distance
-33C8	the object's first-axis position
-33CB	recall the point's first-axis coordinate
-33CC	reach along the first axis
+33C5	mark Y as running negative
+33C7	hold the Y distance
+33C8	the object's X position
+33CB	recall the point's X coordinate
+33CC	reach in X
 33CD	already positive
 33CF	take its magnitude
-33D1	mark the first axis as running negative
-33D3	hold the first-axis distance
+33D1	mark X as running negative
+33D3	hold the X distance
 33D7	compare the two distances
 33D8	equal: read a fixed diagonal heading
-33DA	first axis is the longer
-33DC	first axis is the shorter
+33DA	X is the longer
+33DC	X is the shorter
 33DE	clear the low byte of the dividend
 33E0	which leg is the shorter?
-33E4	shorter = second-axis distance
-33E7	shorter = first-axis distance
-33E8	longer = second-axis distance, the divisor
+33E4	shorter = Y distance
+33E7	shorter = X distance
+33E8	longer = Y distance, the divisor
 33E9	eight quotient bits
 33EB	clear carry so the first bit shifted in is zero
 33EC	shift the dividend up, carrying a quotient bit
@@ -2908,9 +2908,9 @@
 371F	add the heading bias
 3720	double it -- two-byte position entries
 3721	point at the edge-position table
-3724	fetch the position's first coordinate
+3724	fetch the position's Y
 3725	write it to the sprite entry's +0x31 coordinate
-3729	read the position's second coordinate
+3729	read the position's X
 372A	write it to the sprite entry's +0x00 coordinate
 372D	read the player heading
 3730	flip it half a turn
@@ -3002,9 +3002,9 @@
 37F5	fetch the direction's spawn-record number
 37F6	times four -- four-byte spawn records
 37F8	point at the spawn-record table
-37FB	fetch the record's first coordinate
+37FB	fetch the record's Y
 37FC	write it into the sprite entry
-3800	read the spawn record's second coordinate byte
+3800	read the spawn record's X byte
 3801	write it to the entry head
 3804	read the player heading
 3807	flip it half a turn -- the craft's heading
@@ -3064,9 +3064,9 @@
 388A	draw a random byte
 388D	mask it to a four-byte spawn record
 388F	point at the spawn-record table
-3892	fetch the record's first coordinate
+3892	fetch the record's Y
 3893	write it into the sprite entry
-3897	read the record's second coordinate
+3897	read the record's X
 3898	write it to the entry head
 389C	read the slot field byte
 389D	store it as the heading
@@ -3154,10 +3154,10 @@
 3C05	step the head past 0x40
 3C0E	clear this record's head
 3C11	clear the next record's head too
-3C14	clear the sprite entry's first coordinate
-3C17	clear its second coordinate
-3C1A	clear a fixed entry's second coordinate
-3C1D	clear that fixed entry's first coordinate
+3C14	clear the sprite entry's X
+3C17	clear its Y
+3C1A	clear a fixed entry's Y
+3C1D	clear that fixed entry's X
 3C20	hold the slot -- set its hold byte non-zero
 3C25	read the frame counter
 3C28	odd frame?
@@ -3177,9 +3177,9 @@
 3C44	rotate the heading down two
 3C46	to an even offset into the edge-position table
 3C48	point at the screen-edge position table
-3C4B	fetch the pair's first coordinate
+3C4B	fetch the pair's Y
 3C4C	seat it as the sprite entry's native-Y coordinate
-3C50	read the pair's second coordinate
+3C50	read the pair's X
 3C51	seat it as the entry's native-X coordinate
 3C54	take the heading again
 3C55	rotate three quarters
@@ -3202,17 +3202,17 @@
 3CC4	read the object's heading
 3CC7	rotate a quarter turn
 3CC9	which half of the compass?
-3CCB	one half: test the vertical drift band
-3CCE	read the entry's second coordinate
+3CCB	one half: test the Y drift band
+3CCE	read the entry's Y
 3CD1	bias toward the wrap
 3CD3	inside the three-wide band?
 3CD5	inside: reached the boundary -- carry set
-3CD6	outside: test the horizontal edge window
-3CD9	read the entry's second coordinate
+3CD6	outside: test the X edge window
+3CD9	read the entry's Y
 3CDC	bias toward the wrap
 3CDE	inside the three-wide band?
-3CE0	inside: reached -- carry set; else fall to the horizontal test
-3CE1	read the entry's head coordinate
+3CE0	inside: reached -- carry set; else fall to the X test
+3CE1	read the entry's X
 3CE4	bias across the wrap
 3CE6	inside the four-wide window straddling zero?
 3CE8	carry answers whether it reached the edge
@@ -3493,12 +3493,12 @@
 4014	strike one off the slot count and, while slots remain, loop back to the sweep head
 4017	take the whole part of the object's position from the sprite entry
 401A	and its fraction from the record -- one 16-bit coordinate
-401D	read the record's across-direction flag
-4021	flag zero: step this axis the positive way
-4023	non-zero: a fixed negative step across
-4028	a fixed positive step across
+401D	read the record's Y-direction flag
+4021	flag zero: step Y the positive way
+4023	non-zero: a fixed negative step in Y
+4028	a fixed positive step in Y
 402B	add the step onto the object's position
-402C	the frame's world scroll on this axis
+402C	the frame's world scroll in Y
 4030	carry the object along with the world too
 4031	store the new position back -- whole to the entry, fraction to the record
 4037	take the object's accumulated speed's low byte from the record
@@ -3506,17 +3506,17 @@
 403D	the per-frame speed gain
 4040	the object accelerates: add nine to its stored speed
 4041	keep the grown speed in the record for next frame
-4047	the whole part of the object's other-axis position
+4047	the whole part of the object's X position
 404A	and its fraction
-404D	move that axis by the just-grown speed
-404E	the world scroll on that axis
+404D	move X by the just-grown speed
+404E	the world scroll in X
 4052	carry it along with the world as well
 4053	store the new position back to entry and record
-4059	read the first axis's whole part
+4059	read Y's whole part
 405C	shift the wrap point into view
 405E	inside a 32-wide band at the edge?
 4060	yes -- it has left the field: retire the slot
-4063	read the other axis's whole part
+4063	read X's whole part
 4066	at or past the far limit (248)?
 4068	yes: retire the slot
 406C	read the slot's countdown
@@ -3646,11 +3646,11 @@
 41C9	clear: the other aim point
 41CC	compute the heading toward the chosen point
 41CF	hold the heading
-41D0	the first axis's distance to the aim point
+41D0	the Y distance to the aim point
 41D1	within sixteen of it?
 41D3	no: still approaching, just store the heading
-41D5	recover the second axis's distance
-41D6	within sixteen on that axis too?
+41D5	recover the X distance
+41D6	within sixteen in X too?
 41D8	both close: it has arrived -- cut the approach countdown to zero
 41DC	store the new heading to turn toward
 41DF	turn toward the aim at the fixed rate
@@ -3718,9 +3718,9 @@
 4278	read the spawn-window half-width
 427C	double it to the full window width
 427E	how far the spawner sits from the fixed line 0x78, offset into the window
-4284	inside the window on this axis?
-4285	far enough on the first axis: go ahead and launch
-4287	else measure its distance from the fixed line 0x84 on the other axis
+4284	inside the window in Y?
+4285	far enough in Y: go ahead and launch
+4287	else measure its X distance from the fixed line 0x84
 428D	inside that window too?
 428E	too close on both axes: abandon the launch
 428F	hand the spawner's facing to the launcher
@@ -3731,26 +3731,26 @@
 429C	read the aim-window half-width
 42A0	double it to the full window width
 42A2	how far the spawner sits from the fixed line 0x84, offset into the window
-42A8	inside the window on this axis?
+42A8	inside the window in X?
 42A9	outside: abandon the launch
-42AA	measure its distance from the fixed line 0x78 on the other axis
+42AA	measure its Y distance from the fixed line 0x78
 42AF	past the line one way: mark the mirror flag
 42B1	the other way: mirror flag clear
 42B3	go commission the launch
 42B5	mirror flag set -- the new sprite is drawn mirrored
-42B7	grab the spawner's first coordinate
-42BA	and that axis's low byte
-42BD	grab its second coordinate
-42C0	and that axis's low byte
+42B7	grab the spawner's Y
+42BA	and its Y fraction
+42BD	grab its X
+42C0	and its X fraction
 42C3	tuck the copied coordinates into the alternate registers
 42C4	save the spawner's record pointer
 42C6	save the spawner's entry pointer
 42C8	point at the staged free record
 42CC	point at its paired entry
 42D0	bring the copied coordinates back
-42D1	seat the first coordinate's low byte in the new record
+42D1	seat the Y fraction in the new record
 42D4	and its high byte in the new entry
-42D7	seat the second coordinate's low byte
+42D7	seat the X fraction
 42DA	and its high byte
 42DD	store C -- the facing, or era 0's mirror flag -- in the new record
 42E0	read the era index
@@ -3859,21 +3859,21 @@
 43FF	is the state 0xFF -- in flight?
 4400	other states: the hit-countdown handling
 4403	take the object's first velocity word
-4409	read the world-scroll for that axis
+4409	read the world scroll in Y
 440D	add the scroll to the velocity
 440E	take the object's current coordinate
 4414	advance it
 4415	store the new coordinate back
 441B	take the second velocity word
-4421	read the world-scroll for the other axis
+4421	read the world scroll in X
 4425	add the scroll
-4426	take the other coordinate
+4426	take the whole X
 442C	advance it
 442D	store it back
-4433	take the first coordinate
+4433	take the Y
 4436	offset it sixteen for the pair's second sprite
 4438	write it to the second sprite entry
-443B	take the second coordinate
+443B	take the X
 443E	copy it to the second sprite entry
 4441	dress the sprite for its heading, or retire it at the edge
 4444	then try to fire a mother-ship shot at the player
@@ -3967,15 +3967,15 @@
 45AD	pull a second stray word, taking the flags from it
 45AF	on the stray carry -- rarely -- drop into the life-loss handover
 45B3	drift the object along with the world scroll
-45B6	take its first coordinate
+45B6	take its Y
 45BA	is it inside the three-wide band at 0xED-0xEF?
 45BE	in that band: blank its shapes
 45C0	offset the coordinate sixteen for the pair's second sprite
 45C3	write it to the second sprite entry
-45C6	take its second coordinate
-45CA	inside the edge band on that axis?
+45C6	take its X
+45CA	inside the edge band in X?
 45CE	off that edge: blank its shapes
-45D0	copy the second coordinate to the second sprite entry
+45D0	copy the X to the second sprite entry
 45D3	carry on to the shape step
 45D5	blank the sprite's two shapes -- off-screen
 45DD	read the sequence counter
@@ -4027,9 +4027,9 @@
 4678	add it to the angle
 4679	fold to an even table index
 467D	point at the entry-position table
-4680	read the first coordinate
+4680	read the Y
 4681	seat it
-4684	read the second coordinate
+4684	on to the X
 4686	seat it
 4689	which half of the compass the angle faces
 468E	store it as the mother-ship's facing
@@ -4061,13 +4061,13 @@
 46FA	two entry slots to consider
 46FC	read the fire-window half-width
 4700	double it to the full window
-4702	is this tile within the vertical band?
+4702	is this tile within the X band?
 4709	off that band: skip this slot
-470B	within the horizontal band?
+470B	within the Y band?
 4712	off it: skip this slot
-4714	inside the near window round the player on one axis?
+4714	inside the near window round the player in X?
 471B	no -- outside it: fire from this slot
-471D	inside the near window on the other axis?
+471D	inside the near window in Y?
 4724	no -- outside it: fire from this slot
 4726	step to the next record
 472C	step its paired entry
@@ -4157,16 +4157,16 @@
 4862	take the player's heading, rounded
 4867	fold it to one of sixteen edge sectors -- an even index
 486C	point at the edge-position table
-486F	read the sector's first coordinate
+486F	read the sector's Y
 4870	seat it
-4873	read the second coordinate
+4873	on to the X
 4875	seat it
 4878	clear its velocity sub-pixel
 4880	set its downward drift speed
 4888	mark the slot live last, so it never runs with stale contents
 48AD	clear the record's occupancy byte -- the object leaves play
-48B1	clear the sprite entry's first coordinate
-48B5	clear its second coordinate
+48B1	clear the sprite entry's X
+48B5	clear its Y
 48B9	load the record's delay byte with 0xF0 -- hold the slot on a cooldown rather than freeing it at once
 48BE	debounce the service-credit line and award a credit on its edge
 48C1	run coin slot 1's accept-and-tally
@@ -4767,10 +4767,10 @@
 4F77	collision box near bound
 4F79	collision box far bound
 4F7B	run the sweep of six shots against the three targets
-4F7E	the target's hit window -- first-axis slack
-4F80	first-axis window width
-4F82	second-axis slack
-4F84	second-axis window width
+4F7E	the target's hit window -- X slack
+4F80	X window width
+4F82	Y slack
+4F84	Y window width
 4F86	point at the player-shot array
 4F8A	six shot slots to sweep
 4F8C	read the target's occupancy
@@ -4779,15 +4779,15 @@
 4F91	read this shot slot's occupancy
 4F94	is the shot live?
 4F95	empty slot: skip to the next
-4F97	target's first-axis position
-4F9A	minus the shot's first-axis position
-4F9D	plus the first-axis slack
-4F9E	within the first-axis window?
+4F97	target's X position
+4F9A	minus the shot's X position
+4F9D	plus the X slack
+4F9E	within the X window?
 4F9F	outside: skip this shot
-4FA1	target's second-axis position
-4FA4	minus the shot's second-axis position
-4FA7	plus the second-axis slack
-4FA8	within the second-axis window?
+4FA1	target's Y position
+4FA4	minus the shot's Y position
+4FA7	plus the Y slack
+4FA8	within the Y window?
 4FA9	outside: skip this shot
 4FAB	hit -- destroyed marker
 4FAD	mark the target destroyed
@@ -4802,33 +4802,33 @@
 4FCF	six shots to sweep through the run
 4FD1	stash the target-record pointer so each shot pass reloads it
 4FD5	stash the sprite-entry pointer likewise
-4FD9	box half-reach 7 on the first axis
-4FDB	box span 15 on the first axis
+4FD9	box half-reach 7 in X
+4FDB	box span 15 in X
 4FDD	sweep the six shots against the five craft, destroying and scoring each hit -- then fall into the mother-ship sweep
 4FE0	read the era index
 4FE3	era 0?
-4FE4	era 0: use the wider first-axis box
+4FE4	era 0: use the wider X box
 4FE6	era 4?
 4FE8	era 4: use the wider box too
-4FEA	narrow first-axis half-reach 6
-4FEC	narrow first-axis span 13
-4FEE	second-axis half-reach 23
-4FF0	second-axis span 31
+4FEA	narrow X half-reach 6
+4FEC	narrow X span 13
+4FEE	Y half-reach 23
+4FF0	Y span 31
 4FF2	point at the six player-shot records
 4FF6	six shots to sweep
 4FF8	read the mother ship's state
 4FFC	return unless the mother ship is live (0xFF)
 4FFD	read this shot's state
 5001	dead shot -- skip
-5003	the mother ship's first-axis coordinate
-5006	minus this shot's first-axis
-5009	add the first-axis half-reach
-500A	inside the first-axis span?
+5003	the mother ship's X coordinate
+5006	minus this shot's X
+5009	add the X half-reach
+500A	inside the X span?
 500B	outside -- skip
-500D	the mother ship's second-axis coordinate
-5010	minus this shot's second-axis
-5013	add the second-axis half-reach
-5014	inside the second-axis span?
+500D	the mother ship's Y coordinate
+5010	minus this shot's Y
+5013	add the Y half-reach
+5014	inside the Y span?
 5015	outside -- skip
 5017	the destroyed code
 5019	destroy the mother ship
@@ -4836,8 +4836,8 @@
 501F	post the chained hit score
 5024	advance to the next shot record -- low byte only, so it wraps inside the page
 5028	loop the six shots
-502B	wider first-axis half-reach 8
-502D	wider first-axis span 17
+502B	wider X half-reach 8
+502D	wider X span 17
 502F	run the sweep with the wider box
 5032	read the flag that the mother ship is out
 5035	set?
@@ -4868,15 +4868,15 @@
 5086	player gone -- nothing to do
 5087	read the fixed target's state
 508B	target gone -- nothing to do
-508C	the fixed target's first-axis coordinate
-508F	minus the player's first-axis
-5092	add the first-axis slack (6)
-5094	inside the first-axis window (13)?
+508C	the fixed target's X coordinate
+508F	minus the player's X
+5092	add the X slack (6)
+5094	inside the X window (13)?
 5096	outside -- no contact
-5097	the fixed target's second-axis coordinate
-509A	minus the player's second-axis
-509D	add the second-axis slack (24)
-509F	inside the second-axis window (33)?
+5097	the fixed target's Y coordinate
+509A	minus the player's Y
+509D	add the Y slack (24)
+509F	inside the Y window (33)?
 50A1	outside -- no contact
 50A2	the destroyed code
 50A4	destroy the player
@@ -4893,15 +4893,15 @@
 50C3	player gone -- nothing to do
 50C4	read the mother ship's state
 50C8	mother ship gone -- nothing to do
-50C9	the mother ship's first-axis coordinate
-50CC	minus the player's first-axis
-50CF	add the narrow first-axis slack (6)
-50D1	inside the first-axis window (13)?
+50C9	the mother ship's X coordinate
+50CC	minus the player's X
+50CF	add the narrow X slack (6)
+50D1	inside the X window (13)?
 50D3	outside -- no contact
-50D4	the mother ship's second-axis coordinate
-50D7	minus the player's second-axis
-50DA	add the second-axis slack (25)
-50DC	inside the second-axis window (35)?
+50D4	the mother ship's Y coordinate
+50D7	minus the player's Y
+50DA	add the Y slack (25)
+50DC	inside the Y window (35)?
 50DE	outside -- no contact
 50DF	the destroyed code
 50E1	destroy the player
@@ -4913,15 +4913,15 @@
 50F6	player gone -- nothing to do
 50F7	read the mother ship's state
 50FB	mother ship gone -- nothing to do
-50FC	the mother ship's first-axis coordinate
-50FF	minus the player's first-axis
-5102	add the wider first-axis slack (8)
-5104	inside the wider first-axis window (17)?
+50FC	the mother ship's X coordinate
+50FF	minus the player's X
+5102	add the wider X slack (8)
+5104	inside the wider X window (17)?
 5106	outside -- no contact
-5107	the mother ship's second-axis coordinate
-510A	minus the player's second-axis
-510D	add the second-axis slack (25)
-510F	inside the second-axis window (35)?
+5107	the mother ship's Y coordinate
+510A	minus the player's Y
+510D	add the Y slack (25)
+510F	inside the Y window (35)?
 5111	outside -- no contact
 5112	the destroyed code
 5114	destroy the player
@@ -4932,13 +4932,13 @@
 5125	player gone -- nothing to do
 5126	read this target's state
 5128	dead target -- skip
-512A	the player's first-axis coordinate
-512D	minus this target's first-axis
+512A	the player's X coordinate
+512D	minus this target's X
 5130	add the caller's slack
 5131	inside the caller's window?
 5132	outside -- skip
-5134	the player's second-axis coordinate
-5137	minus this target's second-axis
+5134	the player's Y coordinate
+5137	minus this target's Y
 513A	add the same slack
 513B	inside the same window?
 513C	outside -- skip
@@ -4953,15 +4953,15 @@
 5156	player already hit -- nothing to do
 5157	read this slot's state
 5159	slot already hit -- skip
-515B	the player's first-axis coordinate
-515E	minus this slot's first-axis
-5161	add the caller's first-axis bias
-5162	inside the caller's first-axis width?
+515B	the player's X coordinate
+515E	minus this slot's X
+5161	add the caller's X bias
+5162	inside the caller's X width?
 5163	outside -- skip
-5165	the player's second-axis coordinate
-5168	minus this slot's second-axis
-516B	add the fixed second-axis bias (8)
-516D	inside the fixed second-axis width (17)?
+5165	the player's Y coordinate
+5168	minus this slot's Y
+516B	add the fixed Y bias (8)
+516D	inside the fixed Y width (17)?
 516F	outside -- skip
 5171	the hit code
 5173	mark the player hit
@@ -4974,13 +4974,13 @@
 5189	player gone -- nothing to do
 518A	read this object's state
 518C	dead object -- skip
-518E	the player's first-axis coordinate
-5191	minus this object's first-axis
+518E	the player's X coordinate
+5191	minus this object's X
 5194	add the caller's slack
 5195	inside the caller's window?
 5196	outside -- skip
-5198	the player's second-axis coordinate
-519B	minus this object's second-axis
+5198	the player's Y coordinate
+519B	minus this object's Y
 519E	add the same slack
 519F	inside the same window?
 51A0	outside -- skip
@@ -4994,13 +4994,13 @@
 51B7	player gone -- nothing to do
 51B8	read this object's state
 51BA	dead object -- skip
-51BC	the player's first-axis coordinate
-51BF	minus this object's first-axis
+51BC	the player's X coordinate
+51BF	minus this object's X
 51C2	add the caller's offset
 51C3	inside the caller's width?
 51C4	outside -- skip
-51C6	the player's second-axis coordinate
-51C9	minus this object's second-axis
+51C6	the player's Y coordinate
+51C9	minus this object's Y
 51CC	add the same offset
 51CD	inside the same width?
 51CE	outside -- skip
@@ -5039,21 +5039,21 @@
 5215	dead shot -- on to the next shot
 5217	read this target's state
 5219	dead target -- skip
-521B	the target's first-axis coordinate
+521B	the target's X coordinate
 521E	shift the low end above zero
 5220	in the dead band a blank slot leaves near zero?
 5222	yes -- no real target here, skip
-5224	the target's second-axis coordinate
+5224	the target's Y coordinate
 5227	shift the low end above zero
 5229	in the near-zero dead band?
 522B	yes -- skip
-522D	the shot's first-axis coordinate
-5230	minus the target's first-axis
+522D	the shot's X coordinate
+5230	minus the target's X
 5233	add the half-reach
 5234	inside the span?
 5235	outside -- skip
-5237	the shot's second-axis coordinate
-523A	minus the target's second-axis
+5237	the shot's Y coordinate
+523A	minus the target's Y
 523D	add the half-reach
 523E	inside the span?
 523F	outside -- skip
@@ -5165,13 +5165,13 @@
 534D	keep it
 5351	its tile column
 5353	combine row and column -- the block's top-left cell, low byte
-5355	back to the second coordinate
+5355	back to the X
 5359	its low three bits, the sub-cell shift
-535C	the first coordinate again
+535C	the Y again
 535F	its bit that overflows the record index into the high byte
 5363	set that high bit of the index
-5366	the first coordinate's low bits for the index
-5368	add the second coordinate's -- picks one of sixty-four sub-cell records
+5366	Y's low bits for the index
+5368	add X's -- picks one of sixty-four sub-cell records
 536A	the table of pre-shifted tile records
 536D	index the chosen record -- four glyph/attribute pairs, one per cell
 536E	first cell's glyph
@@ -5397,17 +5397,17 @@
 58D4	or offset back when the quarter-turn index wrapped
 58D7	reach the perpendicular sample
 58D8	read its high byte
-58DA	read its low byte -- the second component
-58DB	take the shared per-frame vertical world-scroll
-58DE	add this object's first-axis component
-58DF	read the fraction of the first coordinate
+58DA	read its low byte -- the X component
+58DB	take the shared per-frame Y world-scroll
+58DE	add this object's Y component
+58DF	read the fraction of the Y coordinate
 58E2	read its whole part from the sprite entry
 58E5	add the displacement onto the coordinate
 58E6	store the new fraction
 58E9	store the new whole part into the sprite entry
-58EC	take the shared per-frame horizontal world-scroll
-58EF	add this object's second-axis component
-58F0	read the fraction of the second coordinate
+58EC	take the shared per-frame X world-scroll
+58EF	add this object's X component
+58F0	read the fraction of the X coordinate
 58F3	read its whole part from the sprite entry
 58F6	add the displacement onto the coordinate
 58F7	store the new fraction
@@ -5423,19 +5423,19 @@
 5916	or offset back when the quarter-turn index wrapped
 5919	reach the perpendicular sample
 591A	read its high byte
-591C	read its low byte -- the second component
-591D	take the shared per-frame vertical world-scroll
-5920	add this object's first-axis component
+591C	read its low byte -- the X component
+591D	take the shared per-frame Y world-scroll
+5920	add this object's Y component
 5921	add it again -- twice this object's own speed
-5922	read the fraction of the first coordinate
+5922	read the fraction of the Y coordinate
 5925	read its whole part from the sprite entry
 5928	add the displacement onto the coordinate
 5929	store the new fraction
 592C	store the new whole part into the sprite entry
-592F	take the shared per-frame horizontal world-scroll
-5932	add this object's second-axis component
+592F	take the shared per-frame X world-scroll
+5932	add this object's X component
 5933	add it again -- twice this object's own speed
-5934	read the fraction of the second coordinate
+5934	read the fraction of the X coordinate
 5937	read its whole part from the sprite entry
 593A	add the displacement onto the coordinate
 593B	store the new fraction

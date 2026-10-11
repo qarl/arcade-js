@@ -50,7 +50,7 @@ export function advanceRoundWhenFieldCleared(m) {
   // ROM byte at 0x07D1 (0x00, so this disarms gate 2), hide every sprite (ROM 0x15B6), then restart the
   // attract sequence: PLAY_ACTIVE and ACTIVE_PLAYER zeroed, SEQUENCE_PHASE from the ROM byte at 0x16D3
   // (0x01, the attract phase per SEQUENCE_PHASE's names.js entry), SEQUENCE_SUBSTEP to 0.
-  // The ROM computes that last 0 as a fold of fixed program bytes (0x130B-0x1315, "the whole block
+  // The ROM computes that last 0 as a fold of fixed program bytes (0x4901-0x4903, folded by the code at 0x130B-0x1315, "the whole block
   // folds to zero") — an anti-tamper guard: on a changed image a non-zero sub-step would be stored.
   // The port writes the genuine result directly.
   if (mem8[PLAY_ACTIVE] === 0) {

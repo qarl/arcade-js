@@ -13,7 +13,7 @@
  * except for two inserted `add hl,de` / `add hl,bc`, each placed right after a velocity term is
  * added and neither after the scroll load — which is why only the velocity doubles. Like its twin
  * it is entered only through two-instruction shims that fix a velocity table; names.js records it
- * dispatched in quantity only on a run holding the era at 4, and never in eras 0-1.
+ * dispatched in quantity on a run holding the era at 4, and zero times on two tapes held in eras 0-1.
  *
  * `table` is the velocity table (HL on the Z80), `object` the record (IX), `sprite` the entry (IY).
  *

@@ -3,7 +3,7 @@
  * wait in two fixed cells. Copies the spawner's two coordinate pairs and the caller's facing byte
  * across into the new slot, then fits it out one of four ways chosen by the current era: era zero
  * an unaimed drift with a mirror flag and a slow-fall marker; eras one and two a heading toward a
- * fixed screen point skewed by a stored half-turn; era three a velocity vector for a heading
+ * fixed screen point skewed a quarter turn to one side or the other, picked by a stored bit; era three a velocity vector for a heading
  * offset a fixed step either side of the facing; era four a straight aim at that same point, with
  * one extra byte seeded. Every way winds the new slot's active count down, re-arms the spawn
  * cooldown, and hands off to one era-specific sound request. The staged record/entry pointers ride

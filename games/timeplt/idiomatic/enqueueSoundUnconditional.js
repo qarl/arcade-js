@@ -11,8 +11,9 @@
  * passes. The body steps SOUND_QUEUE_COUNT (0xAC43) [seen] on and stores the code at the new
  * tail; once per frame the frame service sends the oldest queued code to the audio board.
  *
- * names.js records its known producers: the six call sites in enqueueTransitionSoundBurst
- * (0x5634) and that routine's tail-jump, which carries its last code. Under MAME, in attract (a
+ * Its producers in the image are the six call sites in enqueueTransitionSoundBurst
+ * (0x5634), that routine's tail-jump, which carries its last code, and requestCoinSound (0x57F1),
+ * which loads its code and tail-jumps here. Under MAME, in attract (a
  * state the in-play gate would drop), every entry here was followed by exactly one count bump
  * and one store of the code held at entry.
  *

@@ -37,6 +37,6 @@ export function sampleCellGlyphAndColour(m, cell = m.regs.hl, record = m.regs.de
   // Step 3: the same cell's colour byte into the record's second byte.
   const colour = mem8[colourCell];
   mem8[next] = colour;
-  // Leave the pointer on the colour plane, the record cursor past the pair, and the colour in hand.
+  // Leave the pointer on the colour plane, the record cursor on the pair's colour byte, and the colour in hand.
   return [(m.regs.hl = colourCell), (m.regs.de = next), (m.regs.a = colour)];
 }

@@ -9,7 +9,7 @@
  * paired entry, look a velocity pair up from the heading (one of two tables, chosen by a select
  * cell), stock the record with that velocity, stamp two entry constants, re-arm the flag from its
  * source, and count the record head down one. The scan cursors, the margin scratch and the found
- * pointers are JS locals; the two entry pointers ride in on ix/iy and are never disturbed, so both
+ * pointers are JS locals; the craft's record and sprite-entry pointers ride in on ix/iy and are never disturbed, so both
  * stay seated as the only register live-outs (the sprite/steer callees downstream read them). The
  * heading passes into the velocity shims as an argument. LIVE-OUT: the found
  * record and its entry, the pointer cells, the arm flag; and ix/iy held. Nothing is returned. */

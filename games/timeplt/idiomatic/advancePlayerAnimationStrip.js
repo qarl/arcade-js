@@ -99,7 +99,7 @@ export function advancePlayerAnimationStrip(m, record = m.regs.ix, entry = m.reg
   // STEP 1 -- OPENING FRAME (0x2010-0x203F). A fresh kill leaves the state at 0xF0, above the cap, so
   // this runs exactly once per explosion: the clamp to 0xB4 makes every later frame skip it.
   if (mem8[X(PHASE)] >= FIRST_FRAME) {
-    // opening frame: clamp the phase, flag the paired entry, request the round-intro cues
+    // opening frame: clamp the phase, flag the paired entry, request the opening-frame sound cues
     mem8[X(PHASE)] = FIRST_FRAME;
     mem8[Y(PAIR_FLAG)] = PAIR_MARK;
     if (mem8[ERA_INDEX] >= EXTRA_CUE_LEVEL) requestLateEraProgressSound(m);

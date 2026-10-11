@@ -2,9 +2,9 @@
 /** loc_08fa — the checksum-fail landing: a stretch of table bytes an integrity check jumps into as
  * code only when the sum MISMATCHES. It is a self-checksum's dead failure arm aimed at data — on a
  * genuine image the sum always matches, so the two live sites that could branch here never take it.
- * Decoded as code the bytes churn the index registers then derail into unmapped space, which faults.
+ * Decoded as code the bytes churn general registers (no index register is touched) and, along the straight-line decode, pass conditional jumps and a `ret c` before an unconditional `jp 0xbc00` at 0x094A, into a sprite-RAM mirror.
  * Unreachable in real play, so it is modeled as a throw rather than reproducing the churn.
- * LIVE-OUT: none — every path faults; entry is the trap.
+ * LIVE-OUT: none — entry is the trap.
  * ROM 0x08FA-0x094C. Grounding: [code] (names.js ROUTINES 0x08FA). */
 
 import { NotImplemented } from "../../../boards/timeplt/io.js";

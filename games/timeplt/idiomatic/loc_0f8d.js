@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** loc_0f8d — the image-checksum tamper trap. The original drops four return words off the stack to
- * unwind its caller chain, runs the sprite fixup pass on the low byte of the fourth, and returns through
+ * unwind its caller chain, falls into the sprite position-fixup pass at 0x0F97, and returns through
  * a fifth. This layer lays no return words (every routine is a direct call and the frame interrupt fires
  * as one), so there is no chain on the stack to unwind and no faithful transcription of the unwind; it
  * raises where the transfer lands instead. It is reached only when the one image block the credit line

@@ -6,7 +6,7 @@
 // Grounding tag in names.js ROUTINES: [seen].
 //
 // ROLE IN THE MACHINE. The five sources are the five eight-byte records of the high-score table at
-// HIGH_SCORE_TABLE_BASE (0xAB08..0xAB2F; per record +0 rank, +1..+3 score, +4..+7 name glyphs, per
+// HIGH_SCORE_TABLE_BASE (0xAB08..0xAB2F; per record +0 rank, +1..+3 score, +4..+6 initials, +7 a pad byte, per
 // names.js), so the five readouts are the high-score table rows as they appear on screen. Two
 // callers draw them: erasePenRouteThenOpenInitialsEntry, as it lays out the initials-entry screen,
 // and paintReadoutsThenSampleWitnessOrDerail. Each row is painted by paintLabelledNumericReadoutColumn

@@ -24,7 +24,7 @@
  * the image: a genuine image always gives 0xFD and the mismatch arm is dead. The arming above is
  * unconditional — the check gates nothing that came before it.
  *
- * On a tampered image the ROM calls the cold start at 0x0069, which clears 48 bytes of the second
+ * On a tampered image the ROM calls the cold start at 0x0069, which clears two overlapping 48-byte runs (from 0xB411 and from 0xB410) of the second
  * sprite bank and all of work RAM (0xA800-0xAFFF, where the stack sits) and ends `jp 0x5866`,
  * never returning to this caller. That restart is not modelled as a call from inside a
  * frame, so here the mismatch arm raises instead.

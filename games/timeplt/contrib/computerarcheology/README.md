@@ -21,8 +21,9 @@ order. In each era you shoot down enough enemy craft to make that era's **Mother
 appear, destroy it, and warp forward to the next era. Along the way, **parachuting pilots**
 drift down across the field and are worth bonus points if you collect them.
 
-There is no ending: clearing the final era wraps back to the first, harder and more
-crowded than before. Run out of fighters and the game is over, with a chance to enter your
+There is no ending: clearing the final era wraps back to the first, and on seven of the
+eight difficulty settings each round from the sixth on opens on a higher difficulty rung
+than the same era did on the first pass (the eighth setting opens every round on rung 15). Run out of fighters and the game is over, with a chance to enter your
 initials on the high-score table.
 
 ## Navigation
@@ -40,7 +41,9 @@ by observing the real game running under MAME. It is offered here transparently,
 work, precisely because it is machine-checked rather than hand-asserted — so verify it
 against that evidence. Project: [https://github.com/qarl/arcade-js](https://github.com/qarl/arcade-js).
 
-The disassembly covers the code reached from the two entry points — the reset vector
-(`0x0000`, which jumps straight to `0x07B1`) and the vblank NMI (`0x0066`); ROM data
-tables (tilemaps, lookup tables, text) and spans never reached from those entries are
-shown as `DEFB` data blocks.
+The disassembly covers the code reached from the reset vector (`0x0000`, which jumps
+straight to `0x07B1`) and the vblank NMI (`0x0066`), together with code the static trace
+could not follow from them — the restart vectors, handlers entered through jump tables and
+the command ring, and a few other runs that MAME was seen to execute — added as extra
+entry points. ROM data tables (tilemaps, lookup tables, text) and spans never reached
+are shown as `DEFB` data blocks.

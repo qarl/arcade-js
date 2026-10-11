@@ -7,8 +7,9 @@
  * round goes on. Each (era, rung) pair owns a ten-byte tuning row in ROM; this routine copies the
  * selected row into the work-RAM cells the spawners and launchers read.
  *
- * ROLE. Load a ten-byte row and scatter it over twelve fixed cells: two spawner caps, two aim
- * windows, two cooldown periods and their live countdowns, and two thresholds (names.js). Eight
+ * ROLE. Load a ten-byte row and scatter it over twelve fixed cells: two slot counts (bank launch
+ * and attacker spawn), four half-width windows, two cooldown periods and their live countdowns, the
+ * round's craft count and the script-pick threshold (names.js). Eight
  * bytes go to one cell each and two go to two cells each -- a cooldown PERIOD and the live
  * COUNTDOWN that the vblank service runs down and reloads from that period -- so applying a row also
  * restarts both countdowns at the new period. It is reached from the life-start routine (0x19F0, by

@@ -11,7 +11,8 @@
  * apart and 3 does not divide 32, so a walk of 3s lands 2 short, fails the guard and overshoots to
  * one past. This arm is taken when the live heading is one either side of the target (live minus
  * target is 0xFF or 0x01), and writes the target itself -- a snap.
- * No transfer targets this address: turnShipTowardTargetHeading runs these instructions inline, so
+ * The one transfer that targets it is turnShipTowardTargetHeading's own `jp c,0x1f3e` at 0x1F22 (the
+ * tamper path through loc_1f2e can also fall into it), and the port runs the snap inline there, so
  * this file stands for that arm (names.js).
  *
  * PARAMETER: `target` -- the heading being turned toward (the ROM's B, loaded at 0x1F05 and not

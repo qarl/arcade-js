@@ -164,9 +164,27 @@ GAME_DESC = {
         "holds the centre of the screen and turns to face the way you steer, while "
         "the whole world scrolls and banks around it, and you gun down swarms of "
         "enemy craft; shoot enough of them to bring on the era's Mother-Ship, and "
-        "destroying it warps you forward to the next of five eras, each faster and more "
-        "crowded than the last; parachutists drifting down are worth extra points "
+        "destroying it warps you forward to the next of five eras, your fighter flying "
+        "faster in the later ones; parachutists drifting down are worth extra points "
         "if you collect them. Run out of fighters to end the game."
+    ),
+}
+
+# Per-game reading conventions, printed under the intro paragraph so a reader meets them
+# before the first gloss that relies on them.
+ARCH_EXTRA_ENTRIES = {
+    "timeplt": (" and from the extra entry points the static trace could not follow to "
+                "(restart vectors, table- and ring-dispatched handlers, runs observed executing)"),
+}
+
+GAME_CONVENTIONS = {
+    "timeplt": (
+        "Axes: X and Y in the comments are the board's native raster axes, before the "
+        "monitor's quarter-turn mounting in the upright cabinet. "
+        "A sprite entry's +$00 byte is X and its +$31 byte is Y; an object record keeps "
+        "the matching fractions at +$05 (X) and +$03 (Y), and the world-scroll words are "
+        "$A808 (Y) and $A80A (X). On the glass, native Y runs across the screen and "
+        "native X runs up and down it."
     ),
 }
 
@@ -861,11 +879,16 @@ def gen_code(meta, raw_lines, routines, wr_lo, wr_hi, rom_hi, notes, rom=None):
         who = rn[0] if (rn and not rn[0].startswith("loc_")) else "loc_%04x" % reset_tgt
         arch = (f"Architecture: on reset ($0000) the CPU jumps to {who} "
                 f"(${reset_tgt:04X}). ")
-    arch += ('What follows is the code reached from the reset and interrupt entry points, '
+    arch += ('What follows is the code reached from the reset and interrupt entry points'
+             + ARCH_EXTRA_ENTRIES.get(game, '') + ', '
              'shown as instructions; spans never reached appear as data (the "---- data '
              '----" blocks).')
     dlines.append(";")
     dlines += ["; " + w for w in textwrap.wrap(arch, 76)]
+    conv = GAME_CONVENTIONS.get(game)
+    if conv:
+        dlines.append(";")
+        dlines += ["; " + w for w in textwrap.wrap(conv, 76)]
 
     # ---- body ----
     body = []

@@ -43,7 +43,7 @@ const SENTINEL_MATCH = 0x68;
 const SUBGUARD_A = 0x10;
 const SUBGUARD_B = 0x05;
 const SEED_STRIDE = 2; // packed (nativeY,nativeX) pair a row
-const SEAT_STRIDE = 4; // entry cursor steps four slots a row
+const SEAT_STRIDE = 4; // entry cursor steps four bytes (two two-byte slots) a row
 const NATIVE_Y = 0x31; // native Y lands at entry +0x31
 const NEXT_SLOT_NATIVE_Y = 0x33; // the next slot's native Y
 const NEXT_SLOT_Y_STEP = 0x10; // next slot's Y = this slot's Y plus this

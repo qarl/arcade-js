@@ -14,7 +14,7 @@
  *
  * When the era cell holds one fixed value (ERA_INDEX 4, the last era) the object is given a plain
  * two-frame flutter and its wind-down counter is stepped, capped, or closed out once it overruns; on
- * any other era a heading-quadrant picks a shape pair and the era picks a colour, and one half of the
+ * any other era the record's +4 byte (folded to one of four steps; for its one caller, the Mother-Ship's remaining-hit count) with the era and a frame-tick bit picks a shape pair, and the era picks a colour, and one half of the
  * compass swaps the pair into the two entry slots in its own colour while the other half biases that
  * colour by half a page -- adding 0x80 flips bit 7, one of the two mirroring bits of the attribute
  * byte, which is how the pair is drawn mirrored (mechanisms.md).

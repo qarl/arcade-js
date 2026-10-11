@@ -14,7 +14,7 @@
  *
  * Why stamp a number: the +0x0F byte is an IDENTITY other code selects by. When a timer expires,
  * countTheKillAndGrantTheSharedToken writes a record's own stamp (plus a top bit) into a shared
- * cell, and the code at 0x2C31 retires an object outright unless that cell's low seven bits match
+ * cell, and the code at 0x2C31 retires an object whose state byte is below 0x0A outright unless that cell's top bit is set and its low seven bits match
  * its stamp. Under MAME the twenty-three stamps read 1 through 23 on every dispatch.
  */
 
