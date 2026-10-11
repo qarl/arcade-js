@@ -284,10 +284,10 @@ const TWINS = [
   ["frees-only-the-command", twin({ freesOne: true }), 1541],
   ["cursor-steps-one", twin({ stepOne: true }), 1542],
   ["cursor-not-wrapped", twin({ noMask: true }), 512],
-  ["whole-byte-index", twin({ wholeByte: true }), 804],
-  ["table-off-by-one", twin({ tableOffByOne: true }), 900],
+  ["whole-byte-index", twin({ wholeByte: true }), 1344],
+  ["table-off-by-one", twin({ tableOffByOne: true }), 972],
   ["pair-swapped", twin({ pairSwapped: true }), 0],
-  ["command-in-accumulator", twin({ commandInAccumulator: true }), 565],
+  ["command-in-accumulator", twin({ commandInAccumulator: true }), 655],
 ];
 
 // ── the gate ────────────────────────────────────────────────────────────────────────────

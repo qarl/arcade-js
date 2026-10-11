@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** loc_0bdd — paint the glyphs of the caption an index selects and leave the colour plane alone. The index picks a
+/** drawCaptionGlyphsKeepingColour — paint the glyphs of the caption an index selects and leave the colour plane alone. The index picks a
  * record out of the caption table; the record's first two bytes name the cell to start from and
  * the colour byte after them is stepped over unread. Each byte of the run that follows is copied
  * into the character plane, and the cursor steps one cell along the line after every one, until
@@ -29,7 +29,7 @@ import { CAPTION_RECORD_TABLE } from "./names.js";
 const RUN_STARTS_AT = 3; // two-byte start cell + one colour byte, then the glyph run
 const END_OF_TEXT = 185; // 0xB9: cp 0xb9 / ret z -- the run terminator
 
-export function loc_0bdd(m, caption = m.regs.a) {
+export function drawCaptionGlyphsKeepingColour(m, caption = m.regs.a) {
   const { mem8 } = m;
   /* Find the record: ld hl,0x0c50 / call 0x018c (fetchWideTableWord) returns the address stored
    * in entry `caption` of the caption table. */

@@ -21,8 +21,8 @@
  */
 
 import { u16, u8 } from "../../../core/int.js";
-import { NotImplemented } from "../../../boards/timeplt/io.js";
 import { replayCloudBands } from "./replayCloudBands.js";
+import { drawCaptionGlyphsKeepingColour } from "./drawCaptionGlyphsKeepingColour.js";
 import { drawTextRunByIndex } from "./drawTextRunByIndex.js";
 import { drawCaptionInPenColour } from "./drawCaptionInPenColour.js";
 import { eraseTextRunByIndex } from "./eraseTextRunByIndex.js";
@@ -32,6 +32,7 @@ import { drawCountAsPictogramStrip } from "./drawCountAsPictogramStrip.js";
 import { drawRoundNumberCaption } from "./drawRoundNumberCaption.js";
 import { drawCaptionFivePastSharedColour } from "./drawCaptionFivePastSharedColour.js";
 import { drawCaptionTenPastSharedColour } from "./drawCaptionTenPastSharedColour.js";
+import { loc_0bdc } from "./loc_0bdc.js";
 import { COMMAND_READ_CURSOR, COMMAND_RING } from "./names.js";
 
 // The ring is 0x40 cells at 0xAC00 (the ROM wraps the cursor with `and 0x3f`).
@@ -48,6 +49,7 @@ function runCommand(m, slot, argument) {
   // Each case is the target the corresponding word of the table at 0x0BBC holds; the ROM loads the
   // argument into A (`ld a,b`) before jumping there, which is the `argument` passed here.
   switch (slot) {
+    case 0: return drawCaptionGlyphsKeepingColour(m, argument); // a caption's glyphs, colour left standing
     case 1: return drawTextRunByIndex(m, argument); // a caption in its own colour
     case 2: return drawCaptionInPenColour(m, argument); // a caption in the shared pen colour
     case 3: return eraseTextRunByIndex(m, argument); // erase a caption
@@ -57,11 +59,9 @@ function runCommand(m, slot, argument) {
     case 7: return drawRoundNumberCaption(m); // "STAGE nn"
     case 10: return drawCaptionFivePastSharedColour(m, argument); // caption, pen colour + 5
     case 11: return drawCaptionTenPastSharedColour(m, argument); // caption, pen colour + 10
-    // Seven slots have no case. Slot 0's handler is not written here; slots 8, 9 and 12-15 would only
-    // return at once, and they raise too, so every slot without a case fails the same way.
-    // (mechanisms.md: 8, 9 and 12-15 point at the lone RET at 0x0BDC; 0 points at 0x0BDD.)
-    default:
-      throw new NotImplemented(`runCommandRingDrainLoop: command slot ${slot} names no transcribed handler`);
+    // Slots 8, 9 and 12-15 all name the lone RET at 0x0BDC: the pair is consumed and nothing happens.
+    // No poster puts these commands (or command 0) on the ring; the cases are the table, not traffic.
+    case 8: case 9: case 12: case 13: case 14: case 15: return loc_0bdc();
   }
 }
 

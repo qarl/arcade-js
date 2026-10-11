@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * loc_0bdd — memory-equivalent to the frozen oracle at ROM 0x0BDD.
+ * drawCaptionGlyphsKeepingColour — memory-equivalent to the frozen oracle at ROM 0x0BDD.
  *
  * GATE: crafted-entry, and the craft is a NUDGE ON A REAL STATE. 0x0BDD is word 0 of the command
  *   ring's handler table at 0x0BBC, and no poster in the image puts command 0 on the ring, so no
@@ -34,7 +34,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
-import { loc_0bdd } from "../loc_0bdd.js";
+import { drawCaptionGlyphsKeepingColour } from "../drawCaptionGlyphsKeepingColour.js";
 import { loc_0bdd as oracle } from "../../translated/loc_0bdd.js";
 import { advanceCharCursor } from "../advanceCharCursor.js";
 import { fetchWideTableWord } from "../fetchWideTableWord.js";
@@ -130,7 +130,7 @@ function replaySession(opts, candidate, { nudge = true } = {}) {
 
 let cache = null;
 function sessions() {
-  if (!cache) cache = TAPES.map(([label, opts]) => ({ label, ...replaySession(opts, loc_0bdd) }));
+  if (!cache) cache = TAPES.map(([label, opts]) => ({ label, ...replaySession(opts, drawCaptionGlyphsKeepingColour) }));
   return cache;
 }
 
@@ -178,7 +178,7 @@ test("CORPUS: every crafted dispatch of two sessions replays identically", { ski
 
 test("UNNUDGED, NEITHER SHIPPED TAPE REACHES IT: the craft is what buys the entry", { skip }, () => {
   for (const [label, opts] of TAPES) {
-    const r = replaySession(opts, loc_0bdd, { nudge: false });
+    const r = replaySession(opts, drawCaptionGlyphsKeepingColour, { nudge: false });
     assert.equal(r.dispatches, 0, `the ${label} tape now dispatches command 0 on its own`);
   }
   console.log("  UNNUDGED: both shipped tapes dispatch it 0 times in the entry budget");
@@ -231,7 +231,7 @@ test("RECORD NUMBER: every entry of the table whose record lies in the character
     }
     const machine = entry.clone();
     machine.regs.a = number;
-    const d = compare(loc_0bdd, machine);
+    const d = compare(drawCaptionGlyphsKeepingColour, machine);
     assert.equal(d, null, `record number ${number}: ${show(d)}`);
     swept++;
   }
@@ -244,7 +244,7 @@ test("RUN LENGTH: the terminating code moved along the run, empty run included",
   const natural = naturalLength();
   for (let length = 0; length <= natural; length++) {
     withPokedImage(entryState(), runStart + length, END_OF_TEXT, () => {
-      const d = compare(loc_0bdd, entryState());
+      const d = compare(drawCaptionGlyphsKeepingColour, entryState());
       assert.equal(d, null, `run length ${length}: ${show(d)}`);
     });
   }
@@ -255,7 +255,7 @@ test("REGISTERS: only the declared excluded set diverges", { skip }, () => {
   const a = entryState().clone();
   const b = entryState().clone();
   oracle(a);
-  loc_0bdd(b);
+  drawCaptionGlyphsKeepingColour(b);
   const moved = REG_FIELDS.filter((k) => a.regs[k] !== b.regs[k]);
   assert.deepEqual(moved.filter((k) => !EXCLUDED.includes(k)), [], `diverged: ${moved.join(",")}`);
   console.log(`  REGISTERS: diverged ${moved.join(",") || "none"}, all excluded`);

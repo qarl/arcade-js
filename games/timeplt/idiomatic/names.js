@@ -3298,7 +3298,7 @@ export const ROUTINES = {
     cert: "code",
   },
   0x0bdd: {
-    name: "loc_0bdd",
+    name: "drawCaptionGlyphsKeepingColour",
     role: "command 0's handler (word 0 of the handler table at 0x0BBC): paint the glyph run of the caption record an index selects from CAPTION_RECORD_TABLE into the character plane, one cell along the line per glyph from the record's start cell, stepping over the record's colour byte and writing no colour cell. No poster in the image puts command 0 on the ring, so the handler is never dispatched; its bytes are still read as part of the IMAGE_GUARD_BLOCK_0BDD_BASE checksum span",
     cert: "code",
   },

@@ -1444,6 +1444,7 @@ Most text is not drawn by the code that decides to show it. The sequence arms ru
 
 | Command | Handler | What it does |
 |---|---|---|
+| 0 | drawCaptionGlyphsKeepingColour [code] | a caption's glyphs, colour left as it was |
 | 1 | drawTextRunByIndex [seen] | caption in its own colour |
 | 2 | drawCaptionInPenColour [seen] | caption in pen colour |
 | 3 | eraseTextRunByIndex [seen] | erase a caption |
@@ -1453,8 +1454,9 @@ Most text is not drawn by the code that decides to show it. The sequence arms ru
 | 7 | drawRoundNumberCaption [seen] | "STAGE nn" |
 | 10 | drawCaptionFivePastSharedColour [seen] | caption, pen colour + 5 |
 | 11 | drawCaptionTenPastSharedColour [seen] | caption, pen colour + 10 |
+| 8, 9, 12–15 | loc_0bdc [code] | nothing |
 
-Commands 8, 9 and 12–15 all point at loc_0bdc [code] at 0x0BDC, which is a single RET byte. Taking one of them only consumes the pair. Command 0 points at loc_0bdd [code] at 0x0BDD, the byte after that RET; see the last subsection. (Both are translated; understanding pending.)
+Commands 8, 9 and 12–15 all point at loc_0bdc [code] at 0x0BDC, which is a single RET byte, so taking one of them only consumes the pair. Command 0 points at drawCaptionGlyphsKeepingColour [code] at 0x0BDD, the byte after that RET. No poster puts any of these seven commands on the ring; see the last subsection.
 
 **Who posts what.** The attract screens post their layout as a burst of command-1 captions (buildCopyrightScreenThenVerifyImage [seen], postAttractInfoCaptions [seen], armAttractScreenShowingHighScore [seen], showCreditLine [seen], stepCopyrightScreenAwaitingStart [seen]). holdCopyrightThenEraseTheCoinInvitation [seen] erases the coin invitation pair with command 3.
 
@@ -1587,7 +1589,7 @@ What the band's tile codes look like on the glass is not stated by the code (ope
 
 ### Bytes that are text and code at once, and routines nothing reaches
 
-The ring's slot-0 handler at 0x0BDD is a complete routine that nothing reaches. It looks up a caption record and writes its glyphs into the video plane without touching the colour plane: a "redraw text in the colours already there" drawer. It sits immediately after the one RET byte that slots 8, 9 and 12–15 share. None of the ring's posters posts command 0; the posted commands are 1–7, 10 and 11. So the handler is present, wired into the table, and dead. Its bytes are still read, because IMAGE_GUARD_BLOCK_0BDD_BASE 0x0BDD starts a checksummed span. Caption record 24 is similar: it is present and empty, and no poster found in the code asks for it.
+The ring's slot-0 handler, drawCaptionGlyphsKeepingColour [code] at 0x0BDD, is a complete routine that nothing reaches. It looks up a caption record and writes its glyphs into the video plane without touching the colour plane: a "redraw text in the colours already there" drawer. It walks the record exactly as eraseTextRunByIndex does, but stores each glyph where the eraser stores the blank. It sits immediately after loc_0bdc [code], the one RET byte that slots 8, 9 and 12–15 share. Every poster loads its command from an immediate or from a ROM constant, and the commands posted are 1–7, 10 and 11, so none of the seven slots is ever taken. Both handlers are present, wired into the table, and dead; grounding-debt.txt accounts for them. The handler's bytes are still read, because IMAGE_GUARD_BLOCK_0BDD_BASE 0x0BDD starts a checksummed span. Caption record 24 is similar: it is present and empty, and no poster found in the code asks for it.
 
 Several caption records share their bytes with instruction streams that only a failed anti-tamper guard ever enters. On a genuine image each of these is text, and runs as code only on a failed guard:
 
@@ -1679,7 +1681,6 @@ These are the questions the routines do not settle on their own, grouped by the 
 ### The character plane
 
 - The caption texts in §8 are decoded but have not been seen on screen. Only the digit mapping comes from the code (DIGIT_GLYPH_TABLE 0x0DCC). The letter mapping is inferred from how consistently the records read: records 12, 14 and 19 read as INPUT YOUR INITIALS !, STAGE and SCORE RANKING TABLE only under it. Records 20 and 21 (colour 0x32, second tile bank), which the copyright screen, the bonus-information screen and the initials screen all post, are pictorial and not identified. A MAME snapshot of each caption would confirm the mapping.
-- The ring's slot-0 handler at 0x0BDD draws a caption's glyphs without touching colour. It is unreached as far as the code shows: no routine posts command 0, and a ROM byte scan for immediate ring posts (ld de,nn / ld d,n before RST 0x38) found no command 0. A post whose command is loaded from a register could still exist. A MAME PC-hit on 0x0BDD would close it.
 - Caption record 24 (0x3ED2, start cell 0xA692) has no glyphs, because its terminator comes first. No poster for caption 0x18 appears in the routines or in a ROM byte scan. Not checked under MAME.
 - What the between-eras band's tile codes (0x14/0x0E and their bumped successors, second tile bank) look like on the glass is not established.
 - The kill meter blanks only one cell past the bar's end. That is safe only if the bar shrinks by at most one cell between draws, which holds because the round engine redraws it every pass. This is a code-level inference, not an observation.
