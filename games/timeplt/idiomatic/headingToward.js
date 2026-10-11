@@ -12,7 +12,7 @@
  *
  * Role in the machine: the aiming primitive. Its answer is used as an angle by its readers —
  * names.js records launchBankEnemyWhenAimedNearPlayer testing it against the object's own heading
- * in a wrapped window, and reaimAndAnimateEnemyCraftOnPhaseTick adding half a turn before storing
+ * in a wrapped window, and reaimEnemyCraftByFlightScriptOnPhaseTick adding half a turn before storing
  * it for steerTowardAimHeading to turn toward. The octant table (OCTANT_BASE_HEADING_TABLE, ROM
  * 0x3415) holds the eight multiples of 32, so the eight sectors tile the circle exactly.
  *

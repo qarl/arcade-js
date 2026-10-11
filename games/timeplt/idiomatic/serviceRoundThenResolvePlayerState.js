@@ -27,7 +27,7 @@
  * LIVE-OUT: everything the subsystem services write, plus whichever resolution arm runs.
  */
 
-import { reaimAndAnimateEnemyCraftOnPhaseTick } from "./reaimAndAnimateEnemyCraftOnPhaseTick.js";
+import { reaimEnemyCraftByFlightScriptOnPhaseTick } from "./reaimEnemyCraftByFlightScriptOnPhaseTick.js";
 import { dispatchPlayerFrameByState } from "./dispatchPlayerFrameByState.js";
 import { fireAndSweepPlayerShots } from "./fireAndSweepPlayerShots.js";
 import { driveEnemyWaveForLifePhase } from "./driveEnemyWaveForLifePhase.js";
@@ -61,7 +61,7 @@ export function serviceRoundThenResolvePlayerState(m) {
   // The ship and its opponents: re-aim/animate at most one enemy craft on its tick; the player's
   // frame (fly, turn toward the stick, or run the dying animation) and the world scroll it sets; the
   // player's shots; the enemy-wave driver, which spawns craft by era and phase.
-  reaimAndAnimateEnemyCraftOnPhaseTick(m);
+  reaimEnemyCraftByFlightScriptOnPhaseTick(m);
   dispatchPlayerFrameByState(m);
   fireAndSweepPlayerShots(m);
   driveEnemyWaveForLifePhase(m);

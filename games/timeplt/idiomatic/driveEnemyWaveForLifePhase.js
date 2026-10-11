@@ -26,9 +26,9 @@ import { drawRandomByte } from "./drawRandomByte.js";
 import { offsetAddress } from "./offsetAddress.js";
 import { fetchTableByte } from "./fetchTableByte.js";
 import { pickScriptAtRandomOrInTurn } from "./pickScriptAtRandomOrInTurn.js";
-import { stepShapeAnimation } from "./stepShapeAnimation.js";
+import { stepCraftFlightScript } from "./stepCraftFlightScript.js";
 import { spawnEnemyWaveIntoFreeSlots } from "./spawnEnemyWaveIntoFreeSlots.js";
-import { stopFiveSlotAnimations } from "./stopFiveSlotAnimations.js";
+import { turnFiveCraftAway } from "./turnFiveCraftAway.js";
 import { gateTheFreeSlotSearchAndPickItsRun } from "./gateTheFreeSlotSearchAndPickItsRun.js";
 import { spawnEnemyCraftWhenBandUnderTwo } from "./spawnEnemyCraftWhenBandUnderTwo.js";
 import { requestEnemyWaveSound } from "./requestEnemyWaveSound.js";
@@ -58,7 +58,7 @@ export function driveEnemyWaveForLifePhase(m) {
   // craft while fewer than two of the band are busy. Each is given the low life-tick cell to gate on.
   const phase = mem8[LIFE_TICKS_MID] & 0x0f;
   // the phase tails all read the low life-tick byte
-  if (phase === 7) return stopFiveSlotAnimations(m, LIFE_TICKS_LOW);
+  if (phase === 7) return turnFiveCraftAway(m, LIFE_TICKS_LOW);
   if (phase < 7) return gateTheFreeSlotSearchAndPickItsRun(m, LIFE_TICKS_LOW);
   if (phase < 9) return spawnEnemyCraftWhenBandUnderTwo(m, LIFE_TICKS_LOW);
   // Phase nine and up: build a wave inline, but only on the tick where the low place is zero --
@@ -116,7 +116,7 @@ export function driveEnemyWaveForLifePhase(m) {
       mem8[record + 0x03] = 0;
       mem8[record + 0x05] = 0;
       mem8[record + 0x09] = PRIMED_TIMER;
-      stepShapeAnimation(m, record);
+      stepCraftFlightScript(m, record);
 
       // Mark the slot live -- 0xFF when its +0x0E byte is clear, 0xFE otherwise -- and tally it.
       mem8[record] = mem8[record + 0x0e] === 0 ? 0xff : 0xfe; // live, and settled when its tail is clear

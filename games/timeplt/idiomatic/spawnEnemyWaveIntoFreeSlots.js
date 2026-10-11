@@ -24,7 +24,7 @@
 
 import { drawRandomByte } from "./drawRandomByte.js";
 import { fetchTableByte } from "./fetchTableByte.js";
-import { stepShapeAnimation } from "./stepShapeAnimation.js";
+import { stepCraftFlightScript } from "./stepCraftFlightScript.js";
 import { u8, u16 } from "../../../core/int.js";
 import { CRAFT_ENTRY_SLOT0, CRAFT_RECORD_SLOT0, MOTHER_SHIP_ARMED, ROUND_CRAFT_COUNT, WAVE_CLAIM_TIMER, ENEMY_SPAWN_RECORD_TABLE, WAVE_RUN_SELECTOR_TABLE } from "./names.js";
 
@@ -70,7 +70,7 @@ export function spawnEnemyWaveIntoFreeSlots(m) {
 
       // Step 5 -- take one animation step, set +4 to 1 (the byte animateSelectedShapeCycle reads to pick this craft's four-shape block), clear
       // the personal timer, and turn the head from 0 to 0xFF: live immediately.
-      stepShapeAnimation(m, slot);
+      stepCraftFlightScript(m, slot);
       mem8[slot + 0x04] = 0x01;
       mem8[slot + 0x0e] = 0x00;
       mem8[slot] = mem8[slot] - 1;

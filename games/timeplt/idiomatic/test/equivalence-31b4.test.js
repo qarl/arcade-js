@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * reaimAndAnimateEnemyCraftOnPhaseTick — memory-equivalent to the frozen oracle at ROM 0x31b4.
+ * reaimEnemyCraftByFlightScriptOnPhaseTick — memory-equivalent to the frozen oracle at ROM 0x31b4.
  * GATE: natural dispatches under the coin-start tape plus every decision branch crafted, each masked
  * for the dead stack scratch the dissolved tails leave; spDiff pinned at two, returns compared.
  * The cursors it passed into its callees became explicit arguments, so nothing pins ix/iy any more.
@@ -11,10 +11,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
-import { reaimAndAnimateEnemyCraftOnPhaseTick as candidate } from "../reaimAndAnimateEnemyCraftOnPhaseTick.js";
+import { reaimEnemyCraftByFlightScriptOnPhaseTick as candidate } from "../reaimEnemyCraftByFlightScriptOnPhaseTick.js";
 import { loc_31b4 as oracle } from "../../translated/loc_31b4.js";
 import { layOutEnemyAimPointsFromScrollAngle } from "../layOutEnemyAimPointsFromScrollAngle.js";
-import { stepShapeAnimation } from "../stepShapeAnimation.js";
+import { stepCraftFlightScript } from "../stepCraftFlightScript.js";
 import { headingToward } from "../headingToward.js";
 import { offsetAddress } from "../offsetAddress.js";
 import { u8 } from "../../../../core/int.js";
@@ -137,7 +137,7 @@ function twin({ noop = false, slotCount = 7, halfTurn = true, call326c = true, h
     regs.ix = record;
     regs.iy = entry;
     if (mem8[record] !== OCCUPIED) return;
-    stepShapeAnimation(m);
+    stepCraftFlightScript(m);
     const state = mem8[record + 8];
     if (state === 0x10) return;
     if (state === 0x11) {

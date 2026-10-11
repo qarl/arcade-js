@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** stopFiveSlotAnimations — while the byte a caller points at still reads zero, stop five consecutive records
+/** turnFiveCraftAway — while the byte a caller points at still reads zero, stop five consecutive records
  * at a fixed base: each is given the same shape byte and has its step timer cleared. A non-zero
  * byte means nothing at all is touched, so this is a guarded reset and not a step, and the guard
  * byte is the caller's while the five records are this routine's own. The Z80 left the guard byte
@@ -30,7 +30,7 @@ const SHAPE_BYTE = 8;
 const STEP_TIMER = 9;
 const RESTING_SHAPE = 17;
 
-export function stopFiveSlotAnimations(m, guardAddr = m.regs.hl) {
+export function turnFiveCraftAway(m, guardAddr = m.regs.hl) {
   const { mem8 } = m;
   // The guard (`ld a,(hl); and a; ret nz`): only while the caller's byte reads zero is anything done.
   if (mem8[guardAddr] !== 0) return;

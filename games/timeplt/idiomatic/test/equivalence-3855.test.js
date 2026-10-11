@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * stopFiveSlotAnimations — memory-equivalent to the frozen oracle at ROM 0x3855.
+ * turnFiveCraftAway — memory-equivalent to the frozen oracle at ROM 0x3855.
  *
  * ★ THE SHARED TAPE NEVER REACHES IT, AND THE ATTRACT TAPE NEEDS A LONGER RUN THAN THE HARNESS'S
  *   DEFAULT. Asserted both ways in arm 1: at the harness's entry budget both tapes dispatch it
@@ -42,7 +42,7 @@ import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { assertDeadAtExit, TAPE_SESSIONS } from "./_deadAtExit.js";
-import { stopFiveSlotAnimations } from "../stopFiveSlotAnimations.js";
+import { turnFiveCraftAway } from "../turnFiveCraftAway.js";
 import { loc_3855 as oracle } from "../../translated/loc_3855.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
 
@@ -170,7 +170,7 @@ test("CORPUS: every attract dispatch replays identically, stack included", { ski
   const attract = corpus().find((s) => s.label === "attract");
   assert.ok(attract.states.length > 0, "vacuous: the attract session never reached the routine");
   for (const state of attract.states) {
-    const d = unitDiff(stopFiveSlotAnimations, state);
+    const d = unitDiff(turnFiveCraftAway, state);
     assert.equal(d, null, `attract: ${show(d)}`);
   }
   console.log(`  CORPUS: ${attract.states.length} real dispatches, identical on every byte`);
@@ -205,7 +205,7 @@ test("EXCLUDED, deliberately: the walk's scratch registers, sp and pc", { skip }
   const a = entry.clone();
   const b = entry.clone();
   oracle(a);
-  stopFiveSlotAnimations(b);
+  turnFiveCraftAway(b);
   const moved = REG_FIELDS.filter((k) => a.regs[k] !== b.regs[k]);
   assert.ok(moved.every((k) => EXCLUDED.includes(k)), `a register outside the set moved: ${moved}`);
   assert.equal(a.regs.ix, FIRST_RECORD + RECORDS * RECORD_STRIDE,
@@ -235,7 +235,7 @@ test("THE RESET LANDS: ten cells over five records, and nothing else in the band
 });
 
 test("EXHAUSTIVE over the guard byte: all 256 values", { skip }, () => {
-  assert.equal(sweepCaught(stopFiveSlotAnimations), 0, "the rewrite diverged somewhere in the crafted space");
+  assert.equal(sweepCaught(turnFiveCraftAway), 0, "the rewrite diverged somewhere in the crafted space");
   console.log("  EXHAUSTIVE: 256 guard values identical");
 });
 

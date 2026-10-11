@@ -9,7 +9,7 @@
  *
  * ROLE IN THE MACHINE. Enemy re-aim code steers toward aim points (mechanisms.md, record +1);
  * this routine lays a set of those points out around the ship's fixed screen position. Its caller
- * is reaimAndAnimateEnemyCraftOnPhaseTick, which runs first in each round-engine dispatch and
+ * is reaimEnemyCraftByFlightScriptOnPhaseTick, which runs first in each round-engine dispatch and
  * passes the low place of the life tick counter (LIFE_TICKS_LOW 0xAD05 [seen]) as the mode byte.
  * That byte is packed decimal, so "low nibble == 7" means "units digit 7": on those passes (and
  * not on the 00-09 / 30-39 passes that re-aim a craft instead) the points are laid out from the

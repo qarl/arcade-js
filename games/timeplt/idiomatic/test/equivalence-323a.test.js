@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * stepShapeAnimation — memory-equivalent to the frozen oracle at ROM 0x323A.
+ * stepCraftFlightScript — memory-equivalent to the frozen oracle at ROM 0x323A.
  *
  * GATE: every dispatch of two real tapes replayed, plus an exhaustive crafted sweep of the two
  *   record bytes that decide the outcome. What it exercises, holes stated:
@@ -39,7 +39,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
-import { stepShapeAnimation } from "../stepShapeAnimation.js";
+import { stepCraftFlightScript } from "../stepCraftFlightScript.js";
 import { loc_323a as oracle } from "../../translated/loc_323a.js";
 import { fetchTableByte } from "../fetchTableByte.js";
 import { fetchTableWord } from "../fetchTableWord.js";
@@ -190,7 +190,7 @@ test("CORPUS: every dispatch of two real sessions replays identically", { skip }
   for (const s of corpus()) {
     assert.ok(s.states.length > 0, `vacuous: the ${s.label} tape never reached the routine`);
     for (const state of s.states) {
-      const d = unitDiff(stepShapeAnimation, state);
+      const d = unitDiff(stepCraftFlightScript, state);
       assert.equal(d, null, `${s.label}: ${show(d)}`);
     }
     total += s.states.length;
@@ -211,7 +211,7 @@ test("EXCLUDED, deliberately: the ceiling registers, pc and the two lookup pushe
   const a = entry.clone();
   const b = entry.clone();
   oracle(a);
-  stepShapeAnimation(b);
+  stepCraftFlightScript(b);
   assert.deepEqual(REG_FIELDS.filter((k) => a.regs[k] !== b.regs[k] && !EXCLUDED.includes(k)), [],
     "a register diverged outside the excluded set");
   assert.notEqual(a.pc, b.pc, "the oracle's return moves pc; the rewrite returns to JS");
@@ -244,7 +244,7 @@ test("THE EARLY EXIT IS REAL: a timer at zero leaves the whole dump untouched", 
 });
 
 test("EXHAUSTIVE: 256 timer values crossed with four selectors, on a painted record", { skip }, () => {
-  assert.equal(sweepCaught(stepShapeAnimation), 0, "the rewrite diverged somewhere in the crafted space");
+  assert.equal(sweepCaught(stepCraftFlightScript), 0, "the rewrite diverged somewhere in the crafted space");
   console.log(`  EXHAUSTIVE: ${SWEEP_SIZE} timer x selector comparisons identical`);
 });
 

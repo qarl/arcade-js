@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** stepShapeAnimation — count one record's step timer down and refresh that record's shape byte from the
+/** stepCraftFlightScript — count one record's step timer down and refresh that record's shape byte from the
  * step the new count selects.
  *
  * The count is not just a delay: it is also the index into a run of shape bytes, so counting down
@@ -18,14 +18,14 @@
 
 import { fetchTableByte } from "./fetchTableByte.js";
 import { fetchTableWord } from "./fetchTableWord.js";
-import { SHAPE_RUN_POINTER_TABLE } from "./names.js";
+import { CRAFT_FLIGHT_SCRIPT_TABLE } from "./names.js";
 
 // Offsets within the object record (ROM `(ix+0x09)`, `(ix+0x0a)`, `(ix+0x08)`).
 const STEP_TIMER = 9;
 const RUN_SELECTOR = 10;
 const SHAPE_BYTE = 8;
 
-export function stepShapeAnimation(m, record = m.regs.ix) {
+export function stepCraftFlightScript(m, record = m.regs.ix) {
   const { mem8 } = m;
   // A timer already at zero means the run has finished: return without writing anything, so
   // the shape stays on the last entry shown (ROM `and a` / `ret z`).
@@ -38,9 +38,9 @@ export function stepShapeAnimation(m, record = m.regs.ix) {
   mem8[record + STEP_TIMER] = step;
 
   // Find this record's run: the selector byte indexes the ROM word table at 0x3438
-  // (SHAPE_RUN_POINTER_TABLE, via the rst 0x10 word fetch), giving a pointer to a run of shape
+  // (CRAFT_FLIGHT_SCRIPT_TABLE, via the rst 0x10 word fetch), giving a pointer to a run of shape
   // bytes. Keeping the run choice in its own byte lets a caller swap runs mid-animation.
-  const run = fetchTableWord(m, mem8[record + RUN_SELECTOR], SHAPE_RUN_POINTER_TABLE);
+  const run = fetchTableWord(m, mem8[record + RUN_SELECTOR], CRAFT_FLIGHT_SCRIPT_TABLE);
 
   // Take the byte at index `step` in that run (rst 0x08 byte fetch) as the record's new shape.
   mem8[record + SHAPE_BYTE] = fetchTableByte(m, run, step);

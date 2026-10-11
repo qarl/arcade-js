@@ -19,9 +19,9 @@ import { drawRandomByte } from "../drawRandomByte.js";
 import { offsetAddress } from "../offsetAddress.js";
 import { fetchTableByte } from "../fetchTableByte.js";
 import { pickScriptAtRandomOrInTurn } from "../pickScriptAtRandomOrInTurn.js";
-import { stepShapeAnimation } from "../stepShapeAnimation.js";
+import { stepCraftFlightScript } from "../stepCraftFlightScript.js";
 import { spawnEnemyWaveIntoFreeSlots } from "../spawnEnemyWaveIntoFreeSlots.js";
-import { stopFiveSlotAnimations } from "../stopFiveSlotAnimations.js";
+import { turnFiveCraftAway } from "../turnFiveCraftAway.js";
 import { gateTheFreeSlotSearchAndPickItsRun } from "../gateTheFreeSlotSearchAndPickItsRun.js";
 import { spawnEnemyCraftWhenBandUnderTwo } from "../spawnEnemyCraftWhenBandUnderTwo.js";
 import { requestEnemyWaveSound } from "../requestEnemyWaveSound.js";
@@ -167,7 +167,7 @@ function twin(opts) {
     if (mem8[ERA_INDEX] === o.bossEra) return spawnEnemyWaveIntoFreeSlots(m);
     if (o.seatHl) regs.hl = LIFE_TICKS_LOW;
     const phase = mem8[LIFE_PHASE] & 0x0f;
-    if (phase === 7) return stopFiveSlotAnimations(m);
+    if (phase === 7) return turnFiveCraftAway(m);
     if (phase < 7) return gateTheFreeSlotSearchAndPickItsRun(m);
     if (phase < 9) return spawnEnemyCraftWhenBandUnderTwo(m);
     if (mem8[LIFE_TICKS_LOW] !== 0) return;
@@ -205,7 +205,7 @@ function twin(opts) {
         mem8[record + 0x03] = 0;
         mem8[record + 0x05] = 0;
         mem8[record + 0x09] = 0x20;
-        stepShapeAnimation(m, record);
+        stepCraftFlightScript(m, record);
         mem8[record] = mem8[record + 0x0e] === 0 ? 0xff : 0xfe;
         mem8[FILLED_SLOTS] = u8(mem8[FILLED_SLOTS] + 1);
       }

@@ -18,7 +18,7 @@ import { loc_386e as oracle } from "../../translated/loc_386e.js";
 import { loc_36af as caller } from "../../translated/loc_36af.js";
 import { drawRandomByte } from "../drawRandomByte.js";
 import { fetchTableByte } from "../fetchTableByte.js";
-import { stepShapeAnimation } from "../stepShapeAnimation.js";
+import { stepCraftFlightScript } from "../stepCraftFlightScript.js";
 import { u8, u16 } from "../../../../core/int.js";
 
 const TARGET = 0x386e;
@@ -156,7 +156,7 @@ function twin({ status = true, shapeTable = SHAPE_TABLE, ordinalTable = ORDINAL_
         mem8[slot + 0x0a] = fetchTableByte(m);
         mem8[slot + 0x09] = 0x20;
         regs.ix = slot;
-        if (step) stepShapeAnimation(m);
+        if (step) stepCraftFlightScript(m);
         mem8[slot + 0x04] = 0x01;
         mem8[slot + 0x0e] = 0x00;
         mem8[slot] = mem8[slot] - 1;

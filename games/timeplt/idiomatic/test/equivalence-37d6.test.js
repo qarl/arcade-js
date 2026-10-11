@@ -21,7 +21,7 @@ import { loc_37d6 as oracle } from "../../translated/loc_37d6.js";
 import { drawRandomByte } from "../drawRandomByte.js";
 import { fetchTableByte } from "../fetchTableByte.js";
 import { pickScriptAtRandomOrInTurn } from "../pickScriptAtRandomOrInTurn.js";
-import { stepShapeAnimation } from "../stepShapeAnimation.js";
+import { stepCraftFlightScript } from "../stepCraftFlightScript.js";
 import { u8, u16 } from "../../../../core/int.js";
 
 const TARGET = 0x37d6;
@@ -184,7 +184,7 @@ function twin({ noop = false, claim = 0xff, facingBias = 0x80, jitterBias = 0x08
     mem8[record + 0x03] = 0x00;
     mem8[record + 0x05] = 0x00;
     mem8[record + 0x09] = 0x20;
-    if (animate) stepShapeAnimation(m, record);
+    if (animate) stepCraftFlightScript(m, record);
     mem8[record + 0x0e] = 0x00;
   };
 }

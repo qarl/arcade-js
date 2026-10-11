@@ -30,7 +30,7 @@ import { closeOneTurnOfTheFreeSlotSearch } from "./closeOneTurnOfTheFreeSlotSear
 import { drawRandomByte } from "./drawRandomByte.js";
 import { fetchTableByte } from "./fetchTableByte.js";
 import { pickScriptAtRandomOrInTurn } from "./pickScriptAtRandomOrInTurn.js";
-import { stepShapeAnimation } from "./stepShapeAnimation.js";
+import { stepCraftFlightScript } from "./stepCraftFlightScript.js";
 import { u8, u16 } from "../../../core/int.js";
 import { PLAYER_HEADING, ENEMY_SPAWN_DIRECTION_INDEX_TABLE, ENEMY_SPAWN_RECORD_TABLE, SPAWN_CLEARED_SPARE_BYTE } from "./names.js";
 
@@ -82,6 +82,6 @@ export function spawnEnemyIntoFreeSlotElseStepSearch(m, record = m.regs.ix, entr
   mem8[record + 0x03] = 0x00;
   mem8[record + 0x05] = 0x00;
   mem8[record + 0x09] = 0x20;
-  stepShapeAnimation(m, record);
+  stepCraftFlightScript(m, record);
   mem8[record + 0x0e] = 0x00;
 }

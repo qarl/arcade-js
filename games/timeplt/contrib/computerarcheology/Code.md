@@ -2882,7 +2882,7 @@ loc_1198:
 ; hand to the round-advance check (advanceRoundWhenFieldCleared) when it
 ; is 0xff (alive), hand a life over when it is 0 (dead), else return
 serviceRoundThenResolvePlayerState:
-1199: CD B4 31        CALL    $31B4               ; {code.reaimAndAnimateEnemyCraftOnPhaseTick} re-aim and animate the enemy craft for this phase tick
+1199: CD B4 31        CALL    $31B4               ; {code.reaimEnemyCraftByFlightScriptOnPhaseTick} re-aim and animate the enemy craft for this phase tick
 119C: CD DF 1E        CALL    $1EDF               ; {code.dispatchPlayerFrameByState} update the player ship for this frame
 119F: CD E3 23        CALL    $23E3               ; {code.fireAndSweepPlayerShots} fire and advance the player's shots
 11A2: CD AF 36        CALL    $36AF               ; {code.driveEnemyWaveForLifePhase} drive the enemy wave for the current life phase
@@ -6869,7 +6869,7 @@ loc_3176:
 ; at the table base, stores heading+0x80 into ix+1 and resets the record
 ; to state 0x10, every other state stores the heading straight into ix+1;
 ; on any other tens digit hand off to layOutEnemyAimPointsFromScrollAngle
-reaimAndAnimateEnemyCraftOnPhaseTick:
+reaimEnemyCraftByFlightScriptOnPhaseTick:
 31B4: 3A 05 AD        LD      A,($AD05)           ; {hard.workRam+505} read the packed-decimal life-tick
 31B7: 4F              LD      C,A                 ; keep it
 31B8: E6 F0           AND     $F0                 ; look at the tens digit
@@ -6899,7 +6899,7 @@ loc_31c9:
 31E3: DD 7E 00        LD      A,(IX+$00)          ; read the record's head byte
 31E6: 3C              INC     A                   ; is the head 0xFF?
 31E7: C0              RET     NZ                  ; any other head: leave
-31E8: CD 3A 32        CALL    $323A               ; {code.stepShapeAnimation} advance the craft's shape animation
+31E8: CD 3A 32        CALL    $323A               ; {code.stepCraftFlightScript} advance the craft's shape animation
 31EB: DD 7E 08        LD      A,(IX+$08)          ; read its state byte
 31EE: FE 10           CP      $10                 ; held?
 31F0: C8              RET     Z                   ; held: nothing more to do
@@ -6951,7 +6951,7 @@ startOnePlayerGame:
 ; count one record's step timer down and refresh that record's shape byte
 ; from the entry the NEW count selects, in the run its own selector byte
 ; points at; a timer already at zero is left alone
-stepShapeAnimation:
+stepCraftFlightScript:
 323A: DD 7E 09        LD      A,(IX+$09)          ; read the record's step timer
 323D: A7              AND     A                   ; is it already zero?
 323E: C8              RET     Z                   ; yes: leave the animation stopped
@@ -6991,13 +6991,13 @@ loc_325a:
 3269: C3 1A 0F        JP      $0F1A               ; {code.advanceSequenceSubStep} otherwise step the sequence's sub-step
 
 ; when the life-tick copy in C (LIFE_TICKS_LOW, from the only caller
-; reaimAndAnimateEnemyCraftOnPhaseTick) has units digit 7 (low nibble ==
-; 7), fill the twelve coordinate bytes 0xac64+0x10..0x1b (the six standoff
-; aim points) with six XY pairs around centre (0x78 across, 0x84 down):
-; PLAYER_HEADING (0xa802) +0x40 and the heading itself, each drawn through
-; the velocity table (via 0x59d1) at x8 and x16 radii, the +0x40 direction
-; also mirrored to its negatives; other units digits return without
-; writing
+; reaimEnemyCraftByFlightScriptOnPhaseTick) has units digit 7 (low nibble
+; == 7), fill the twelve coordinate bytes 0xac64+0x10..0x1b (the six
+; standoff aim points) with six XY pairs around centre (0x78 across, 0x84
+; down): PLAYER_HEADING (0xa802) +0x40 and the heading itself, each drawn
+; through the velocity table (via 0x59d1) at x8 and x16 radii, the +0x40
+; direction also mirrored to its negatives; other units digits return
+; without writing
 layOutEnemyAimPointsFromScrollAngle:
 326C: 79              LD      A,C                 ; recall the life-tick byte
 326D: E6 0F           AND     $0F                 ; its units digit
@@ -7365,7 +7365,7 @@ drawCaptionFivePastSharedColour:
 
 ; enemy-wave substep: while ROUND_TRANSITION_HOLD (0xacc6) is clear,
 ; dispatch by era and life-phase -- era 4 to spawnEnemyWaveIntoFreeSlots,
-; phase 7 to stopFiveSlotAnimations, phase below 7 to
+; phase 7 to turnFiveCraftAway, phase below 7 to
 ; gateTheFreeSlotSearchAndPickItsRun, phase 8 to
 ; spawnEnemyCraftWhenBandUnderTwo; at phase 9+ with the low life-tick
 ; 0xad05 spent, spawn a fresh wave inline across the 0xa850/0xaa1a craft
@@ -7383,7 +7383,7 @@ driveEnemyWaveForLifePhase:
 36BF: 3A 06 AD        LD      A,($AD06)           ; {hard.workRam+506} read the life-phase byte
 36C2: E6 0F           AND     $0F                 ; keep its low nibble -- the phase
 36C4: FE 07           CP      $07                 ; phase 7?
-36C6: CA 55 38        JP      Z,$3855             ; {code.stopFiveSlotAnimations} phase 7: settle the five slot animations
+36C6: CA 55 38        JP      Z,$3855             ; {code.turnFiveCraftAway} phase 7: settle the five slot animations
 36C9: DA BD 37        JP      C,$37BD             ; {code.gateTheFreeSlotSearchAndPickItsRun} below 7: gate the free-slot search and pick its run
 36CC: FE 09           CP      $09                 ; phase 8?
 36CE: DA 9F 37        JP      C,$379F             ; {code.spawnEnemyCraftWhenBandUnderTwo} phase 8: spawn a craft while the band is under two
@@ -7457,7 +7457,7 @@ loc_3717:
 374A: DD 36 05 00     LD      (IX+$05),$00        ; clear the second sub-position
 374E: DD 36 09 20     LD      (IX+$09),$20        ; prime the step counter
 3752: D9              EXX                         ; set the working registers aside across the animation step
-3753: CD 3A 32        CALL    $323A               ; {code.stepShapeAnimation} step the shape animation once
+3753: CD 3A 32        CALL    $323A               ; {code.stepCraftFlightScript} step the shape animation once
 3756: D9              EXX                         ; restore them
 3757: DD 36 00 FE     LD      (IX+$00),$FE        ; mark the slot live (0xFE)
 375B: DD 7E 0E        LD      A,(IX+$0E)          ; read the slot's tail byte
@@ -7605,7 +7605,7 @@ spawnEnemyIntoFreeSlotElseStepSearch:
 3819: DD 36 03 00     LD      (IX+$03),$00        ; clear the sub-position
 381D: DD 36 05 00     LD      (IX+$05),$00        ; clear the second sub-position
 3821: DD 36 09 20     LD      (IX+$09),$20        ; prime the step counter
-3825: CD 3A 32        CALL    $323A               ; {code.stepShapeAnimation} step the shape animation once
+3825: CD 3A 32        CALL    $323A               ; {code.stepCraftFlightScript} step the shape animation once
 3828: DD 36 0E 00     LD      (IX+$0E),$00        ; clear the slot's tail byte
 382C: C9              RET                         
 
@@ -7660,7 +7660,7 @@ closeOneTurnOfTheFreeSlotSearch:
 ; animation ends on, with their step bytes cleared so nothing walks them
 ; again — but only while the byte the caller points at still reads zero,
 ; so it is a guarded settling and not a step
-stopFiveSlotAnimations:
+turnFiveCraftAway:
 3855: 7E              LD      A,(HL)              ; read the guard byte the caller points at
 3856: A7              AND     A                   ; test it
 3857: C0              RET     NZ                  ; non-zero: touch nothing
@@ -7713,7 +7713,7 @@ loc_3882:
 38AA: CF              RST     $08                 ; fetch this slot's per-slot byte
 38AB: DD 77 0A        LD      (IX+$0A),A          ; store the script index
 38AE: DD 36 09 20     LD      (IX+$09),$20        ; prime the step counter
-38B2: CD 3A 32        CALL    $323A               ; {code.stepShapeAnimation} step the shape animation once
+38B2: CD 3A 32        CALL    $323A               ; {code.stepCraftFlightScript} step the shape animation once
 38B5: DD 36 04 01     LD      (IX+$04),$01        ; set the slot's active flag
 38B9: DD 36 0E 00     LD      (IX+$0E),$00        ; clear the slot's tail byte
 38BD: DD 35 00        DEC     (IX+$00)            ; mark the slot live -- head to 0xFF

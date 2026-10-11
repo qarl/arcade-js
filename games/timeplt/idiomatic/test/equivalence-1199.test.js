@@ -18,7 +18,7 @@ import { loc_1199 as oracle } from "../../translated/loc_1199.js";
 import { withOmittedRet } from "../../machine.js";
 import { seamPlaceable } from "../../../../core/equivalence.js";
 
-import { reaimAndAnimateEnemyCraftOnPhaseTick } from "../reaimAndAnimateEnemyCraftOnPhaseTick.js";
+import { reaimEnemyCraftByFlightScriptOnPhaseTick } from "../reaimEnemyCraftByFlightScriptOnPhaseTick.js";
 import { dispatchPlayerFrameByState } from "../dispatchPlayerFrameByState.js";
 import { fireAndSweepPlayerShots } from "../fireAndSweepPlayerShots.js";
 import { driveEnemyWaveForLifePhase } from "../driveEnemyWaveForLifePhase.js";
@@ -126,7 +126,7 @@ function footprint(machine) {
 function services(m, skipIdx = -1) {
   const fix = multiplexSpriteSlotsSkipping;
   const list = [
-    reaimAndAnimateEnemyCraftOnPhaseTick, dispatchPlayerFrameByState, fireAndSweepPlayerShots,
+    reaimEnemyCraftByFlightScriptOnPhaseTick, dispatchPlayerFrameByState, fireAndSweepPlayerShots,
     driveEnemyWaveForLifePhase, fix, runParachutistSlot, armMotherShipOrStep,
     stepSevenCraftSlots, fix, runSceneryForEra, sweepEra2PlusObjectBank, fix, serviceEra1BomberObject,
     serviceFixedSlotInEra1, stepFourActorSlots, fix, serviceEra0BallisticObjectBank, dispatchCollisionPassByEra,

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * reaimAndAnimateEnemyCraftOnPhaseTick — ROM 0x31B4 [seen]
+ * reaimEnemyCraftByFlightScriptOnPhaseTick — ROM 0x31B4 [seen]
  *
  * WHAT IT IS. A round-robin servicer for the seven enemy-craft slots. Rather than re-aim every craft
  * every frame, the ROM spreads the work over the life tick counter LIFE_TICKS_LOW (0xAD05 [seen]),
@@ -23,7 +23,7 @@
 
 import { u8 } from "../../../core/int.js";
 import { layOutEnemyAimPointsFromScrollAngle } from "./layOutEnemyAimPointsFromScrollAngle.js";
-import { stepShapeAnimation } from "./stepShapeAnimation.js";
+import { stepCraftFlightScript } from "./stepCraftFlightScript.js";
 import { headingToward } from "./headingToward.js";
 import { offsetAddress } from "./offsetAddress.js";
 import { CRAFT_ENTRY_SLOT0, CRAFT_RECORD_SLOT0, ENEMY_AIM_POINT_TABLE, LIFE_TICKS_LOW } from "./names.js";
@@ -40,7 +40,7 @@ const REAIM_THEN_HOLD = 0x11;
 const TENTHS_00 = 0x00;
 const TENTHS_30 = 0x30;
 
-export function reaimAndAnimateEnemyCraftOnPhaseTick(m) {
+export function reaimEnemyCraftByFlightScriptOnPhaseTick(m) {
   const { mem8 } = m;
   // Read the life tick counter once; both digits come from this one byte (`ld a,(0xad05)` / `ld c,a`).
   const phase = mem8[LIFE_TICKS_LOW];
@@ -60,9 +60,9 @@ export function reaimAndAnimateEnemyCraftOnPhaseTick(m) {
   const entry = CRAFT_ENTRY_SLOT0 + slot * 2;
   if (mem8[record] !== OCCUPIED) return;
 
-  // Step 3: every serviced live craft advances its shape animation (`call 0x323a`, stepShapeAnimation
-  // [seen]: count its step timer at +9 down and reload byte +8 -- the state byte Step 4 reads (stepShapeAnimation calls it the shape byte) -- from the run entry the new count selects).
-  stepShapeAnimation(m, record);
+  // Step 3: every serviced live craft advances its shape animation (`call 0x323a`, stepCraftFlightScript
+  // [seen]: count its step timer at +9 down and reload byte +8 -- the state byte Step 4 reads (stepCraftFlightScript calls it the shape byte) -- from the run entry the new count selects).
+  stepCraftFlightScript(m, record);
 
   // Step 4: the state byte at +8 decides the aim. A holding craft (0x10) keeps its heading.
   const state = mem8[record + 8];
