@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * sendOneQueuedSoundThenUnwindTheFrameInterrupt — memory-equivalent to the frozen oracle at ROM 0x0174, the
+ * sendOneQueuedSoundThenReopenFrameInterrupt — memory-equivalent to the frozen oracle at ROM 0x0174, the
  * close of the vertical-blank service, in its DISSOLVED form (see _vblankService.js for the contract every
  * gate in this family shares: memory outside the oracle's measured dead stack scratch, every device, SP
  * unmoved).
@@ -39,7 +39,7 @@ import { romsPresent } from "./_harness.js";
 import {
   captureAt, dissolvedDiff, runOracle, oracleDepth, TAPES, hex4, DATA_TOP,
 } from "./_vblankService.js";
-import { sendOneQueuedSoundThenUnwindTheFrameInterrupt } from "../sendOneQueuedSoundThenUnwindTheFrameInterrupt.js";
+import { sendOneQueuedSoundThenReopenFrameInterrupt } from "../sendOneQueuedSoundThenReopenFrameInterrupt.js";
 import { sendOldestQueuedSoundCommand } from "../sendOldestQueuedSoundCommand.js";
 import { loc_0174 as oracle } from "../../translated/loc_0174.js";
 import { NMI_ENABLE_LATCH, NMI_REENABLE_BYTE, SOUND_QUEUE_COUNT, SOUND_QUEUE_HEAD } from "../names.js";
@@ -83,10 +83,10 @@ function gateCrafts() {
 const TWINS = [
   ["no-op", () => {}, "corpus"],
   ["no-send", (m) => { m.mem8[NMI_ENABLE_LATCH] = m.mem8[NMI_REENABLE_BYTE]; }, "queue"],
-  ["sends-twice", (m) => { sendOldestQueuedSoundCommand(m); sendOneQueuedSoundThenUnwindTheFrameInterrupt(m); }, "queue"],
+  ["sends-twice", (m) => { sendOldestQueuedSoundCommand(m); sendOneQueuedSoundThenReopenFrameInterrupt(m); }, "queue"],
   ["gate-closed", (m) => { sendOldestQueuedSoundCommand(m); m.mem8[NMI_ENABLE_LATCH] = 0; }, "corpus"],
   ["gate-unwritten", (m) => { sendOldestQueuedSoundCommand(m); }, "gate"],
-  ["pops-a-slot", (m) => { sendOneQueuedSoundThenUnwindTheFrameInterrupt(m); m.pop16(); }, "corpus"],
+  ["pops-a-slot", (m) => { sendOneQueuedSoundThenReopenFrameInterrupt(m); m.pop16(); }, "corpus"],
 ];
 
 // ── the gate ─────────────────────────────────────────────────────────────────────────────
@@ -96,7 +96,7 @@ test("CORPUS: every captured dispatch of both tapes agrees outside the dead stac
     const entries = corpusOf(label, opts);
     assert.ok(entries.length > 0, `vacuous: the ${label} tape never reached the close`);
     for (const e of entries) {
-      const d = diff(sendOneQueuedSoundThenUnwindTheFrameInterrupt, e);
+      const d = diff(sendOneQueuedSoundThenReopenFrameInterrupt, e);
       assert.equal(d, null, `${label}: ${d}`);
     }
   }
@@ -108,7 +108,7 @@ test("QUEUE: the corpus never drains, so crafted counts carry the send and the s
   assert.equal(draining, 0, "the corpus now reaches a nonzero queue; this arm's premise moved");
   const sent = new Set();
   for (const [count, e] of queueCrafts()) {
-    const d = diff(sendOneQueuedSoundThenUnwindTheFrameInterrupt, e);
+    const d = diff(sendOneQueuedSoundThenReopenFrameInterrupt, e);
     assert.equal(d, null, `count ${count}: ${d}`);
     sent.add(runOracle(oracle, e).m.io.soundData);
   }
@@ -119,10 +119,10 @@ test("QUEUE: the corpus never drains, so crafted counts carry the send and the s
 test("GATE: the interrupt gate ends open from either starting state", { skip }, () => {
   for (const [bit, e] of gateCrafts()) {
     assert.equal(e.io.latch[ENABLE_BIT], bit, `the craft did not seat the gate at ${bit}`);
-    const d = diff(sendOneQueuedSoundThenUnwindTheFrameInterrupt, e);
+    const d = diff(sendOneQueuedSoundThenReopenFrameInterrupt, e);
     assert.equal(d, null, `from ${bit}: ${d}`);
     const r = e.clone();
-    sendOneQueuedSoundThenUnwindTheFrameInterrupt(r);
+    sendOneQueuedSoundThenReopenFrameInterrupt(r);
     assert.equal(r.io.latch[ENABLE_BIT], 1, `from ${bit} the gate did not end open`);
   }
   console.log("  GATE: open at the end from 0 and from 1, as the oracle leaves it");
@@ -133,7 +133,7 @@ test("SP: the oracle unwinds the 22-byte interrupt frame; the rewrite moves SP n
     const o = runOracle(oracle, e);
     assert.equal((o.m.regs.sp - e.regs.sp) & 0xffff, FRAME_BYTES, "the oracle did not unwind exactly the frame");
     const r = e.clone();
-    sendOneQueuedSoundThenUnwindTheFrameInterrupt(r);
+    sendOneQueuedSoundThenReopenFrameInterrupt(r);
     assert.equal(r.regs.sp, e.regs.sp, "the rewrite moved SP");
   }
   console.log(`  SP: oracle +${FRAME_BYTES} on all ${corpus().length} dispatches; rewrite 0`);
@@ -147,7 +147,7 @@ test("WINDOW / BOUNDARY: the oracle's push depth measured, floor above the data,
   const depth = oracleDepth(oracle, base);
   assert.ok(depth > 0, "the oracle pushed nothing on a draining entry, so the window is not exercised");
   const scribble = (offset) => (m) => {
-    sendOneQueuedSoundThenUnwindTheFrameInterrupt(m);
+    sendOneQueuedSoundThenReopenFrameInterrupt(m);
     const at = (base.regs.sp + offset) & 0xffff;
     m.mem8[at] = (m.mem8[at] + 1) & 0xff;
   };
@@ -162,7 +162,7 @@ test("REGISTERS: not live-out of the dissolved interrupt; the divergent set is m
   for (const e of corpus()) {
     const a = runOracle(oracle, e).m;
     const b = e.clone();
-    sendOneQueuedSoundThenUnwindTheFrameInterrupt(b);
+    sendOneQueuedSoundThenReopenFrameInterrupt(b);
     for (const k of REG_FIELDS) if (a.regs[k] !== b.regs[k]) moved.add(k);
   }
   console.log(`  REGISTERS (measured, not compared): ${REG_FIELDS.filter((k) => moved.has(k)).join(", ") || "none"}`);

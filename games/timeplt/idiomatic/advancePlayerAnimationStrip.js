@@ -26,7 +26,7 @@
 //   * between keyframes nothing is drawn; the count runs on silently until the round engine sees it
 //     reach zero and takes a life (that is not done here).
 //
-// PARAMETERS. `ix` is the player record, `iy` the player's sprite entry; both are seated by the caller.
+// PARAMETERS. `record` is the player record, `entry` the player's sprite entry; both are seated by the caller.
 //
 // LIVE-OUT: memory only -- PLAYER_STATE, the sprite-code byte, the sound requests, and the painted
 // character and colour cells.
@@ -34,7 +34,7 @@
 import { u8, u16 } from "../../../core/int.js";
 import { loc_1f2e } from "./loc_1f2e.js";
 import { requestLateEraProgressSound } from "./requestLateEraProgressSound.js";
-import { requestRoundIntroSoundBurst } from "./requestRoundIntroSoundBurst.js";
+import { requestDestructionSoundBurst } from "./requestDestructionSoundBurst.js";
 import { offsetAddress } from "./offsetAddress.js";
 import {
   TAMPER_COLOUR_STRIP,
@@ -91,10 +91,10 @@ const FRAME_ARMS = [
   [0x83, PLAYER_ANIM_STRIP_4],
 ];
 
-export function advancePlayerAnimationStrip(m, ix = m.regs.ix, iy = m.regs.iy) {
+export function advancePlayerAnimationStrip(m, record = m.regs.ix, entry = m.regs.iy) {
   const { mem8 } = m;
-  const X = (d) => u16(ix + d);
-  const Y = (d) => u16(iy + d);
+  const X = (d) => u16(record + d);
+  const Y = (d) => u16(entry + d);
 
   // STEP 1 -- OPENING FRAME (0x2010-0x203F). A fresh kill leaves the state at 0xF0, above the cap, so
   // this runs exactly once per explosion: the clamp to 0xB4 makes every later frame skip it.
@@ -103,7 +103,7 @@ export function advancePlayerAnimationStrip(m, ix = m.regs.ix, iy = m.regs.iy) {
     mem8[X(PHASE)] = FIRST_FRAME;
     mem8[Y(PAIR_FLAG)] = PAIR_MARK;
     if (mem8[ERA_INDEX] >= EXTRA_CUE_LEVEL) requestLateEraProgressSound(m);
-    requestRoundIntroSoundBurst(m);
+    requestDestructionSoundBurst(m);
 
     // two game-state cells divert the frame into the tamper trap when either departs from its genuine value
     // TAMPER_GLYPH_STRIP (0xABFE) holds a glyph sampled from the copyright caption and

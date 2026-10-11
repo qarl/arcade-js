@@ -15,6 +15,8 @@
  * what separates this entry from the sibling shims that choose a table themselves.
  *
  * `table` carries the ROM's HL (the velocity table) and `record` its IX (the object record).
+ * Kept as the ROUTINES override of 0x599D: no idiomatic module calls
+ * it, because loc_598e and loc_5994 run the doubled lookup directly.
  */
 
 import { doubledVelocityForHeading } from "./doubledVelocityForHeading.js";
@@ -23,7 +25,7 @@ import { doubledVelocityForHeading } from "./doubledVelocityForHeading.js";
 const HEADING_CELL = 2;
 
 export function loc_599d(m, table = m.regs.hl, record = m.regs.ix) {
-  // Read the heading off the record and run the doubled lookup in the caller's table. The pair
-  // is not returned from here; the lookup leaves it in DE and BC, where the ROM's callers find it.
-  doubledVelocityForHeading(m, table, m.mem8[record + HEADING_CELL]);
+  // Read the heading off the record and run the doubled lookup in the caller's table; the pair
+  // comes back (and is left in DE and BC by the lookup).
+  return doubledVelocityForHeading(m, table, m.mem8[record + HEADING_CELL]);
 }

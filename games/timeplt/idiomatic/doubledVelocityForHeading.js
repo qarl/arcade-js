@@ -24,8 +24,8 @@ import { velocityForHeading } from "./velocityForHeading.js";
 export function doubledVelocityForHeading(m, table = m.regs.hl, heading = m.regs.a) {
   const { regs } = m;
   // Look the pair up at the table's own scale: de at the heading, bc a quarter turn from it.
-  const [de, bc] = velocityForHeading(m, table, heading);
+  const [alongFirstAxis, alongSecondAxis] = velocityForHeading(m, table, heading);
   // Double each 16-bit component; a carry out of bit 15 is dropped, as the ROM's shift pair drops
   // it. The pair is returned and also left in DE and BC, where the ROM's callers find it.
-  return [regs.de = u16(2 * de), regs.bc = u16(2 * bc)];
+  return [regs.de = u16(2 * alongFirstAxis), regs.bc = u16(2 * alongSecondAxis)];
 }

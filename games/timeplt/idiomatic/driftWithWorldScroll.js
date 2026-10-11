@@ -22,24 +22,14 @@
  * LIVE-OUT: memory only — four bytes; nothing is clamped and nothing is returned. */
 
 import { WORLD_SCROLL_X, WORLD_SCROLL_Y } from "./names.js";
+import { addToCoordinate } from "./objectGeometry.js";
 
 export function driftWithWorldScroll(m, object = m.regs.ix, sprite = m.regs.iy) {
   /* Native Y: whole part in the sprite entry at +0x31 (49), fraction in the object record at +3,
    * displaced by WORLD_SCROLL_Y (ROM `ld h,(iy+0x31) / ld l,(ix+0x03) / ld de,(0xa808) / add hl,de`). */
-  driftCoordinate(m, sprite + 49, object + 3, m.mem16[WORLD_SCROLL_Y]);
+  addToCoordinate(m, sprite + 49, object + 3, m.mem16[WORLD_SCROLL_Y]);
   /* Native X: whole part in the sprite entry at +0x00, fraction in the object record at +5,
    * displaced by WORLD_SCROLL_X (`ld de,(0xa80a)`). The sprite entry holds the whole part directly,
    * so the drift moves the drawn sprite with no further step. */
-  driftCoordinate(m, sprite, object + 5, m.mem16[WORLD_SCROLL_X]);
-}
-
-/** One coordinate: whole and fraction read as a single number, displaced, then split back. */
-// Joining the two bytes as H:L and adding the 16-bit scroll word lets the fraction carry into the
-// whole part. The two byte stores keep only eight bits each, so the sum wraps at 16 bits as the
-// ROM's `add hl,de` does.
-function driftCoordinate(m, wholeAddr, fractionAddr, displacement) {
-  const { mem8 } = m;
-  const moved = (mem8[wholeAddr] << 8) + mem8[fractionAddr] + displacement;
-  mem8[wholeAddr] = moved >> 8;
-  mem8[fractionAddr] = moved;
+  addToCoordinate(m, sprite, object + 5, m.mem16[WORLD_SCROLL_X]);
 }

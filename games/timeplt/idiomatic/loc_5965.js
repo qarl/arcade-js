@@ -22,16 +22,20 @@
  * why no incoming pointer survives.
  *
  * LIVE-OUT: the component pair velocityForHeading leaves (DE, BC), also returned; no memory is written.
+ * Kept as the ROUTINES override of 0x5965: no idiomatic module calls
+ * it, because scrollWorldAtTheEraPace hands velocityForHeading the table itself.
  */
 
 import { velocityForHeading } from "./velocityForHeading.js";
 import { SECOND_FASTEST_VELOCITY_TABLE } from "./names.js";
 
 // The ROM's `ld hl,0x2e3e`: the 306-peak velocity table.
+// Byte +2 of an object record: its heading, which velocityForHeading samples the table at.
+const HEADING_CELL = 2;
 const VELOCITY_TABLE = SECOND_FASTEST_VELOCITY_TABLE;
 
-export function loc_5965(m) {
+export function loc_5965(m, heading = m.mem8[m.regs.ix + HEADING_CELL]) {
   // The ROM's `jp 0x596e`: a tail jump, so velocityForHeading's return is this entry's return; the
   // pair is also left in DE/BC.
-  return velocityForHeading(m, VELOCITY_TABLE);
+  return velocityForHeading(m, VELOCITY_TABLE, heading);
 }

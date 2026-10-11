@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * trampolineToSeatTheStackAndSettleTheControlLatch — memory-equivalent to the frozen oracle at ROM 0x0000.
+ * trampolineToProbeExpansionThenSettleControlLatch — memory-equivalent to the frozen oracle at ROM 0x0000.
  *
  * Three bytes, `jp 0x07B1`, at the address the processor starts from after a reset. It is the one
  * entry in this batch whose whole content is WHERE IT GOES.
@@ -52,7 +52,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
-import { trampolineToSeatTheStackAndSettleTheControlLatch } from "../trampolineToSeatTheStackAndSettleTheControlLatch.js";
+import { trampolineToProbeExpansionThenSettleControlLatch } from "../trampolineToProbeExpansionThenSettleControlLatch.js";
 import { loc_0000 as oracle } from "../../translated/loc_0000.js";
 import { buildRoutines } from "../../routines.js";
 import { firstStateDiff, wholeMachineEquivalence } from "../../../../core/equivalence.js";
@@ -334,19 +334,19 @@ function brokenScribbles(m) {
 /** BUG: quiets the watchdog on the way past — the control that the device tap can see one. */
 function brokenKicksWatchdog(m) {
   m.mem.write8(0xc200, 0, 10);
-  return trampolineToSeatTheStackAndSettleTheControlLatch(m);
+  return trampolineToProbeExpansionThenSettleControlLatch(m);
 }
 
 /** BUG: goes to the power-on routine twice, so the second run sees an already-seated machine. */
 function brokenGoesTwice(m) {
   m.call(DESTINATION);
-  return trampolineToSeatTheStackAndSettleTheControlLatch(m);
+  return trampolineToProbeExpansionThenSettleControlLatch(m);
 }
 
 /** BUG: scribbles on an index register — the control for the EXCLUDED ceiling. */
 function brokenMovesIndex(m) {
   m.regs.ix = (m.regs.ix + 1) & 0xffff;
-  return trampolineToSeatTheStackAndSettleTheControlLatch(m);
+  return trampolineToProbeExpansionThenSettleControlLatch(m);
 }
 
 const TWINS = [
@@ -409,7 +409,7 @@ test("CONTRIBUTION: the frozen entry adds nothing of its own", { skip }, () => {
 test("DESTINATION: the rewrite really goes through the power-on routine", { skip }, () => {
   const entry = theEntry();
   const frozen = marks(runTo(entry, oracle, CONTINUATION), entry);
-  const rewrite = marks(runTo(entry, trampolineToSeatTheStackAndSettleTheControlLatch, CONTINUATION), entry);
+  const rewrite = marks(runTo(entry, trampolineToProbeExpansionThenSettleControlLatch, CONTINUATION), entry);
   const skipped = marks(runTo(entry, brokenSkipsPowerOn, CONTINUATION), entry);
   assert.deepEqual(rewrite, frozen, "the rewrite's marks differ from the frozen path's");
   // Marks only if their absence shows: the twin that skips the routine must leave none of them.
@@ -427,33 +427,33 @@ test("SEAM: the captured entry and four register files agree at the jump out", {
     const entries = capture(label, opts);
     assert.notEqual(entries[0] ?? null, null, `vacuous: the ${label} tape never reached the routine`);
     for (const e of entries) {
-      const d = seamDiff(trampolineToSeatTheStackAndSettleTheControlLatch, e);
+      const d = seamDiff(trampolineToProbeExpansionThenSettleControlLatch, e);
       assert.equal(d, null, `${label}: ${d}`);
     }
   }
-  assert.equal(sweepScrambles(trampolineToSeatTheStackAndSettleTheControlLatch), 0, "a scrambled register file diverged");
+  assert.equal(sweepScrambles(trampolineToProbeExpansionThenSettleControlLatch), 0, "a scrambled register file diverged");
   console.log(`  SEAM: the captured entry under both tapes and ${SWEEP_RUNS.scrambles} register ` +
     "files, identical at the jump out");
 });
 
 test("SOCKET: all 256 answers the expansion socket could give", { skip }, () => {
-  assert.equal(sweepSocket(trampolineToSeatTheStackAndSettleTheControlLatch), 0, "an expansion-socket answer diverged");
+  assert.equal(sweepSocket(trampolineToProbeExpansionThenSettleControlLatch), 0, "an expansion-socket answer diverged");
   let refused = 0;
   for (let v = 0; v < VALUES; v++) {
-    if (runTo(craft((c) => answerSocket(c, v)), trampolineToSeatTheStackAndSettleTheControlLatch, CONTINUATION).refused) refused++;
+    if (runTo(craft((c) => answerSocket(c, v)), trampolineToProbeExpansionThenSettleControlLatch, CONTINUATION).refused) refused++;
   }
   assert.equal(refused, 1, "exactly one answer must carry a refusal through this entry");
   const fitted = craft((c) => answerSocket(c, EXPANSION_FITTED));
-  assert.equal(runTo(fitted, trampolineToSeatTheStackAndSettleTheControlLatch, CONTINUATION).refused, true,
+  assert.equal(runTo(fitted, trampolineToProbeExpansionThenSettleControlLatch, CONTINUATION).refused, true,
     "the answer that refuses is not the one the comparison downstream is made against");
   console.log(`  SOCKET: ${SWEEP_RUNS.socket} answers identical, ${refused} of them refused`);
 });
 
 test("SETTING: the image byte the picture line follows, over all 256 values", { skip }, () => {
-  assert.equal(sweepSetting(trampolineToSeatTheStackAndSettleTheControlLatch), 0, "a picture setting diverged");
+  assert.equal(sweepSetting(trampolineToProbeExpansionThenSettleControlLatch), 0, "a picture setting diverged");
   const levels = new Set();
   for (let v = 0; v < VALUES; v++) {
-    const r = runTo(craft((c) => setPictureSetting(c, v)), trampolineToSeatTheStackAndSettleTheControlLatch, CONTINUATION);
+    const r = runTo(craft((c) => setPictureSetting(c, v)), trampolineToProbeExpansionThenSettleControlLatch, CONTINUATION);
     levels.add(`${v & 1}->${r.c.io.latch[PICTURE_LINE]}`);
   }
   assert.deepEqual([...levels].sort(), ["0->0", "1->1"], "the picture line no longer follows the " +
@@ -482,7 +482,7 @@ test("TIME: this entry's own T-states and the pair's, measured at the two seams"
 test("WHOLE-MACHINE: both tapes are byte-identical with the rewrite wired", { skip }, () => {
   for (const [label, opts] of TAPES) {
     const mk = (ov) => makeMachine(ov, opts);
-    const w = wholeMachineEquivalence(mk, WHOLE_FRAMES, new Map([[TARGET, hosted(trampolineToSeatTheStackAndSettleTheControlLatch)]]));
+    const w = wholeMachineEquivalence(mk, WHOLE_FRAMES, new Map([[TARGET, hosted(trampolineToProbeExpansionThenSettleControlLatch)]]));
     assert.ok(w.invocations.get(TARGET) > 0, `vacuous: the override never dispatched under ${label}`);
     assert.equal(w.framesCompared, WHOLE_FRAMES, `the ${label} replay ran short`);
     assert.equal(w.equal, true, `${label} forked at frame ${w.frame} on ${hex4(w.addr ?? 0)}`);
@@ -503,7 +503,7 @@ function movedOver(candidate) {
 }
 
 test("EXCLUDED: nothing outside the ceiling moves, with a control twin", { skip }, () => {
-  const moved = movedOver(trampolineToSeatTheStackAndSettleTheControlLatch);
+  const moved = movedOver(trampolineToProbeExpansionThenSettleControlLatch);
   const control = movedOver(brokenMovesIndex);
   assert.ok(REG_FIELDS.some((k) => control.has(k) && !MOVED.includes(k)),
     "the control twin scribbles on an index register and this measurement did not notice, so a " +

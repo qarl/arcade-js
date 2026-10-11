@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** splitCollisionWorkByFrameParity — split the per-frame collision work by frame parity: on odd frames run the shot-versus-
  * target sweeps; on even frames run the player-versus-object collision chain, adding the mother-ship
- * mutual-kill check only while the mother ship is armed. The record/entry cursor and the compare
- * flag are now threaded through the callees' tuple RETURNS instead of read back off regs.e/regs.f.
+ * mutual-kill check only while the mother ship is armed.
  * LIVE-OUT: memory only. */
 //
 // ROM 0x4EBC-0x4F29; lift: translated/loc_4ebc.js. Grounding tag in names.js ROUTINES: [seen].
@@ -35,9 +34,6 @@ import { ramTestPlayerVsMotherShip } from "./ramTestPlayerVsMotherShip.js";
 import { destroyFixedTargetReachedByPlayer } from "./destroyFixedTargetReachedByPlayer.js";
 import { markObjectsTouchingPlayer } from "./markObjectsTouchingPlayer.js";
 import { ACTOR_ENTRY_SLOT0, ACTOR_RECORD_SLOT0, ERA_OBJECT_ENTRY_SLOT2, ERA_OBJECT_RECORD_SLOT2, FRAME_TICK, MOTHER_SHIP_ARMED } from "./names.js";
-
-// The mark's second parameter slot (the enter flags) is read by nothing; pass a fixed zero to fill it.
-const MARK_ENTER_FLAGS = 0;
 
 export function splitCollisionWorkByFrameParity(m) {
   const { mem8 } = m;
@@ -73,10 +69,6 @@ export function splitCollisionWorkByFrameParity(m) {
 
   const afterSlot2 = destroyPlayerAndObjectsTouchingIt(m, ERA_OBJECT_RECORD_SLOT2, ERA_OBJECT_ENTRY_SLOT2, 5, 11, 1);
 
-  // The tail marks objects near the player using the cursors that sweep just left (record page and
-  // index from afterSlot2.occupancy, the entry cursor from afterSlot2.entry).
-  return markObjectsTouchingPlayer(
-    m, MARK_ENTER_FLAGS, 8, 17,
-    afterSlot2.occupancy & (0xff << 8), afterSlot2.occupancy & 0xff, afterSlot2.entry, 1,
-  );
+  // The tail marks objects near the player using the cursors that sweep just left.
+  return markObjectsTouchingPlayer(m, 8, 17, afterSlot2.occupancy, afterSlot2.entry, 1);
 }

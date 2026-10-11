@@ -28,7 +28,7 @@ const MIRROR_BITS = 0xc0;
 // The one bit of the count that picks the colour (ROM `and 0x04`).
 const ALTERNATING_BIT = 0x04;
 // The two colour codes: 0x3F while that bit is clear (or the count is zero), 0x37 while it is set.
-// (The ROM also has 0x36/0x3E arms, which the lift marks unreachable.)
+// (The ROM also has 0x36/0x3E arms, which no value of the masked bit reaches.)
 const FIRST_COLOUR = 63;
 const SECOND_COLOUR = 55;
 

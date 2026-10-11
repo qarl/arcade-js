@@ -114,8 +114,21 @@ invaders 0x0857 dead  # two-player branch; only caller loc_077f (0x0788 jnz 0x08
 invaders 0x086d dead  # two-player start; only caller loc_0857 (0x0863 jc 0x086d), the idiomatic creditScreen yield* the idiomatic startTwoPlayerGame
 # timeplt: its DISSOLVED UNWIRED modules (tools/registry-coverage.config.mjs UNWIRED.timeplt), each run as
 # JS by a direct idiomatic call, the translated routine at the address never executing in the live game
-# (0 machine.call after boot, translated_live_probe 0). timeplt is not in CLOSURE_GAMES, so the gate does
-# not yet read these lines; they record the disposition the day it is enrolled.
+# (0 machine.call after boot, translated_live_probe 0). timeplt is in CLOSURE_GAMES, so the gate reads them.
 timeplt 0x3074 dead  # placeTileAtTableSuppliedOffset: direct-called by loc_307f on the scenery seed's tamper divert; not oracle-served
 timeplt 0x5254 dead  # loc_5254: absorbed into destroyTargetsHitByShots' own body; not oracle-served
 timeplt 0x562a dead  # appendSoundCommandToQueue: direct-called by the three enqueueSound* entries; not oracle-served
+# timeplt: the rest of the translated registry no live path enters. Each is dead: its only entry is a
+# dissolved dispatch, a derail an idiomatic caller replaces with a raise (the guard holds on a genuine image),
+# or nothing at all (no call, jp, jr or djnz targets it and nothing falls in).
+timeplt 0x0030 dead  # rst 0x30 inline jump-table dispatch: every idiomatic caller selects its arm with a JS switch, so no rst 0x30 executes
+timeplt 0x0ce8 dead  # bare ret, reached by `jp z,0x0ce8` at 0x0C97 and `jr 0x0ce8` at 0x0CE3, both inside awardScoreToPlayer (0x0C90), which returns in JS
+timeplt 0x15ca dead  # anti-tamper derail: `jp nz,0x15ca` at 0x17A6 (cp 0x3b), which holdCopyrightThenVerifyGlyphAndSeatWitnessOrDerail replaces with a raise; never fetched under MAME on a genuine image
+timeplt 0x2530 dead  # anti-tamper derail: `jp nz,0x2530` at 0x2735 (TAMPER_IMAGE_SIGNATURE cp 0x76), which verifyImageSignatureThenStartAttractDemoOrDerail replaces with a raise; never fetched under MAME on a genuine image
+timeplt 0x3176 dead  # data table (`ld hl,0x3176` at 0x30B6); entered as code only by `jp 0x3176` at 0x315B, which the idiomatic loc_315b replaces with a raise
+timeplt 0x46a6 dead  # no entry point: no call, jp, jr or djnz targets it, no a6 46 word exists, and 0x46A3 is `jp 0x57f7`
+timeplt 0x49fa dead  # caption record 4 (text): entered as code only by `jp nz,0x49fa` at 0x19E6, which checkTheCopyrightLineColoursOrDerail replaces with a raise
+timeplt 0x4b07 dead  # no entry point: no call, jp, jr or djnz targets it, its only 07 4b byte pairs (0x22B3, 0x233C) are not branch operands, and 0x4B06 is `ret`
+timeplt 0x5277 dead  # no entry point: no call, jp, jr or djnz targets it, no 77 52 word exists, and 0x5276 is `ret`; the live entry of this region is 0x5286
+timeplt 0x53d4 dead  # data table (`ld hl,0x53d4` at 0x536A); entered as code only by `call nz,0x53d4` at 0x5283, inside the unreached 0x5277, whose sum of ROM 0x27DE-0x28DD is 0xC5 so the call is never taken
+timeplt 0x59d7 dead  # velocity data table; entered as code only by `jp nz,0x59d7` at 0x589E when the image checksum misses 0xAF, which clearScreenRamAndVerifyImageThenColdInit replaces with a raise

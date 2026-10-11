@@ -21,17 +21,16 @@
  * LIVE-OUT: memory.
  */
 
-import { u8, u16 } from "../../../core/int.js";
+import { u16 } from "../../../core/int.js";
 import { ERA_INDEX, MOTHER_SHIP_ENTRY, MOTHER_SHIP_SPRITE_Y, MOTHER_SHIP_STATE, PLAYER_SHOT_ARRAY } from "./names.js";
 import { postChainedHitScore } from "./postChainedHitScore.js";
+import { within, nextRecordInPage } from "./objectGeometry.js";
 
-// Six shot records, 16 bytes apart; +0 is the record's state, +6 and +4 its two coordinates.
+// Six shot records (16 bytes apart); +0 is the record's state, +6 and +4 its two coordinates.
 const SLOT_COUNT = 6;
-const RECORD_STRIDE = 16;
 const STATE = 0;
 const SLOT_FIRST_AXIS = 6;
 const SLOT_SECOND_AXIS = 4;
-
 
 // The slot alphabet: 0xFF live, 0xF0 just hit.
 const LIVE = 255;
@@ -48,9 +47,6 @@ const FIRST_AXIS_REACH = 6;
 const FIRST_AXIS_SPAN = 13;
 const SECOND_AXIS_REACH = 23;
 const SECOND_AXIS_SPAN = 31;
-
-/** Two coordinates are close enough when their wrapped difference lands inside the box. */
-const within = (a, b, reach, span) => u8(u8(a - b) + reach) < span;
 
 export function destroyMotherShipAndShotOnMutualHit(m) {
   const { mem8 } = m;
@@ -79,6 +75,6 @@ export function destroyMotherShipAndShotOnMutualHit(m) {
       postChainedHitScore(m);
     }
     // Next record: add 16 to the low byte of the cursor only (ROM 0x5022-0x5026: ld a,iyl / add a,0x10 / ld iyl,a).
-    slot = (slot - (slot & 0xff)) | u8(slot + RECORD_STRIDE);
+    slot = nextRecordInPage(slot);
   }
 }

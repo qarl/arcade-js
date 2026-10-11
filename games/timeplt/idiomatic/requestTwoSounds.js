@@ -8,7 +8,7 @@
  *
  * Role in the machine: the sound pair for combat impacts. Its callers
  * (advanceHitSoakingObjectThenAnimateDeath, countTheKillAndGrantTheSharedToken,
- * stampObjectStateByte3bThenRequestTwoSounds, loc_43f0) are hit, kill and retire sites,
+ * clampOneShotCountdownThenRequestTwoSounds, loc_43f0) are hit, kill and retire sites,
  * which is why the first code is named generically rather than "death". Both
  * codes go onto the shared sound queue; the queue's drain at 0x55D4 later takes each head code and
  * hands it to 0x55F8, which writes it to 0xC000 -- the sound-data latch -- and pulses the LS259

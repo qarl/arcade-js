@@ -16,7 +16,7 @@ import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { ROUTINES as TRANSLATED } from "../../routines.js";
 import { stepDriftingCountdownObjectByEraFrames as candidate } from "../stepDriftingCountdownObjectByEraFrames.js";
 import { loc_413c as oracle } from "../../translated/loc_413c.js";
-import { stampObjectStateByte3bThenRequestSound } from "../stampObjectStateByte3bThenRequestSound.js";
+import { clampOneShotCountdownThenRequestSound } from "../clampOneShotCountdownThenRequestSound.js";
 import { driftWithWorldScroll } from "../driftWithWorldScroll.js";
 import { retireSlot } from "../retireSlot.js";
 import { fetchTableByte } from "../fetchTableByte.js";
@@ -123,7 +123,7 @@ function twin({ reset = true, drift = true, window = true, retire = true,
   return (m) => {
     const { regs, mem8 } = m;
     const o = regs.ix;
-    if (reset && mem8[o] >= RESET_MARK) stampObjectStateByte3bThenRequestSound(m);
+    if (reset && mem8[o] >= RESET_MARK) clampOneShotCountdownThenRequestSound(m);
     if (drift) driftWithWorldScroll(m);
     const cnt = (mem8[o] - 1) & 0xff;
     mem8[o] = cnt;

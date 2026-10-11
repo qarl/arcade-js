@@ -1,0 +1,19 @@
+{
+  "name": "pass-turn",
+  "description": "Two-player game where player 1 loses the last life: GAME OVER for player 1, then the turn passes to player 2 through handPlayOverToOtherPlayer (0x1226), vs MAME.",
+  "_grounding": "Two credits (coin f400 + f440), 2 Players Start f520. One-shot LIVES_REMAINING 0xAD00=1 and its save block 0xAD10=1 at f650, forced death PLAYER_STATE 0xA800=0xF0 at f660 (the code a collision sweep writes). At golden f974 loseLifeAndHandOver finds no lives and posts the game-over banner; 'responded' is SEQUENCE_SUBSTEP 0xA9AC==0x08, the game-over hold (golden f974-1153). When the hold ends fileScoreAfterGameOverHoldElsePassTurn -> passTurnToOtherPlayerIfLivesElseStepSequence -> handPlayOverToOtherPlayer sets ACTIVE_PLAYER 0xAD32=1 (golden f1154) and player 2's context is loaded.",
+  "hold": 8,
+  "inputs": [
+    { "frame": 400, "press": "coin" },
+    { "frame": 440, "press": "coin" },
+    { "frame": 520, "press": "start2p" }
+  ],
+  "pokes": [
+    { "frame": 650, "addr": "0xad00", "val": "0x01", "dur": 1 },
+    { "frame": 650, "addr": "0xad10", "val": "0x01", "dur": 1 },
+    { "frame": 660, "addr": "0xa800", "val": "0xf0", "dur": 1 }
+  ],
+  "responded": {"cell": "0xa9ac", "op": "eq", "val": "0x08"},
+  "reaches": ["passTurnToOtherPlayerIfLivesElseStepSequence", "handPlayOverToOtherPlayer", "loadActivePlayerContextAndPostRoundHud"],
+  "idiomatic_residual_frames": 89
+}

@@ -20,7 +20,7 @@
 import { u16 } from "../../../core/int.js";
 import { initColdStartRamThenSeedConfig } from "./initColdStartRamThenSeedConfig.js";
 import { NotImplemented } from "../../../boards/timeplt/io.js";
-import { trampolineToSeatTheStackAndSettleTheControlLatch_ADDR, COLOUR_RAM_BASE_WORD, VIDEO_RAM_BASE_WORD, WATCHDOG_RESET } from "./names.js";
+import { trampolineToProbeExpansionThenSettleControlLatch_ADDR, COLOUR_RAM_BASE_WORD, VIDEO_RAM_BASE_WORD, WATCHDOG_RESET } from "./names.js";
 
 // Fill values: every colour cell gets attribute 0x10, every video cell tile 0xF1 (`ld d,0x10` / `ld d,0xf1`).
 const COLOUR_FILL = 0x10;
@@ -51,8 +51,8 @@ export function clearScreenRamAndVerifyImageThenColdInit(m) {
   // total with the byte at 0x0000 (`ld a,(0x0000)`) and then adds 0x0000 again as the first term,
   // so that byte counts twice -- reproduced here. It kicks the watchdog once per byte, because the
   // 24 KB loop is long enough that the watchdog would otherwise reset the board mid-check.
-  let addr = trampolineToSeatTheStackAndSettleTheControlLatch_ADDR;
-  let total = mem8[trampolineToSeatTheStackAndSettleTheControlLatch_ADDR];
+  let addr = trampolineToProbeExpansionThenSettleControlLatch_ADDR;
+  let total = mem8[trampolineToProbeExpansionThenSettleControlLatch_ADDR];
   for (;;) {
     total = u8(total + mem8[addr]);
     addr = u16(addr + 1);

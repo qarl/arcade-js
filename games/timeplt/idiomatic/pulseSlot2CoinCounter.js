@@ -11,7 +11,7 @@
  *
  * ROM: 0x49D6. Tag [seen] (names.js). Role in the machine: coin slot 2's mechanical coin counter. It
  * is the twin of pulseSlot1CoinCounter (0x4984) — byte-identical but for three operands: the debt
- * cell COIN_ACCEPTED_SLOT_2 0xA982 [code], the timer COIN_PULSE_TIMER_SLOT_2 0xA985 [code] and the
+ * cell COIN_ACCEPTED_SLOT_2 0xA982 [seen], the timer COIN_PULSE_TIMER_SLOT_2 0xA985 [seen] and the
  * latch line COIN_COUNTER_1_LATCH 0xC30C (bit 6 of the board's LS259 latch, the driver's
  * LATCH_COIN_COUNTER_1). Each coin taken on slot 2 owes one click of that counter, and this routine
  * pays the debt off one separate on-then-off pulse at a time, so two quick coins give two clicks.

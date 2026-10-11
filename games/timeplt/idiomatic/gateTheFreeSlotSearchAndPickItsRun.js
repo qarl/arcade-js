@@ -13,7 +13,7 @@
 // if so, which run of object slots the free-slot search walks; the search itself fills at most one
 // free slot and does not come back here.
 //
-// PARAMETER. `hl` is the address of the gate byte, as the caller points at it. The routine reads the
+// PARAMETER. `gateCell` is the address of the gate byte, as the caller points at it. The routine reads the
 // byte through the pointer, so it does not itself know which cell it is.
 //
 // LIVE-OUT: memory only -- whatever slot the search fills. Nothing is staged when the gate is shut.
@@ -32,11 +32,11 @@ const LAUNCH_TICKS = [0x00, 0x30];
 const OWED_RUN = { records: CRAFT_RECORD_SLOT6, entries: CRAFT_ENTRY_SLOT6 };
 const CLEARED_RUN = { records: CRAFT_RECORD_SLOT4, entries: CRAFT_ENTRY_SLOT4, slots: 5 };
 
-export function gateTheFreeSlotSearchAndPickItsRun(m, hl = m.regs.hl) {
+export function gateTheFreeSlotSearchAndPickItsRun(m, gateCell = m.regs.hl) {
   const { mem8 } = m;
   // THE GATE. Spawn only on the two counter values; every other tick ends here with nothing staged,
   // so at most two moments of each counter cycle can launch a craft.
-  if (!LAUNCH_TICKS.includes(mem8[hl])) return;
+  if (!LAUNCH_TICKS.includes(mem8[gateCell])) return;
 
   // PICK THE RUN. KILLS_REMAINING (0xAD02, [seen]) counts down the enemies still to destroy before the
   // Mother-Ship appears. While any are owed, search the owed run for as many slots as

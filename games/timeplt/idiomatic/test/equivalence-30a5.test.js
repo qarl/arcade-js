@@ -17,7 +17,7 @@ import { seatEraSceneryRowThenClearAndRunScenery as candidate } from "../seatEra
 import { loc_30a5 as oracle } from "../../translated/loc_30a5.js";
 import { sumByteRunAndCompareToExpected } from "../sumByteRunAndCompareToExpected.js";
 import { offsetAddress } from "../offsetAddress.js";
-import { seatSceneryFillByte0x28ThenClearEraScenery } from "../seatSceneryFillByte0x28ThenClearEraScenery.js";
+import { seatFinalEraSceneryFillThenClearEraScenery } from "../seatFinalEraSceneryFillThenClearEraScenery.js";
 import { clearSceneryEntriesThenRunEraScenery } from "../clearSceneryEntriesThenRunEraScenery.js";
 import { u8, u16 } from "../../../../core/int.js";
 
@@ -153,7 +153,7 @@ function variant({ rowTable = ROW_TABLE, rowStride = ROW_STRIDE, seatBase = SEAT
     regs.a = mem8[ERA_INDEX];
     regs.cp(ERA_FOUR);
     regs.c = regs.a;
-    if (honourEraFour && regs.fZ) return seatSceneryFillByte0x28ThenClearEraScenery(m);
+    if (honourEraFour && regs.fZ) return seatFinalEraSceneryFillThenClearEraScenery(m);
     regs.a = fillByte;
     if (transfer) return clearSceneryEntriesThenRunEraScenery(m);
   };

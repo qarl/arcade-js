@@ -16,15 +16,12 @@
  *
  * LIVE-OUT: the two cursors, the second also in HL. */
 
-import { DEFERRED_WRITE_CURSOR, DEFERRED_BLANK_CURSOR } from "./names.js";
-
-// Entries start four bytes past each cursor (0xAE04 and 0xAE84).
-const FIRST_ENTRY = 4;
+import { DEFERRED_BLANK_CURSOR, DEFERRED_BLANK_LIST, DEFERRED_WRITE_CURSOR, DEFERRED_WRITE_LIST } from "./names.js";
 
 export function emptyBothDeferredCellLists(m) {
   // Blank list first, then the paint list, in the ROM's order (`ld (0xae80),hl` then `ld (0xae00),hl`).
-  m.mem16[DEFERRED_BLANK_CURSOR] = DEFERRED_BLANK_CURSOR + FIRST_ENTRY;
-  m.mem16[DEFERRED_WRITE_CURSOR] = DEFERRED_WRITE_CURSOR + FIRST_ENTRY;
+  m.mem16[DEFERRED_BLANK_CURSOR] = DEFERRED_BLANK_LIST;
+  m.mem16[DEFERRED_WRITE_CURSOR] = DEFERRED_WRITE_LIST;
   // The ROM leaves 0xAE04 in HL from the last store; it is handed back the same way.
-  return (m.regs.hl = DEFERRED_WRITE_CURSOR + FIRST_ENTRY);
+  return (m.regs.hl = DEFERRED_WRITE_LIST);
 }

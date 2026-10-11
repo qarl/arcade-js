@@ -50,6 +50,10 @@ import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { placeTileAtTableSuppliedOffset } from "../placeTileAtTableSuppliedOffset.js";
+
+/** The rewrite fed the frozen entry's register inputs, as loc_307f hands them over. */
+const placeFromRegisters = (mm) =>
+  placeTileAtTableSuppliedOffset(mm, mm.regs.iy, mm.regs.hl, mm.regs.c, mm.regs.b, mm.regs.ix);
 import { loc_3074 as oracle } from "../../translated/loc_3074.js";
 // The live entry the UNREACHED arm uses as its positive control -- a batch sibling, dispatched
 // by both sessions, so the rig can be shown able to reach something before a zero here counts.
@@ -194,7 +198,7 @@ test("UNREACHED: neither tape dispatches it, and the same apparatus DOES reach a
       );
 
       assert.throws(
-        () => unitEquivalence((ov) => makeMachine(ov, opts), TARGET, oracle, placeTileAtTableSuppliedOffset, {
+        () => unitEquivalence((ov) => makeMachine(ov, opts), TARGET, oracle, placeFromRegisters, {
           maxFrames: ENTRY_FRAMES,
         }),
         /never entered/,
@@ -228,7 +232,7 @@ test("THE CROSS: every entry x record x pointer comparison is identical", { skip
   for (const entry of ENTRIES) {
     for (const record of RECORDS) {
       for (const table of TABLES) {
-        const d = unitDiff(placeTileAtTableSuppliedOffset, () => craft(entry, record, table));
+        const d = unitDiff(placeFromRegisters, () => craft(entry, record, table));
         assert.equal(d, null, `${hex4(entry)}/${hex4(record)}/${hex4(table)}: ${show(d)}`);
       }
     }
@@ -238,7 +242,7 @@ test("THE CROSS: every entry x record x pointer comparison is identical", { skip
 
 test("EXHAUSTIVE over the displacement: all 256 values of the selected byte", { skip }, () => {
   for (let displacement = 0; displacement < 256; displacement++) {
-    const d = unitDiff(placeTileAtTableSuppliedOffset, () => craftDisplacement(displacement));
+    const d = unitDiff(placeFromRegisters, () => craftDisplacement(displacement));
     assert.equal(d, null, `displacement ${displacement}: ${show(d)}`);
   }
   const wrapped = craftDisplacement(255);
@@ -253,7 +257,7 @@ test("EXCLUDED, deliberately: the accumulator, the flag byte, one register pair,
   const a = craft(ENTRIES[0], RECORDS[0], PROLOGUE_TABLE);
   const b = a.clone();
   oracle(a);
-  placeTileAtTableSuppliedOffset(b);
+  placeFromRegisters(b);
   const moved = REG_FIELDS.filter((k) => a.regs[k] !== b.regs[k]);
   assert.ok(moved.every((k) => EXCLUDED.includes(k)), `a register outside the set moved: ${moved}`);
   assert.equal(a.regs.ix, b.regs.ix, "the record cursor is reproduced, not excluded");

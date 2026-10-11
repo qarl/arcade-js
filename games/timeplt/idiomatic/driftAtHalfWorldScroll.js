@@ -28,6 +28,7 @@
 
 import { displaceByHalf } from "./displaceByHalf.js";
 import { WORLD_SCROLL_X, WORLD_SCROLL_Y } from "./names.js";
+import { coordinateAt, storeCoordinate } from "./objectGeometry.js";
 
 // Byte offsets, from the ROM's indexed loads and stores.
 const ROW_REMAINDER = 3; // ld e,(ix+0x03): fraction of the coordinate paired with WORLD_SCROLL_Y
@@ -49,9 +50,7 @@ export function driftAtHalfWorldScroll(m, object = m.regs.ix, sprite = m.regs.iy
  * (0x304D), which adds the displacement less half of it — the half taken by a signed shift that
  * rounds toward the negative — and returns the 16-bit sum in HL. */
 function driftCoordinate(m, wholeAddr, fractionAddr, displacement) {
-  const { mem8 } = m;
-  const moved = displaceByHalf(m, displacement, (mem8[wholeAddr] << 8) + mem8[fractionAddr]);
+  const moved = displaceByHalf(m, displacement, coordinateAt(m, wholeAddr, fractionAddr));
   // Split back: high byte to the sprite entry (ld (iy+..),h), low byte to the record (ld (ix+..),l).
-  mem8[wholeAddr] = moved >> 8;
-  mem8[fractionAddr] = moved;
+  storeCoordinate(m, wholeAddr, fractionAddr, moved);
 }

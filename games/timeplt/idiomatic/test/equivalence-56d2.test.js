@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * requestRoundIntroSoundBurst — memory-equivalent to the frozen oracle at ROM 0x56D2.
+ * requestDestructionSoundBurst — memory-equivalent to the frozen oracle at ROM 0x56D2.
  *
  * WHAT IT IS. Three sound codes, each fetched from a byte of the program image and offered to the
  * IN-PLAY-ONLY permission test at ROM 0x560C, and then a fall-through into ROM 0x56E4, which asks
@@ -72,7 +72,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 import { makeMachine, COIN_FRAME, START_FRAME, ENTRY_FRAMES, romsPresent } from "./_harness.js";
-import { requestRoundIntroSoundBurst } from "../requestRoundIntroSoundBurst.js";
+import { requestDestructionSoundBurst } from "../requestDestructionSoundBurst.js";
 import { enqueueSoundIfGameInProgress } from "../enqueueSoundIfGameInProgress.js";
 import { enqueueSoundIfGameOrAttract } from "../enqueueSoundIfGameOrAttract.js";
 import { appendSoundCommandToQueue } from "../appendSoundCommandToQueue.js";
@@ -184,7 +184,7 @@ function gate(candidate) {
 }
 
 function entryState() {
-  if (entry === null) gate(requestRoundIntroSoundBurst);
+  if (entry === null) gate(requestDestructionSoundBurst);
   return entry;
 }
 
@@ -298,7 +298,7 @@ function replaySession(factory, candidate) {
 let sessionCache = null;
 function sessions() {
   if (sessionCache) return sessionCache;
-  sessionCache = SESSIONS.map(([label, factory]) => ({ label, ...replaySession(factory, requestRoundIntroSoundBurst) }));
+  sessionCache = SESSIONS.map(([label, factory]) => ({ label, ...replaySession(factory, requestDestructionSoundBurst) }));
   return sessionCache;
 }
 
@@ -460,14 +460,14 @@ const TWINS = [
 // ── the gate ────────────────────────────────────────────────────────────────────────────
 
 test("EQUAL at the real dispatch: identical outside the measured window", { skip }, () => {
-  gate(requestRoundIntroSoundBurst);
+  gate(requestDestructionSoundBurst);
   assert.notEqual(entry, null, "vacuous: the session never reached the routine");
   const e = entryState();
   const sp = e.regs.sp;
   const a = e.clone();
   const b = e.clone();
   oracle(a);
-  requestRoundIntroSoundBurst(b);
+  requestDestructionSoundBurst(b);
   const all = allDiffs(a, b);
   const strays = all.filter((d) => !inScratch(d.addr, sp));
   console.log(
@@ -514,10 +514,10 @@ function movedOver(candidate) {
 }
 
 test("EXCLUDED, deliberately: no register outside the ceiling moves", { skip }, () => {
-  const moved = movedOver(requestRoundIntroSoundBurst);
+  const moved = movedOver(requestDestructionSoundBurst);
   // The absence is evidence only if the measurement CAN report a register outside the ceiling.
   const control = movedOver((m) => {
-    requestRoundIntroSoundBurst(m);
+    requestDestructionSoundBurst(m);
     m.regs.b = u8(m.regs.b + 1);
   });
   assert.ok(control.has("b"), "the measurement misses a candidate that plainly moves a register, " +
@@ -557,7 +557,7 @@ test("CORPUS: every dispatch of every session replays identically", { skip }, ()
 
 test("CRAFTED CROSS: every permission x queue-length combination is identical", { skip }, () => {
   for (const [playing, demo, n] of cross()) {
-    const d = unitDiff(requestRoundIntroSoundBurst, craft(playing, demo, n));
+    const d = unitDiff(requestDestructionSoundBurst, craft(playing, demo, n));
     assert.equal(d, null, `permission ${playing}/${demo} length ${n}: ${show(d)}`);
   }
   console.log(`  CRAFTED CROSS: ${cross().length} entries identical`);
@@ -567,7 +567,7 @@ test("SPLIT: play inactive with attract sounds on drops the three and keeps the 
   const m = craft(0, 255, 0);
   const codes = [m.mem8[TAIL_FIRST_CODE_CELL], m.mem8[TAIL_SECOND_CODE_CELL]];
   const after = m.clone();
-  requestRoundIntroSoundBurst(after);
+  requestDestructionSoundBurst(after);
   const landed = queued(after, 0);
   console.log(`  SPLIT: with play inactive and attract sounds on, ${landed.grown} codes land ` +
     `[${landed.codes.join(",")}], and the tail's own codes are [${codes.join(",")}]`);
@@ -576,7 +576,7 @@ test("SPLIT: play inactive with attract sounds on drops the three and keeps the 
   // Control: with play ACTIVE and attract sounds off, all five land instead.
   const active = craft(255, 0, 0);
   const both = active.clone();
-  requestRoundIntroSoundBurst(both);
+  requestDestructionSoundBurst(both);
   const all = queued(both, 0);
   assert.equal(all.grown, 5, `with a game in progress ${all.grown} codes land, not all five, so ` +
     "the comparison above cannot be attributed to the permission split");
@@ -592,7 +592,7 @@ test("THE DROPPED CASE: with both permission cells clear, nothing is written", {
   for (const n of LENGTHS) {
     const before = craft(0, 0, n);
     const after = before.clone();
-    requestRoundIntroSoundBurst(after);
+    requestDestructionSoundBurst(after);
     const strays = allDiffs(before, after).filter((d) => !inScratch(d.addr, before.regs.sp));
     assert.deepEqual(strays, [], `length ${n}: a dropped burst still wrote ${show(strays[0])}`);
     checked++;
@@ -609,7 +609,7 @@ test("THE DROPPED CASE: with both permission cells clear, nothing is written", {
 });
 
 test("CALLS, NOT RESTATES: the module's text, with the callees as positive controls", () => {
-  const module = read("../requestRoundIntroSoundBurst.js");
+  const module = read("../requestDestructionSoundBurst.js");
   for (const helper of HELPERS) {
     assert.ok(callsRatherThanRestates(module, helper), `the module does not call ${helper[0]}`);
     assert.ok(!callsRatherThanRestates(read(helper[1]), helper), `the check passes ${helper[0]}'s ` +
@@ -620,7 +620,7 @@ test("CALLS, NOT RESTATES: the module's text, with the callees as positive contr
 });
 
 test("WHOLE-MACHINE: a driven session differs only in stack scratch", { skip }, () => {
-  const r = wholeRunCells(requestRoundIntroSoundBurst);
+  const r = wholeRunCells(requestDestructionSoundBurst);
   console.log(
     `  WHOLE-MACHINE: ${r.frames} frames, ${r.fired} dispatches, differing cells ` +
       `[${r.cells.map(hex4).join(" ")}]`,

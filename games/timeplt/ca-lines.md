@@ -1810,7 +1810,7 @@
 201B	flag the paired sprite entry
 201F	read the era number
 2024	past the second era: cue the extra progress sound
-2027	cue the round-intro sound burst
+2027	cue the destruction sound burst
 202A	read a game-state cell
 202D	is it the running value?
 202F	no: divert to the shared exit
@@ -3943,7 +3943,7 @@
 4557	not yet: step the warp/flash frame
 455A	clear the mother-ship progress cell
 455E	quiet the running sound
-4561	sound the round-clear fanfare
+4561	cue the destruction sound burst for the Mother-Ship
 4564	point at the object bank
 4567	record stride
 456A	fifteen records to sweep

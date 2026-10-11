@@ -22,14 +22,10 @@
  * accepts differences from -reach up to span-reach-1, so the box can be lopsided.
  */
 
-import { u8, u16 } from "../../../core/int.js";
 import { destroyPlayerAndMotherShipOnContact } from "./destroyPlayerAndMotherShipOnContact.js";
 import { postChainedHitScore } from "./postChainedHitScore.js";
-import { ERA_INDEX, MOTHER_SHIP_ENTRY, MOTHER_SHIP_HITS_TO_ABSORB, MOTHER_SHIP_SPRITE_Y, MOTHER_SHIP_STATE, PLAYER_ENTRY, PLAYER_STATE } from "./names.js";
-
-// A sprite entry's two coordinate bytes sit 49 (0x31) apart: +0x00 is the first native axis,
-// +0x31 the second. PLAYER_ENTRY + 49 is therefore the player's second-axis byte (0xAA41).
-const ENTRY_SECOND_AXIS = 49;
+import { ERA_INDEX, MOTHER_SHIP_ENTRY, MOTHER_SHIP_HITS_TO_ABSORB, MOTHER_SHIP_SPRITE_Y, MOTHER_SHIP_STATE, PLAYER_ENTRY, PLAYER_SPRITE_Y, PLAYER_STATE } from "./names.js";
+import { within } from "./objectGeometry.js";
 
 // Eras 0 (1910) and 4 (2001) use the wider first-axis box; the ROM tests `and a` then `cp 0x04`
 // on ERA_INDEX and jumps to 0x50EE on either match.
@@ -45,9 +41,6 @@ const FIRST_AXIS_SPAN = 13;
 const SECOND_AXIS_REACH = 25;
 const SECOND_AXIS_SPAN = 35;
 
-/** Two coordinates are close enough when their wrapped difference lands inside the box. */
-const within = (a, b, reach, span) => u8(u8(a - b) + reach) < span;
-
 export function ramTestPlayerVsMotherShip(m) {
   const { mem8 } = m;
   // Step 1 -- choose the box. In the first and last eras the wider first-axis test lives in its
@@ -62,9 +55,9 @@ export function ramTestPlayerVsMotherShip(m) {
   // entry +0x00 (0xAA10), accepted within 6 either side.
   if (!within(mem8[MOTHER_SHIP_ENTRY], mem8[PLAYER_ENTRY], FIRST_AXIS_REACH, FIRST_AXIS_SPAN)) return;
   // Step 4 -- the second native axis: MOTHER_SHIP_SPRITE_Y (0xAA55 = entry +0x31) against the
-  // player's +0x31 byte, accepted from 25 below to 9 above.
+  // player's (PLAYER_SPRITE_Y 0xAA41), accepted from 25 below to 9 above.
   if (
-    !within(mem8[MOTHER_SHIP_SPRITE_Y], mem8[u16(PLAYER_ENTRY + ENTRY_SECOND_AXIS)],
+    !within(mem8[MOTHER_SHIP_SPRITE_Y], mem8[PLAYER_SPRITE_Y],
       SECOND_AXIS_REACH, SECOND_AXIS_SPAN)
   ) {
     return;

@@ -103,7 +103,8 @@ const show = (d) => (d ? `${d.addr === null ? "reg" : hex4(d.addr)}: oracle=${d.
 
 const RECIPE = JSON.parse(readFileSync(new URL("../../tapes/high-score.poke.json", import.meta.url), "utf8"));
 /** The recipe rides MAME's frame numbering; the JS tape is one frame later (COIN_FRAME vs coin). */
-const SHIFT = COIN_FRAME - RECIPE.coin;
+// The coin frame is a top-level field on older tapes and an `inputs` entry on newer ones.
+const SHIFT = COIN_FRAME - (RECIPE.coin ?? RECIPE.inputs.find((i) => i.press === "coin").frame);
 const POKES = RECIPE.pokes.map((p) => ({
   frame: p.frame + SHIFT, addr: parseInt(p.addr, 16), val: parseInt(p.val, 16), dur: p.dur ?? null,
 }));

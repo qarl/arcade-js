@@ -74,7 +74,7 @@ whose role is only partly pinned, carry a terse caveat.
 | a99c | initialsCursorFlashTimer | initials cursor blink counter: incremented every odd frame of the entry, bit 4 picks the cursor cell's colour (0x14 over 0x10); zeroed whenever the cursor letter is redrawn |
 | a99d | chainWindow | How much longer a hit still counts as part of the current chain. |
 | a99e | chainStep | Which rung of the chained-hit award ladder the next hit will be paid at. |
-| a9ab | sequencePhase | OUTER phase of the same two-level machine: the machine's top-level MODE. |
+| a9ab | sequencePhase | OUTER phase of the two-level sequence machine: the machine's top-level MODE. |
 | a9ac | sequenceSubstep | INNER index of the two-level sequence machine. |
 | a9ad | dip1Mirror | inverted mirror of DSW 0xC200 (the gameplay dip bank) |
 | a9ae | in0Mirror | Mirror of the IN0 input port, rewritten every frame from the port itself. |
@@ -125,7 +125,7 @@ whose role is only partly pinned, carry a terse caveat.
 | aa14 | actorEntrySlot1 | Actor slot 1's sprite entry. |
 | aa16 | actorEntrySlot2 | Actor slot 2's sprite entry; free-slot-search entry seat. |
 | aa18 | actorEntrySlot3 | Actor slot 3's sprite entry; also the aimed-spawn "bank A" entry seat. |
-| aa1a | craftEntrySlot0 | Slot 0's sprite entry, and the iteration base of the whole entry band; paired with CRAFT_RECORD_SLOT0 in every whole-band walk (entry stride +0x02). |
+| aa1a | craftEntrySlot0 | Slot 0's sprite entry, and the iteration base of the whole craft entry band; paired with CRAFT_RECORD_SLOT0 in every whole-band walk (entry stride +0x02). |
 | aa1c | craftEntrySlot1 | Slot 1's sprite entry (paired with CRAFT_RECORD_SLOT1). |
 | aa1e | craftEntrySlot2 | Slot 2's sprite entry. |
 | aa20 | craftEntrySlot3 | Slot 3's sprite entry. |
@@ -200,7 +200,7 @@ whose role is only partly pinned, carry a terse caveat.
 | ad11 | playerOneRoundNumber | Player one's copy of ROUND_NUMBER (0xAD01), the unwrapped round ordinal. |
 | ad12 | playerOneKillsRemaining | Player one's copy of KILLS_REMAINING (0xAD02): craft still to destroy this round, seeded from KILL_QUOTA (0xA9CD). |
 | ad13 | playerOneBonusLifeLatch | Player one's copy of the bonus-life award one-shot latch (active 0xAD03, bit 0, set by awardBonusLifeAtScoreMark once the score mark is passed). |
-| ad14 | playerOneEraIndex | Player one's copy of ERA_INDEX (0xAD04): which era/round is in force -- the key setSavedPenFromEra and seatCaptionPen use for the caption pen. |
+| ad14 | playerOneEraIndex | Player one's copy of ERA_INDEX (0xAD04): which era/round is in force -- the key setSavedPenFromEra and seatCaptionPenFromEraFoldingTamperIntoPhase use for the caption pen. |
 | ad16 | playerOneLifeTicksMid | Player one's copy of LIFE_TICKS_MID (0xAD06). |
 | ad1a | playerOneStartRung | Player one's copy of the round start rung (active 0xAD0A) -- the difficulty rung the round opens on, later copied into ERA_RUNG. |
 | ad1b | playerOnePenGlyph | Player one's saved copy of PEN_GLYPH (saved context +0x0B). |

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * stampObjectStateByte3bThenRequestTwoSounds — memory-equivalent to the frozen oracle at ROM 0x3ECB.
+ * clampOneShotCountdownThenRequestTwoSounds — memory-equivalent to the frozen oracle at ROM 0x3ECB.
  *
  * GATE: crafted-entry with a MASKED diff. The rewrite calls the continuation directly instead
  *   of dispatching its address, so the frozen chain's nested calls — each pushing a return
@@ -32,7 +32,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
-import { stampObjectStateByte3bThenRequestTwoSounds } from "../stampObjectStateByte3bThenRequestTwoSounds.js";
+import { clampOneShotCountdownThenRequestTwoSounds } from "../clampOneShotCountdownThenRequestTwoSounds.js";
 import { loc_3ecb as oracle } from "../../translated/loc_3ecb.js";
 import { loc_3e63 as walk } from "../../translated/loc_3e63.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
@@ -163,10 +163,10 @@ test("UNREACHED: the shared tape never dispatches this address", { skip }, () =>
   console.log(`  UNREACHED: 0 dispatches in ${ENTRY_FRAMES} frames (walk: ${walkHits})`);
 });
 
-test("EQUAL on the crafted entry: stampObjectStateByte3bThenRequestTwoSounds == oracle on masked RAM", { skip }, () => {
+test("EQUAL on the crafted entry: clampOneShotCountdownThenRequestTwoSounds == oracle on masked RAM", { skip }, () => {
   const e = entryState();
   assert.ok(RECORDS.includes(e.regs.ix), `entry base ${hex4(e.regs.ix)} is not a record base`);
-  const d = diffAt(stampObjectStateByte3bThenRequestTwoSounds, e.regs.ix, e.mem8[e.regs.ix]);
+  const d = diffAt(clampOneShotCountdownThenRequestTwoSounds, e.regs.ix, e.mem8[e.regs.ix]);
   assert.equal(d, null, `RAM diverged — ${show(d)}`);
   console.log(`  EQUAL: record ${hex4(e.regs.ix)}, masked RAM identical`);
 });
@@ -176,7 +176,7 @@ test("SCRATCH: the whole raw difference lies inside the dead window", { skip }, 
   let seen = 0;
   for (const record of RECORDS) {
     for (const head of [0, 1, CLAMPED_TO, 0xff]) {
-      const r = runAt(stampObjectStateByte3bThenRequestTwoSounds, record, head);
+      const r = runAt(clampOneShotCountdownThenRequestTwoSounds, record, head);
       for (const d of r.all) {
         assert.ok(
           d.addr < r.entrySp,
@@ -201,7 +201,7 @@ test("SCRATCH: the whole raw difference lies inside the dead window", { skip }, 
 test("STACK: the rewrite ends exactly two bytes deeper, and the moved set is bounded", { skip }, () => {
   for (const record of RECORDS) {
     for (const head of [0, CLAMPED_TO, 0xff]) {
-      const r = runAt(stampObjectStateByte3bThenRequestTwoSounds, record, head);
+      const r = runAt(clampOneShotCountdownThenRequestTwoSounds, record, head);
       assert.equal(
         r.spA - r.spB,
         DISSOLVED_RET,
@@ -224,7 +224,7 @@ test("CLAMPS: the head byte carries the constant afterwards, from any prior", { 
   for (const prior of [0, 1, CLAMPED_TO, CLAMPED_TO + 1, 0xfe, 0xff]) {
     const mm = entryState().clone();
     mm.mem8[mm.regs.ix] = prior;
-    stampObjectStateByte3bThenRequestTwoSounds(mm);
+    clampOneShotCountdownThenRequestTwoSounds(mm);
     assert.equal(mm.mem8[mm.regs.ix], CLAMPED_TO, `prior ${prior} did not land on the constant`);
   }
   console.log(`  CLAMPS: head byte -> ${CLAMPED_TO} from every prior tried`);
@@ -234,7 +234,7 @@ test("EXHAUSTIVE: every head byte 0..255 behaves the same way", { skip }, () => 
   const record = entryState().regs.ix;
   let swept = 0;
   for (let head = 0; head < 256; head++) {
-    const d = diffAt(stampObjectStateByte3bThenRequestTwoSounds, record, head);
+    const d = diffAt(clampOneShotCountdownThenRequestTwoSounds, record, head);
     assert.equal(d, null, `head=${head}: ${show(d)}`);
     swept++;
   }
@@ -245,12 +245,12 @@ test("EXHAUSTIVE: every head byte 0..255 behaves the same way", { skip }, () => 
 test("RECORDS: the same holds on each record the walk uses", { skip }, () => {
   for (const record of RECORDS) {
     for (const head of [0, 1, 0x3c, 0xff]) {
-      const d = diffAt(stampObjectStateByte3bThenRequestTwoSounds, record, head);
+      const d = diffAt(clampOneShotCountdownThenRequestTwoSounds, record, head);
       assert.equal(d, null, `record ${hex4(record)} head ${head}: ${show(d)}`);
     }
     const mm = entryState().clone();
     mm.regs.ix = record;
-    stampObjectStateByte3bThenRequestTwoSounds(mm);
+    clampOneShotCountdownThenRequestTwoSounds(mm);
     assert.equal(mm.mem8[record], CLAMPED_TO, `record ${hex4(record)} was not clamped`);
   }
   console.log(`  RECORDS: ${RECORDS.length} records, each clamped and each identical`);

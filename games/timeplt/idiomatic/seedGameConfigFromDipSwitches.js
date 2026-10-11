@@ -9,7 +9,7 @@
  * returns). Work RAM has just been cleared, so every setting is still zero; this is where the
  * operator's switch choices and two fixed defaults first reach RAM. It runs once per boot, so the
  * settings cells it fills are fixed until the next power-on (the frame service separately mirrors the
- * gameplay bank every frame into DIP1_MIRROR [code]; that is a different cell).
+ * gameplay bank every frame into DIP1_MIRROR [seen]; that is a different cell).
  *
  * THE SWITCHES. Both banks read active-low (a switch that is ON reads 0), so every read is
  * complemented before use. DSW0_PORT (0xC360) is the coinage bank; DSW1_PORT (0xC200, the read side
@@ -33,7 +33,7 @@ const ALL_ONES = 0xff;
 export function seedGameConfigFromDipSwitches(m) {
   const { mem8 } = m;
   // Two defaults copied from fixed program bytes (0x52AA-0x52B6):
-  //   HIGH_SCORE_HI (0xA98D) [code] <- ROM 0x08C9 (1): the top byte of the displayed high score, so
+  //   HIGH_SCORE_HI (0xA98D) [seen] <- ROM 0x08C9 (1): the top byte of the displayed high score, so
   //     the readout starts at 10,000;
   //   KILL_QUOTA (0xA9CD) [seen] <- ROM 0x0874 (0x38 = 56): the quota a round starts from
   //     (copied into KILLS_REMAINING when a round starts).

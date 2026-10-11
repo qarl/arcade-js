@@ -20,9 +20,10 @@
  *   1. EQUAL at the real dispatch — identical outside the scratch window, which is fully dirty.
  *   2. NOT VACUOUS — a no-op FAILS the same masked diff, on a real cell rather than a register.
  *   3. EXCLUDED — the registers that move over the whole crafted cross, pinned; the cursor is
- *      checked as a live-out and the run pointer as PRESERVED. The value register is NOT a
- *      live-out and the EQUAL arm asserts the two sides disagree on it, so that is recorded
- *      rather than assumed.
+ *      checked as a live-out and the run pointer as PRESERVED. The value register A is NOT a
+ *      live-out: the DEAD AT EXIT arm complements it on every exit of the all-frozen game over the
+ *      tape sessions and nothing moves, with the SP flip and the live cursor in DE both heard at
+ *      the same exit.
  *   4. UNIFORM CORPUS — how many values, cursors and colours real play presents. It is a thin
  *      corpus and the numbers say how thin.
  *   5. CORPUS — every dispatch of three sessions.
@@ -30,7 +31,7 @@
  *      high nibble the corpus never varies.
  *   7. WHOLE-MACHINE — a driven session with the rewrite wired, diffed every frame under the same
  *      scratch-window mask, which is the only thing that differs over a whole run.
- *   8. TEETH — eight twins, each with an exact catch count over the cross and per session. Two are
+ *   8. TEETH — twins, each with an exact catch count over the cross and per session. Two are
  *      caught by NO real dispatch in one or more sessions — a cursor already on the glyph side
  *      cannot show a missing snap, and a cell whose colour already matches cannot show a skipped
  *      colour — so for those the crafted cross is the only arm holding them.
@@ -46,6 +47,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMachine, COIN_FRAME, START_FRAME, ENTRY_FRAMES, romsPresent } from "./_harness.js";
+import { TAPE_SESSIONS, assertDeadAtExit } from "./_deadAtExit.js";
 import { paintUnsuppressedDigit } from "../paintUnsuppressedDigit.js";
 import { loc_0d90 as oracle } from "../../translated/loc_0d90.js";
 import { unitEquivalence } from "../../../../core/equivalence.js";
@@ -60,7 +62,8 @@ const CHARACTER_PLANE_BIT = 0x0400;
 /** The oracle brackets its lookup with a push/pop of the run pointer; the rewrite uses a local. */
 const SCRATCH_BYTES = 4;
 
-const MOVED = ["f", "sp"];
+const MOVED = ["a", "f", "sp"];
+const DEAD_FRAMES = 2500;
 const HELD = ["b", "c", "ix", "iy"];
 
 const CORPUS_FRAMES = 2000;
@@ -388,9 +391,14 @@ test("EQUAL at the real dispatch: identical outside a fully dirty scratch window
   assert.deepEqual(strays, [], `a divergence escaped the scratch window: ${show(strays[0])}`);
   assert.equal(a.regs.de, b.regs.de, "the cursor left behind");
   assert.equal(a.regs.hl, b.regs.hl, "the run pointer must come back where it was");
-  // A is not a live-out -- the one caller's `rst 0x20` reloads it before any read. The rewrite
-  // matches the oracle's `ld a,c` anyway, because agreeing costs one line and is checkable.
-  assert.equal(a.regs.a, b.regs.a, "the value register the oracle leaves behind");
+});
+
+test("A IS DEAD AT EXIT: the colour the oracle leaves in A is read by no caller", { skip }, () => {
+  assertDeadAtExit({
+    at: TARGET, poison: ["a"], sessions: TAPE_SESSIONS, frames: DEAD_FRAMES,
+    // CONTROL, same instrument and exit: the cursor in DE, which the caller steps on, must be heard.
+    controls: [{ label: "live DE", poison: ["d", "e"] }],
+  });
 });
 
 test("NOT VACUOUS: a no-op candidate FAILS the same masked diff, on a real cell", { skip }, () => {

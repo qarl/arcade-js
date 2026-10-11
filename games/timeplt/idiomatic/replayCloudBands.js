@@ -39,7 +39,7 @@ export function replayCloudBands(m) {
   }
   // Walk the switch rows top to bottom, as the beam would. At each, paint every row above it from
   // the RAM as it stands, then redo that one sprite's move so rows below see its second appearance.
-  slots.sort((a, b) => a.row - b.row);
+  slots.sort((p, q) => p.row - q.row);
   for (const s of slots) {
     m.paintBeamBand(s.row);
     mem8[s.y] = u8(mem8[s.y] - HALF);

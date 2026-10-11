@@ -777,7 +777,9 @@ auditor that wrote `DONE.md` and the reviewer that clears the commit are DIFFERE
 rests on neither the human's word nor "the gates are green." Run the cheap mechanical pre-filter first
 (`done_gate`, the per-game subsystem gates) so a red subsystem is caught in a second — but a green pre-filter
 is a precondition, never the audit. Any open criterion, or any gate green-but-blind → WITHHOLD the token and
-name the gap. A `DONE.md` landed WITHOUT such an audit on record is an invalid done-claim.
+name the gap. The 10-minute pixel criterion is a named gate (`tools/long_golden.py`, RAM byte-exact + pixel band
+at the measured offset); an auditor's own scratch comparator, or a nearest-frame reconverge verdict, does not
+discharge it. A `DONE.md` landed WITHOUT such an audit on record is an invalid done-claim.
 *See docs/runbook.md §5 "A game is NOT done until an independent adversarial agent agrees" + the DONE.md bullet.*
 
 ## R41 [ALL] a §4-end cleanup commit must RENAME grounded loc_ routines, not only comment them
@@ -804,7 +806,10 @@ reads `opts.gfx` when the manifest names the image `gfx1`, or TRANSLATES a port 
 browser-only defects shared this root (black screen from a gfx image key; input crash-loop from a translated
 port index). So a reviewer of any gate/harness/test that constructs a Machine or feeds it input MUST confirm it
 builds via `buildGameMachine` and feeds RAW manifest keys/values — not a hand-rolled `new Machine(...)` nor a
-restated/translated value. The mechanical backstop is `done_gate`'s `browser` subsystem (the shared games-boot
-boot). Node cannot exercise the browser audio/canvas RUNTIME (the synth-404 + Safari 0-input bugs were
-runtime-only), so a human browser confirm stays a DONE step.
-*See docs/runbook.md §5 "New-subsystem DONE doctrine" + web/machine-factory.js + tools/done_gate.py check_browser.*
+restated/translated value. The mechanical backstop is `done_gate`'s `browser` subsystem: the shared games-boot
+boot, and for a game in `BROWSER_GAMES` the manifest input map checked against MAME's own ports
+(`tools/input_map_gate.py`) and the page itself in headless Chrome (`tools/browser_runtime_gate.mjs`: boot,
+canvas, every key binding, a coin's clip). Node cannot exercise the browser audio/canvas runtime (the synth-404
++ Safari 0-input bugs were runtime-only), so the system runs it there — no human confirm. A DONE-marker review
+(R40) of a game outside `BROWSER_GAMES` runs both tools itself and records their lines.
+*See docs/runbook.md §5 web-worker contract + web/machine-factory.js + tools/done_gate.py check_browser.*

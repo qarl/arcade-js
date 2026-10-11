@@ -8,7 +8,8 @@
  * its own and pops no slot; `handOn` is that continuation, the parking step of the tamper verdict unless
  * a caller names another, and it takes the total and the walked-off pointer as arguments -- the pair the
  * original leaves in its accumulator and pointer for the chain. LIVE-OUT: memory, whatever the chain
- * writes; the chain's return. */
+ * writes; the chain's return.
+ * ROM 0x43E8-0x43EF. Grounding: [seen] (names.js ROUTINES 0x43E8). */
 
 import { u8, u16 } from "../../../core/int.js";
 import { parkTheImageTotalForTheTamperVerdict } from "./parkTheImageTotalForTheTamperVerdict.js";

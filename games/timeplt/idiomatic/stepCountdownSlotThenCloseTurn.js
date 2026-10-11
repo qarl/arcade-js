@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** stepCountdownSlotThenCloseTurn — service one counting slot of the per-slot object sweep: run the slot's object one
  * frame on its own countdown, then close the turn. LIVE-OUT: memory, the two cursors, the counter
- * and the wide scratch pair the turn close leaves. */
+ * and the wide scratch pair the turn close leaves.
+ * Kept as the ROUTINES override of 0x4108: no idiomatic module calls
+ * it, because serviceSlotByMarkerThenCloseSweepTurn runs this arm inline.
+ */
 //
 // ROM 0x4108 (`call 0x413c`, stepDriftingCountdownObjectByEraFrames), falling byte-for-byte into
 // 0x410B (closeOneTurnOfTheSlotSweep); lift: translated/loc_4108.js, which carries both as one body
@@ -22,10 +25,11 @@
 import { stepDriftingCountdownObjectByEraFrames } from "./stepDriftingCountdownObjectByEraFrames.js";
 import { closeOneTurnOfTheSlotSweep } from "./closeOneTurnOfTheSlotSweep.js";
 
-// The record cursor, the entry cursor and the turns left (IX, IY, B) are this entry's inputs. No
-// idiomatic routine calls it -- serviceSlotByMarkerThenCloseSweepTurn runs the same two steps inline --
-// so they arrive only from a register-dispatched caller, and are handed on as arguments from here.
-export function stepCountdownSlotThenCloseTurn(m, ix = m.regs.ix, iy = m.regs.iy, b = m.regs.b) {
-  stepDriftingCountdownObjectByEraFrames(m, ix, iy);
-  return closeOneTurnOfTheSlotSweep(m, ix, iy, b);
+// The record cursor, the entry cursor and the turns left (IX, IY, B) are this entry's inputs, the
+// registers the ROM's caller seats. No routine in this layer calls it --
+// serviceSlotByMarkerThenCloseSweepTurn runs the same two steps inline -- and they are handed on as
+// arguments from here.
+export function stepCountdownSlotThenCloseTurn(m, record = m.regs.ix, entry = m.regs.iy, turnsLeft = m.regs.b) {
+  stepDriftingCountdownObjectByEraFrames(m, record, entry);
+  return closeOneTurnOfTheSlotSweep(m, record, entry, turnsLeft);
 }

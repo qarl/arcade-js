@@ -82,15 +82,15 @@ export function armRoundStartThenStepSequence(m) {
     // enable latch at 0xC308 (the board's LS259 picture-enable latch). On the genuine image the fold is
     // 0x4C, so 0x4D goes to the latch (checked against the ROM image); names.js VIDEO_ENABLE_LATCH notes
     // that these folds exist to blank a patched image.
-    let a = 0;
-    for (let hl = DISPLAY_LATCH_CHECKSUM_BASE, i = 0; i < 256; i++, hl++) a ^= mem8[hl];
-    mem8[VIDEO_ENABLE_LATCH] = u8(a + 1);
+    let fold = 0;
+    for (let i = 0; i < 256; i++) fold ^= mem8[DISPLAY_LATCH_CHECKSUM_BASE + i];
+    mem8[VIDEO_ENABLE_LATCH] = u8(fold + 1);
 
     // Both players open on the difficulty record's rounds-1-5 start rung (START_RUNG_ROUNDS_1_5 0xA9D3
     // [seen], just loaded), then arm the sequence's shared delay for 0x96 frames before its next step.
-    const r = mem8[START_RUNG_ROUNDS_1_5];
-    mem8[PLAYER_ONE_START_RUNG] = r;
-    mem8[PLAYER_TWO_START_RUNG] = r;
+    const rung = mem8[START_RUNG_ROUNDS_1_5];
+    mem8[PLAYER_ONE_START_RUNG] = rung;
+    mem8[PLAYER_TWO_START_RUNG] = rung;
     mem8[SEQUENCE_DELAY] = 0x96;
     return advanceSequenceSubStep(m);
   }
@@ -129,7 +129,7 @@ export function armRoundStartThenStepSequence(m) {
   // ROM image), so for any phase 0-3 the result is the phase unchanged; an altered block would store a
   // different phase.
   let sum = mem8[SEQUENCE_PHASE];
-  for (let hl = SEQUENCE_PHASE_CHECKSUM_BASE, i = 0; i < 256; i++, hl++) sum = u8(sum - mem8[hl]);
+  for (let i = 0; i < 256; i++) sum = u8(sum - mem8[SEQUENCE_PHASE_CHECKSUM_BASE + i]);
   mem8[SEQUENCE_PHASE] = sum ^ 0x90;
 
   // Set the sixteen-byte enemy aim-coordinate block 0xAC74-0xAC83 [seen] to 0x80, arm the sequence delay

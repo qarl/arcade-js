@@ -18,11 +18,7 @@
 
 import { postChainedHitScore } from "./postChainedHitScore.js";
 import { u8 } from "../../../core/int.js";
-import { ERA_OBJECT_ENTRY_SLOT0, ERA_OBJECT_RECORD_SLOT0, ERA_OBJECT_SPRITE_Y_SLOT0, HITS_REMAINING, PLAYER_ENTRY, PLAYER_STATE } from "./names.js";
-
-// The player's sprite-entry offsets compared: +0 and +0x31 (the sprite Y).
-const TARGET_FIRST_AXIS = 0;
-const TARGET_SECOND_AXIS = 0x31;
+import { ERA_OBJECT_ENTRY_SLOT0, ERA_OBJECT_RECORD_SLOT0, ERA_OBJECT_SPRITE_Y_SLOT0, HITS_REMAINING, PLAYER_ENTRY, PLAYER_SPRITE_Y, PLAYER_STATE } from "./names.js";
 
 // The contact box, as a wrapped window: (target - player + SLACK) mod 256 < WINDOW accepts a
 // difference from -SLACK up to WINDOW - SLACK - 1. First axis: -6..+6; second: -0x18..+8.
@@ -43,10 +39,10 @@ export function destroyFixedTargetReachedByPlayer(m) {
   if (mem8[ERA_OBJECT_RECORD_SLOT0] !== LIVE) return;
 
   // Test 3: target entry +0 (0xAA28) against the player's entry +0 (PLAYER_ENTRY 0xAA10).
-  const across = u8(mem8[ERA_OBJECT_ENTRY_SLOT0] - mem8[PLAYER_ENTRY + TARGET_FIRST_AXIS] + FIRST_AXIS_SLACK);
+  const across = u8(mem8[ERA_OBJECT_ENTRY_SLOT0] - mem8[PLAYER_ENTRY] + FIRST_AXIS_SLACK);
   if (across >= FIRST_AXIS_WINDOW) return;
-  // Test 4: target sprite Y (ERA_OBJECT_SPRITE_Y_SLOT0 0xAA59) against the player's (0xAA41).
-  const along = u8(mem8[ERA_OBJECT_SPRITE_Y_SLOT0] - mem8[PLAYER_ENTRY + TARGET_SECOND_AXIS] + SECOND_AXIS_SLACK);
+  // Test 4: target sprite Y (ERA_OBJECT_SPRITE_Y_SLOT0 0xAA59) against the player's (PLAYER_SPRITE_Y 0xAA41).
+  const along = u8(mem8[ERA_OBJECT_SPRITE_Y_SLOT0] - mem8[PLAYER_SPRITE_Y] + SECOND_AXIS_SLACK);
   if (along >= SECOND_AXIS_WINDOW) return;
 
   // Contact: both start to die, the target's remaining hits are cleared (HITS_REMAINING 0xA8DC)

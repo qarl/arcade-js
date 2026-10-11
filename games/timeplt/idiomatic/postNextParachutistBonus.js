@@ -22,7 +22,7 @@ import { offsetAddress } from "./offsetAddress.js";
 import { postCommand } from "./postCommand.js";
 import { PARACHUTIST_BONUS_ARG_TABLE } from "./names.js";
 
-// Record offsets and constants, read off the lift: +0 is the slot's countdown (`dec (ix+0x00)`),
+// Record offsets and constants, read off the ROM: +0 is the slot's countdown (`dec (ix+0x00)`),
 // +7 the rung (`ld a,(ix+0x07)`), `cp 0x04` bounds the four-entry table, `ld d,0x04` is the
 // command, and `ld de,0x040f` gives the capped argument 0x0F.
 const COUNTDOWN = 0;

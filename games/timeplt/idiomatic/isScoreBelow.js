@@ -2,7 +2,8 @@
 /** isScoreBelow — answer whether one three-byte number is below another. Both are read most
  * significant byte first, from the two addresses given and DOWNWARD, and the first byte that
  * differs settles it; all three equal counts as not below. The answer is the whole product —
- * nothing is written, and it is mirrored into carry for a caller that reads it there.
+ * nothing is written. The ROM leaves it in carry; its one reader, fileScoreIntoHighScoreTable,
+ * takes the return instead (its one call, at 0x4CD6).
  * LIVE-OUT: the boolean.
  *
  * ROM 0x4D2B-0x4D39 (frozen lift translated/loc_4d2b.js). Grounding: [seen] (names.js ROUTINES 0x4d2b).
@@ -34,13 +35,13 @@ export function isScoreBelow(m, candidate = m.regs.de, standing = m.regs.hl) {
   // any other difference (`jr nz`), and otherwise steps both pointers down (`dec de / dec hl`) --
   // so the first differing byte decides, exactly as ordinary number comparison does.
   for (let i = 0; i < BYTES; i++) {
-    const a = mem8[u16(candidate - i)];
-    const b = mem8[u16(standing - i)];
-    if (a !== b) {
-      below = a < b;
+    const candidateByte = mem8[u16(candidate - i)];
+    const standingByte = mem8[u16(standing - i)];
+    if (candidateByte !== standingByte) {
+      below = candidateByte < standingByte;
       break;
     }
   }
-  // In the ROM the answer IS the carry flag: set when below, cleared by `scf / ccf` otherwise.
-  return (m.regs.fC = below); // carry mirrors the answer for a register-dispatched caller
+  // In the ROM the answer is the carry flag: set when below, cleared by `scf / ccf` otherwise.
+  return below;
 }

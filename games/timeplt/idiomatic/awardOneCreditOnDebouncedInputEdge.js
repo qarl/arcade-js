@@ -8,8 +8,7 @@
  * Role in the machine: a flat one-credit input, distinct from the coinage-metered coin-1 handler
  * at 0x4941 (tallyCoinSlot1AndAwardCredit): each clean press of this line is worth exactly one
  * credit, whatever the coinage switches say. names.js records the history cell as
- * SERVICE_CREDIT_DEBOUNCE (0xA983) and notes that the service-bit identity of IN0 bit 2 is still
- * MAME-pending. */
+ * SERVICE_CREDIT_DEBOUNCE (0xA983); IN0 bit 2 is the cabinet's Service 1 input. */
 
 import { requestCoinSound } from "./requestCoinSound.js";
 import { awardCoinCreditThenPulseCoinCounter } from "./awardCoinCreditThenPulseCoinCounter.js";

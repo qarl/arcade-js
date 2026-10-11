@@ -4,7 +4,7 @@
  * (target - current) times sixteen with only the high byte kept, then stamp the pen glyph cell by
  * cell, advancing both positions each step, until the stamped cell reaches the run's end cell.
  * Then bump the run index, read the next run's row and column out of the word table, reseat the
- * pen there with the fractions cleared, and leave the Z flag set when the new row integer is zero.
+ * pen there with the fractions cleared, and report whether the new row integer is zero.
  *
  * ROM 0x0201-0x026E. Grounding: [seen] (names.js ROUTINES 0x0201).
  *
@@ -12,7 +12,7 @@
  * interpolator (names.js, the pen route block 0xA9E2-0xA9F7): each frame one arm calls this
  * routine to draw one leg. blankCaptionThenAdvancePenRunStep (phase 3, the round engine, step 2) and
  * advancePenRunAnimationStep both do, and both stay on their step until the route reseats on row
- * zero -- the Z live-out below (mechanisms.md). What a leg leaves on screen is whatever the pen
+ * zero -- the live-out below (mechanisms.md). What a leg leaves on screen is whatever the pen
  * pair holds: plotPenCell stamps PEN_GLYPH into the character plane and PEN_COLOUR into the colour
  * plane, so with a blank pen glyph the same walk erases instead of draws.
  *
@@ -21,11 +21,10 @@
  * increments; PEN_ROUTE_LEG 0xA9E2 the leg index into PEN_ROUTE_TABLE 0x0290. The targets are the
  * words at PEN_ROW_TARGET 0x32F5 and PEN_COLUMN_TARGET 0x0B45, and the run's end is the video-cell
  * address held in the word at PEN_RUN_END_CELL 0x14B2.
- * LIVE-OUT: the stamped cells and the pen state; the flags, returned, whose Z bit (new row
- * integer == 0) callers branch on with a conditional return. */
+ * LIVE-OUT: the stamped cells and the pen state; returns true when the pen reseated on row zero,
+ * the condition the ROM leaves in Z (`ld a,e / and a`) for its callers' `ret nz`. */
 
 import { u16 } from "../../../core/int.js";
-import { F_H, F_PV, F_S, F_Z, F_F3, F_F5 } from "../../../core/cpu/z80.js";
 import { plotPenCell } from "./plotPenCell.js";
 import { fetchTableWord } from "./fetchTableWord.js";
 import { PEN_COLUMN_POS, PEN_COLUMN_STEP, PEN_ROUTE_LEG, PEN_ROW_POS, PEN_ROW_STEP, PEN_ROUTE_TABLE, PEN_COLUMN_TARGET, PEN_RUN_END_CELL, PEN_ROW_TARGET } from "./names.js";
@@ -40,18 +39,6 @@ function stepToward(target, current) {
   const highByte = (delta >> 12) & 1 ? (0xff << 8) : 0;
   return u16(highByte | ((delta >> 4) & 0xff));
 }
-
-// The routine ends on `ld a,e / and a` (0x026C-0x026D, then `ret` at 0x026E) so that its callers can `ret nz` on the
-// result. The flags that AND leaves are reproduced exactly, since the callers read them.
-const parity8 = (v) => {
-  let bits = 0;
-  for (let x = v; x; x >>= 1) bits += x & 1;
-  return bits & 1 ? 0 : F_PV;
-};
-const sz8 = (v) => (v & 0x80 ? F_S : 0) | (v === 0 ? F_Z : 0) | (v & (F_F3 | F_F5));
-// Flags an AND of a byte with itself leaves: sign/zero/undocumented from the byte, half-carry always,
-// parity, no subtract, no carry. The Z bit (byte == 0) is the live-out callers branch on.
-const andFlags = (v) => sz8(v) | F_H | parity8(v);
 
 export function drawInterpolatedPenRun(m) {
   const { mem8, mem16 } = m;
@@ -86,7 +73,6 @@ export function drawInterpolatedPenRun(m) {
   mem8[PEN_COLUMN_POS] = 0;
   mem8[PEN_COLUMN_POS + 1] = word >> 8;
 
-  // The flags an AND of the new row integer with itself leaves -- Z when it is zero -- returned for
-  // the callers to branch on.
-  return andFlags(rowInt);
+  // ROM 0x026C-0x026D `ld a,e / and a`: the callers `ret nz` unless the new row integer is zero.
+  return rowInt === 0;
 }

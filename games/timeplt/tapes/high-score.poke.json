@@ -1,10 +1,20 @@
 {
   "name": "high-score",
-  "description": "Reach the HIGH-SCORE NAME ENTRY screen (game over with a qualifying score) and pixel-validate the score-insertion and name-entry render vs MAME.",
-  "_grounding": "Same game-over recipe (lives 0xAD00/0xAD10=1 @650, forced death 0xA800=0xF0 @660) PLUS a held score poke 0xAD33/34/35 = 00/57/00 (5700 BCD, beats the default table-low 4300) from f640. At f1134 the insertion sort (isScoreBelow 0x4d2b + fileScoreIntoHighTable 0x4cc3) files 5700 into the last table record at 0xAB28, and name entry holds ~680 frames. Responded uses the FILED score mid-byte 0xAB2A (0x43 default -> 0x57 only once the game files the poked score); the grounding's 0xAB2F==0xF1 is weak (the default record already ends in 0xF1). Deterministic, no entropy. scratchpad/gameover-recipe.md.",
-  "coin": 400,
-  "start": 500,
+  "description": "Reach the HIGH-SCORE NAME ENTRY screen (game over with a qualifying score), drive the entry (LEFT held from the first letter, RIGHT, fire), then start a 2-player game from the entry screen, and pixel-validate it vs MAME.",
+  "_grounding": "Same game-over recipe (lives 0xAD00/0xAD10=1 @650, forced death 0xA800=0xF0 @660) PLUS a held score poke 0xAD33/34/35 = 00/57/00 (5700 BCD, beats the default table-low 4300) from f640. At f1134 the insertion sort (isScoreBelow 0x4d2b + fileScoreIntoHighScoreTable 0x4cc3) files 5700 into the last table record at 0xAB28, and name entry holds ~680 frames. Responded uses the FILED score mid-byte 0xAB2A (0x43 default -> 0x57 only once the game files the poked score); the grounding's 0xAB2F==0xF1 is weak (the default record already ends in 0xF1). Deterministic, no entropy. Inputs in entry: LEFT held f1200-1270 steps INITIALS_LETTER_INDEX 0xA999 back from 0, wrapping to 26 and auto-repeating while held (INITIALS_BACK_PRESS_HISTORY 0xA995 saturates and is re-armed); RIGHT f1300 steps it forward; fire f1330/f1380 and LEFT f1360. Coin f1420, coin 2 f1460 and 2 Players Start f1520 start a 2P game from the entry screen (stepHighScoreInitialsEntry -> startTwoPlayerGame, golden ~f1522).",
   "hold": 8,
+  "inputs": [
+    { "frame": 400, "press": "coin" },
+    { "frame": 500, "press": "start1p" },
+    { "frame": 1200, "press": "left", "dur": 70 },
+    { "frame": 1300, "press": "right", "dur": 12 },
+    { "frame": 1330, "press": "fire", "dur": 6 },
+    { "frame": 1360, "press": "left", "dur": 6 },
+    { "frame": 1380, "press": "fire", "dur": 6 },
+    { "frame": 1420, "press": "coin" },
+    { "frame": 1460, "press": "coin2" },
+    { "frame": 1520, "press": "start2p" }
+  ],
   "pokes": [
     { "frame": 640, "addr": "0xad33", "val": "0x00" },
     { "frame": 640, "addr": "0xad34", "val": "0x57" },
@@ -13,10 +23,7 @@
     { "frame": 650, "addr": "0xad10", "val": "0x01", "dur": 1 },
     { "frame": 660, "addr": "0xa800", "val": "0xf0", "dur": 1 }
   ],
-  "responded": { "cell": "0xab2a", "op": "eq", "val": "0x57" },
-  "reaches": [
-    "fileScoreAfterGameOverHoldElsePassTurn",
-    "erasePenRouteThenOpenInitialsEntry",
-    "stepHighScoreInitialsEntry"
-  ]
+  "responded": {"cell": "0xab2a", "op": "eq", "val": "0x57"},
+  "reaches": ["fileScoreAfterGameOverHoldElsePassTurn", "erasePenRouteThenOpenInitialsEntry", "stepHighScoreInitialsEntry", "startTwoPlayerGame"],
+  "idiomatic_residual_frames": 87
 }

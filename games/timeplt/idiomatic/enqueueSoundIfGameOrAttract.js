@@ -13,7 +13,7 @@
  *
  * The two cells:
  *   - PLAY_ACTIVE (0xAD30) [seen] — set for the whole of a credit's play, clear in attract;
- *   - DEMO_SOUNDS_ENABLE (0xA9C6) [code] — the attract-sound gate, one of the gameplay DIP-switch
+ *   - DEMO_SOUNDS_ENABLE (0xA9C6) [seen] — the attract-sound gate, one of the gameplay DIP-switch
  *     settings unpacked at boot.
  *
  * Parameter: `command` — the sound code to queue (A in the ROM).

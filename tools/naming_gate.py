@@ -22,10 +22,9 @@ import os
 import re
 import sys
 
-# Pre-runbook ports keep their loc_ routine names (runbook 'Legacy games: do not retrofit'); mirrors the
-# grandfather sets in tools/audio_gate.py and tools/done_gate.py check_pixel. A game born under this runbook
-# (pooyan onward) is enforced to 0.
-LEGACY = {"dkong", "frogger", "thepit", "timeplt"}
+# Pre-runbook ports keep their loc_ routine names (runbook 'Legacy games: do not retrofit'). A game born under
+# this runbook (pooyan onward), or a legacy port once it passes the full rule (timeplt), is enforced.
+LEGACY = {"dkong", "frogger", "thepit"}
 
 # A ROUTINES entry starts at a line-anchored `0xADDR: {`. Delimit an entry by the NEXT such start, NOT by a
 # brace: a role string legitimately contains `{` (a dispatch-table description like "{0 init, 1 run}"), and a
@@ -213,6 +212,22 @@ def selftest():
         # same file, debt-listed with a reason -> OK.
         if silent_check("synth", tree("locfiledebt", clean, debt="loc_abcd  dissolved loop tail, no standalone effect\n", loc_files=["loc_abcd"])) != 0:
             fail("a valid file-based names-debt entry did not clear the gate")
+        # the real timeplt registry (enforced, not grandfathered): clean as committed; a grounded routine
+        # renamed back to loc_, or a stray loc_ module, BLOCKS.
+        real = "games/timeplt"
+        if os.path.exists(f"{real}/idiomatic/names.js"):
+            names = read_text(f"{real}/idiomatic/names.js")
+            debt = read_text(f"{real}/names-debt.txt")
+            locs = sorted(loc_module_files(real))
+            if silent_check("timeplt", tree("tp", names, debt=debt, loc_files=locs)) != 0:
+                fail("the committed timeplt registry did not pass un-grandfathered")
+            mut = names.replace('name: "serviceEra2EnemyCraftSlot"', 'name: "loc_2984"', 1)
+            if mut == names:
+                fail("timeplt mutant: serviceEra2EnemyCraftSlot not found in names.js (vacuous mutant)")
+            elif silent_check("timeplt", tree("tpmut", mut, debt=debt, loc_files=locs)) == 0:
+                fail("timeplt with a grounded routine renamed back to loc_2984 did not BLOCK")
+            if silent_check("timeplt", tree("tpstray", names, debt=debt, loc_files=locs + ["loc_9999"])) == 0:
+                fail("timeplt with a stray idiomatic/loc_9999.js did not BLOCK")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

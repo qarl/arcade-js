@@ -18,10 +18,10 @@
  */
 
 import { u8 } from "../../../core/int.js";
-import { PLAY_ACTIVE, SEQUENCE_PHASE, SEQUENCE_SUBSTEP, ACTIVE_PLAYER, ATTRACT_SEQUENCE_START_PHASE, ATTRACT_RESTART_FOLD_BYTE, PLAYER_ANIM_COL_COUNT } from "./names.js";
+import { PLAY_ACTIVE, SEQUENCE_PHASE, SEQUENCE_SUBSTEP, ACTIVE_PLAYER, ATTRACT_SEQUENCE_START_PHASE, ATTRACT_RESTART_FOLD_BYTE, ATTRACT_RESTART_FOLD_WORD } from "./names.js";
 import { offsetAddress } from "./offsetAddress.js";
 
-// The lift's `sub 0x9b`: the constant the genuine image's fold must reach for the result to be 0.
+// The ROM's `sub 0x9b`: the constant the genuine image's fold must reach for the result to be 0.
 const FOLD_BIAS = 155;
 
 export function restartAttractSequence(m) {
@@ -38,8 +38,8 @@ export function restartAttractSequence(m) {
   /* The tamper fold, which rewrites SEQUENCE_SUBSTEP. `ld a,(0x4901)` / `ld hl,(0x4902)` read
    * one image byte and one image word; `rst 0x18` (offsetAddress, HL += A) adds them; `xor h`
    * folds the resulting low byte with the high byte and `sub 0x9b` takes the constant off. On
-   * the genuine image (0xA6 and 0x3005 per the lift) this lands on zero, so the inner step stays
-   * 0; any other bytes start the sequence at some other step. */
-  const moved = offsetAddress(m, mem16[PLAYER_ANIM_COL_COUNT], mem8[ATTRACT_RESTART_FOLD_BYTE]);
+   * the genuine image (0xA6 at 0x4901, the word 0x3005 at 0x4902) this lands on zero, so the inner
+   * step stays 0; any other bytes start the sequence at some other step. */
+  const moved = offsetAddress(m, mem16[ATTRACT_RESTART_FOLD_WORD], mem8[ATTRACT_RESTART_FOLD_BYTE]);
   mem8[SEQUENCE_SUBSTEP] = u8(u8(moved) ^ (moved >> 8)) - FOLD_BIAS;
 }

@@ -559,7 +559,9 @@ test("EXCLUDED, deliberately: nothing outside the scratch set moves, over the cr
     const a = withPointer(heading, pointer);
     const b = a.clone();
     oracle(a);
-    loc_599d(b);
+    const pair = loc_599d(b);
+    // The rewrite RETURNS the pair its idiomatic callers take; it must be the oracle's DE, BC.
+    assert.deepEqual(pair, [a.regs.de, a.regs.bc], `returned pair at heading ${heading}`);
     for (const k of REG_FIELDS) if (a.regs[k] !== b.regs[k]) moved.add(k);
     for (const k of LIVE_OUT) assert.equal(a.regs[k], b.regs[k], `live-out ${k} at heading ${heading}`);
   }

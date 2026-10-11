@@ -31,9 +31,10 @@ import { u8, u16 } from "../../../core/int.js";
 import { blankCellsPaintedLastPass } from "./blankCellsPaintedLastPass.js";
 import { emptyBothDeferredCellLists } from "./emptyBothDeferredCellLists.js";
 import { paintDeferredCells } from "./paintDeferredCells.js";
-import { DEFERRED_BLANK_CURSOR, DEFERRED_WRITE_CURSOR } from "./names.js";
+import { DEFERRED_BLANK_CURSOR, DEFERRED_WRITE_CURSOR, DEFERRED_WRITE_LIST } from "./names.js";
 
-const FIRST_ENTRY = 4;
+// The pending cursor's low byte when it still points at its first entry (DEFERRED_WRITE_LIST).
+const FIRST_ENTRY = DEFERRED_WRITE_LIST & 0xff;
 const COPIED_MARK = 0x80;
 const WHOLE_ADDRESS_SPACE = 0x10000;
 
@@ -64,8 +65,8 @@ export function drainBothDeferredCellLists(m) {
 
   // The copy put the pending count on the erase cursor; add the top-bit mark to it (ROM `add a,0x80
   // / ld (0xae80),a`). blankCellsPaintedLastPass masks that bit off before counting its entries.
-  // Then park the pending cursor back on its first entry, 0xAE04 (ROM `ld hl,0xae04 / ld (0xae00),hl`),
+  // Then park the pending cursor back on its first entry, DEFERRED_WRITE_LIST 0xAE04 (ROM `ld hl,0xae04 / ld (0xae00),hl`),
   // so the coming frame's game code queues into an empty list.
   mem8[DEFERRED_BLANK_CURSOR] = u8(filled + COPIED_MARK);
-  mem16[DEFERRED_WRITE_CURSOR] = DEFERRED_WRITE_CURSOR + FIRST_ENTRY;
+  mem16[DEFERRED_WRITE_CURSOR] = DEFERRED_WRITE_LIST;
 }

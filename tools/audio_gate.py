@@ -9,7 +9,8 @@ un-shippable by requiring the artifacts a complete layer has (model: dkong):
 (1) manifest `audio: { map: <file> }` + the map file exists; (2) if the map declares a soundLatch AND
 names.js names SOUND_CMD_LATCH they must match (a clips player keying off the wrong address is silent/
 wrong); (3) test/audio-map.test.js (committed COVERAGE test; the WAVs are gitignored copyright) and
-(4) test/audio-wiring.test.js (committed WIRING test).
+(4) test/audio-wiring.test.js (committed WIRING test) -- both RUN here and must pass; for a NO_SKIP_GAMES
+game with its ROM present they must also skip nothing (a skipped arm means the clips are absent).
 
 The WAVs themselves are gitignored copyright, so the gate cannot listen to them - but STRUCTURE alone
 lied: a game could pass (1)-(4) while the audio was NEVER RECORDED and never listened to. So GREEN now
@@ -21,9 +22,8 @@ captures MAME's OWN audio per sound trigger, so the clips are oracle-correct BY 
 "sounds plausible"). GREEN <=> the clips were recorded from MAME AND the map/wiring coverage is proven.
 Missing file or any missing/empty field => RED.
 
-Legacy pre-runbook ports (frogger/timeplt/thepit - runbook "Legacy games": do not retrofit) are
-grandfathered off the sign-off requirement (exactly like tools/done_gate.py check_pixel grandfathers
-them off the --done gameplay bar); they still owe the structure checks. A non-legacy game with no
+Legacy pre-runbook ports in LEGACY_NO_SIGNOFF are grandfathered off the sign-off requirement; they still
+owe the structure checks and the test runs. A non-legacy game with no
 sign-off => RED. A game needs BOTH structure AND sign-off.
 
 SYNTH model (manifest `audio.model == "synth"`, e.g. galaxian: a discrete-analogue netlist, no clips) has no
@@ -37,6 +37,7 @@ Subcommands: check --game <game> (exit 0 iff complete), selftest.
 """
 import argparse
 import contextlib
+import glob
 import io
 import os
 import re
@@ -45,12 +46,15 @@ import sys
 import tempfile
 
 
-# Pre-runbook ports are not retrofitted with a recording sign-off (runbook "Legacy games"); mirrors the
-# grandfather set in tools/done_gate.py check_pixel. A non-legacy game still owes a committed sign-off.
 # Pre-sign-off-gate ports grandfathered off the RECORDING-SIGNOFF requirement (runbook "Legacy games":
 # do not retrofit). dkong's audio IS recorded (games/dkong/audio/samples/ has real clips) -- it predates
 # this gate, not unrecorded; a new game with no committed clips (e.g. pooyan) is NOT grandfathered.
-LEGACY_NO_SIGNOFF = {"timeplt", "thepit", "dkong"}
+LEGACY_NO_SIGNOFF = {"thepit", "dkong"}
+
+# Clips games whose audio-map/audio-wiring tests must run with NOTHING skipped once the ROM is present: a
+# skipped arm there means the recorded clips are absent (gitignored, so a fresh clone has none). Opt-in so a
+# game is enrolled in the unit that proves its clips are present, never flipping a DONE game red.
+NO_SKIP_GAMES = {"timeplt"}
 
 # The by-ear sign-off attestation (CLIPS model only). Each must be present + non-empty; `clips` int > 0.
 SIGNOFF_FIELDS = ("rom_sha256", "clips", "date", "by_ear")
@@ -79,14 +83,37 @@ def synth_rel(maptext):
     return m.group(1) if m else "audio/synth.js"
 
 
+def node_env():
+    """The environment minus NODE_TEST_CONTEXT: under a parent `node --test` a child run reports to the parent
+    instead of exiting nonzero on a failure, so a red test would read green here."""
+    return {k: v for k, v in os.environ.items() if k != "NODE_TEST_CONTEXT"}
+
+
 def run_node_test(path):
     """Run one node test file; return (rc, tail-of-output). rc 0 == the test passed."""
     import subprocess
     try:
-        p = subprocess.run(["node", "--test", path], capture_output=True, text=True, timeout=180)
+        p = subprocess.run(["node", "--test", path], capture_output=True, text=True, timeout=180, env=node_env())
         return p.returncode, (p.stdout + p.stderr)[-500:]
     except Exception as e:  # node missing / timeout -> treat as failure (a gate never passes on "could not run")
         return 1, str(e)
+
+
+def run_audio_tests(paths):
+    """Run the audio tests in one node process (TAP). Returns (rc, skipped, tail)."""
+    import subprocess
+    try:
+        p = subprocess.run(["node", "--test", "--test-reporter", "tap", *paths], capture_output=True, text=True,
+                           timeout=600, env=node_env())
+    except Exception as e:  # node missing / timeout -> a failure, never "could not run" read as a pass
+        return 1, 0, str(e)
+    out = p.stdout + p.stderr
+    m = re.search(r"^# skip(?:ped)? (\d+)", out, re.M)
+    return p.returncode, int(m.group(1)) if m else 0, out[-500:]
+
+
+def rom_present(base):
+    return bool(glob.glob(f"{base}/rom/*.bin"))
 
 
 def read_hex(path, name):
@@ -147,9 +174,18 @@ def check(game, base=None):
             fails.append(f"soundLatch {mlatch.group(1)} != game SOUND_CMD_LATCH {hex(game_latch)} "
                          f"(the player keys off the wrong address)")
 
-    for kind in ("map", "wiring"):
-        if not os.path.exists(f"{base}/test/audio-{kind}.test.js"):
-            fails.append(f"no test/audio-{kind}.test.js (the audio {kind} is unproven)")
+    tests = [f"{base}/test/audio-{kind}.test.js" for kind in ("map", "wiring")]
+    for t in tests:
+        if not os.path.exists(t):
+            fails.append(f"no {os.path.relpath(t, base)} (the audio {t.split('-')[-1][:-8]} is unproven)")
+    if all(os.path.exists(t) for t in tests):
+        # RUN them: file presence proves nothing (a broken latch tap failed only the wiring test, at pre-push).
+        rc, skipped, tail = run_audio_tests(tests)
+        if rc != 0:
+            fails.append("test/audio-map + audio-wiring do not pass: " + tail.strip()[-300:])
+        elif skipped and game in NO_SKIP_GAMES and model != "synth" and rom_present(base):
+            fails.append(f"test/audio-map + audio-wiring skipped {skipped} arm(s) with the ROM present -- "
+                         f"the recorded clips are absent (run games/{game}/tools/record_samples.py)")
 
     if model == "synth":
         # SYNTH: no recorded clips to audition; the oracle is a per-voice NULL-MUTANT test (silence any voice
@@ -171,12 +207,12 @@ def check(game, base=None):
                          "a synth must voice every register, not admit a collapsed/unmodeled one")
     elif game not in LEGACY_NO_SIGNOFF:
         # CLIPS: the WAVs are gitignored copyright (no oracle, runbook §5), so a committed by-ear sign-off is
-        # the enforceable evidence a human ran the recorder (rom sha + clip count) AND listened + confirmed.
+        # the enforceable evidence the recorder ran against MAME (rom sha + clip count).
         # Legacy pre-runbook ports are grandfathered off this (they still owe the structure checks above).
         signoff_path = f"{base}/audio/RECORDING-SIGNOFF.md"
         if not os.path.exists(signoff_path):
             fails.append(f"no audio/RECORDING-SIGNOFF.md - audio not recorded/signed off "
-                         f"(run games/{game}/tools/record_samples.py, listen, then commit the sign-off)")
+                         f"(run games/{game}/tools/record_samples.py, then commit the sign-off)")
         else:
             problems = signoff_problems(read_text(signoff_path))
             if problems:
@@ -268,6 +304,32 @@ def selftest():
         make_tree(g_no, with_signoff=False)
         if silent_check("synthgame", g_no) == 0:
             fail("a non-legacy game WITHOUT a sign-off passed (must be RED)")
+
+        g_red = f"{tmp}/redwiring"
+        make_tree(g_red, with_signoff=True)
+        open(f"{g_red}/test/audio-wiring.test.js", "w", encoding="utf-8").write(
+            "import test from 'node:test';\nimport assert from 'node:assert';\ntest('latch', () => assert.fail('tap'));\n")
+        if silent_check("synthgame", g_red) == 0:
+            fail("a game whose audio-wiring test FAILS passed (the tests must run, not just exist)")
+
+        g_skip = f"{tmp}/skipped"
+        make_tree(g_skip, with_signoff=True)
+        open(f"{g_skip}/test/audio-map.test.js", "w", encoding="utf-8").write(
+            "import test from 'node:test';\ntest('clips', { skip: 'no samples' }, () => {});\n")
+        real_noskip = set(NO_SKIP_GAMES)
+        NO_SKIP_GAMES.add("skipgame")
+        try:
+            if silent_check("skipgame", g_skip) != 0:
+                fail("a skipped arm with the ROM ABSENT was blocked (a ROM-less clone must stay green)")
+            os.makedirs(f"{g_skip}/rom", exist_ok=True)
+            open(f"{g_skip}/rom/maincpu.bin", "wb").close()
+            if silent_check("skipgame", g_skip) == 0:
+                fail("a NO_SKIP game whose audio test skipped with the ROM present passed (clips absent)")
+            NO_SKIP_GAMES.discard("skipgame")
+            if silent_check("skipgame", g_skip) != 0:
+                fail("a non-enrolled game was blocked for a skipped arm")
+        finally:
+            NO_SKIP_GAMES.clear(); NO_SKIP_GAMES.update(real_noskip)
 
         g_bad = f"{tmp}/badsignoff"
         make_tree(g_bad, with_signoff=True, body="rom_sha256: deadbeef\ndate: 2026-08-29\nby_ear: yes\n")

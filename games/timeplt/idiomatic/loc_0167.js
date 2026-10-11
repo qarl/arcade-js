@@ -6,7 +6,8 @@
  * the frame unwinding one word out of step, and return to a value that is not an address — control
  * destroyed rather than reported. So the mismatch arm has no faithful transcription as a routine:
  * raise where it would land instead of transcribing junk. Reaching this is a tampered-image derail;
- * on a genuine image it is dead. */
+ * on a genuine image it is dead.
+ * ROM 0x0167-0x0173, falling through into 0x0174. Grounding: [code] (names.js ROUTINES 0x0167). */
 
 import { NotImplemented } from "../../../boards/timeplt/io.js";
 

@@ -286,7 +286,8 @@ const EXPECTED = {
 // ── the gate ────────────────────────────────────────────────────────────────────────────
 
 test("wire the dissolved callees for the twins", { skip }, async () => {
-  ({ placeTileAtTableSuppliedOffset: importStraight } = await import("../placeTileAtTableSuppliedOffset.js"));
+  const { placeTileAtTableSuppliedOffset } = await import("../placeTileAtTableSuppliedOffset.js");
+  importStraight = (mm) => placeTileAtTableSuppliedOffset(mm, mm.regs.iy, mm.regs.hl, mm.regs.c, mm.regs.b, mm.regs.ix);
   ({ placeDiagonallyAbuttingTile: importLast } = await import("../placeDiagonallyAbuttingTile.js"));
   ({ fetchTableWord: importFetch } = await import("../fetchTableWord.js"));
   assert.ok(importStraight && importLast && importFetch, "a dissolved callee did not import");

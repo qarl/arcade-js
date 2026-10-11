@@ -18,6 +18,8 @@
  * family of hex-named shims (0x58B6, 0x598E, 0x5994, 0x599D, 0x59C5, 0x59CB, 0x59D1) that differ
  * only in the table immediate or in where the heading comes from; names.js keeps them all hex
  * because nothing reachable from a shim settles what class of object moves at its pace.
+ * Kept as the ROUTINES override of 0x58B6: no idiomatic module calls
+ * it, because its callers hand the mover the table themselves.
  */
 
 import { flyAlongHeadingAtDoubleVelocity } from "./flyAlongHeadingAtDoubleVelocity.js";
@@ -27,8 +29,8 @@ import { OPENING_ERA_VELOCITY_TABLE } from "./names.js";
 const VELOCITY_TABLE = OPENING_ERA_VELOCITY_TABLE;
 
 // `object` and `sprite` are the object's record and its sprite entry (the ROM's IX and IY), which the
-// caller seats; no idiomatic routine calls this entry, so they arrive only from a register-dispatched
-// caller and are handed on as arguments from here.
+// ROM's caller seats; no routine in this layer calls this entry. They are handed on as arguments
+// from here.
 export function loc_58b6(m, object = m.regs.ix, sprite = m.regs.iy) {
   // `jp 0x58fe` — a tail jump, so the mover's `ret` returns straight to our caller.
   flyAlongHeadingAtDoubleVelocity(m, VELOCITY_TABLE, object, sprite);

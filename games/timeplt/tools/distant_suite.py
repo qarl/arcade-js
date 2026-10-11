@@ -30,14 +30,49 @@ from raw_dumps import raw_dumps  # noqa: E402
 # re-derive if it stops matching the poke.
 POKE_OFFSET = 0
 
-# Semantic input presses -> (MAME IN0 field name, JS input port, bit). Bits verified against
-# MAME's port masks; the two sides drive the same event through their own API (field vs raw
-# bit at the IN0 mirror), exactly as pixel_suite bridges coin/start.
+# Semantic input presses -> (MAME port, field name, JS input port, bit). Field names and masks
+# read off MAME's ioport list; the JS ports and bits are manifest.inputs.actions.
 INPUTS = {
-    "coin": ("Coin 1", 0xC300, 0x01),
-    "start1p": ("1 Player Start", 0xC300, 0x08),
-    "start2p": ("2 Players Start", 0xC300, 0x10),
+    "coin": (":IN0", "Coin 1", 0xC300, 0x01),
+    "coin2": (":IN0", "Coin 2", 0xC300, 0x02),
+    "start1p": (":IN0", "1 Player Start", 0xC300, 0x08),
+    "start2p": (":IN0", "2 Players Start", 0xC300, 0x10),
+    "left": (":IN1", "P1 Left", 0xC320, 0x01),
+    "right": (":IN1", "P1 Right", 0xC320, 0x02),
+    "up": (":IN1", "P1 Up", 0xC320, 0x04),
+    "down": (":IN1", "P1 Down", 0xC320, 0x08),
+    "fire": (":IN1", "P1 Button 1", 0xC320, 0x10),
 }
+
+
+# The tapes the done bar requires, one per forced state. Every run checks this set against
+# tapes/ both ways, so deleting a tape (or adding one without pinning it) fails every distant run
+# and test/distant-reach-tape.test.js, which builds its argv through this suite.
+PINNED_TAPES = {
+    "boss-armed": "Mother-Ship armed and flying (era 0)",
+    "countdown-slot": "era-2+ object bank's drifting-countdown arm (era 3)",
+    "deep-round": "difficulty rung escalated to its maximum",
+    "era-advance": "era 4 held (2001)",
+    "era-one": "era 1 held (1940)",
+    "game-over": "1P game over",
+    "high-score": "high-score name entry, back-step, 2P start from the entry screen",
+    "mothership-era1": "Mother-Ship killed in era 1 -> round won -> era 2",
+    "mothership-era2": "Mother-Ship killed in era 2 -> round won -> era 3",
+    "mothership-era3": "Mother-Ship killed in era 3, round 10 -> 11 (third rung bracket)",
+    "mothership-era4": "life lost during the era-4 Mother-Ship's death; era 4 -> 0, round 5 -> 6",
+    "mothership-ram": "player rams the Mother-Ship inside the narrow box (era 2)",
+    "mothership-ram-wide": "player rams the Mother-Ship inside the wide box (era 0)",
+    "parachutist": "parachutist picked up -> award",
+    "pass-turn": "2P: player 1's game over passes the turn (0x1226)",
+    "round-won": "Mother-Ship killed in era 0 -> round won -> era 1, bonus life, steering",
+    "two-player": "2P: life lost -> hand over to player 2",
+}
+
+
+def pinned_set_problems(tapes_dir=os.path.join(ps.GAME, "tapes")):
+    on_disk = {f[: -len(".poke.json")] for f in os.listdir(tapes_dir) if f.endswith(".poke.json")}
+    return [f"pinned tape {n}.poke.json is missing" for n in sorted(set(PINNED_TAPES) - on_disk)] + [
+        f"tape {n}.poke.json is not in PINNED_TAPES" for n in sorted(on_disk - set(PINNED_TAPES))]
 
 
 def _int(v):
@@ -46,14 +81,14 @@ def _int(v):
 
 
 def _event(press, frame, dur):
-    field, port, bit = INPUTS[press]
-    return {"frame": frame, "field": field, "port": port, "bit": bit, "dur": dur}
+    mport, field, port, bit = INPUTS[press]
+    return {"frame": frame, "mport": mport, "field": field, "port": port, "bit": bit, "dur": dur}
 
 
 def load_schedule(path):
     with open(path, encoding="utf-8") as fh:
         s = json.load(fh)
-    for req in ("name", "pokes", "responded", "reaches"):
+    for req in ("name", "pokes", "responded", "reaches", "idiomatic_residual_frames"):
         if req not in s:
             raise SystemExit(f"schedule {path}: missing required key {req!r}")
     s.setdefault("coin", ps.LUA_COIN)
@@ -63,8 +98,9 @@ def load_schedule(path):
         for req in ("frame", "addr", "val"):
             if req not in p:
                 raise SystemExit(f"schedule {path}: poke missing {req!r}: {p}")
-    # Normalize inputs: an explicit "inputs" list (each {frame, press[, dur]}) wins; else the
-    # coin/start scalars synthesize a one-credit 1P game (the era-4 default).
+    # Normalize inputs: an explicit "inputs" list (each {frame, press[, dur][, every, until]}) wins;
+    # else the coin/start scalars synthesize a one-credit 1P game (the era-4 default). `every`/`until`
+    # repeat a press every N frames from `frame` up to (not including) `until`.
     hold = s["hold"]
     if "inputs" in s:
         evs = []
@@ -73,7 +109,11 @@ def load_schedule(path):
                 raise SystemExit(
                     f"schedule {path}: input 'press' must be one of {sorted(INPUTS)}: {e}"
                 )
-            evs.append(_event(e["press"], _int(e["frame"]), _int(e.get("dur", hold))))
+            if ("every" in e) != ("until" in e) or ("every" in e and _int(e["every"]) <= 0):
+                raise SystemExit(f"schedule {path}: 'every' needs 'until' (and a positive step): {e}")
+            first, dur = _int(e["frame"]), _int(e.get("dur", hold))
+            frames = range(first, _int(e["until"]), _int(e["every"])) if "every" in e else [first]
+            evs += [_event(e["press"], f, dur) for f in frames]
         s["_inputs"] = evs
     else:
         s["_inputs"] = [
@@ -103,6 +143,9 @@ def load_schedule(path):
                 f"schedule {path}: 'distant_budget_px' must be an integer 0..{ps.BAND_MAX_PX} "
                 f"(the default band budget) -- it may only tighten, got {v!r}"
             )
+    v = s["idiomatic_residual_frames"]
+    if isinstance(v, bool) or not isinstance(v, int) or v < 0:
+        raise SystemExit(f"schedule {path}: 'idiomatic_residual_frames' must be a non-negative integer, got {v!r}")
     r = s["responded"]
     if "cell" not in r or "val" not in r:
         raise SystemExit(f"schedule {path}: 'responded' needs 'cell' and 'val'")
@@ -117,18 +160,18 @@ def tape_budget(sched):
     return sched.get("distant_budget_px")
 
 
-def lua_tape(path, sched):
-    """MAME tape: the schedule's input presses (active-low IN0 fields) and its direct RAM
-    pokes, on the frame-notifier clock. Each field is set to the OR of its presses' windows;
-    writes use the program space the state dumper reads."""
+def lua_tape(path, sched, snd):
+    """MAME tape: the schedule's input presses (IN0/IN1 fields) and its direct RAM pokes, on the
+    frame-notifier clock, plus the sound-latch tap. Each field is set to the OR of its presses'
+    windows; writes use the program space the state dumper reads."""
     events = sched["_inputs"]
     field_var, decls = {}, []
     for ev in events:
         if ev["field"] not in field_var:
             var = f"fld{len(field_var)}"
             field_var[ev["field"]] = var
-            decls.append(f"local {var} = IN0.fields[{ev['field']!r}]")
-            decls.append(f'assert({var}, "missing IN0 field {ev["field"]}")')
+            decls.append(f"local {var} = manager.machine.ioport.ports[{ev['mport']!r}].fields[{ev['field']!r}]")
+            decls.append(f'assert({var}, "missing {ev["mport"]} field {ev["field"]}")')
     sets = []
     for field, var in field_var.items():
         wins = [
@@ -147,8 +190,6 @@ def lua_tape(path, sched):
     decl_block, set_block = "\n".join(decls), "\n".join(sets)
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(f"""-- Generated by distant_suite.py from schedule {sched["name"]!r}.
-local IN0 = manager.machine.ioport.ports[":IN0"]
-assert(IN0, "no :IN0")
 local mem = manager.machine.devices[":maincpu"].spaces["program"]
 assert(mem, "no :maincpu program space")
 {decl_block}
@@ -157,7 +198,7 @@ _G.__pt = emu.add_machine_frame_notifier(function()
   f = f + 1
 {set_block}
 end)
-""")
+""" + ps.sound_tap_lua(snd))
     return path
 
 
@@ -323,6 +364,10 @@ def main():
     a = p.parse_args()
 
     sched = load_schedule(a.schedule)
+    problems = pinned_set_problems()
+    if problems:
+        print(f"distant_suite: FAIL -- the tape set is not the pinned set: {'; '.join(problems)}")
+        return 1
     if a.print_render_argv:
         idio = (a.layer == "idiomatic") if a.layer else (ps.runtime() == "idiomatic")
         off = ps.GEN_OFFSET if idio else ps.FROZEN_OFFSET
@@ -377,7 +422,8 @@ def distant_gate(a, sched, work, idiomatic, summary):
         f"; golden offset {offset}; poke offset {POKE_OFFSET} (layer from {src})"
     )
 
-    ps.capture_golden(a.rompath, go, lua_tape(os.path.join(work, "tape.lua"), sched))
+    snd = os.path.join(work, "sound.txt")
+    ps.capture_golden(a.rompath, go, lua_tape(os.path.join(work, "tape.lua"), sched, snd))
     reach_out = os.path.join(work, "reach.json")
     render_js(jo, a.frames, sched, idiomatic, reach_out)
 
@@ -482,6 +528,22 @@ def distant_gate(a, sched, work, idiomatic, summary):
     if not band_ok:
         rc = 1
     summary["band"] = dict(b, budget=band_budget, ok=band_ok)
+
+    # RESIDUAL_FRAMES (pixel_suite): the idiomatic layer's differing-frame count is pinned per tape.
+    # The oracle layer, near-exact against MAME, keeps the px budgets above.
+    if idiomatic:
+        rok, rline = ps.residual_verdict(d, sched["idiomatic_residual_frames"], "residual (whole run)", ps.DIFF_FROM)
+        print(rline)
+        summary["residual_ok"] = rok
+        if not rok:
+            rc = 1
+    argv = render_argv(jo, a.frames, sched, idiomatic, reach_out)[2:]
+    i = argv.index("--reach")
+    sok, sline = ps.sound_gate(snd, argv[:i] + argv[i + 4:], offset, go)
+    print(sline)
+    summary["sound_ok"] = sok
+    if not sok:
+        rc = 1
 
     # 3) REACH: the routines this tape exists for ran inside the compared distant window. The
     #    window ends where the comparison ends (the golden is shorter than the render by `offset`).

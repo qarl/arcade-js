@@ -19,11 +19,13 @@
  * +0 and +0x31 hold the sprite's position (zeroed to retire it), +1 its shape and +0x30 its
  * attribute. Byte +0 of the record, the "head", says what the slot holds.
  *
- * PARAMETERS. `ix` / `iy` / `b` are the record cursor, sprite-entry cursor and slot count, defaulting
- * to the machine's IX, IY and B registers that the ROM caller seats before entering.
+ * PARAMETERS. `firstRecord` / `firstEntry` / `slots` are the record cursor, sprite-entry cursor and
+ * slot count the caller seats before entering.
  *
  * LIVE-OUT: memory (the serviced slots and sprite entries); IX and IY are written back to where the
  * cursors stopped (one stride past the last slot), and that pair is also returned.
+ * Kept as the ROUTINES override of 0x3FF9: no idiomatic module calls
+ * it, because serviceEra0BallisticObjectBank enters the loop through its mid-loop entries instead.
  */
 
 import { u16 } from "../../../core/int.js";
@@ -37,11 +39,11 @@ const ENTRY_STRIDE = 2;
 // The head value that marks a slot flying a ballistic arc (the ROM tests it with `inc a`: 0xFF+1 = 0).
 const BALLISTIC = 0xff;
 
-export function sweepObjectSlotBankByHead(m, ix = m.regs.ix, iy = m.regs.iy, b = m.regs.b) {
+export function sweepObjectSlotBankByHead(m, firstRecord = m.regs.ix, firstEntry = m.regs.iy, slots = m.regs.b) {
   const { mem8 } = m;
-  let record = ix;
-  let entry = iy;
-  let count = b;
+  let record = firstRecord;
+  let entry = firstEntry;
+  let count = slots;
 
   for (;;) {
     // Step 1 — route this slot by its head byte. ROM 0x3FF9 `ld a,(ix+0x00)` / `and a` /

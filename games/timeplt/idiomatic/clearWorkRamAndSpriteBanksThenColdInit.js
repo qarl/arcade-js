@@ -9,13 +9,13 @@
  * Role in the machine: the second stage of the cold start. RAM powers up holding garbage, so every
  * sprite and work cell is zeroed here before anything reads it. It ends with one of the game's
  * anti-tamper checks, which on a patched image does not halt but quietly runs a whole frame service
- * early -- corruption rather than a clean refusal (names.js, saveAccumulatorForFrameInterrupt).
+ * early -- corruption rather than a clean refusal (names.js, enterVerticalBlankService).
  */
 
 import { u8, u16 } from "../../../core/int.js";
 import { clearScreenRamAndVerifyImageThenColdInit } from "./clearScreenRamAndVerifyImageThenColdInit.js";
-import { saveAccumulatorForFrameInterrupt } from "./saveAccumulatorForFrameInterrupt.js";
-import { PLAYER_STATE, SPRITE_BANK1_BASE, SPRITE_BANK1_SLOT0_Y, WATCHDOG_RESET, saveAccumulatorForFrameInterrupt_ADDR } from "./names.js";
+import { enterVerticalBlankService } from "./enterVerticalBlankService.js";
+import { PLAYER_STATE, SPRITE_BANK1_BASE, SPRITE_BANK1_SLOT0_Y, WATCHDOG_RESET, enterVerticalBlankService_ADDR } from "./names.js";
 
 // Each sprite run is 0x30 bytes (the ROM's `ld b,0x30`), the 48 bytes of a hardware sprite bank.
 const SPRITE_RUN_BYTES = 0x30;
@@ -47,8 +47,8 @@ export function clearWorkRamAndSpriteBanksThenColdInit(m) {
   // an eight-bit total. On a genuine image the total is 0x87 and nothing happens. Any other total
   // makes the ROM `call nz,0x00d8` -- run one whole frame service now, out of band, and return.
   let total = 0;
-  for (let i = 0; i < CHECK_BYTES; i++) total = u8(total + mem8[u16(saveAccumulatorForFrameInterrupt_ADDR + i)]);
-  if (u8(total - GENUINE_TOTAL) !== 0) saveAccumulatorForFrameInterrupt(m);
+  for (let i = 0; i < CHECK_BYTES; i++) total = u8(total + mem8[u16(enterVerticalBlankService_ADDR + i)]);
+  if (u8(total - GENUINE_TOTAL) !== 0) enterVerticalBlankService(m);
 
   // Next stage (`jp 0x5866`): fill the screen RAM and verify the whole image.
   return clearScreenRamAndVerifyImageThenColdInit(m);

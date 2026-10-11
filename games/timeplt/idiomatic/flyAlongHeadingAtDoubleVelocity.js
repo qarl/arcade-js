@@ -21,6 +21,7 @@
 
 import { velocityForHeading } from "./velocityForHeading.js";
 import { WORLD_SCROLL_X, WORLD_SCROLL_Y } from "./names.js";
+import { addToCoordinate } from "./objectGeometry.js";
 
 // Record +2 holds the heading. The two coordinates are split: the first is whole at sprite +0x31
 // (the native-Y byte WORLD_SCROLL_Y lands in) with its fraction at record +3; the second is whole
@@ -37,26 +38,17 @@ export function flyAlongHeadingAtDoubleVelocity(m, table = m.regs.hl, object = m
 
   // First coordinate: scroll once, component twice (the ROM loads the scroll word into HL, then
   // adds DE two times before adding the coordinate).
-  advanceCoordinate(
+  addToCoordinate(
     m,
     sprite + FIRST_AXIS_WHOLE,
     object + FIRST_AXIS_FRACTION,
     m.mem16[WORLD_SCROLL_Y] + 2 * alongFirstAxis,
   );
   // Second coordinate: the same shape with the other scroll word and BC as the component.
-  advanceCoordinate(
+  addToCoordinate(
     m,
     sprite + SECOND_AXIS_WHOLE,
     object + SECOND_AXIS_FRACTION,
     m.mem16[WORLD_SCROLL_X] + 2 * alongSecondAxis,
   );
-}
-
-/** One coordinate: whole and fraction read as a single number, displaced, then split back. */
-function advanceCoordinate(m, wholeAddr, fractionAddr, displacement) {
-  const { mem8 } = m;
-  // 8.8 fixed point; each byte store keeps its own eight bits, so the coordinate wraps at 16 bits.
-  const moved = (mem8[wholeAddr] << 8) + mem8[fractionAddr] + displacement;
-  mem8[wholeAddr] = moved >> 8;
-  mem8[fractionAddr] = moved;
 }

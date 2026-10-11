@@ -25,6 +25,7 @@
  */
 
 import { WORLD_SCROLL_X, WORLD_SCROLL_Y } from "./names.js";
+import { addToCoordinate } from "./objectGeometry.js";
 
 // Record offsets of the two velocity words, the two fraction bytes, and the sprite-entry offsets
 // of the two whole bytes. The "high axis" is the native-Y coordinate (sprite +0x31, fraction +3),
@@ -39,25 +40,14 @@ const WHOLE_LOW_AXIS = 0;
 export function flyAlongStoredVelocity(m, object = m.regs.ix, sprite = m.regs.iy) {
   // Native-Y coordinate: velocity word at +0x0A plus WORLD_SCROLL_Y, added to the 8.8 value made
   // of sprite +0x31 (whole) and record +3 (fraction). ROM 0x3E05-0x3E1D.
-  advanceCoordinate(
+  addToCoordinate(
     m, sprite + WHOLE_HIGH_AXIS, object + FRACTION_HIGH_AXIS,
     m.mem16[object + VELOCITY_HIGH_AXIS] + m.mem16[WORLD_SCROLL_Y],
   );
   // Native-X coordinate: velocity word at +0x0C plus WORLD_SCROLL_X, into sprite +0x00 / record
   // +5. ROM 0x3E1D-0x3E35.
-  advanceCoordinate(
+  addToCoordinate(
     m, sprite + WHOLE_LOW_AXIS, object + FRACTION_LOW_AXIS,
     m.mem16[object + VELOCITY_LOW_AXIS] + m.mem16[WORLD_SCROLL_X],
   );
-}
-
-/** One coordinate: whole and fraction read as a single number, displaced, then split back. */
-function advanceCoordinate(m, wholeAddr, fractionAddr, displacement) {
-  const { mem8 } = m;
-  // Rebuild the 16-bit coordinate (the ROM's `ld d,(iy+n) / ld e,(ix+n) / add hl,de`), add the
-  // combined displacement, and store the two halves back. The byte stores keep only the low
-  // eight bits of each half, so the sum wraps at 16 bits as the Z80's `add hl,de` does.
-  const moved = (mem8[wholeAddr] << 8) + mem8[fractionAddr] + displacement;
-  mem8[wholeAddr] = moved >> 8;
-  mem8[fractionAddr] = moved;
 }

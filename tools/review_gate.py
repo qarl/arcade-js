@@ -57,6 +57,7 @@ import io
 import json
 import os
 import shutil
+import re
 import subprocess
 import sys
 import tempfile
@@ -186,6 +187,30 @@ def cmd_check(_args):
     return 0
 
 
+_DONE_RE = re.compile(r"^games/[^/]+/DONE\.md$")
+_AUDITOR_RE = re.compile(r"(?im)^\s*[-*]?\s*\**\s*Auditor\b[^:]*:\**:?\**\s*(.+)$")
+
+
+def staged_done_auditors(files):
+    """{DONE.md path: set of auditor identities} for every staged games/<g>/DONE.md. An identity is each
+    backticked token on an Auditor line, plus the line's whole value, lower-cased (both are compared)."""
+    out = {}
+    for f in files:
+        if not _DONE_RE.match(f):
+            continue
+        try:
+            text = git(["show", f":0:{f}"])
+        except GitError:
+            continue  # a staged deletion has no Auditor to collide with
+        ids = set()
+        for m in _AUDITOR_RE.finditer(text):
+            value = m.group(1).strip()
+            ids.update(t.strip().lower() for t in re.findall(r"`([^`]+)`", value))
+            ids.add(value.strip("*` ").lower())
+        out[f] = {i for i in ids if i}
+    return out
+
+
 def cmd_record(args):
     diff = staged_diff()
     if not diff.strip():
@@ -195,6 +220,15 @@ def cmd_record(args):
     os.makedirs(REVIEWS, exist_ok=True)
     files = git(["diff", "--cached", "--name-only"]).split()
     path = token_path(did)
+
+    # The auditor who proposed a DONE.md cannot also be the reviewer who passes it: the review is the
+    # independent read of the auditor's claim.
+    who = args.reviewer.strip().lower()
+    for done, auditors in staged_done_auditors(files).items():
+        if who in auditors:
+            sys.stderr.write(f"refusing to record: reviewer {args.reviewer!r} is the Auditor of the staged {done}; "
+                             "a DONE.md needs a reviewer other than its auditor.\n")
+            return 1
 
     # Read what is already on file BEFORE writing. An unparseable token blocks rather than
     # being silently replaced — overwriting a token we could not read would destroy exactly
@@ -298,6 +332,16 @@ def cmd_selftest(_args):
         if got != ["PASS", "FAIL"]:
             failures.append(f"legacy verdict lost: stored {got}, expected ['PASS', 'FAIL']")
         _selftest_case(tmp, "latest FAIL blocks again", lambda: cmd_check(None), 1, failures)
+
+        # A staged DONE.md: its Auditor may not record the review; anyone else may (control).
+        os.makedirs(os.path.join(tmp, "games", "g"), exist_ok=True)
+        open(os.path.join(tmp, "games", "g", "DONE.md"), "w").write(
+            "# g DONE\n- **Auditor:** `aud-1` \u2014 a fresh adversarial agent.\n")
+        subprocess.run(["git", "-C", tmp, "add", "games/g/DONE.md"], check=True, capture_output=True)
+        _selftest_case(tmp, "DONE.md auditor as reviewer refused", lambda: cmd_record(rec("PASS", "aud-1")), 1, failures)
+        _selftest_case(tmp, "DONE.md other reviewer recorded", lambda: cmd_record(rec("PASS", "rev-2")), 0, failures)
+        subprocess.run(["git", "-C", tmp, "rm", "-q", "--cached", "games/g/DONE.md"], check=True, capture_output=True)
+        path = token_path(diff_id(staged_diff()))
 
         # An unreadable token is not an absent one.
         open(path, "w").write("not json")

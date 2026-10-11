@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * requestObjectState3bSound — memory-equivalent to the frozen oracle at ROM 0x568E.
+ * requestOneShotCountdownSound — memory-equivalent to the frozen oracle at ROM 0x568E.
  *
  * WHAT IT IS. Two instructions: load one byte of the program image, then transfer to the shared
  * request body, WHICH IS ALREADY DECOMPILED — so the rewrite calls it directly with the byte as
@@ -39,7 +39,7 @@ import assert from "node:assert/strict";
 
 import { makeMachine, COIN_FRAME, START_FRAME, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { allDiffs, hex4, oracleAt, realDiff, show, withPokedImage } from "./_soundQueue.js";
-import { requestObjectState3bSound } from "../requestObjectState3bSound.js";
+import { requestOneShotCountdownSound } from "../requestOneShotCountdownSound.js";
 import { enqueueSoundIfGameInProgress } from "../enqueueSoundIfGameInProgress.js";
 import { PLAY_ACTIVE } from "../names.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
@@ -164,7 +164,7 @@ test("EQUAL at the real dispatch: identical outside the scratch window", { skip 
   const a = entry.clone();
   const b = entry.clone();
   oracle(a);
-  requestObjectState3bSound(b);
+  requestOneShotCountdownSound(b);
   const d = realDiff(a, b, entry.regs.sp, SCRATCH_BYTES);
   assert.equal(d, null, `a divergence escaped the scratch window — ${show(d)}`);
   assert.ok(allDiffs(a, b).length > 0, "nothing differs at all — the parked values vanished");
@@ -184,7 +184,7 @@ test("THE CODE IT REQUESTS: the byte the frozen entry appends", { skip }, () => 
   const b = entryState().clone();
   b.mem8[PLAY_ACTIVE] = 0xff;
   b.mem8[QUEUE_LENGTH] = 2;
-  requestObjectState3bSound(b);
+  requestOneShotCountdownSound(b);
   assert.equal(b.mem8[QUEUE_LENGTH + 3], code, "the rewrite appended a different code");
   console.log(`  CODE: both sides append ${code}`);
 });
@@ -195,7 +195,7 @@ test("IT READS THE IMAGE: the requested code follows a poked source byte", { ski
   assert.notEqual(POKED_CODE, genuine, "the poke must actually change the byte");
   withPokedImage(entry, SOUND_CODE_CELL, POKED_CODE, () => {
     assert.equal(codeAppendedByOracle(), POKED_CODE, "the frozen entry ignored the poked byte");
-    const d = craftedDiff(requestObjectState3bSound, 0xff, 3);
+    const d = craftedDiff(requestOneShotCountdownSound, 0xff, 3);
     assert.equal(d, null, `the rewrite diverged under the poke — ${show(d)}`);
   });
   assert.equal(codeAppendedByOracle(), genuine, "the poke leaked past its own scope");
@@ -205,7 +205,7 @@ test("IT READS THE IMAGE: the requested code follows a poked source byte", { ski
 test("GATE CROSS: the permission cell swept, including the dropping arm", { skip }, () => {
   for (const play of PLAY_VALUES) {
     for (const length of LENGTHS) {
-      const d = craftedDiff(requestObjectState3bSound, play, length);
+      const d = craftedDiff(requestOneShotCountdownSound, play, length);
       assert.equal(d, null, `play=${play} length=${length}: ${show(d)}`);
     }
   }
@@ -219,7 +219,7 @@ test("GATE CROSS: the permission cell swept, including the dropping arm", { skip
 
 test("EXHAUSTIVE over the queue length", { skip }, () => {
   for (let length = 0; length < 256; length++) {
-    const d = craftedDiff(requestObjectState3bSound, 0xff, length);
+    const d = craftedDiff(requestOneShotCountdownSound, 0xff, length);
     assert.equal(d, null, `length=${length}: ${show(d)}`);
   }
   console.log("  EXHAUSTIVE: 256 queue lengths identical");
@@ -233,7 +233,7 @@ const TWINS = [
   ["ungated", (m) => {
     const was = m.mem8[PLAY_ACTIVE];
     m.mem8[PLAY_ACTIVE] = 0xff;
-    requestObjectState3bSound(m);
+    requestOneShotCountdownSound(m);
     m.mem8[PLAY_ACTIVE] = was;
   }, 3],
   ["code-off-by-one", (m) => enqueueSoundIfGameInProgress(m, m.mem8[SOUND_CODE_CELL] + 1), 6],

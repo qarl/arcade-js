@@ -204,10 +204,13 @@ Stand up these pieces in the skeleton; none of them needs a finished layer.
   can enter actually occurs, never a fixed count.
   **The fixed-offset compare aligns only within ONE landmark segment.** The "collapse pure delay, align on
   a landmark" model runs the attract cycle faster than MAME, so the offset SHIFTS at the loop wrap; a single
-  swept offset breaks there even when the layer is correct. An extended / cross-loop / gameplay run must use
-  the **drift-tolerant reconverge rule** (`tools/convergence.mjs`, nearest-golden-frame over the whole
-  golden), never the fixed `pixel_suite` offset. Settle any cross-loop divergence with reconverge (or a
-  longer golden that contains it) before ruling it a bug.
+  swept offset breaks there even when the layer is correct. An extended / cross-loop / gameplay run therefore
+  re-MEASURES the offset per segment from state (`tools/long_golden.py`: RAM byte-exact at the measured
+  offset, re-measured where it shifts, each shift printed and held to the game's declared `max_shifts`) and
+  judges pixels at that offset with the per-frame band. The nearest-golden-frame reconverge
+  (`tools/convergence.mjs`) is an alignment aid only, never the verdict: it cannot see a sprite-scale
+  defect. Settle any cross-loop divergence by re-measuring (or a longer golden that contains it) before
+  ruling it a bug.
 - **Wire it in and drop the waiver.** Declare the suite in `SUITES` in `pixel_gate_required.py` and remove
   the game's `EXEMPT` entry. The gate invokes each suite with `--layer {oracle,idiomatic}`; a
   translated-only game accepts the flag and renders the oracle for both until an idiomatic render exists.
@@ -476,10 +479,16 @@ feeds the next batch's targets.
   single gate that counts ALL idiomatic-layer cruft (register refs + `m.call` + `m.push*` + raw `0xHHHH` in any
   case or padding; for `SHORT_ADDR_GAMES` also a short address in address position or of address
   magnitude, minus reviewed sizes in `games/<game>/idiomatic-sizes.txt`, and a cell reached as ANOTHER names.js
-  cell plus an offset (`NAME ± literal` landing on a different export) unless NAME is a reviewed record/word base
+  cell plus an offset (`NAME ± offset` landing on a different export, NAME a names.js import or a local alias or
+  straight-line cursor of one, the offset a literal or a module const of literal value; or a `mem16[NAME]` whose
+  high byte is another export) unless NAME is a reviewed record/word base
   in `games/<game>/idiomatic-bases.txt`; and for `TIGHT_GAMES` any Machine CPU
-  primitive in any spelling or receiver, any machine member outside its sanctioned surface, and any import
-  from outside the layer not on the gate's reviewed allowlist), over every `.js` under `idiomatic/` at any
+  primitive in any spelling or receiver, any machine member outside its sanctioned surface, any import
+  from outside the layer not on the gate's reviewed allowlist (which holds no `core/cpu/z80.js` name), a
+  register param-default outside an exported routine's own parameter list, on an export that is not a
+  names.js `ROUTINES` entry (`entry ?? name`), or defaulting to the bare file `= m.regs`, and any flag
+  register (`f`/`af`/`fZ`/`fC`/…) in any position, param-default and return-assignment included — an
+  idiomatic routine returns a boolean, it never builds a flags byte), over every `.js` under `idiomatic/` at any
   depth except `test/` (names.js too, minus its data consts),
   and holds every `games/*/idiomatic/` to a per-game budget (implicit 0), so a NEW game is fail-closed from
   its first module and an author literally cannot commit new cruft. Each game's own
@@ -654,7 +663,9 @@ workflow+review+push cycle. Do it once, wide. The steps:
   each** — so **collapsing concurrent tracks into fewer commits saves more wall-clock than any narrower
   split**. That push tax, not just reviewer cost, is *why* the "ONE mega-fan / never dribble" rule exists.
   (Grounding-only tag-flips do not trip `understanding_gate` CHECK A — the export SET is unchanged — so
-  batching more per commit is safe.)
+  batching more per commit is safe. For a game in `MAP_GAMES`/`TAG_GAMES`, the same commit flips the tag
+  wherever mechanisms.md or a module comment cites it, or `understanding_gate` CHECK C / `names_consistency`
+  rule C blocks it.)
 - **⚠ Use each routine's TIGHT body range** (its translated `// loc_<addr> (ROM 0x<lo>-0x<hi>)` header), NOT
   the next-registry address — the latter overshoots into a fall-through callee and **mis-credits the callee's
   writes**, manufacturing false groundings (the confirmer must verify the grounding write's PC is inside the
@@ -787,8 +798,16 @@ shows only stage A (the renames + the map) and silently omits stage B.
   into explanatory prose with the connective tissue (why a step matters, how the pieces fit) that makes it
   readable. `understanding_gate` CHECK A binds the regenerated map to the commit and fires on **additions**
   too; a fresh-vs-patched regeneration is a reviewer call. `names.js` is the single source for a cell's
-  name/role/tag; prose cites it, never contradicts it (`names_consistency`). Promotion requires a
-  proposer≠confirmer who **independently re-derives** — a prose review is not a confirmation.
+  name/role/tag; prose cites it, never contradicts it (`names_consistency` rule C for module comments;
+  `understanding_gate` CHECK C for the map: every routine-shaped name the map cites exists in names.js or
+  as a routine file, every `NAME [tag]` carries the names.js tag, and every map `[code]`/`[guess]` is in
+  grounding-debt.txt; opt-in per game, and done_gate's `understanding` subsystem runs both on the working
+  tree). For a `HEADER_GAMES` game rule C also holds every `ROUTINES` module's header to its own ROM
+  address and its cert as a `[tag]`. CHECK C also refuses, between the map's first `## ` heading and
+  `## §9`, prose admitting a reading was never observed ("not observed", "code reading only", "under
+  MAME" …): the body states what the code does, grounding is the tag's job, and an unwatched reading is a
+  §9 open question. Promotion requires a proposer≠confirmer who **independently re-derives** — a prose review is not
+  a confirmation.
 - **Exception — a value-identical CELL-naming pass THREADS the map, it does not blind-regen.** When a
   commit only ADDS `names.js` cell consts + retrofits raw hex to those imports, proven value-identical
   (per-routine equivalence 0 fail, **no routine rename, no role/behaviour change, no new `[seen]`
@@ -1008,7 +1027,10 @@ distinct phase, gated on a flag, and runs in this order.
   (`captureVideo`/`videoFrames`/`finishRasterFrame()`), exported `Inputs` class in the board io; (5) inputs
   manifest-driven across IN0/IN1/IN2; (6) exact ROT (step 1); (7) unported audio → silent, not broken; (8)
   `runtime: "idiomatic"` reads `manifest.convergence.idiomatic.nmiReturnPC` (§2) — the worker throws
-  without it.
+  without it. The browser is system-checked, never a human confirm: `done_gate`'s **browser** subsystem
+  checks (5) against MAME's own input ports (`tools/input_map_gate.py`: each action's MAME field on that
+  port's address, mask == bit) and runs `web/player.html` in headless Chrome (`tools/browser_runtime_gate.mjs`:
+  boot, a non-uniform canvas, every key binding storing its bit, a coin's clip started).
 - **Ship a representative screenshot — the web selector REQUIRES it.** Every game gets
   `games/<game>/screenshot.png` — **this exact filename**, because `web/index.html` loads
   `games/<game>/screenshot.png` for the game's card; a game without it renders a broken card image on the
@@ -1125,8 +1147,11 @@ distinct phase, gated on a flag, and runs in this order.
   (`how-the-agents-worked.md`), never "it looks finished." A game is shippable only when **every** completion
   subsystem is green under its own gate — the live pixel gate **run against the FULL ~10-minute MAME golden
   (§2), never a short window** (that long run is also the authoritative §3-completeness check — a boot gap in
-  a deep state = a still-missing routine a short gate never reaches), stage-B grounding complete (every
-  `[code]` either lifted to `[seen]` or accounted-for as genuinely irreducible in `grounding-debt.txt` —
+  a deep state = a still-missing routine a short gate never reaches; `tools/long_golden.py`, which `done_gate`'s
+  pixel subsystem runs: attract and a coin/coin-2/service/1P/2P/stick/fire tape, both layers, RAM byte-exact
+  at the offset measured from state plus the per-frame pixel band at the measured pixel offset — a
+  nearest-frame reconverge only aligns, it is never the verdict: it cannot see a sprite-scale defect), stage-B
+  grounding complete (every `[code]` either lifted to `[seen]` or accounted-for as genuinely irreducible in `grounding-debt.txt` —
   see §4), the idiomatic gate at 0 (no registers/m.call/m.push*/raw addresses), the whole-game
   gates above, the external disassembly if in scope, and **audio**. Each is executed, not reasoned about; the
   ship is refused while any is red.
@@ -1136,8 +1161,9 @@ distinct phase, gated on a flag, and runs in this order.
   Z80-level primitives. Concretely: **(a)** every reachable routine runs as JS in the live game — wired as a
   live override, or dissolved to a direct-called boolean for a caller-skip that cannot seat; the game's
   `UNWIRED` map in `tools/registry-coverage.config.mjs` holds **only such DISSOLVED entries**, never an
-  "oracle-served / can't-seat" one, and there is no `m.call` into the still-translated layer. Dissolve an
-  unbalanced tail-call (`return m.call(<translated>)`, whose translated `ret` drifts SP and throws at the
+  "oracle-served / can't-seat" one, and there is no `m.call` into the still-translated layer; `done_gate`'s
+  wiring subsystem runs `tools/translated_live_probe.mjs` (play tape + attract) and refuses any translated
+  routine the live game executes. Dissolve an unbalanced tail-call (`return m.call(<translated>)`, whose translated `ret` drifts SP and throws at the
   override seam) into a **direct JS call**, and a caller-skip into a **boolean skip-signal** the caller
   early-returns on. **(b)** zero `m.push16`/`m.push*` — the ROM's stack trampolines become JS control flow; a
   coroutine/main-loop handoff uses the generator engine (`yield*`), not an `m.call`. **(c)** zero register
@@ -1170,7 +1196,9 @@ distinct phase, gated on a flag, and runs in this order.
   pixel golden, stage-B grounding complete, idiomatic gate at 0, the whole-game tapes + forced transitions,
   the external disasm if in scope, audio recorded+signed-off, the §3 completeness crawl, `loc_` naming, the
   cleanup phase, the `games/<game>/screenshot.png` selector image produced); and the auditor agent's identity + an
-  explicit "zero open criteria" conclusion.
+  explicit "zero open criteria" conclusion. `done_gate` refuses a committed `DONE.md` that lacks the
+  conclusion, the auditor, or a manifest ROM sha256, opens a line with a NOT DONE verdict, or names an
+  audited commit that is not an ancestor of HEAD.
   Committing `DONE.md` triggers `review_gate`; the reviewer of that commit is a SECOND, independent
   adversarial agent (proposer≠confirmer) that re-runs the FULL §5 audit against the game state at that
   commit — **not** a read of `DONE.md` — and records PASS only on independent agreement (see
@@ -1183,10 +1211,10 @@ distinct phase, gated on a flag, and runs in this order.
   artifacts a complete audio layer has (the model is dkong): `manifest.audio.map` + the map file; for a clips
   model, a `soundLatch` matching names.js `SOUND_CMD_LATCH`; and BOTH `test/audio-map.test.js` (coverage —
   every emitted command has a mapped clip) and `test/audio-wiring.test.js` (the soundlatch tap reaches the
-  player). Those two committed tests do the enumeration/verification in the standing suite — the WAVs +
-  index.json are gitignored copyright, so the gate cannot parse coverage itself; it guarantees the tests were
-  not skipped. Because structure alone cannot tell a recorded+auditioned layer from an un-recorded stub,
-  GREEN also requires a committed audio sign-off `games/<game>/audio/RECORDING-SIGNOFF.md` (`rom_sha256`,
+  player). Those two committed tests do the enumeration/verification — the WAVs + index.json are gitignored
+  copyright, so the gate cannot parse coverage itself; it RUNS both (they must pass) and, for a game in its
+  `NO_SKIP_GAMES` with the ROM present, refuses any skipped arm (a skip there means the clips are absent).
+  Because structure alone cannot tell a recorded+auditioned layer from an un-recorded stub, GREEN also requires a committed audio sign-off `games/<game>/audio/RECORDING-SIGNOFF.md` (`rom_sha256`,
   `clips`>0, `date`, `by_ear`) — an AUTONOMOUS attestation, not a human listen: the recorder
   (`record_samples.py`) drives MAME and captures MAME's OWN audio per sound trigger, so the clips are
   oracle-correct BY SOURCE (MAME is the reference — stronger than "sounds plausible"). The `by_ear` line

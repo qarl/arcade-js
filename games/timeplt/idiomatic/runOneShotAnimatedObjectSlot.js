@@ -18,7 +18,7 @@
  * LIVE-OUT: memory only.
  */
 
-import { stampObjectStateByte3bThenRequestSound } from "./stampObjectStateByte3bThenRequestSound.js";
+import { clampOneShotCountdownThenRequestSound } from "./clampOneShotCountdownThenRequestSound.js";
 import { driftWithWorldScroll } from "./driftWithWorldScroll.js";
 import { fetchTableByte } from "./fetchTableByte.js";
 import { ONE_SHOT_OBJECT_SHAPE_TABLE } from "./names.js";
@@ -39,9 +39,9 @@ export function runOneShotAnimatedObjectSlot(m, object = m.regs.ix, sprite = m.r
   const { mem8 } = m;
 
   // Step 1 -- rearm. A counter of 60 or more is forced to 59 (0x3B) and the matching sound requested
-  // (stampObjectStateByte3bThenRequestSound, 0x409D [seen]). After the decrement below it reads 58,
+  // (clampOneShotCountdownThenRequestSound, 0x409D [seen]). After the decrement below it reads 58,
   // under the mark, so this fires only on the first frame: it does not self-retrigger.
-  if (mem8[object + COUNTER] >= REARM_AT) stampObjectStateByte3bThenRequestSound(m, object);
+  if (mem8[object + COUNTER] >= REARM_AT) clampOneShotCountdownThenRequestSound(m, object);
 
   // Step 2 -- count down (`dec (ix+0x00)`). Reaching zero ends the animation: the slot is retired by
   // zeroing both sprite coordinates, which takes it off the screen (ROM 0x40AB-0x40B7). The ROM also

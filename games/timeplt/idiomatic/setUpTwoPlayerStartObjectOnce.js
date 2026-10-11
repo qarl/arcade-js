@@ -15,11 +15,9 @@
  * replaying a fragment of the Mother-Ship warp's bookkeeping.
  *
  * PARAMETERS: counterBase, slotBase = the pointers the acting arm steps and seats through (the ROM's
- * IX and IY). The ROM's caller never loads either: at the one dispatch the tapes reach (the
- * two-player start, via startTwoPlayerGame) the oracle arrived with IX = 0x3010, a ROM address, and
- * IY = 0xAA18, left there by earlier routines. A direct caller therefore has no pointer to give and
- * passes null for both; the acting arm then refuses rather than invent one. A register-dispatched
- * caller in the frozen layer reaches it with whatever the registers hold, as the ROM does.
+ * IX and IY). The ROM's caller (startTwoPlayerGame) loads neither, so they hold whatever earlier
+ * routines left there. A direct caller therefore has no pointer to give and passes null for both;
+ * the acting arm then refuses rather than invent one.
  */
 
 import { u16 } from "../../../core/int.js";

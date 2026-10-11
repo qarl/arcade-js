@@ -15,7 +15,7 @@
  * entries; this one is the default where 128 is enough. One use: the ERA_RUNG_SETTINGS_POINTER_TABLE
  * lookup (0x1B04), which turns an era and difficulty rung into a pointer to a settings row.
  *
- * Parameters: `a` — the entry number (A in the ROM); `table` — the table's base address (HL).
+ * Parameters: `index` — the entry number; `table` — the table's base address.
  * The ROM hands the word back in DE (low byte E, high byte D). It also leaves HL two bytes past
  * the entry's start (names.js: "the address past it"); this form sets DE and returns the word,
  * and HL is left where offsetAddress put it, at the entry itself.
@@ -24,12 +24,12 @@
 import { u8 } from "../../../core/int.js";
 import { offsetAddress } from "./offsetAddress.js";
 
-export function fetchTableWord(m, a = m.regs.a, table = m.regs.hl) {
+export function fetchTableWord(m, index = m.regs.a, table = m.regs.hl) {
   const { regs, mem16 } = m;
   /* Reach the entry: `add a,a` doubles the number inside the 8-bit accumulator — so the carry out
    * of bit 7 is lost (u8) — then `rst 0x18` (offsetAddress) adds that byte to the table base
    * with a full 16-bit carry. */
-  const entryAddress = offsetAddress(m, table, u8(a + a));
+  const entryAddress = offsetAddress(m, table, u8(index + index));
   /* Read the two bytes little-endian (ROM ld e,(hl) / inc hl / ld d,(hl)). */
   const word = mem16[entryAddress];
   // Handed back in DE as the ROM does, and returned.

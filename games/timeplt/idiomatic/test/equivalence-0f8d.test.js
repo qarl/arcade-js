@@ -121,15 +121,16 @@ const brokenUnwinds = (m) => { for (let i = 0; i < DROPPED; i++) m.regs.af = m.p
 const brokenPlainError = () => { throw new Error("loc_0f8d: a refusal of the wrong kind"); };
 // Raises the right fault, but only after popping a word: the landing must write and move nothing.
 const brokenPopsFirst = (m) => { m.pop16(); return candidate(m); };
-// Raises the right fault, but only after the fixup pass has written.
-const brokenFixupFirst = (m) => { fixupPass(m, 0xf2, 0x4d); return candidate(m); };
+// Raises the right fault, but only after the fixup pass has run. Caught where the pass writes a
+// sprite byte; on a crafted state where no slot fires it is indistinguishable from the rewrite.
+const brokenFixupFirst = (m) => { fixupPass(m); return candidate(m); };
 
 const TWINS = [
   ["no-op", brokenNoOp, 96],
   ["unwinds", brokenUnwinds, 96],
   ["plain-error", brokenPlainError, 96],
   ["pops-first", brokenPopsFirst, 96],
-  ["fixup-first", brokenFixupFirst, 96],
+  ["fixup-first", brokenFixupFirst, 60],
 ];
 
 const GENUINE_BLOCK = 0x086b;

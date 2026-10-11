@@ -3,7 +3,7 @@
  * hasReachedBoundaryBandSelectedByHeading — memory-equivalent to the frozen oracle at ROM 0x3CC4.
  *
  * GATE: strict unit-capture with NO exclusion — the frozen routine pushes nothing and writes
- *   nothing — plus a live-out comparison on the carry flag and the returned boolean, a sweep that
+ *   nothing — plus a live-out comparison of the returned boolean against the oracle's carry, a sweep that
  *   is exhaustive over the routine's whole input space by decomposition, a captured real corpus
  *   from three sessions, a whole-machine replay, and teeth.
  *
@@ -19,10 +19,16 @@
  *   flag. The excluded set below is therefore a CEILING derived from those sites — the arm asserts
  *   no register OUTSIDE it moves, and stays green on a rewrite that becomes register-exact.
  *
+ *   THE ANSWER IS RETURNED, NOT LEFT IN CARRY. Both call sites belong to overrides that take the
+ *   return (HAND-OFF arm: measured on the ORACLE over the tape sessions, the callers that hear F
+ *   complemented at this exit are exactly CARRY_READERS, each owned by a ROUTINES entry, with the SP
+ *   flip at the same exit heard). HOLE: a reader reached only in a state no session drives is not
+ *   measured.
+ *
  * What it exercises, holes stated:
  *   1. CONTRACT — the shared unit harness reaches the routine and RAM is identical there. The
  *      register diff that helper also returns is deliberately NOT asserted; see the ceiling below.
- *   2. EQUAL at the real dispatch — the whole dump, the carry, and the returned boolean.
+ *   2. EQUAL at the real dispatch — the whole dump, and the returned boolean against the carry.
  *   3. NOTHING IS WRITTEN — the frozen routine's own write-set, measured over a sample, is empty.
  *   4. RAM IS BLIND — measured with the inverted twin, so the live-out arm is known to be the only
  *      thing holding this routine to its answer.
@@ -39,7 +45,7 @@
  *  10. THE REUSED MACHINES ARE SOUND — clone-per-point whole-dump agreement on a sample, which is
  *      what says the sweep's machine reuse is not hiding a write.
  *  11. WHOLE-MACHINE — an undriven session with the rewrite wired, diffed every frame.
- *  12. TEETH — nine twins, each with an exact catch count over the sweep and over the real corpus.
+ *  12. TEETH — twins, each with an exact catch count over the sweep and over the real corpus.
  *      Three of them are caught by NO real dispatch and their zeros are recorded, because the
  *      in-window arm and the exact width of this file's own band are off every reachable path.
  *
@@ -55,6 +61,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMachine, COIN_FRAME, START_FRAME, romsPresent } from "./_harness.js";
+import { TAPE_SESSIONS, handOffReaders, heardAs } from "./_deadAtExit.js";
+import { ROUTINES } from "../names.js";
 import { hasReachedBoundaryBandSelectedByHeading } from "../hasReachedBoundaryBandSelectedByHeading.js";
 import { loc_3cc4 as oracle } from "../../translated/loc_3cc4.js";
 import { unitEquivalence, wholeMachineEquivalence } from "../../../../core/equivalence.js";
@@ -91,6 +99,11 @@ const CROSS_CHECK_POINTS = 600;
 
 /** Derived from the frozen routine's call sites, not from the rewrite. See the header. */
 const EXCLUDED = ["a", "f", "sp"];
+/** Return address of each caller that reads the carry -> the override owning that code: `call 0x3cc4`
+ *  at 0x3B88 in advanceTwoTileObjectThenTryAimedSpawn (0x3B77) and at 0x4447 in
+ *  dressSpriteForHeadingOrRetireAtEdge (0x4447), each followed by `jp c`. */
+const CARRY_READERS = new Map([[0x3b8b, [0x3b77]], [0x444a, [0x4447]]]);
+const HANDOFF_FRAMES = 2500;
 
 const CORPUS_FRAMES = 6000;
 const WHOLE_FRAMES = 1600;
@@ -152,7 +165,7 @@ function allDiffs(a, b) {
   return out;
 }
 
-/** The whole dump, then the carry the answer rides in, then the returned boolean. */
+/** The whole dump, then the returned boolean against the carry the oracle answers in. */
 function unitDiff(candidate, machine) {
   const a = machine.clone();
   const b = machine.clone();
@@ -160,10 +173,7 @@ function unitDiff(candidate, machine) {
   const returned = candidate(b);
   const ram = allDiffs(a, b)[0];
   if (ram) return ram;
-  if (carry(a) !== carry(b)) return { addr: null, a: carry(a), b: carry(b) };
-  if (returned !== undefined && returned !== carry(a)) {
-    return { addr: null, a: carry(a), b: returned };
-  }
+  if (returned !== carry(a)) return { addr: null, a: carry(a), b: returned };
   return null;
 }
 
@@ -229,9 +239,7 @@ function answerDiffers(candidate, heading, first, second) {
     m.mem8[u16(seat.regs.iy + SECOND_COORDINATE)] = second;
   }
   oracle(a);
-  const returned = candidate(b);
-  if (carry(a) !== carry(b)) return true;
-  return returned !== undefined && returned !== carry(a);
+  return candidate(b) !== carry(a);
 }
 
 function headingSweepCaught(candidate) {
@@ -265,7 +273,8 @@ function hosted(candidate) {
     const before = probe.cycles;
     oracle(probe);
     const total = probe.cycles - before;
-    candidate(mm);
+    // The frozen caller branches on carry; seat the return there, as the overrides take it.
+    mm.regs.fC = candidate(mm) === true;
     mm.tick(total - RET_TSTATES);
     mm.ret(RET_TSTATES);
   };
@@ -282,11 +291,6 @@ const reading = (m) => [
   m.mem8[u16(m.regs.iy + SECOND_COORDINATE)],
 ];
 
-function reply(m, value) {
-  m.regs.f = (m.regs.f & ~F_C) | (value ? F_C : 0);
-  return value;
-}
-
 const farArm = (first, second) =>
   inWindow(second, FAR_STARTS_BELOW_WRAP, FAR_BAND) ||
   inWindow(first, FIRST_STARTS_BELOW_WRAP, FIRST_BAND);
@@ -296,62 +300,62 @@ const localArm = (first, second) =>
 const answerOf = (heading, first, second) =>
   takesTheFarArm(heading) ? farArm(first, second) : localArm(first, second);
 
-/** BUG: does nothing at all, so the carry it leaves is whatever the caller had. */
+/** BUG: does nothing at all, so it answers nothing. */
 function brokenNoOp() {}
 
 /** BUG: the answer is always the opposite. */
 function brokenInverted(m) {
   const [h, f, s] = reading(m);
-  return reply(m, !answerOf(h, f, s));
+  return (!answerOf(h, f, s));
 }
 
 /** BUG: the heading is ignored and the far band is always taken. */
 function brokenAlwaysFar(m) {
   const [, f, s] = reading(m);
-  return reply(m, farArm(f, s));
+  return (farArm(f, s));
 }
 
 /** BUG: the heading is ignored and this file's own band is always taken. */
 function brokenAlwaysLocal(m) {
   const [, f, s] = reading(m);
-  return reply(m, localArm(f, s));
+  return (localArm(f, s));
 }
 
 /** BUG: the two halves of the compass choose each other's band. */
 function brokenArmsSwapped(m) {
   const [h, f, s] = reading(m);
-  return reply(m, takesTheFarArm(h) ? localArm(f, s) : farArm(f, s));
+  return (takesTheFarArm(h) ? localArm(f, s) : farArm(f, s));
 }
 
 /** BUG: the heading is split on its own top bit, with no quarter turn first. */
 function brokenUnbiasedHeading(m) {
   const [h, f, s] = reading(m);
-  return reply(m, h >= HALF_A_TURN ? farArm(f, s) : localArm(f, s));
+  return (h >= HALF_A_TURN ? farArm(f, s) : localArm(f, s));
 }
 
 /** BUG: this file's band sits where the far one does, so both halves ask the same question. */
 function brokenBandsCoincide(m) {
   const [h, f, s] = reading(m);
-  return reply(m, takesTheFarArm(h) ? farArm(f, s) : farArm(f, s));
+  return (takesTheFarArm(h) ? farArm(f, s) : farArm(f, s));
 }
 
 /** BUG: this file's band is one wider. */
 function brokenBandTooWide(m) {
   const [h, f, s] = reading(m);
-  if (takesTheFarArm(h)) return reply(m, farArm(f, s));
+  if (takesTheFarArm(h)) return (farArm(f, s));
   const arrived = inWindow(s, LOCAL_STARTS_BELOW_WRAP, LOCAL_BAND + 1);
-  return reply(m, arrived || inWindow(f, FIRST_STARTS_BELOW_WRAP, FIRST_BAND));
+  return (arrived || inWindow(f, FIRST_STARTS_BELOW_WRAP, FIRST_BAND));
 }
 
 /** BUG: this file's arm never hands the question on to the other coordinate. */
 function brokenDropsTheOtherCoordinate(m) {
   const [h, f, s] = reading(m);
-  if (takesTheFarArm(h)) return reply(m, farArm(f, s));
-  return reply(m, inWindow(s, LOCAL_STARTS_BELOW_WRAP, LOCAL_BAND));
+  if (takesTheFarArm(h)) return (farArm(f, s));
+  return (inWindow(s, LOCAL_STARTS_BELOW_WRAP, LOCAL_BAND));
 }
 
 const TWINS = [
-  ["no-op", brokenNoOp, 127640, [19, 19, 19]],
+  ["no-op", brokenNoOp, 131328, [200, 200, 200]],
   ["inverted", brokenInverted, 131328, [200, 200, 200]],
   ["always-far", brokenAlwaysFar, 1640, [3, 3, 3]],
   ["always-local", brokenAlwaysLocal, 1640, [0, 0, 0]],
@@ -370,7 +374,7 @@ test("CONTRACT: the shared unit harness reaches the routine and RAM is identical
   console.log(`  CONTRACT: reached within ${REACH_FRAMES} frames; RAM identical`);
 });
 
-test("EQUAL at the real dispatch: the whole dump, the carry and the returned boolean", { skip }, () => {
+test("EQUAL at the real dispatch: the whole dump, and the returned boolean is the carry", { skip }, () => {
   const seen = sessions();
   assert.ok(seen[0].entries.length > 0, "vacuous: the undriven session never reached the routine");
   const e = entryState();
@@ -379,8 +383,7 @@ test("EQUAL at the real dispatch: the whole dump, the carry and the returned boo
   oracle(a);
   const returned = hasReachedBoundaryBandSelectedByHeading(b);
   assert.deepEqual(allDiffs(a, b), [], `a byte diverged — ${show(allDiffs(a, b)[0])}`);
-  assert.equal(carry(a), carry(b), "the carry the answer rides in diverged");
-  assert.equal(returned, carry(a), "the returned boolean disagrees with the carry");
+  assert.equal(returned, carry(a), "the returned boolean disagrees with the oracle's carry");
   const [h, f, s] = reading(e);
   console.log(
     `  EQUAL: record ${hex4(e.regs.ix)} entry ${hex4(e.regs.iy)} heading ${h} first ${f} ` +
@@ -409,10 +412,10 @@ test("RAM IS BLIND: an always-wrong candidate leaves the dump identical", { skip
   const a = entryState().clone();
   const b = entryState().clone();
   oracle(a);
-  brokenInverted(b);
+  const answer = brokenInverted(b);
   assert.deepEqual(allDiffs(a, b), [], "the inverted twin now moves a byte, so RAM is no longer " +
     "blind here and this file's account of what the gate rests on must be re-derived");
-  assert.notEqual(carry(a), carry(b), "the inverted twin must differ where RAM cannot see");
+  assert.notEqual(answer, carry(a), "the inverted twin must differ where RAM cannot see");
   console.log("  RAM IS BLIND: the inverted twin is dump-identical; only the answer separates them");
 });
 
@@ -482,7 +485,23 @@ test("PLANE SWEEP: all 65536 coordinate pairs, on a heading from EACH arm", { sk
   for (const heading of [HEADING_FAR, HEADING_LOCAL]) {
     assert.equal(planeSweepCaught(hasReachedBoundaryBandSelectedByHeading, heading), 0, `diverged somewhere at heading ${heading}`);
   }
-  console.log(`  PLANE SWEEP: ${2 * PLANE} pairs across the two arms, carry and return identical`);
+  console.log(`  PLANE SWEEP: ${2 * PLANE} pairs across the two arms, the return equal to the carry`);
+});
+
+test("HAND-OFF: every caller that reads the carry is an override that takes the return", { skip }, () => {
+  const { callers, readers, exitControl } = handOffReaders({
+    at: TARGET, poison: ["f"], sessions: TAPE_SESSIONS, frames: HANDOFF_FRAMES,
+  });
+  assert.ok(callers.size > 0, "vacuous: no session dispatched the boundary test");
+  assert.deepEqual([...readers.keys()].sort((p, q) => p - q), [...CARRY_READERS.keys()],
+    "the set of callers that read the oracle's carry moved -- a new reader needs its override checked");
+  for (const [ret, owners] of CARRY_READERS) {
+    const served = owners.filter((addr) => ROUTINES[addr] !== undefined);
+    assert.deepEqual(served, owners, `the reader after ${hex4(ret)} is not served by an override`);
+  }
+  console.log(`  HAND-OFF: ${callers.size} callers, F heard at ` +
+    `${[...readers].map(([r, w]) => `${hex4(r)} (${w})`).join(" ")}, each served by an override; ` +
+    `exit control heard (${heardAs(exitControl)})`);
 });
 
 test("THE REUSED MACHINES ARE SOUND: clone-per-point agrees on a sample", { skip }, () => {

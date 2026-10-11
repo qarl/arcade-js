@@ -23,11 +23,17 @@
  *      arm asserts nothing escapes it.
  *   5. REGISTERS AND PC ARE EXCLUDED, DELIBERATELY, and pinned to a fixed shape. The accumulator
  *      is in that set for a reason worth stating: the cursor steps the oracle delegates to leave
- *      their own arithmetic in it, and the rewrite does not model that. The cursor itself and the
- *      colour pointer ARE reproduced and compared.
+ *      their own arithmetic in it, and the rewrite does not model that. The cursor itself IS
+ *      reproduced and compared. The colour pointer the oracle leaves in HL is excluded because it
+ *      is dead: 5a measures it.
+ *   5a. HL IS DEAD AT EXIT, CRAFTED — no tape session dispatches this routine, so the deadness is
+ *      measured on crafted entries of its only caller, the frozen 0x0DD7, at every input value that
+ *      reaches it: HL complemented each time this routine hands back changes nothing the caller
+ *      leaves (whole dump, every register, pc), while DE complemented at the same exit, and SP
+ *      moved there, are both heard.
  *   6. WRAPPING — a cursor at the very end of the character plane, so the block's arithmetic is
  *      exercised where it crosses out of the plane rather than only in the middle of it.
- *   7. TEETH — eight twins, each with its exact catch count over the cross asserted.
+ *   7. TEETH — twins, each with its exact catch count over the cross asserted.
  *
  * HOLE: no real dispatch anywhere in this file, so nothing here says which values a caller really
  * presents, and the tile codes and colours swept are chosen rather than observed. Nothing
@@ -42,6 +48,7 @@ import assert from "node:assert/strict";
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { paintQuadTile } from "../paintQuadTile.js";
 import { loc_0e70 as oracle } from "../../translated/loc_0e70.js";
+import { loc_0dd7 as caller } from "../../translated/loc_0dd7.js";
 import { unitEquivalence } from "../../../../core/equivalence.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
 import { u16 } from "../../../../core/int.js";
@@ -57,7 +64,12 @@ const PLANE_BYTES = 0x400;
 const POISON = 0x5a;
 
 const SCRATCH_BYTES = 8;
-const EXCLUDED = ["a", "f", "sp"];
+const EXCLUDED = ["a", "f", "sp", "h", "l"];
+
+/** The only caller, and the input values that take it through this routine (a non-zero count of
+ *  tens or thirties), plus values that do not, which must not dispatch it. */
+const CALLER = 0x0dd7;
+const CALLER_VALUES = [10, 14, 20, 29, 30, 37, 45, 59, 60, 75, 90, 99, 100, 255];
 
 /** Where a caller inside the character plane could plausibly put the block. */
 const CURSORS = [0xa463, 0xa401, 0xa41f, 0xa480, 0xa4a1, 0xa600, 0xa7e0, 0xa7fe];
@@ -136,6 +148,50 @@ function oracleWriteSet(cursor, tile, colour) {
   return { cells: out, read: (a) => m.mem8[a] };
 }
 
+let callerEntryCache = null;
+/** The first real dispatch of the caller in the shared tape's session. */
+function callerEntry() {
+  if (callerEntryCache === null) {
+    const m = makeMachine(new Map([[CALLER, (mm) => {
+      if (callerEntryCache === null) callerEntryCache = mm.clone();
+      return caller(mm);
+    }]]));
+    m.runFrames(ENTRY_FRAMES);
+    assert.notEqual(callerEntryCache, null, "the shared tape never dispatched the caller");
+  }
+  return callerEntryCache;
+}
+
+/** The frozen caller run on a crafted value, with `poison` applied each time this routine hands
+ *  back. Returns the machine and how many hand-backs were poisoned. */
+function callerRun(value, poison) {
+  const m = callerEntry().clone();
+  m.regs.a = value;
+  let exits = 0;
+  if (poison) {
+    const frozen = m.routines.get(TARGET);
+    m.routines = new Map(m.routines);
+    m.routines.set(TARGET, (mm, ...args) => {
+      const r = frozen(mm, ...args);
+      exits++;
+      poison(mm);
+      return r;
+    });
+  }
+  let threw = null;
+  try { caller(m); } catch (e) { threw = String(e).slice(0, 60); }
+  return { m, exits, threw };
+}
+
+/** Whether a poisoned caller run differs from the clean one anywhere: dump, registers, pc, a throw. */
+function heardAtExit(value, poison) {
+  const clean = callerRun(value, null);
+  const run = callerRun(value, poison);
+  const differs = run.threw !== null || allDiffs(clean.m, run.m).length > 0 ||
+    REG_FIELDS.some((k) => clean.m.regs[k] !== run.m.regs[k]) || clean.m.pc !== run.m.pc;
+  return { differs, exits: run.exits };
+}
+
 // ── the routine is unreached, and that is asserted ──────────────────────────────────────
 
 test("UNREACHED: neither tape dispatches it, so the crafted entries are necessary", { skip }, () => {
@@ -182,6 +238,26 @@ test("THE CROSS: every cursor x tile x colour comparison is identical", { skip }
   console.log(`  CROSS: ${CROSS_SIZE} crafted comparisons identical`);
 });
 
+test("HL IS DEAD AT EXIT: complemented where this hands back, its only caller leaves nothing different", { skip }, () => {
+  let exits = 0;
+  let deHeard = 0;
+  let spHeard = 0;
+  for (const value of CALLER_VALUES) {
+    const hl = heardAtExit(value, (mm) => { mm.regs.hl = mm.regs.hl ^ 0xffff; });
+    assert.ok(hl.exits > 0, `value ${value} never reached this routine`);
+    assert.equal(hl.differs, false, `value ${value}: HL complemented at the exit was heard`);
+    exits += hl.exits;
+    // CONTROLS, same instrument and exit: the cursor in DE, and SP.
+    if (heardAtExit(value, (mm) => { mm.regs.de = mm.regs.de ^ 0xffff; }).differs) deHeard++;
+    if (heardAtExit(value, (mm) => { mm.regs.sp = (mm.regs.sp + 2) & 0xffff; }).differs) spHeard++;
+  }
+  assert.equal(deHeard, CALLER_VALUES.length, "a complemented cursor went unheard, so the instrument is deaf");
+  assert.equal(spHeard, CALLER_VALUES.length, "SP moved at the exit went unheard, so the poison never lands");
+  assert.equal(heardAtExit(0, () => {}).exits, 0, "a value with no tens or thirties reached this routine");
+  console.log(`  DEAD AT EXIT: HL complemented on ${exits} hand-backs over ${CALLER_VALUES.length} values, ` +
+    "nothing differs; DE and SP at the same exit heard on every value");
+});
+
 test("EXCLUDED, deliberately: the accumulator, the flag byte, sp, pc and the scratch pushes", { skip }, () => {
   const cursor = CURSORS[0];
   const a = craft(cursor, 0x23, 0x16);
@@ -192,7 +268,6 @@ test("EXCLUDED, deliberately: the accumulator, the flag byte, sp, pc and the scr
   const moved = REG_FIELDS.filter((k) => a.regs[k] !== b.regs[k]);
   assert.ok(moved.every((k) => EXCLUDED.includes(k)), `a register outside the set moved: ${moved}`);
   assert.equal(a.regs.de, b.regs.de, "the cursor is reproduced, not excluded");
-  assert.equal(a.regs.hl, b.regs.hl, "the colour pointer is reproduced, not excluded");
   assert.equal(a.regs.de, u16(cursor + 2 * LINE_STRIDE), "the cursor did not come out two places on");
   assert.deepEqual(allDiffs(a, b).filter((d) => !inScratch(d.addr, sp)), [],
     "a divergence escaped the scratch window");
@@ -278,7 +353,8 @@ function brokenCursorStep(m) {
   m.regs.de = u16(m.regs.de - LINE_STRIDE);
 }
 
-/** BUG: leaves the colour pointer where the last colour cell was. */
+/** HARMLESS: leaves the colour pointer where the last colour cell was. HL is dead where this hands
+ *  back (the DEAD AT EXIT arm), so this is asserted caught nowhere rather than deleted. */
 function brokenColourPointer(m) {
   paintQuadTile(m);
   m.regs.hl = u16(m.regs.hl + LINE_STRIDE);
@@ -311,7 +387,7 @@ const TWINS = [
   ["no-colour", brokenNoColour, 160],
   ["colour-by-mask-not-subtraction", brokenColourByMask, 40],
   ["cursor-one-place-short", brokenCursorStep, 160],
-  ["colour-pointer-off", brokenColourPointer, 160],
+  ["colour-pointer-off (harmless)", brokenColourPointer, 0],
   ["tiles-descend", brokenTilesDescend, 160],
 ];
 

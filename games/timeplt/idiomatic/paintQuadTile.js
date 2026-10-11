@@ -8,7 +8,8 @@
  * space — a subtraction, so a cursor already on the colour side is carried a further block down
  * rather than left where it is. The cursor comes out two line strides on, clear of the block just
  * written, so a caller can chain the next against it.
- * LIVE-OUT: the eight cells, the cursor, and the colour pointer.
+ * LIVE-OUT: the eight cells, and the cursor, returned. The ROM also leaves a colour pointer in HL,
+ * which its one caller never reads (equivalence-0e70, DEAD AT EXIT).
  *
  * ROM: 0x0E70. Tag [seen] (names.js). Role in the machine: one of a family of block painters named by
  * block SIZE — drawSlotWithOneGlyph (one glyph beside a blank), paintDoubleTile (two cells) and this one
@@ -44,7 +45,7 @@ export function paintQuadTile(m, cell = m.regs.de, firstTile = m.regs.b, colour 
   // lower row first, then steps back up a row with RST 0x20 and colours the upper one).
   for (let i = TILES - 1; i >= 0; i--) mem8[u16(quarters[i] - COLOUR_PLANE_BELOW)] = colour;
 
-  // Live-out: the colour pointer at the cursor's cell a plane down, and the cursor itself moved
-  // two rows on, clear of this block, so the next painter in the chain starts from there.
-  return [(m.regs.hl = u16(cell - COLOUR_PLANE_BELOW)), (m.regs.de = u16(cell + 2 * LINE_STRIDE))];
+  // Live-out: the cursor moved two rows on, clear of this block, so the next painter in the chain
+  // starts from there.
+  return (m.regs.de = u16(cell + 2 * LINE_STRIDE));
 }

@@ -17,8 +17,8 @@
  * A the chain carries, which presentChecksumForTamperTest walks forward as arithmetic only (HL + DE
  * + A, left in HL) and which nothing downstream dereferences.
  *
- * TWO ENTRIES. advanceSequenceUnlessImageTampered is the register-dispatched one (ROUTINES 0x5303):
- * it reproduces the walk so the registers a frozen caller sees are the ROM's. The verdict alone is
+ * TWO ENTRIES. advanceSequenceUnlessImageTampered is the ROUTINES entry (0x5303): it reproduces the
+ * ROM's walk as well as the verdict. The verdict alone is
  * advanceSequenceUnlessTotalTampered, which an idiomatic chain hands the total to: the walk writes
  * no memory and decides nothing, so a caller holding only the total has nothing else to pass.
  *

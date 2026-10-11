@@ -4,7 +4,8 @@
  * slot held, dispatched directly rather than through a jump computed from the read-out value. Only two of
  * the eight slots name a transcribed arm; the other six point at bytes that carry no routine, so reaching
  * one is a fault and it is raised, not assumed away. Neither arm reads the selector value the read-out
- * arithmetic leaves behind, so nothing is handed in. LIVE-OUT: memory, and the arm's. */
+ * arithmetic leaves behind, so nothing is handed in. LIVE-OUT: memory, and the arm's.
+ * ROM 0x15C2-0x15C7. Grounding: [seen] (names.js ROUTINES 0x15C2). */
 
 import { NotImplemented } from "../../../boards/timeplt/io.js";
 import { SEQUENCE_SUBSTEP } from "./names.js";

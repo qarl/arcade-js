@@ -6,7 +6,8 @@
  * glyph/colour departs from its genuine value — i.e. only on a tampered image — so a good image never
  * takes it. Decoded as code the bytes fold a register into A and fall through into the heading snap.
  * Unreachable in real play,
- * so it is modeled as a throw rather than reproducing the churn. LIVE-OUT: none — entry is the trap. */
+ * so it is modeled as a throw rather than reproducing the churn. LIVE-OUT: none — entry is the trap.
+ * ROM 0x1F2E-0x1F3D. Grounding: [code] (names.js ROUTINES 0x1F2E). */
 
 import { NotImplemented } from "../../../boards/timeplt/io.js";
 

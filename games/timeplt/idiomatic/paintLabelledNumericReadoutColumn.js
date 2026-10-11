@@ -11,7 +11,7 @@
 //
 // ROLE IN THE MACHINE. This paints one line of the high-score table. Its caller,
 // paintFiveLabelledNumericReadouts (0x4BDC, [seen]), runs it five times, once per table record: each
-// time with `hl` on one of five source records at 0xAB08 (stride 8), `cursor` on that record's first
+// time with `source` on one of five source records at 0xAB08 (stride 8), `cursor` on that record's first
 // tile-plane cell (from 0xA711, stride 2), and `pen` its colour. names.js lays each record out as
 // +0 rank, +1..+3 score (packed decimal, lo/mid/hi), +4..+7 name glyphs (high-score group, [code]);
 // read that way, one call paints: a three-tile label chosen by the rank byte, the six-digit score,
@@ -45,9 +45,8 @@ function stamp(m, tile, cell, pen) {
   mem8[cell & ~COLOUR_PLANE_CELL] = pen;
 }
 
-export function paintLabelledNumericReadoutColumn(m, hl = m.regs.hl, cursor = m.regs.de, pen = m.regs.c) {
+export function paintLabelledNumericReadoutColumn(m, source = m.regs.hl, cursor = m.regs.de, pen = m.regs.c) {
   const { mem8 } = m;
-  const source = hl;
 
   // STEP 1 -- THE LABEL (0x4C1F-0x4C42).
   // pictogram: three consecutive tiles of the record the source's lead byte selects (stride 3)
@@ -67,7 +66,7 @@ export function paintLabelledNumericReadoutColumn(m, hl = m.regs.hl, cursor = m.
   // through the three packed bytes, blanking leading zeros except in the last two digits.
   // the printer takes the source pointer, the cursor and the pen as arguments and hands the pointer
   // and cursor back.
-  const [fieldPtr, fieldCursor] = paintSixDigitFieldSuppressingLeadingZeros(m, u16(source + 3), u16(cursor - PICTOGRAM_TO_FIELD), pen);
+  const { source: fieldPtr, cursor: fieldCursor } = paintSixDigitFieldSuppressingLeadingZeros(m, u16(source + 3), u16(cursor - PICTOGRAM_TO_FIELD), pen);
   cursor = u16(fieldCursor - FIELD_TO_SUFFIX);
   const suffix = u16(fieldPtr + 3);
 

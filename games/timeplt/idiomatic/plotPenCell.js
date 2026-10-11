@@ -5,7 +5,8 @@
  * thirty-second lands back at the top of the plane, and the column is added to the low half of the
  * address alone, so a column past the end of a row wraps within that row. The returned address is
  * load-bearing -- a caller steps a run of cells by subtracting a target from it.
- * LIVE-OUT: the two cells written, plus the address in HL and the colour in A. */
+ * LIVE-OUT: the two cells written, plus the address in HL and the colour in A.
+ * ROM 0x026F-0x028F. Grounding: [seen] (names.js ROUTINES 0x026F). */
 
 import { u8 } from "../../../core/int.js";
 import { CHAR_PLANE_BASE, PEN_COLOUR, PEN_COLUMN_CELL, PEN_GLYPH, PEN_ROW_CELL } from "./names.js";
@@ -20,7 +21,7 @@ export function plotPenCell(m) {
   const cell = (CHAR_PLANE_BASE + (rowStart & ~0xff)) | u8(rowStart + mem8[PEN_COLUMN_CELL]);
   mem8[cell] = mem8[PEN_GLYPH];
   mem8[cell & ~COLOUR_PLANE_BIT] = mem8[PEN_COLOUR];
-  // the plane address is register-dispatched: the caller reads HL back, and the colour stays in A
-  // -- both are load-bearing live-outs, so they ride the return.
+  // The plane address and the colour are live-outs: the ROM's callers read HL back and the colour
+  // stays in A, so both are returned and left in those registers.
   return [m.regs.hl = cell, m.regs.a = mem8[PEN_COLOUR]];
 }

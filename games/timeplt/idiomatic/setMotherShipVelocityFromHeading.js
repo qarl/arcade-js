@@ -18,19 +18,16 @@
  * the Mother-Ship's motion reads them.
  *
  * The mask admits eight indices where the table defines five, so an index past the end reads the
- * first bytes of that block as though they were an entry: two of those words name no routine and
- * fault, and the last names the six-digit painter, which is run on the pointer and cursor the machine
- * hands it until its first store, a ROM write, faults this port's board (the hardware would drop it and
- * run on). No writer of ERA_INDEX found stores anything above 4 (mechanisms.md), so in play these arms
- * are not taken. The object's record is
- * an argument (the ROM's IX). LIVE-OUT: memory.
+ * first bytes of that block as though they were an entry: two of those words name no routine, and
+ * the last names the six-digit painter with its cursor inside ROM. No writer of ERA_INDEX stores
+ * anything above 4 (mechanisms.md), so these arms are not taken; they stop with NotImplemented. The
+ * object's record is an argument (the ROM's IX). LIVE-OUT: memory.
  */
 
 import { NotImplemented } from "../../../boards/timeplt/io.js";
-import { ERA_INDEX, OPENING_ERA_VELOCITY_TABLE, VELOCITY_TABLE_08FA, SECOND_FASTEST_VELOCITY_TABLE, SLOWEST_VELOCITY_TABLE, fileTwoPairsIntoObjectRecordHighByteFirst_ADDR } from "./names.js";
+import { ERA_INDEX, OPENING_ERA_VELOCITY_TABLE, VELOCITY_TABLE_08FA, SECOND_FASTEST_VELOCITY_TABLE, SLOWEST_VELOCITY_TABLE } from "./names.js";
 import { fileTwoPairsIntoObjectRecordHighByteFirst } from "./fileTwoPairsIntoObjectRecordHighByteFirst.js";
 import { velocityForHeading } from "./velocityForHeading.js";
-import { paintSixDigitFieldSuppressingLeadingZeros } from "./paintSixDigitFieldSuppressingLeadingZeros.js";
 
 // `and 0x07` at 0x46C1: three bits of the era index select the arm.
 const ARM_MASK = 0x07;
@@ -45,15 +42,6 @@ const ARM_TABLES = [
   SECOND_FASTEST_VELOCITY_TABLE,
   VELOCITY_TABLE_08FA,
 ];
-// The index whose table word, read past the end, names the six-digit painter.
-const PAINTER_ARM = 7;
-// The arm table is the run of words just before the filing block at 0x46CE, one per defined arm, so
-// an index past it reads that block's own bytes as words.
-const WORD = 2;
-const ARM_TABLE = fileTwoPairsIntoObjectRecordHighByteFirst_ADDR - ARM_TABLES.length * WORD;
-// The pen the painter would colour with is whatever C held on entry; this port's board throws on the
-// painter's first store, a ROM write, before the pen is read.
-const NO_PEN = null;
 
 export function setMotherShipVelocityFromHeading(m, record = m.regs.ix) {
   // Step 1 -- choose the arm from the era (`ld a,(0xad04)` / `and 0x07`).
@@ -69,21 +57,7 @@ export function setMotherShipVelocityFromHeading(m, record = m.regs.ix) {
     );
   }
 
-  // The painter is run as the table dispatch hands it over (`rst 0x30`: the word fetch leaves HL two
-  // past the word, then `ex de,hl`): the digits' source HL is the word itself -- the painter's own
-  // entry address, read as data -- and the cursor DE is the table pointer past the word, which lies
-  // inside the filing block, in ROM. So the painter's first store (a glyph through DE) is a write to
-  // ROM. This port's board throws on a ROM write (boards/timeplt/memory.js write8), so here it stops
-  // before the pen is ever read and nothing after it runs; the hardware would drop the write and run
-  // on. No writer of ERA_INDEX found stores anything above 4 (mechanisms.md), so in play this arm is
-  // not taken.
-  if (arm === PAINTER_ARM) {
-    const armWord = ARM_TABLE + arm * WORD;
-    paintSixDigitFieldSuppressingLeadingZeros(m, m.mem16[armWord], armWord + WORD, NO_PEN);
-    throw new NotImplemented("setMotherShipVelocityFromHeading: the six-digit painter's cursor lies in ROM, so its first store faults");
-  }
-
-  // Indices 5 and 6: the words read there are not routine addresses, so there is nothing faithful to
-  // run; stop loudly rather than guess.
-  throw new NotImplemented(`setMotherShipVelocityFromHeading: era arm ${arm} reads a table word that names no routine`);
+  // Indices 5-7 read the filing block's own bytes as arm words: 5 and 6 name no routine, and 7 names
+  // the six-digit painter with its cursor inside ROM. A genuine era never selects them.
+  throw new NotImplemented(`setMotherShipVelocityFromHeading: era arm ${arm} lies past the arm table`);
 }

@@ -11,9 +11,9 @@
  * two bits into a lives count. This routine takes the next two bits; finishBootSelfTestAndColdStart
  * [seen], which it jumps into, takes bits 4-7. Between the three of them every bit of the bank lands
  * in a cell:
- *   bits 0-1 -> STARTING_LIVES (0xA9C1) [code]      (here, as the caller's count)
- *   bit 2    -> UPRIGHT_CABINET (0xA9C2) [code]       (here)
- *   bit 3    -> BONUS_LIFE_SETTING (0xA9C3) [code]  (here)
+ *   bits 0-1 -> STARTING_LIVES (0xA9C1) [seen]      (here, as the caller's count)
+ *   bit 2    -> UPRIGHT_CABINET (0xA9C2) [seen]       (here)
+ *   bit 3    -> BONUS_LIFE_SETTING (0xA9C3) [seen]  (here)
  *   bits 4-6 -> DIFFICULTY_SETTING, bit 7 -> DEMO_SOUNDS_ENABLE (the continuation)
  *
  * PARAMETERS. `whole` is the lives count the caller worked out (3, 4, 5, or 0xFF for the setting that

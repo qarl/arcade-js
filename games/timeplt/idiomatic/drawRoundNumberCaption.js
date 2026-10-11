@@ -22,6 +22,7 @@
  * LIVE-OUT: memory.
  */
 
+import { NotImplemented } from "../../../boards/timeplt/io.js";
 import { u8 } from "../../../core/int.js";
 import { PEN_COLOUR, ROUND_NUMBER, holdCopyrightThenEraseTheCoinInvitation_ADDR } from "./names.js";
 import { drawCaptionInPenColour } from "./drawCaptionInPenColour.js";
@@ -59,5 +60,5 @@ export function drawRoundNumberCaption(m) {
   // The anti-tamper guard (ROM 0x0EDB-0x0EE7).
   let checksum = CHECK_SEED;
   for (let i = 0; i < CHECK_LEN; i++) checksum = u8(checksum + mem8[holdCopyrightThenEraseTheCoinInvitation_ADDR + i]);
-  if (checksum !== 0) throw new Error("Time Pilot: program block did not sum to zero; the image was altered.");
+  if (checksum !== 0) throw new NotImplemented("drawRoundNumberCaption: the guarded program block does not sum to zero, so the image is tampered; a genuine image never does");
 }

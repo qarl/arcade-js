@@ -9,7 +9,7 @@
  *
  * Role in the machine: the fork at the end of a player's game. Every path out of game over, apart
  * from a new game started during initials entry, ends here (mechanisms.md) — its callers are
- * fileScoreAfterGameOverHoldElsePassTurn and loc_12e2. Both exits are TAIL jumps, so this entry
+ * fileScoreAfterGameOverHoldElsePassTurn and holdThenPassTurnToOtherPlayerIfLivesElseStepSequence. Both exits are TAIL jumps, so this entry
  * chooses between two continuations rather than returning to anything:
  *  - handPlayOverToOtherPlayer (0x1226) flips ACTIVE_PLAYER, re-arms the sequence delay and reseats
  *    the sub-step, so the surviving player plays on with their own progress intact;

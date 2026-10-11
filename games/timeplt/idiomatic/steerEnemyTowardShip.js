@@ -16,7 +16,7 @@
  * to it for the length of one turn borrows the first era's turn rate. This routine only runs in the
  * fifth era (ERA_INDEX 4), which is why the ROM puts back the constant 4 rather than a saved value.
  *
- * Inputs: `iy` is the slot's sprite entry and `ix` its object record, both seated by the slot sweep
+ * Inputs: `entry` is the slot's sprite entry and `record` its object record, both seated by the slot sweep
  * that dispatched here. */
 
 import { steerTowardAimHeading } from "./steerTowardAimHeading.js";
@@ -45,23 +45,23 @@ const RATE_INDEX_RESEATED = 4;
 const withinWindow = (probe) =>
   REFERENCES.some((ref) => u8(ref - probe + HALF_WINDOW) < WINDOW);
 
-export function steerEnemyTowardShip(m, iy = m.regs.iy, ix = m.regs.ix) {
+export function steerEnemyTowardShip(m, entry = m.regs.iy, record = m.regs.ix) {
   const { mem8 } = m;
   // Step 1 -- turn. Inside the window of either reference point the turn runs at the first era's
   // rate (ERA_INDEX forced to 0 around the call to 0x2BEF, then reseated to 4); outside it the turn
   // runs at the fifth era's (ERA_INDEX 4) own rate. Only the rate differs: the same steering routine turns the
   // heading toward the aim heading either way.
-  if (withinWindow(mem8[iy + PROBE])) {
+  if (withinWindow(mem8[entry + PROBE])) {
     mem8[ERA_INDEX] = RATE_INDEX_WHILE_TURNING;
-    steerTowardAimHeading(m, ix);
+    steerTowardAimHeading(m, record);
     mem8[ERA_INDEX] = RATE_INDEX_RESEATED;
   } else {
-    steerTowardAimHeading(m, ix);
+    steerTowardAimHeading(m, record);
   }
   // Step 2 -- fly. `ld a,(0xa980) / rrca / and 0x01` isolates bit 1 of FRAME_TICK, so the choice
   // flips every two frames. Bit clear: tail to 0x58AA, the double-velocity mover on the 0x59D7
   // velocity table. Bit set: tail to 0x5860 (flyAtSecondFastestSpeed), a single step on the 0x2E3E
   // table. Alternating keeps the craft from sitting on one speed rung. Both are tail transfers, so
   // whatever the mover leaves is this routine's result.
-  return ((mem8[FRAME_TICK] >> 1) & 1) === 0 ? loc_58aa(m, ix, iy) : flyAtSecondFastestSpeed(m, ix, iy);
+  return ((mem8[FRAME_TICK] >> 1) & 1) === 0 ? loc_58aa(m, record, entry) : flyAtSecondFastestSpeed(m, record, entry);
 }

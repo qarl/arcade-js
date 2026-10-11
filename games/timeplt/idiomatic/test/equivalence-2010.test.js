@@ -23,7 +23,7 @@ import { advancePlayerAnimationStrip as candidate } from "../advancePlayerAnimat
 import { loc_2010 as oracle } from "../../translated/loc_2010.js";
 import { loc_1f2e } from "../loc_1f2e.js";
 import { requestLateEraProgressSound } from "../requestLateEraProgressSound.js";
-import { requestRoundIntroSoundBurst } from "../requestRoundIntroSoundBurst.js";
+import { requestDestructionSoundBurst } from "../requestDestructionSoundBurst.js";
 import { offsetAddress } from "../offsetAddress.js";
 import { NotImplemented } from "../../../../boards/timeplt/io.js";
 
@@ -175,7 +175,7 @@ function makeBody(o = {}) {
       regs.a = mem8[LEVEL_CELL];
       regs.cp(0x02);
       if (!regs.fC) requestLateEraProgressSound(m);
-      requestRoundIntroSoundBurst(m);
+      requestDestructionSoundBurst(m);
       regs.a = mem8[STATE_HI];
       regs.cp(RUNNING);
       if (regs.fNZ) return o.divertReturn ? undefined : loc_1f2e(m);

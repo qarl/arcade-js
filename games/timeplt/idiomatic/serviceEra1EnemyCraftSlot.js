@@ -19,7 +19,7 @@
  * era-1 specifics are the flight step (paced by the velocity table at 0x5E00, where era 0 uses
  * 0x5840) and the second era's sprite shapes and tint.
  *
- * PARAMETERS. `ix` is the slot's object record, `iy` its sprite entry.
+ * PARAMETERS. `record` is the slot's object record, `entry` its sprite entry.
  *
  * LIVE-OUT: memory; on the refreshed path, the accumulator and flags the sprite refresh leaves.
  */
@@ -38,23 +38,23 @@ const EMPTY = 0;
 const HELD = 0xfe;
 const ACTIVE = 0xff;
 
-export function serviceEra1EnemyCraftSlot(m, ix = m.regs.ix, iy = m.regs.iy) {
+export function serviceEra1EnemyCraftSlot(m, record = m.regs.ix, entry = m.regs.iy) {
   // The slot's record and sprite entry are handed to every step that takes them, so a slot named
   // here is the slot every step works on.
   // Status ladder: empty -> nothing; held -> release countdown; any non-active value -> dying.
-  const status = m.mem8[ix];
+  const status = m.mem8[record];
   if (status === EMPTY) return;
-  if (status === HELD) return releaseHeldObject(m, ix);
-  if (status !== ACTIVE) return stepDyingObjectState(m, ix, iy);
+  if (status === HELD) return releaseHeldObject(m, record);
+  if (status !== ACTIVE) return stepDyingObjectState(m, record, entry);
 
   // Active craft: turn one step toward the aim heading, then fly one step at the 0x5E00
   // velocity-table pace (loc_5854).
-  steerTowardAimHeading(m, ix);
-  loc_5854(m, ix, iy);
+  steerTowardAimHeading(m, record);
+  loc_5854(m, record, entry);
   // Once it has drifted onto a retire line, take it out of play and free the slot.
-  if (hasReachedRetireLine(m, iy)) return retireSlotAndSubPixel(m, ix, iy);
+  if (hasReachedRetireLine(m, entry)) return retireSlotAndSubPixel(m, record, entry);
   // Otherwise: one gated attempt to launch an enemy into the object bank, then redraw the sprite
   // pointing the way it is heading, in the second era's shape bank.
-  launchBankEnemyWhenAimedNearPlayer(m, ix, iy);
-  return refreshSecondEraSpriteFromHeading(m, ix, iy);
+  launchBankEnemyWhenAimedNearPlayer(m, record, entry);
+  return refreshSecondEraSpriteFromHeading(m, record, entry);
 }

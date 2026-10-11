@@ -20,7 +20,7 @@ const RING_CELLS = 64;
 
 export function postCommand(m, command = m.regs.d, argument = m.regs.e) {
   const { mem8 } = m;
-  // The next free cell, from COMMAND_WRITE_CURSOR 0xA9B2 [code] into COMMAND_RING 0xAC00 [seen].
+  // The next free cell, from COMMAND_WRITE_CURSOR 0xA9B2 [seen] into COMMAND_RING 0xAC00 [seen].
   // "Free" is the high bit SET: init fills the ring with 0xFF and the drain loop restores 0xFF to
   // each pair it takes. A clear high bit means the reader has not caught up, so the ROM skips
   // straight to its exit (bit 7,(hl) / jr z) and this pair is lost, with no retry.

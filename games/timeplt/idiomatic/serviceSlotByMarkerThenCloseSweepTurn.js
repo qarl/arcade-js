@@ -41,40 +41,40 @@ const FREE = 0x00;
 const FULL = 0xff;
 const FINAL_ERA = 4;
 
-export function serviceSlotByMarkerThenCloseSweepTurn(m, ix = m.regs.ix, iy = m.regs.iy, b = m.regs.b) {
+export function serviceSlotByMarkerThenCloseSweepTurn(m, record = m.regs.ix, entry = m.regs.iy, turnsLeft = m.regs.b) {
   const { mem8 } = m;
-  const marker = mem8[u16(ix + MARKER)];
+  const marker = mem8[u16(record + MARKER)];
 
   // A free slot: go straight to the turn-closer (`and a / jp z,0x410b`).
-  if (marker === FREE) return closeOneTurnOfTheSlotSweep(m, ix, iy, b);
+  if (marker === FREE) return closeOneTurnOfTheSlotSweep(m, record, entry, turnsLeft);
 
   // Any marker short of 0xFF is a counting object (`inc a / jr nz,0x4108`): run it one frame on its
   // countdown -- drift, count down, retire at zero, animate -- then close the turn. In the ROM this is
   // the jump to 0x4108 (stepCountdownSlotThenCloseTurn), which falls straight into the turn-closer.
   if (marker !== FULL) {
-    stepDriftingCountdownObjectByEraFrames(m, ix, iy);
-    return closeOneTurnOfTheSlotSweep(m, ix, iy, b);
+    stepDriftingCountdownObjectByEraFrames(m, record, entry);
+    return closeOneTurnOfTheSlotSweep(m, record, entry, turnsLeft);
   }
 
   // A full slot in the last era (ERA_INDEX == 4, `cp 0x04 / jp z,0x4194`) has its own handler:
   // stepSlotApproachThenBreakawayRetire runs the approach countdown at +4, then flies the object off at
   // double speed, and steps the sweep on itself -- so this arm hands over the turn count too.
-  if (mem8[ERA_INDEX] === FINAL_ERA) return stepSlotApproachThenBreakawayRetire(m, ix, iy, b);
+  if (mem8[ERA_INDEX] === FINAL_ERA) return stepSlotApproachThenBreakawayRetire(m, record, entry, turnsLeft);
 
   // Any other era: branch on the record's countdown at +0x0E (`jp nz,0x418b`).
-  const countdown = u16(ix + COUNTDOWN);
+  const countdown = u16(record + COUNTDOWN);
   if (mem8[countdown] !== 0) {
     // a live countdown: fly the slot, tick its countdown, then close the turn. This is the ROM arm at
     // 0x418B (flyLiveSlotAndTickCountdown [seen]) written out: one step along the stored velocity,
     // retiring the slot if that step reaches a retire line, then the countdown at +0x0E drops by one.
-    flyAndRetireSlotCyclingShapeInEra4(m, ix, iy);
+    flyAndRetireSlotCyclingShapeInEra4(m, record, entry);
     mem8[countdown] = mem8[countdown] - 1;
-    return closeOneTurnOfTheSlotSweep(m, ix, iy, b);
+    return closeOneTurnOfTheSlotSweep(m, record, entry, turnsLeft);
   }
 
   // The countdown is spent: the object now chases its aim point for a whole frame (re-aim on its
   // rationed frames, turn, move, dress its sprite, retire on a retire line) -- `call 0x4117` -- and
   // then the turn is closed (`jr 0x410b`).
-  chaseOneAimPointAndRetireAtTheLine(m, ix, iy);
-  return closeOneTurnOfTheSlotSweep(m, ix, iy, b);
+  chaseOneAimPointAndRetireAtTheLine(m, record, entry);
+  return closeOneTurnOfTheSlotSweep(m, record, entry, turnsLeft);
 }

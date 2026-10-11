@@ -12,7 +12,7 @@
  * which the ROM simply falls into); any other value -> the slot is running a count
  * (runSlotCountdownDriftAndAnimateElseRetire, 0x3E8E, a tail jump).
  *
- * Parameters: `ix` the object's record and `iy` its sprite entry, as the sweep seats them; both are
+ * Parameters: `record` the object's record and `entry` its sprite entry, as the sweep seats them; both are
  * passed through untouched. */
 
 import { flyAndRetireSlotCyclingShapeInEra4 } from "./flyAndRetireSlotCyclingShapeInEra4.js";
@@ -21,12 +21,12 @@ import { runSlotCountdownDriftAndAnimateElseRetire } from "./runSlotCountdownDri
 // The live marker. The ROM tests it with `inc a`, which gives zero only when the byte was 0xFF.
 const ALL_ONES = 255;
 
-export function dispatchObjectSlotByHeadByte(m, ix = m.regs.ix, iy = m.regs.iy) {
-  const head = m.mem8[ix];
+export function dispatchObjectSlotByHeadByte(m, record = m.regs.ix, entry = m.regs.iy) {
+  const head = m.mem8[record];
   // `ld a,(ix+0x00) / and a / ret z`: a free slot returns at once.
   if (head === 0) return;
   // 0xFF falls through into 0x3E6C; anything else jumps to 0x3E8E.
   return head === ALL_ONES
-    ? flyAndRetireSlotCyclingShapeInEra4(m, ix, iy)
-    : runSlotCountdownDriftAndAnimateElseRetire(m, ix, iy);
+    ? flyAndRetireSlotCyclingShapeInEra4(m, record, entry)
+    : runSlotCountdownDriftAndAnimateElseRetire(m, record, entry);
 }

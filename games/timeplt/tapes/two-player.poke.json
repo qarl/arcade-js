@@ -1,7 +1,7 @@
 {
   "name": "two-player",
   "description": "Reach the two-player P1->P2 handoff so the 2P save/restore routines run, and pixel-validate them against MAME.",
-  "_grounding": "Two credits (coin@400 + coin@440; a 2-player start deducts two BCD credits) then 2 Players Start@520; poke 0xA800=0xF0@660 forces P1's death (the destroyed code the collision sweeps write; precondition ship alive 0xA800==0xFF, true from f632). Game-set handoff at f974: ACTIVE_PLAYER 0xAD32 0->1. Exercises startTwoPlayerGame(0x189e), handPlayOverToOtherPlayer(0x1226), loadActivePlayerContextAndPostRoundHud(0x4c75, copies P2's save block). Deterministic (forced death, era stays 0 -> no entropy). See scratchpad/twoplayer-recipe.md.",
+  "_grounding": "Two credits (coin@400 + coin@440; a 2-player start deducts two BCD credits) then 2 Players Start@520; poke 0xA800=0xF0@660 forces P1's death (the destroyed code the collision sweeps write; precondition ship alive 0xA800==0xFF, true from f632). Game-set handoff at f974: ACTIVE_PLAYER 0xAD32 0->1. P1 still has lives, so the handoff is loseLifeAndHandOver's (0x11ED) and loadActivePlayerContextAndPostRoundHud (0x4C75) copies P2's save block in. startTwoPlayerGame (0x189E) runs at the 2P start, before the compared window; the game-over pass-turn through handPlayOverToOtherPlayer (0x1226) is pass-turn.poke.json's. Deterministic (forced death, era stays 0 -> no entropy).",
   "hold": 8,
   "inputs": [
     { "frame": 400, "press": "coin" },
@@ -11,12 +11,8 @@
   "pokes": [
     { "frame": 660, "addr": "0xa800", "val": "0xf0", "dur": 1 }
   ],
-  "responded": { "cell": "0xad32", "op": "eq", "val": 1 },
-  "reaches": [
-    "postRoundStartCaptionsAndResetPlayfield",
-    "flyRoundIntroFlashingEraYearThenEraseIntroCaptions",
-    "flyEnemyFreeLeadInThenStepSequence",
-    "loadActivePlayerContextAndPostRoundHud"
-  ],
-  "_reaches": "startTwoPlayerGame and handPlayOverToOtherPlayer are called directly (no map dispatch) and have no host-stack probe in render-lib.js DIRECT_PROBES, so they are not reach-checked; loadActivePlayerContextAndPostRoundHud (the P2 context load at the handoff) is."
+  "responded": {"cell": "0xad32", "op": "eq", "val": 1},
+  "reaches": ["postRoundStartCaptionsAndResetPlayfield", "flyRoundIntroFlashingEraYearThenEraseIntroCaptions", "flyEnemyFreeLeadInThenStepSequence", "loadActivePlayerContextAndPostRoundHud"],
+  "_reaches": "startTwoPlayerGame runs before 'responded' first holds, outside the compared window, so it is not declared; high-score.poke.json declares it. loseLifeAndHandOver is declared by mothership-era4.poke.json.",
+  "idiomatic_residual_frames": 87
 }

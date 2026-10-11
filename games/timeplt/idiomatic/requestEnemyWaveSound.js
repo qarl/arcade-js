@@ -7,8 +7,8 @@
  * Role in the machine: the sound of an enemy wave. Its one caller, driveEnemyWaveForLifePhase,
  * tail-calls it on its two exits after the wave's claim timer is re-armed.
  *
- * The code is ENEMY_WAVE_SOUND (0x273A), a byte of the program ROM read as data (the lift notes it
- * holds 0x0B). It goes through enqueueSoundIfGameInProgress, so it is queued only while
+ * The code is ENEMY_WAVE_SOUND (0x273A), a byte of the program ROM read as data (0x0B on a
+ * genuine image). It goes through enqueueSoundIfGameInProgress, so it is queued only while
  * PLAY_ACTIVE is set; the frame service later sends it to the audio board.
  */
 

@@ -8,7 +8,8 @@
  * offset from the frame — so control is destroyed rather than handed back. There is no faithful
  * transcription of that as a routine; the object's genuine warp/flash step is entered past this
  * prologue and lives elsewhere. So this raises where the derail would begin.
- * LIVE-OUT: none — it never returns. */
+ * LIVE-OUT: none — it never returns.
+ * ROM 0x459B-0x460D, 0x4623-0x4642 and 0x4646-0x4662. Grounding: [code] (names.js ROUTINES 0x459B). */
 
 import { NotImplemented } from "../../../boards/timeplt/io.js";
 

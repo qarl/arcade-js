@@ -3,7 +3,8 @@
  * spinRemainingSpriteMultiplexSlots — memory-equivalent to the frozen oracle at ROM 0x10FD.
  * GATE: crafted entries over machines captured at the enclosing pass, driving all three entry arms
  *   (skip / trade-from-register / restart); the raster pinned so the sweeps time writes not the
- *   hold; the whole dump compared with nothing masked; and teeth.
+ *   hold; the whole dump compared with nothing masked; and teeth. Each entry is seated as the frozen
+ *   CALL hands it over: the held byte from A, and the request test from the Z flag (`dispatched`).
  */
 
 import test from "node:test";
@@ -84,6 +85,9 @@ function entry(m, zSet, held) {
   m.regs.f = zSet ? m.regs.f | Z : m.regs.f & ~Z;
   m.regs.a = held;
 }
+
+/** The rewrite entered as the frozen CALL enters 0x10FD: held byte in A, request test as Z clear. */
+const dispatched = (m) => spinRemainingSpriteMultiplexSlots(m, m.regs.a, (m.regs.f & Z) === 0);
 
 /** Oracle vs candidate on independent clones: the whole dump, then every register but the ceiling. */
 function unitDiff(candidate, machine) {
@@ -224,14 +228,14 @@ function brokenIgnoreCarry(m) {
 
 /** BUG: reaches back into the slot before this range, which the pass ahead of it owns. */
 function brokenReachesBack(m) {
-  spinRemainingSpriteMultiplexSlots(m);
+  dispatched(m);
   const { mem8 } = m;
   if (mem8[BEFORE.request] >= HALF) mem8[BEFORE.request] = mem8[BEFORE.request] - HALF;
 }
 
 /** BUG: scribbles on an index register, the in-arm control that the ceiling check sees one move. */
 function brokenMovesIndex(m) {
-  spinRemainingSpriteMultiplexSlots(m);
+  dispatched(m);
   m.regs.ix = (m.regs.ix + 1) & 0xffff;
 }
 
@@ -295,19 +299,22 @@ test("WINDOW: the oracle pushes nothing, so the whole dump is compared", { skip 
 });
 
 test("SKIP: Z set steps over the first slot; the tail trades on its own bits", { skip }, () => {
-  assert.equal(sweepSkip(spinRemainingSpriteMultiplexSlots), 0, "a skip pattern diverged");
+  assert.equal(sweepSkip(dispatched), 0, "a skip pattern diverged");
   const untouched = craft((m) => {
     entry(m, true, 200);
     quiet(m);
     m.mem8[FIRST.request] = 200;
   });
-  spinRemainingSpriteMultiplexSlots(untouched);
+  dispatched(untouched);
   assert.equal(untouched.mem8[FIRST.request], 200, "the first slot was traded even though Z was set");
   console.log(`  SKIP: ${RUNS.skip} patterns identical; the first slot stands when Z is set`);
 });
 
 test("TRADE: Z clear trades the first slot FROM THE REGISTER, not from memory", { skip }, () => {
-  assert.equal(sweepTrade(spinRemainingSpriteMultiplexSlots), 0, "a trade value diverged");
+  assert.equal(sweepTrade(dispatched), 0, "a trade value diverged");
+  // The one call site is a CALL NZ, so the rewrite's default is the request-set entry.
+  assert.equal(sweepTrade((mm) => spinRemainingSpriteMultiplexSlots(mm)), 0,
+    "the default entry diverged from a CALL NZ entry");
   // ★ The load-bearing property: the first slot's new request is the held byte masked, and memory
   //   held something else entirely — a rewrite that re-read memory would land 5, not 100.
   const m = craft((mm) => {
@@ -315,25 +322,25 @@ test("TRADE: Z clear trades the first slot FROM THE REGISTER, not from memory", 
     quiet(mm);
     mm.mem8[FIRST.request] = 5;
   });
-  spinRemainingSpriteMultiplexSlots(m);
+  dispatched(m);
   assert.equal(m.mem8[FIRST.request], 100, "the first slot must come from the held byte, not memory");
   console.log(`  TRADE: ${RUNS.trade} held values identical; the first slot lands the register byte`);
 });
 
 test("RESTART: Z clear but no carry restarts the pass and re-reads every slot", { skip }, () => {
-  assert.equal(sweepRestart(spinRemainingSpriteMultiplexSlots), 0, "a restart pattern diverged");
+  assert.equal(sweepRestart(dispatched), 0, "a restart pattern diverged");
   console.log(`  RESTART: ${RUNS.restart} patterns identical`);
 });
 
 test("PARTNERS: the partner byte over every value, the wrap included", { skip }, () => {
-  assert.equal(sweepPartners(spinRemainingSpriteMultiplexSlots), 0, "a partner value diverged");
+  assert.equal(sweepPartners(dispatched), 0, "a partner value diverged");
   const wrap = craft((m) => {
     entry(m, false, 200);
     quiet(m);
     m.mem8[TAIL[0].request] = HALF;
     m.mem8[TAIL[0].partner] = 200;
   });
-  spinRemainingSpriteMultiplexSlots(wrap);
+  dispatched(wrap);
   assert.equal(wrap.mem8[TAIL[0].partner], 72, "the partner must wrap in a byte, not widen");
   console.log(`  PARTNERS: ${RUNS.partners} values identical, including the wrap`);
 });
@@ -361,7 +368,7 @@ function movedOver(candidate) {
 }
 
 test("EXCLUDED, deliberately: no register outside the ceiling moves", { skip }, () => {
-  const moved = movedOver(spinRemainingSpriteMultiplexSlots);
+  const moved = movedOver(dispatched);
   const control = movedOver(brokenMovesIndex);
   assert.ok(REG_FIELDS.some((k) => control.has(k) && !MOVED.includes(k)),
     "the measurement reports nothing outside the ceiling even for a twin that scribbles on an " +

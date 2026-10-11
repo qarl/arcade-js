@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * seatSceneryFillByte0x28ThenClearEraScenery — fix the scenery fill byte at 0x28, then clear and run
+ * seatFinalEraSceneryFillThenClearEraScenery — fix the scenery fill byte at 0x28, then clear and run
  * the era scenery.
  *
  * ROM 0x3156-0x315A (`ld a,0x28 / jp 0x30D1`). Grounding: [seen] (names.js ROUTINES 0x3156).
@@ -25,7 +25,7 @@ import { clearSceneryEntriesThenRunEraScenery } from "./clearSceneryEntriesThenR
 // The fill byte this entry seats (0x28).
 const FILL_BYTE = 40;
 
-export function seatSceneryFillByte0x28ThenClearEraScenery(m, era = m.regs.c, entryCursor = m.regs.iy, recordCursor = m.regs.ix) {
+export function seatFinalEraSceneryFillThenClearEraScenery(m, era = m.regs.c, entryCursor = m.regs.iy, recordCursor = m.regs.ix) {
   // Tail into the body with the fixed fill byte and the caller's era and cursors.
   return clearSceneryEntriesThenRunEraScenery(m, FILL_BYTE, era, entryCursor, recordCursor);
 }

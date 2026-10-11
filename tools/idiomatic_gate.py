@@ -7,7 +7,8 @@ never the machine. Six kinds of cruft are counted, all of which must reach 0 for
 IDIOMATIC (a hard done requirement):
   - REGISTERS: `regs.a` / ALU helpers (however spelled: `m["regs"]`, an alias, a field destructure), minus two exempt bridges — a param-default (`fn(m, x=m.regs.a)`)
     and a write riding a return (`return (m.regs.a=v)`). For a TIGHT_GAMES game the return-write
-    exemption is narrower: the write must BE the return's value (a seat before a call is NOT exempt).
+    exemption is narrower: the write must BE the return's value (a seat before a call is NOT exempt), and
+    the param-default is exempt only in an exported routine's own parameter list, never as `r = m.regs`.
   - m.call(...) — dissolve to a direct JS call (or `yield*`). m.push16/* — Z80 stack trampolines.
     (m.ret / m.pop* are Z80 stack primitives too, but counted only for CLOSURE games (as `stack`) and
     TIGHT_GAMES (as pushes), so a frozen legacy game's budget is not re-baselined by the gate newly seeing them.)
@@ -23,8 +24,10 @@ IDIOMATIC (a hard done requirement):
     truncates, so it's noise. Counted with it: a non-canonical `const foo=m.mem8` alias that would hide one.
   - imports (TIGHT_GAMES): an import from outside the layer that is not on the reviewed allowlist
     (IMPORT_PURE / IMPORT_NAMED, each re-verified free of machine surface on every run).
-  - for SHORT_ADDR_GAMES, `addrs` also counts an OFFSET ALIAS: `NAME +/- literal` landing on a different
-    names.js cell, unless NAME is a reviewed record/word base (games/<game>/idiomatic-bases.txt).
+  - for SHORT_ADDR_GAMES, `addrs` also counts an OFFSET ALIAS: `NAME +/- offset` (NAME a names.js import or a
+    local alias or straight-line cursor of one; offset a literal or a module const of literal value) landing
+    on a different names.js cell, and a `mem16[NAME]` whose high byte is one, unless NAME is a reviewed
+    record/word base (games/<game>/idiomatic-bases.txt). names.js address exports must be 4-digit hex.
 All are counted in CODE ONLY (comments stripped); only registers keep exemptions (the two bridges above).
 
 FAIL-CLOSED ratchet: `check` enumerates EVERY games/*/idiomatic/ and holds each to a budget
@@ -40,6 +43,7 @@ declare it only at 0 total cruft. Rationale: docs/comment-gate.md.
 Subcommands: worklist (per-module, per-category), check (the ratchet), selftest.
 """
 import argparse
+import ast
 import glob
 import os
 import posixpath
@@ -48,8 +52,13 @@ import subprocess
 import sys
 
 # --- registers (data registers + ALU-op helpers); both are machine surface ---
-REF = re.compile(r"\b(?:m\.)?regs\.([A-Za-z][A-Za-z0-9]*)")
+REF = re.compile(r"\b(?:m\.)?regs\.(_?[A-Za-z][A-Za-z0-9]*)")
 SIG = re.compile(r"\bfunction\s+\w+\s*\(")          # param-defaults on a signature line are exempt
+# TIGHT_GAMES: only an exported routine's own parameter list is the frozen-caller bridge
+SIG_TIGHT = re.compile(r"\bexport\s+(?:default\s+)?(?:async\s+)?function\s*\*?\s*([\w$]*)\s*\(")
+# (TIGHT, R40 CD-1) a Z80 flag register or its pair/backing field: counted wherever it appears, a param-default
+# or a return-assignment included -- the idiomatic layer returns a boolean, it never models the flags byte.
+FLAG_REG = re.compile(r"_?(?:f|af|fZ|fNZ|fC|fNC|fS|fM|fP|fPE|fPO)")
 RET = re.compile(r"\breturn\b")
 WRITE = re.compile(r"\b(?:m\.)?regs\.[A-Za-z][A-Za-z0-9]*\s*=(?!=)")  # write riding a return is exempt
 
@@ -80,7 +89,8 @@ ALIAS = re.compile(r"\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*m\.mem(?:8|16)\s*;")
 #       or a literal-and-names table (`const SRC = [CELL_A, 0xa9c]`), that reaches an address position --
 #       an index base or an address slot below -- itself, as `.base`, or through one plain alias;
 #   (C) a call argument in an ADDRESS SLOT: a (callee, position) that some call site in the game fills
-#       with a names.js address (`fetchTableByte(m, HEADING_SHAPE_TABLE, i)` makes slot 1 an address);
+#       with a names.js address (`fetchTableByte(m, HEADING_EDGE_POSITION_TABLE, i)` makes slot 1 an address),
+#       or a PAGE SLOT (value >= 0x10): a parameter its function shifts into a page (`(hi << 8) | lo`);
 #   (M) any value 0x100..0xffff that is not a size/mask shape (2^k, 2^k-1), anywhere -- except the whole
 #       initializer of `const NAME = <lit>` whose NAME and value are in the reviewed idiomatic-sizes.txt.
 # An offset added to a base (mem8[record + 0x0e]), a mask, a loop bound and a 2^k size never count.
@@ -158,12 +168,37 @@ def _initializer(code, i):
     return i
 
 
+_FUNC_HEAD = re.compile(r"\bfunction\s*\*?\s*([A-Za-z_$][\w$]*)\s*\("
+                        r"|\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?\(")
+
+
+def page_slots(code):
+    """{(callee, position, "page")} for a function of `code` whose parameter at that position is the high
+    byte of a page composition (`(hi << 8) | lo`, `hi * 256`) in its body: the argument is a page."""
+    out = set()
+    for f in _FUNC_HEAD.finditer(code):
+        o = f.end() - 1
+        c = _close(code, o)
+        params = [code[a:b].split("=")[0].strip() for a, b in _split(code, o + 1, c, ",")]
+        body = re.match(r"\s*(?:=>)?\s*", code[c + 1:])
+        start = c + 1 + body.end()
+        end = _close(code, start) if code[start:start + 1] == "{" else _initializer(code, start)
+        for i, p in enumerate(params):
+            if re.fullmatch(r"[A-Za-z_$][\w$]*", p) and re.search(
+                    r"(?<![\w$.])" + re.escape(p) + r"\s*(?:<<\s*(?:8|0[xX]0*8)|\*\s*(?:256|0[xX]0*100))(?![\w$.])"
+                    r"|(?:256|0[xX]0*100)\s*\*\s*" + re.escape(p) + r"(?![\w$.])", code[start:end]):
+                out.add((f.group(1) or f.group(2), i, "page"))
+    return out
+
+
 def address_slots(texts, names_js):
-    """{(callee, position)} that some call site in `texts` fills with a names.js address (rule C)."""
+    """{(callee, position)} that some call site in `texts` fills with a names.js address (rule C), plus
+    each page slot (page_slots) of any of `texts`."""
     addrs = set(_ADDR_EXPORT.findall(names_js))
     out = set()
     for text in texts:
         code = strip_comments(text)
+        out |= page_slots(code)
         local = {n.split(" as ")[-1].strip(): n.split(" as ")[0].strip()
                  for g in _NAMES_IMPORT.findall(code) for n in g.split(",")}
         for f, i, pa, pb in _arg_spans(code):
@@ -191,6 +226,11 @@ def short_addr_hits(code, slots=frozenset(), sizes=frozenset()):
         k, t, p = _lead(code, pa, pb)
         if (f, i) in slots:
             lead_hit(k, t, p) if k == "lit" else slot_leads.add(t)
+        elif (f, i, "page") in slots:
+            if k == "lit" and _lit_val(t) >= 0x10:
+                lead_hit(k, t, p)
+            elif k == "name":
+                slot_leads.add(t)
         if k == "name":
             arg_leads.add(t)
 
@@ -237,13 +277,57 @@ CATEGORIES = ("registers", "calls", "pushes", "addrs", "mem", "masks", "imports"
 
 
 def strip_comments(text):
-    """Drop /* ... */ (incl. /** docstrings) and // line comments so cruft in prose is not counted.
-    String/template-literal-unaware (a naive regex): a // or /* occurring INSIDE a string strips the
-    code after it on that line — a narrow false-negative the ratchet tolerates, since idiomatic cruft
-    is not authored behind an in-string comment marker."""
-    text = re.sub(r"/\*[\s\S]*?\*/", "", text)
-    text = re.sub(r"//[^\n]*", "", text)
-    return text
+    """Drop /* ... */ (incl. /** docstrings) and // line comments so cruft in prose is not counted. String-,
+    template- and regex-literal-aware: a `//` or `/*` inside one is kept, with the code after it."""
+    out, i, n = [], 0, len(text)
+    while i < n:
+        c = text[i]
+        if text.startswith("//", i):
+            j = text.find("\n", i)
+            i = n if j < 0 else j
+        elif text.startswith("/*", i):
+            j = text.find("*/", i + 2)
+            i = n if j < 0 else j + 2
+        elif c in "'\"`":
+            j = _skip_str(text, i)
+            out.append(text[i:j])
+            i = j
+        elif c == "/" and _regex_start("".join(out[-40:])):
+            j = _regex_end(text, i)
+            out.append(text[i:j])
+            i = j
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out)
+
+
+def _regex_start(prev):
+    """A `/` after `prev` (the code before it) opens a regex literal, not a division."""
+    p = prev.rstrip()
+    return not p or p[-1] in "(,=:[!&|?{};+-*%<>~^" or bool(re.search(r"(?<![\w$.])(?:return|typeof|case|"
+                                                                    r"do|else|in|of|void|yield|await)$", p))
+
+
+def _regex_end(text, i):
+    """End of the regex literal opening at text[i] (its flags included); i + 1 if none closes on the line."""
+    j, cls = i + 1, False
+    while j < len(text) and text[j] != "\n":
+        c = text[j]
+        if c == "\\":
+            j += 2
+            continue
+        if c == "[":
+            cls = True
+        elif c == "]":
+            cls = False
+        elif c == "/" and not cls:
+            j += 1
+            while j < len(text) and (text[j].isalpha()):
+                j += 1
+            return j
+        j += 1
+    return i + 1
 
 
 _OPEN, _CLOSE = "([{", ")]}"
@@ -393,20 +477,26 @@ def register_hits_legacy(text):
 TIGHT_GAMES = {"timeplt"}
 
 
-def register_hits(text, tight=False):
+def register_hits(text, tight=False, routines=None):
     """Dispatch to the tight or the legacy register rule."""
-    return register_hits_tight(text) if tight else register_hits_legacy(text)
+    return register_hits_tight(text, routines) if tight else register_hits_legacy(text)
 
 
-def register_hits_tight(text):
-    """Register names, minus a param-default (signature line) and a `regs.X =` write that IS a `return`'s
+def register_hits_tight(text, routines=None):
+    """Register names, minus a param-default of an EXPORTED function's parameter list (never a default of
+    the bare register file, `r = m.regs`, nor a nested or non-exported helper's) and a `regs.X =` write that IS a `return`'s
     value (the load-bearing outgoing bridge `return (m.regs.a = v)` / `return [m.regs.a = x, m.regs.hl = y]`,
     single- or multi-line). A write is NOT exempt when it merely rides a return as an INPUT SEAT: a
     non-last comma operand or call argument (`return (regs.ix = X, callee(m))`, `return f((regs.de = K, m))`),
     a `void (...)` operand, or any write followed by a (non-mask) call within the same return. The
     param-default exemption covers a signature's PARAMETER LIST only, not the rest of its line, so a
-    one-line body (`function f(m) { m.regs.ix = X; return g(m); }`) is counted like any other."""
-    sig_spans = [(s.end() - 1, _close(text, s.end() - 1)) for s in SIG.finditer(text)]
+    one-line body (`function f(m) { m.regs.ix = X; return g(m); }`) is counted like any other.
+    `routines` (the names.js ROUTINES export names, `entry ?? name`) narrows the param-default exemption to a
+    ROUTINES entry's own export: only a routine the frozen layer dispatches by address needs the register
+    bridge, so a default on any other export counts (R40 CD-2). None = no narrowing (a bare unit call).
+    A flag register (FLAG_REG) is never exempt."""
+    sig_spans = [(s.end() - 1, _close(text, s.end() - 1)) for s in SIG_TIGHT.finditer(text)
+                 if routines is None or s.group(1) in routines]
     in_sig = lambda o: any(x <= o <= y for x, y in sig_spans)
     exempt = set()
     for r in RET.finditer(text):
@@ -420,7 +510,9 @@ def register_hits_tight(text):
                      if c.group(1) not in _PURE and c.group(1) not in _NOT_CALL]
             if not later:
                 exempt.add(wa)
-    return [m.group(1) for m in REF.finditer(text) if not in_sig(m.start()) and m.start() not in exempt]
+    return [m.group(1) for m in REF.finditer(text)
+            if FLAG_REG.fullmatch(m.group(1))
+            or (not (in_sig(m.start()) and m.group(1) != "file") and m.start() not in exempt)]
 
 
 # --- TIGHT_GAMES machine surface: a WHITELIST, so a primitive added to a Machine later is still seen ---
@@ -484,7 +576,8 @@ def machine_hits(code, game):
 def _normalize_regs(code):
     """Rewrite hidden register-file spellings to `regs.X` so the register rule sees them: `m["regs"]`,
     `regs["a"]`, `?.`, an alias (`const r = m.regs` / `{ regs: r } = m`; the escape itself counts), and a
-    destructure of register fields (`const { a, hl } = m.regs`)."""
+    destructure of register fields (`const { a, hl } = m.regs`), and a parameter defaulted to the file
+    (`function f(r = m.regs)`)."""
     code = re.sub(r"\b(" + _ID + r")\s*\??\.?\s*\[\s*(['\"`])regs\2\s*\]", r"\1.regs", code)
     code = re.sub(r"\b(m|regs)\s*\?\.\s*", r"\1.", code)
     code = re.sub(r"\bregs\s*\.\s*", "regs.", code)
@@ -497,6 +590,7 @@ def _normalize_regs(code):
         "regs." + f.split(":")[0].strip() for f in d.group(1).split(",") if f.strip()) + "}", code)
     aliases = re.findall(r"\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:m\.)?regs\s*(?=[;,\n)])", code)
     aliases += re.findall(r"\{[^{}]*\bregs\s*:\s*([A-Za-z_$][\w$]*)[^{}]*\}\s*=\s*m\b", code)
+    aliases += re.findall(r"[(,]\s*([A-Za-z_$][\w$]*)\s*=\s*(?:m\.)?regs\s*(?=[,)])", code)   # a parameter default
     code = re.sub(r"\bm\.regs\b(?!\.)", "m.regs.file", code)
     for a in set(aliases) - {"regs"}:
         code = re.sub(r"(?<![\w$.])" + re.escape(a) + r"\s*(?:\.|(?=\[))\s*", "regs.", code)
@@ -524,24 +618,30 @@ def canon_literals(code):
     return _NUMTOK.sub(canon, code)
 
 
-_PAGE = re.compile(r"(?<![\w$.])(0x[0-9a-fA-F]+|\d+)\s*(?:<<\s*8|\*\s*(?:256|0x100))(?![\w$.])"
-                   r"|(?<![\w$.])(?:256|0x100)\s*\*\s*(0x[0-9a-fA-F]+|\d+)(?![\w$.])")
+_PAGE_OPERAND = r"(0[xX][0-9a-fA-F]+|\d+|[A-Za-z_$][\w$]*)"
+_PAGE = re.compile(r"(?<![\w$.])" + _PAGE_OPERAND + r"\s*(?:<<\s*(?:8|0[xX]0*8)|\*\s*(?:256|0[xX]0*100))(?![\w$.])"
+                   r"|(?<![\w$.])(?:256|0[xX]0*100)\s*\*\s*" + _PAGE_OPERAND + r"(?![\w$.])")
 
 
 def fold_pages(code):
-    """SHORT_ADDR_GAMES: fold a page composition `lit << 8` / `lit * 256` (lit >= 0x10) into its value, so
-    ADDR sees `mem8[lo | (0xad << 8)]` as 0xad00. Kept unfolded, as a mask: an operand of `&`, and outside
-    a memory index the high-byte fill 0xff00 (`c ? (0xff << 8) : 0`). 0xc0 << 8 is a page (I/O), not a mask."""
+    """SHORT_ADDR_GAMES: fold a page composition `lit << 8` / `lit * 256` (lit >= 0x10, any hex case or
+    shift spelling, or a module const of such a literal value) into its value, so ADDR sees
+    `mem8[lo | (0xad << 8)]` as 0xad00. Kept unfolded, as a mask: an operand of `&`, and outside a memory
+    index the high-byte fill 0xff00 (`c ? (0xff << 8) : 0`); and a negated page (`-STEP * 256`), a signed
+    step rather than an address. 0xc0 << 8 is a page (I/O), not a mask."""
     spans = list(_index_spans(code))
+    consts = module_consts(code)
 
     def fold(d):
-        v = int(d.group(1) or d.group(2), 0) << 8
+        t = d.group(1) or d.group(2)
+        v = (int(t, 0) if t[0].isdigit() else consts.get(t, 0)) << 8
         before, after = code[:d.start()].rstrip(" (\n"), code[d.end():].lstrip(" )\n")
         and_operand = (before.endswith("&") and not before.endswith("&&")) or \
             (after.startswith("&") and not after.startswith("&&"))
+        negated = before.endswith("-") and before[:-1].rstrip()[-1:] in tuple("=(,[:?&|+-*/<>!~^{;") + ("",)
         in_index = any(a <= d.start() < b for a, b in spans)
         high_mask = v == 0xFF00 and not in_index
-        return d.group(0) if not 0x1000 <= v <= 0xFFFF or and_operand or high_mask else f"0x{v:04x}"
+        return d.group(0) if not 0x1000 <= v <= 0xFFFF or and_operand or high_mask or negated else f"0x{v:04x}"
     return _PAGE.sub(fold, code)
 
 
@@ -620,13 +720,12 @@ def names_code(text):
 #     core/bcd.js  -- bcdAddByte/bcdSubByte: packed-decimal byte add/subtract on plain values (a JS
 #                     re-expression of add+daa that takes and returns numbers, never `m`).
 #   NAMED: only the listed names; each must be a numeric const or an Error class in that file (checked).
-#     core/cpu/z80.js -- the F_* flag-bit constants, plain numbers naming bit positions in a flags byte
-#                     a routine computes and returns. Nothing executable of the CPU is importable.
+#     (core/cpu/z80.js is NOT listed: its F_* flag-bit constants exist only to build a Z80 flags byte, which
+#     the idiomatic layer never does -- a routine returns a boolean -- so any z80.js import counts, R40 CD-1.)
 #     boards/<game>/io.js -- NotImplemented, the error class an unreached arm throws (the board's own
 #                     "no answer here" marker; constructing it touches no machine state).
 IMPORT_PURE = ("core/int.js", "core/bcd.js")
-IMPORT_NAMED = {"core/cpu/z80.js": frozenset({"F_C", "F_N", "F_PV", "F_F3", "F_H", "F_F5", "F_Z", "F_S"}),
-                "boards/{game}/io.js": frozenset({"NotImplemented"})}
+IMPORT_NAMED = {"boards/{game}/io.js": frozenset({"NotImplemented"})}
 _IMPORT_FROM = re.compile(r"(?<![\w$.])(import|export)(?![\w$])(?!\s*\()([^;'\"`]*?)(?<![\w$.])from\s*(['\"])([^'\"]*)\3")
 _IMPORT_BARE = re.compile(r"(?<![\w$.])import\s*(['\"])([^'\"]*)\1")
 _IMPORT_DYN = re.compile(r"(?<![\w$.])(?:import|require)\s*\(")
@@ -705,64 +804,528 @@ def verify_import_allowlist(game, from_index, read=None):
 
 # --- OFFSET ALIAS (SHORT_ADDR_GAMES): a names.js cell reached as ANOTHER cell's name plus an offset ---
 # `mem8[INTRO_ANIMATION_STEP + 1]` writes PLAYER_FLASH_TICK without naming it, so the reader cannot see
-# which cell it is. A whole operand `NAME +/- literal` (or `literal + NAME`) whose NAME is a names.js address
-# import counts when its value is the address of a DIFFERENT names.js export -- unless NAME is a reviewed
-# record/word base in games/<game>/idiomatic-bases.txt (`NAME  SPAN  reason`) and the offset lies inside
-# its SPAN bytes (a word's high byte written with its low byte, a record's field).
-_OPERAND_START = "[(,=:?&|!{"
-_OPERAND_END = "]),;:?}"
+# which cell it is. An operand `BASE +/- offsets` counts when its value is the address of a DIFFERENT
+# names.js export -- unless BASE's export is a reviewed record/word base in games/<game>/idiomatic-bases.txt
+# (`NAME  SPAN  reason`) and the offset lies inside its SPAN bytes (a word's high byte, a record's field).
+#   BASE: a names.js import (named, renamed or `N.X` through a namespace import), or a local bound to one --
+#         an alias (`const p = NAME`, `let p = NAME + 2`) or a cursor stepped in straight-line code
+#         (`p++`, `++p`, `p += K`); a step under a loop, a branch or a nested block ends the tracking.
+#   offsets: literals and module consts of literal value (`const FIELD = 4`, `STRIDE * 2`, `T.length` of a
+#         literal array), any sign, either order.
+# A `mem16[...]` access also reaches the byte after its operand, so `mem16[NAME]` counts when NAME + 1 is
+# another export (a word base is declared in idiomatic-bases.txt). A range bound (`p < BASE + N`) reaches
+# no cell and does not count.
+_STOP_L = set("[({,=:?&|!<>^;~")
+_STOP_R = set("])},;:?=<>!&|^")
+_STOP_WORDS = {"return", "case", "yield", "await", "void", "typeof", "in", "of", "instanceof", "delete",
+               "throw", "else", "do", "new", "const", "let", "var"}
+_CONTROL = re.compile(r"(?:if|else|for|while|do|switch)\b")
+_IDENT = re.compile(r"(?<![\w$.])[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*")
+_DECL = re.compile(r"(?<![\w$.])(?:const|let|var)\s+")
+_ASSIGN = re.compile(r"\s*=(?![=>])")
+_DECLARATOR = re.compile(r"([A-Za-z_$][\w$]*)\s*=(?![=>])")
 
 
 def _names_locals(code, path, game):
-    """{local name: names.js export} for `import {...} from "<names.js of this game>"` in `code`."""
-    out = {}
+    """({local name: names.js export} for `import {...} from "<names.js of this game>"`,
+    {namespace local} for `import * as N from` it)."""
+    out, ns = {}, set()
+
+    def ok(spec):
+        return (_resolve(path, spec) == f"games/{game}/idiomatic/{NAMES_FILE}") if path else spec == "./names.js"
     for m in re.finditer(r"\bimport\s*\{([^}]*)\}\s*from\s*['\"]([^'\"]+)['\"]", code):
-        spec = m.group(2)
-        ok = (_resolve(path, spec) == f"games/{game}/idiomatic/{NAMES_FILE}") if path else spec == "./names.js"
-        if ok:
+        if ok(m.group(2)):
             for n in m.group(1).split(","):
                 if n.strip():
                     out[n.split(" as ")[-1].strip()] = n.split(" as ")[0].strip()
-    return out
+    for m in re.finditer(r"\bimport\s*\*\s*as\s+([A-Za-z_$][\w$]*)\s+from\s*['\"]([^'\"]+)['\"]", code):
+        if ok(m.group(2)):
+            ns.add(m.group(1))
+    return out, ns
+
+
+_NUM_EXPORT = re.compile(r"(?m)^export\s+const\s+([A-Za-z_$][\w$]*)\s*=\s*"
+                         r"(0[xX][0-9a-fA-F](?:_?[0-9a-fA-F])*|\d(?:_?\d)*)\s*;")
 
 
 def names_addresses(names_js):
-    """{export: address} for every 4-digit address export of names.js."""
-    return {m.group(1): int(m.group(2), 16) for m in re.finditer(
-        r"(?m)^export\s+const\s+([A-Za-z_$][\w$]*)\s*=\s*(0[xX][0-9a-fA-F]{4})\s*;", names_js)}
+    """{export: address} for every scalar numeric export of names.js, however written."""
+    return {m.group(1): _lit_val(m.group(2)) for m in _NUM_EXPORT.finditer(names_js)}
+
+
+def nonstandard_exports(names_js):
+    """Scalar numeric names.js exports not written as a 4-digit hex address (rule C and the readers of the
+    registry expect that form, so a short `0xd1b` export is refused rather than half-seen)."""
+    return [m.group(1) for m in _NUM_EXPORT.finditer(names_js)
+            if not re.fullmatch(r"0[xX][0-9a-fA-F]{4}", m.group(2))]
+
+
+def _str_mask(code):
+    """bytearray: 1 inside a string/template literal."""
+    mask, i, n = bytearray(len(code)), 0, len(code)
+    while i < n:
+        if code[i] in "'\"`":
+            j = min(_skip_str(code, i), n)
+            mask[i:j] = b"\x01" * (j - i)
+            i = j
+        else:
+            i += 1
+    return mask
+
+
+def _brace_depths(code, mask):
+    """depth[i] = `{` blocks open before code[i] (strings skipped)."""
+    out, d = [0] * (len(code) + 1), 0
+    for i, c in enumerate(code):
+        out[i] = d
+        if not mask[i]:
+            d += (c == "{") - (c == "}")
+    out[len(code)] = d
+    return out
+
+
+def _block_end(code, depth, mask, i):
+    """Index of the `}` closing the block that holds code[i] (len(code) at top level)."""
+    d = depth[i]
+    for j in range(i, len(code)):
+        if code[j] == "}" and depth[j] == d and d > 0 and not mask[j]:
+            return j
+    return len(code)
+
+
+def _eval_const(text, consts):
+    """Integer value of a literal expression (literals, module consts, + - * << >> | & ^ ~ ()), else None."""
+
+    def sub(m):
+        if m.group(0) not in consts:
+            raise KeyError(m.group(0))
+        return f"({consts[m.group(0)]})"
+    try:
+        expr = _IDENT.sub(sub, text.strip())
+        tree = ast.parse(expr, mode="eval")
+    except (KeyError, SyntaxError, ValueError):
+        return None
+    ok = (ast.Expression, ast.BinOp, ast.UnaryOp, ast.Constant, ast.Add, ast.Sub, ast.Mult, ast.LShift,
+          ast.RShift, ast.BitOr, ast.BitAnd, ast.BitXor, ast.USub, ast.UAdd, ast.Invert)
+    if not all(isinstance(x, ok) for x in ast.walk(tree)):
+        return None
+    if any(isinstance(x, ast.Constant) and type(x.value) is not int for x in ast.walk(tree)):
+        return None
+    try:
+        return eval(compile(tree, "<const>", "eval"), {"__builtins__": {}})
+    except (ArithmeticError, ValueError):
+        return None
+
+
+def module_consts(code):
+    """{name: int} for every local `const NAME = <literal expression>` (or a `let`/`var` never written
+    again) whose every declaration has the same initializer, and `NAME.length` for a literal array
+    `const NAME = [...]` with no spread."""
+    raw, seen, arrays, at = {}, {}, {}, set()
+    for d in _DECL.finditer(code):
+        i = d.end()
+        while True:
+            m = _DECLARATOR.match(code, i)
+            if not m:
+                break
+            end = _initializer(code, m.end())
+            name, init = m.group(1), code[m.end():end].strip()
+            at.add(m.start(1))
+            seen.setdefault(name, set()).add(init)
+            raw[name] = init
+            if init.startswith("[") and _close(init, 0) == len(init) - 1 and "..." not in init:
+                inner = init[1:-1].strip()
+                arrays[name] = len([1 for a, b in _split(inner, 0, len(inner), ",") if inner[a:b].strip()])
+            if end < len(code) and code[end] == ",":
+                i = end + 1
+                while i < len(code) and code[i].isspace():
+                    i += 1
+                continue
+            break
+    written = set()
+    for name in raw:
+        if any(w.start() not in at for w in re.finditer(
+                r"(?<![\w$.])" + re.escape(name) + r"\s*(?:\+\+|--|(?:\*\*|[-+*/%&|^]|<<|>>>?)?=(?![=>]))", code)) \
+                or re.search(r"(?:\+\+|--)\s*" + re.escape(name) + r"(?![\w$])", code):
+            written.add(name)
+    decls = {n for n in raw if len(seen[n]) == 1}
+    consts = {f"{n}.length": v for n, v in arrays.items() if n in decls and n not in written}
+    changed = True
+    while changed:
+        changed = False
+        for n in decls - set(consts) - written:
+            v = _eval_const(raw[n], consts) if not raw[n].startswith("[") else None
+            if v is not None:
+                consts[n] = v
+                changed = True
+    return consts
+
+
+def _scan_left(code, a, mask):
+    """Start of the +/- operand holding the token at code[a], or None across a string."""
+    i, depth = a - 1, 0
+    while i >= 0:
+        c = code[i]
+        if mask[i]:
+            return None
+        if c in ")]}":
+            depth += 1
+        elif c in "([{":
+            if depth == 0:
+                break
+            depth -= 1
+        elif depth == 0:
+            if c in _STOP_L:
+                break
+            if c == "\n":
+                j = i - 1
+                while j >= 0 and code[j] in " \t\r":
+                    j -= 1
+                if j < 0 or code[j] not in "+-*/%":
+                    break
+            if c.isalnum() or c in "_$":
+                j = i
+                while j > 0 and (code[j - 1].isalnum() or code[j - 1] in "_$"):
+                    j -= 1
+                if code[j:i + 1] in _STOP_WORDS and (j == 0 or code[j - 1] != "."):
+                    break
+                i = j
+        i -= 1
+    return i + 1
+
+
+def _scan_right(code, b, mask):
+    """End of the +/- operand holding the token that ends at code[b], or None across a string."""
+    i, depth, n = b, 0, len(code)
+    while i < n:
+        c = code[i]
+        if mask[i]:
+            return None
+        if c in "([{":
+            depth += 1
+        elif c in ")]}":
+            if depth == 0:
+                break
+            depth -= 1
+        elif depth == 0:
+            if c in _STOP_R:
+                break
+            if c == "\n":
+                prev = code[b:i].rstrip()[-1:]
+                nxt = code[i + 1:].lstrip()[:1]
+                if prev not in tuple("+-*/%") and nxt not in tuple("+-*/%"):
+                    break
+            if c.isalpha() or c in "_$":
+                j = i
+                while j < n and (code[j].isalnum() or code[j] in "_$"):
+                    j += 1
+                if code[i:j] in _STOP_WORDS and code[i - 1:i] != ".":
+                    break
+                i = j
+                continue
+        i += 1
+    return i
+
+
+def _terms(code, a, b):
+    """[(sign, start, end)] of the top-level +/- terms of code[a:b], or None if malformed."""
+    out, sign, st, last_end, operand, i = [], 1, None, a, False, a
+    while i < b:
+        c = code[i]
+        if c.isspace():
+            i += 1
+            continue
+        if code[i:i + 2] in ("++", "--"):
+            st = i if st is None else st
+            i += 2
+            last_end = i
+            continue
+        if c in "+-":
+            if operand:
+                out.append((sign, st, last_end))
+                sign, st, operand = (1 if c == "+" else -1), None, False
+            else:
+                sign = -sign if c == "-" else sign
+            i += 1
+            continue
+        st = i if st is None else st
+        if c in "([{":
+            j = _close(code, i)
+            if j >= b:
+                return None
+            i, last_end, operand = j + 1, j + 1, True
+            continue
+        operand = not (c in "*/%<>&|^~!=?:,;")
+        i += 1
+        last_end = i
+    if st is None:
+        return None
+    return out + [(sign, st, last_end)]
+
+
+def _relational(left, right):
+    """The operand between `left` (its last two chars) and `right` (the next two) is a < > <= >= side."""
+    lrel = (left[-1:] in ("<", ">") and left[-2:] not in ("<<", ">>", "=>")) or left[-2:] in ("<=", ">=")
+    return lrel or (right[:1] in ("<", ">") and right[:2] not in ("<<", ">>"))
+
+
+class _Aliases:
+    """Resolves an operand of one module to (export, offset, decl offset) -- see the OFFSET ALIAS note."""
+
+    def __init__(self, code, names, local, ns):
+        self.code, self.names, self.local, self.ns = code, names, local, ns
+        self.mask = _str_mask(code)
+        self.depth = _brace_depths(code, self.mask)
+        self.consts = module_consts(code)
+        self.bindings = {}   # var -> [(start, end, export, off, events)]
+        self._bind()
+
+    # -- operands --
+    def operand(self, a, b):
+        """(export, offset, binding decl offset or None) of code[a:b], ("const", v) or None."""
+        terms = _terms(self.code, a, b)
+        if not terms:
+            return None
+        base, total = None, 0
+        for sign, s, e in terms:
+            t = self.term(s, e)
+            if t is None:
+                return None
+            if t[0] == "const":
+                total += sign * t[1]
+            elif base is not None or sign < 0:
+                return None
+            else:
+                base = t
+        if base is None:
+            return ("const", total)
+        return (base[0], base[1] + total, base[2])
+
+    def term(self, s, e):
+        code = self.code
+        text = code[s:e]
+        if text[0] == "(" and _close(code, s) == e - 1:
+            return self.operand(s + 1, e - 1)
+        u = re.match(r"u16\s*\(", text)
+        if u and _close(code, s + u.end() - 1) == e - 1:
+            r = self.operand(s + u.end(), e - 1)
+            return r if r and r[0] != "const" else (("const", r[1] & 0xFFFF) if r else None)
+        m = re.fullmatch(r"(\+\+|--)?\s*([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)?)\s*(\+\+|--)?", text)
+        if m:
+            b = self.base(m.group(2), s + m.start(2))
+            if b:
+                return b
+        v = _eval_const(text, self.consts)
+        return ("const", v) if v is not None else None
+
+    def base(self, tok, pos):
+        if tok in self.local and self.local[tok] in self.names:
+            return (self.local[tok], 0, None)
+        head, _, tail = tok.partition(".")
+        if tail and head in self.ns and tail in self.names:
+            return (tail, 0, None)
+        best = None
+        for st, en, export, off, events in self.bindings.get(tok, ()):
+            if st <= pos <= en and (best is None or st > best[0]):
+                best = (st, en, export, off, events)
+        if not best:
+            return None
+        cur = best[3]
+        for ep, delta, prefix in best[4]:
+            if ep < pos or (ep == pos and prefix):
+                if delta is None:
+                    return None
+                cur += delta
+        return (best[2], cur, best[3])
+
+    # -- bindings: aliases and straight-line cursors --
+    def _uncertain(self, pos, dd):
+        """A step at code[pos] is not straight-line from a binding at brace depth dd."""
+        code = self.code
+        if self.depth[pos] > dd:
+            return True
+        depth, i = 0, pos - 1
+        while i >= 0 and not (code[i] in "{}" and depth == 0 and not self.mask[i]):
+            if not self.mask[i]:
+                if code[i] == ")":
+                    depth += 1
+                elif code[i] == "(":
+                    if depth == 0:
+                        if re.search(r"(?<![\w$.])(?:for|while|if|switch)\s*$", code[:i]):
+                            return True
+                    else:
+                        depth -= 1
+            i -= 1
+        stmt = code[self._stmt_start(pos):pos]
+        return bool(_CONTROL.match(stmt.strip())) or "?" in stmt or "&&" in stmt or "||" in stmt
+
+    def _stmt_start(self, pos):
+        """Start of the statement holding code[pos]: after the last `;`, `{` or `}` outside parens."""
+        code, depth, j = self.code, 0, pos - 1
+        while j >= 0:
+            if not self.mask[j]:
+                c = code[j]
+                if c == ")":
+                    depth += 1
+                elif c == "(":
+                    depth -= 1
+                elif c in ";{}" and depth <= 0:
+                    break
+            j -= 1
+        return j + 1
+
+    def _bind(self):
+        code = self.code
+        sites = []   # (pos of var, var, rhs start, is decl)
+        for d in _DECL.finditer(code):
+            if self.mask[d.start()]:
+                continue
+            i = d.end()
+            while True:
+                m = _DECLARATOR.match(code, i)
+                if not m:
+                    break
+                sites.append((m.start(1), m.group(1), m.end(), True))
+                end = _initializer(code, m.end())
+                if end < len(code) and code[end] == ",":
+                    i = end + 1
+                    while i < len(code) and code[i].isspace():
+                        i += 1
+                    continue
+                break
+        decl_pos = {p for p, *_ in sites}
+        declared = set(re.findall(r"(?<![\w$.])(?:let|var)\s+([A-Za-z_$][\w$]*)\s*(?=[;,\n])", code))
+        for m in _IDENT.finditer(code):
+            if m.start() in decl_pos or self.mask[m.start()] or "." in m.group(0):
+                continue
+            a = _ASSIGN.match(code, m.end())
+            if a:
+                sites.append((m.start(), m.group(0), a.end(), False))
+        for pos, var, rhs, is_decl in sorted(sites):
+            if not is_decl and var not in self.bindings and var not in declared:
+                continue
+            end = self._rhs_end(rhs)
+            r = self.operand(rhs, end) if end is not None else None
+            dd = self.depth[pos]
+            if not is_decl:
+                live = [b for b in self.bindings.get(var, ()) if b[0] <= pos <= b[1]]
+                straight = end is not None and live and not self._uncertain(pos, self.depth[live[-1][0]])
+                self._kill(var, end if straight else pos)   # a straight-line `p = p + K` reads p first
+            if r is None or r[0] == "const":
+                continue
+            if not is_decl and self._uncertain_assign(pos):
+                continue
+            scope_end = _block_end(code, self.depth, self.mask, pos)
+            events = self._events(var, end, scope_end, dd)
+            self.bindings.setdefault(var, []).append((end, scope_end, r[0], r[1], events))
+
+    def _rhs_end(self, rhs):
+        e = _initializer(self.code, rhs)
+        return e if e > rhs else None
+
+    def _uncertain_assign(self, pos):
+        return bool(_CONTROL.match(self.code[self._stmt_start(pos):pos].strip()))
+
+    def _kill(self, var, pos):
+        for b in self.bindings.get(var, ()):
+            if b[0] <= pos <= b[1]:
+                b[4].append((pos, None, False))
+                b[4].sort(key=lambda e: e[0])
+
+    def _events(self, var, start, end, dd):
+        code, out = self.code, []
+        rx = re.compile(r"(?<![\w$.])" + re.escape(var) + r"(?![\w$])")
+        for m in rx.finditer(code, start, end):
+            o = m.start()
+            if self.mask[o]:
+                continue
+            before, after = code[:o].rstrip(), code[m.end():]
+            delta, prefix = None, False
+            if before.endswith(("++", "--")) and not before.endswith(("+++", "---")):
+                delta, prefix = (1 if before.endswith("++") else -1), True
+            elif after.lstrip().startswith(("++", "--")):
+                delta = 1 if after.lstrip().startswith("++") else -1
+            elif re.match(r"\s*[-+]=", after):
+                op = re.match(r"\s*([-+])=", after)
+                rhs = m.end() + op.end()
+                v = _eval_const(code[rhs:_initializer(code, rhs)], self.consts)
+                if v is None:
+                    out.append((o, None, False))
+                    continue
+                delta = v if op.group(1) == "+" else -v
+            elif re.match(r"\s*(?:\*\*|[*/%&|^]|<<|>>>?)=", after):
+                out.append((o, None, False))
+                continue
+            else:
+                continue
+            out.append((o, None if self._uncertain(o, dd) else delta, prefix))
+        return out
+
+    # -- sites --
+    def sites(self):
+        """[(export, offset, decl offset or None, position)] for every whole operand holding a base."""
+        code, seen, out = self.code, set(), []
+        for m in _IDENT.finditer(code):
+            tok, p = m.group(0), m.start()
+            if self.mask[p]:
+                continue
+            if not (tok in self.local or (tok.partition(".")[0] in self.ns) or tok in self.bindings):
+                continue
+            a = _scan_left(code, p, self.mask)
+            b = _scan_right(code, m.end(), self.mask)
+            if a is None or b is None or (a, b) in seen:
+                continue
+            seen.add((a, b))
+            left = code[:a].rstrip()[-1:]
+            right = code[b:b + 2]
+            if left in ("", ";", "{", "}") and (right[:1] in ("", ";", "}", "\n") or b == len(code)):
+                continue           # an expression statement (`p++;`) reads no cell
+            if right[:1] == "=" and right[1:2] not in ("=", ">"):
+                continue           # an assignment target
+            if _relational(code[:a].rstrip()[-2:], code[b:b + 2]):
+                continue           # a range bound (`p < BASE + N`), not a cell reached
+            r = self.operand(a, b)
+            if r and r[0] != "const":
+                out.append(r + (a,))
+        return out
+
+    def word_sites(self):
+        """[(export, offset, position)] of every `mem16[...]` operand that resolves."""
+        out = []
+        for x in re.finditer(r"(?<![\w$])mem16\s*\[", self.code):
+            if self.mask[x.start()]:
+                continue
+            o = x.end() - 1
+            a, b = _split(self.code, o + 1, _close(self.code, o), ",")[0]
+            r = self.operand(a, b)
+            if r and r[0] != "const":
+                out.append((r[0], r[1], a))
+        return out
 
 
 def offset_alias_sites(code, names, path=None, game=None, bases=None):
-    """[(base, offset, other export, exempt)] for every whole-operand `NAME +/- lit` / `lit + NAME` in
-    comment-stripped `code` whose value is another names.js export's address. `names` is
+    """[(base export, offset, other export, exempt, position)] for every operand in comment-stripped `code` whose
+    value is another names.js export's address, and every `mem16[...]` whose high byte is one. `names` is
     names_addresses(); `bases` {NAME: span}."""
     bases = bases or {}
-    local = _names_locals(code, path, game)
+    local, ns = _names_locals(code, path, game)
+    if not local and not ns:
+        return []
     by_addr = {}
     for k, v in names.items():
         by_addr.setdefault(v, k)
-    lit = r"(0[xX][0-9a-fA-F](?:_?[0-9a-fA-F])*|\d(?:_?\d)*)"
-    nm = r"([A-Za-z_$][\w$]*)"
-    forms = ((re.compile(r"(?<![\w$.])" + nm + r"\s*([+-])\s*" + lit + r"(?![\w$.])"), 1, 2, 3),
-             (re.compile(r"(?<![\w$.])" + lit + r"\s*(\+)\s*" + nm + r"(?![\w$.(])"), 3, 2, 1))
+    al = _Aliases(code, names, local, ns)
     out = []
-    for rx, gn, go, gl in forms:
-        for m in rx.finditer(code):
-            before = code[:m.start()].rstrip()
-            after = code[m.end():].lstrip(" \t")
-            whole_start = not before or before[-1] in _OPERAND_START or re.search(r"\breturn$", before)
-            whole_end = not after or after[0] in _OPERAND_END or after[0] == "\n"
-            if not (whole_start and whole_end) or before.endswith(("-", "+")):
-                continue
-            export = local.get(m.group(gn))
-            if export not in names:
-                continue
-            off = _lit_val(m.group(gl)) * (-1 if m.group(go) == "-" else 1)
-            other = by_addr.get((names[export] + off) & 0xFFFF)
-            if off == 0 or other is None or other == export:
-                continue
-            exempt = export in bases and 0 <= off < bases[export]
-            out.append((export, off, other, exempt))
+
+    def hit(export, off, pos):
+        other = by_addr.get((names[export] + off) & 0xFFFF)
+        if off != 0 and other is not None and other != export:
+            out.append((export, off, other, export in bases and 0 <= off < bases[export], pos))
+    for export, off, decl_off, pos in al.sites():
+        if decl_off is None or off != decl_off:
+            hit(export, off, pos)
+    for export, off, pos in al.word_sites():
+        hit(export, off + 1, pos)
     return out
 
 
@@ -782,7 +1345,8 @@ def parse_bases(text, path, names):
     return out
 
 
-def counts(text, game=None, slots=frozenset(), sizes=frozenset(), path=None, names=None, bases=None):
+def counts(text, game=None, slots=frozenset(), sizes=frozenset(), path=None, names=None, bases=None,
+           routines=None):
     """Per-category cruft counts for one module's source text. The CATEGORIES keys are always-counted
     (baked into every game's budget); "stack" (m.ret/m.pop*) is a separate addend the callers apply only
     for CLOSURE_GAMES (TIGHT_GAMES fold it into "pushes"), so it is returned but excluded from total(). `slots` feeds rule C (address_slots), `sizes` rule M (read_sizes).
@@ -790,7 +1354,7 @@ def counts(text, game=None, slots=frozenset(), sizes=frozenset(), path=None, nam
     (parse_bases) enable the SHORT_ADDR offset-alias rule. names.js itself is passed through names_code first."""
     code = canon_literals(strip_comments(text))
     imports = len(import_hits(code, path, game)) if path and game in TIGHT_GAMES else 0
-    aliases = (sum(1 for *_, ex in offset_alias_sites(code, names, path, game, bases) if not ex)
+    aliases = (sum(1 for *_, ex, _ in offset_alias_sites(code, names, path, game, bases) if not ex)
                if names and game in SHORT_ADDR_GAMES else 0)
     if game in SHORT_ADDR_GAMES:
         code = fold_pages(code)
@@ -799,7 +1363,7 @@ def counts(text, game=None, slots=frozenset(), sizes=frozenset(), path=None, nam
     else:
         calls, pushes, other = len(CALL.findall(code)), len(PUSH.findall(code)), 0
     return {
-        "registers": len(register_hits(_normalize_regs(code), tight=game in TIGHT_GAMES)),
+        "registers": len(register_hits(_normalize_regs(code), tight=game in TIGHT_GAMES, routines=routines)),
         "calls": calls,
         "pushes": pushes,
         "addrs": (sum(1 for t in ADDR.findall(code) if _is_long(t))
@@ -858,6 +1422,9 @@ def _game_bases(game, sources, from_index):
         names = names_addresses(_read(names_path, from_index))
     except (GitError, OSError):
         return {}, {}
+    odd = nonstandard_exports(_read(names_path, from_index))
+    if odd:
+        raise GitError(f"{names_path}: export not a 4-digit hex address: {', '.join(odd)}")
     path = f"games/{game}/idiomatic-bases.txt"
     try:
         text = _read(path, from_index)
@@ -879,11 +1446,31 @@ def _layer_counts(game, sources, from_index):
     texts = [t for _, t in sources]
     slots, sizes = _game_slots(game, texts, from_index), _game_sizes(game, texts, from_index)
     names, bases = _game_bases(game, sources, from_index)
+    routines = None
     if game in TIGHT_GAMES:
         probs = verify_import_allowlist(game, from_index)
         if probs:
             raise GitError("import allowlist: " + "; ".join(probs))
-    return [(p, counts(t, game, slots, sizes, p, names, bases)) for p, t in sources]
+        try:
+            routines = routine_exports(_read(f"games/{game}/idiomatic/{NAMES_FILE}", from_index))
+        except (GitError, OSError):
+            routines = frozenset()   # no names.js: no export is a ROUTINES entry, so no default is exempt
+    return [(p, counts(t, game, slots, sizes, p, names, bases, routines)) for p, t in sources]
+
+
+def routine_exports(names_js):
+    """The export names the idiomatic runtime wires from a names.js ROUTINES map: each entry's
+    `entry ?? name` (machine.js resolveAllIdiomatic)."""
+    at = names_js.find("export const ROUTINES")
+    if at < 0:
+        return frozenset()
+    out = set()
+    for chunk in re.split(r"(?m)^\s*0x[0-9a-fA-F]+\s*:\s*\{", names_js[at:])[1:]:
+        entry = re.search(r"(?:^|[{,\n])\s*entry\s*:\s*(['\"])([\w$]+)\1", chunk)
+        name = re.search(r"(?:^|[{,\n])\s*name\s*:\s*(['\"])([\w$]+)\1", chunk)
+        if entry or name:
+            out.add((entry or name).group(2))
+    return frozenset(out)
 
 
 def _game_slots(game, texts, from_index):
@@ -986,7 +1573,7 @@ def all_games():
 # reachable (translated `_registry.generated.js`, graph-closed) - overridden (idiomatic ROUTINES) -
 # boundary = the still-frozen routines, counted alongside CPU cruft so the total can't reach 0 while
 # anything reachable is oracle-served. Only ENROLLED games are counted; legacy opts in when worked.
-CLOSURE_GAMES = {"frogger", "pooyan", "invaders", "centiped", "tempest"}
+CLOSURE_GAMES = {"frogger", "pooyan", "invaders", "centiped", "tempest", "timeplt"}
 BOUNDARY_FILE = "tools/idiomatic-boundaries.txt"
 REG_ENTRY = re.compile(r"^\s*\[\s*0x([0-9a-fA-F]+)\s*,")     # _registry.generated.js address->fn rows
 ROUTINE_KEY = re.compile(r"^\s*0x([0-9a-fA-F]+)\s*:\s*\{")   # names.js ROUTINES map keys
@@ -1165,13 +1752,14 @@ def selftest():
     # TIGHT rule (TIGHT_GAMES, e.g. timeplt): a return-write is exempt only when it IS the returned value.
     tg, lg = "timeplt", "galaxian"   # a TIGHT game, and a game on the legacy rule
     want("TIGHT_GAMES holds the tight game", tg in TIGHT_GAMES, True)
+    want("timeplt is closure-enrolled (C3)", tg in CLOSURE_GAMES, True)
     want("legacy game not TIGHT", lg in TIGHT_GAMES, False)
     # outgoing return-writes stay exempt: tuple, object, multi-line, chained through a u16 mask, ternary RHS
     for ok_src in ("return (m.regs.a = v);",
                    "return [m.regs.a = x, m.regs.hl = y];",
                    "return [\n  m.regs.a = x,\n  m.regs.hl = y,\n];",
                    "return { d: (m.regs.d = d), e: u16(m.regs.e = e) };",
-                   "return (m.regs.fC = x === undefined ? true : x);",
+                   "return (m.regs.c = x === undefined ? 1 : x);",
                    "return c ? (m.regs.a = 1) : (m.regs.a = 2);"):
         want(f"tight return-write exempt: {ok_src!r}", counts(ok_src, tg)["registers"], 0)
     # an INPUT SEAT riding a return is counted: seat-before-call, call argument, void, non-returned comma operand
@@ -1187,7 +1775,32 @@ def selftest():
                    ("function f(m) { return (m.regs.ix = X, g(m)); }", 1)):
         want(f"tight input seat counted: {src!r}", counts(src, tg)["registers"], n)
     # the tight param-default exemption still covers a (multi-line) parameter list
-    want("tight param-default exempt", counts("function f(m,\n  x = m.regs.a,\n) {\n  return x;\n}", tg)["registers"], 0)
+    want("tight param-default exempt", counts("export function f(m,\n  x = m.regs.a,\n) {\n  return x;\n}", tg)["registers"], 0)
+    # (R40 CD-1) a flag register counts in every spelling: param-default, return-assignment, body read, backing field
+    for src, n in (("export function f(m, x = m.regs.fZ) { return x; }", 1),
+                   ("export function f(m, v) { return (m.regs.fC = v); }", 1),
+                   ("export function f(m) { return (m.regs.fZ = rowInt === 0); }", 1),
+                   ("export function f(m) { return m.regs.f & 0x40; }", 1),
+                   ("export function f(m, x = m.regs._f) { return x; }", 1),
+                   ("export function f(m, x = m.regs.af) { return x; }", 1)):
+        want(f"tight flag register counted: {src!r}", counts(src, tg)["registers"], n)
+    # (R40 CD-2) the param-default bridge is exempt only on a ROUTINES entry's own export
+    rt = frozenset({"flyMotherShipOneFrame"})
+    for src, n in (("export function flyMotherShipOneFrame(m, record = m.regs.ix, entry = m.regs.iy) { return record; }", 0),
+                   ("export function coordinateAt(m, wholeAddr = m.regs.hl) { return wholeAddr; }", 1),
+                   ("export function flyHelper(m, record = m.regs.ix, entry = m.regs.iy) { return record; }", 2)):
+        want(f"tight ROUTINES-only param-default: {src[:40]!r}", len(register_hits_tight(_normalize_regs(src), rt)), n)
+    want("routine_exports reads name and entry",
+         routine_exports('export const ROUTINES = {\n  0x0ff1: { name: "f", why: "x" },\n'
+                         '  0x1000: {\n    name: "g",\n    entry: "gEntry",\n  },\n};\n'), frozenset({"f", "gEntry"}))
+    # (R40 GI-4) only an exported routine's own list is the bridge: the bare file, a nested or private helper count
+    for src, n in (("export function f2(m, r = m.regs) { return r.hl; }", 2),
+                   ("export function f(m) {\n  function inner(r = m.regs) { return r.a; }\n  return inner();\n}", 2),
+                   ("export function f(m) {\n  function inner(x = m.regs.a) { return x; }\n  return inner();\n}", 1),
+                   ("function h(m, x = m.regs.a) { return x; }", 1),
+                   ("export function* g(m, x = m.regs.a) { yield x; }", 0),
+                   ("export function f2(m, regs = m.regs) { return regs.hl; }", 2)):
+        want(f"tight signature scope: {src!r}", counts(src, tg)["registers"], n)
     # LEGACY rule (every other game) keeps its old result: any write after `return` on the line is exempt,
     # INCLUDING the input seat; the tight rule does not leak to it.
     for src, n in (("return (m.regs.a = v);", 0),
@@ -1285,8 +1898,14 @@ def selftest():
     for src, n in (('const v = m["regs"].a;', 1), ("const r = m.regs;\nconst v = r.a;", 2),
                    ("const { a, hl } = m.regs;", 3), ("const { regs: q } = m;\nq.a = 1;", 1),
                    ("const v = m.regs['a'] + m?.regs?.b + regs [k];", 3), ("const { regs, mem8 } = m;", 0),
-                   ("const { regs: { a } } = m;", 1)):
+                   ("const { regs: { a } } = m;", 1), ("if (m.regs._a === 7) return;", 1)):
         want(f"register spelling: {src!r}", counts(src, lg)["registers"], n)
+    # (R40 GI-6) a // or /* inside a string or a regex literal hides nothing after it
+    for src in ("const u = 'http://x'; m.call(PLAY_ACTIVE);", 'const u = "/*"; m.call(PLAY_ACTIVE);',
+                "const re = /\\/\\//; m.call(PLAY_ACTIVE);", "const t = `a//b`; m.call(PLAY_ACTIVE);"):
+        want(f"string-aware comments: {src!r}", counts(src, lg)["calls"], 1)
+    for src, n in (("const h = a / b; // m.call(X)", 0), ("const h = (a) / 2 / c; m.call(X);", 1)):
+        want(f"division is no regex: {src!r}", counts(src, lg)["calls"], n)
     # TIGHT machine surface: a primitive on any receiver/spelling counts; an unsanctioned member of the
     # exported function's machine parameter counts as `mem`; an Array method or a sanctioned member does not
     fn = "export function f(m) {\n  %s\n}"
@@ -1326,6 +1945,19 @@ def selftest():
                    ("return m.mem8[i | (0xff << 8)];", 1),
                    ("const c = 0x04 << 8;", 0), ("const w = (7 << 8) | 1;", 0)):
         want(f"page fold {sg}: {src!r}", counts(src, sg)["addrs"], n)
+    # (R40 GI-3) uppercase hex, a hex shift count, and a module const of page value in the page position
+    for src, n in (("mem8[lo | (0XAD << 8)] = 1;", 1), ("mem8[lo | (0xad << 0x8)] = 1;", 1),
+                   ("const PAGE = 0xad;\nconst lo = mem8[X];\nconst at = (PAGE << 8) | lo;\nmem8[at] = 1;", 1),
+                   ("const HI = 0xad;\nmem8[HI * 256 + lo] = 1;", 1), ("const HI = 0xad;\nmem8[lo + 256 * HI] = 1;", 1),
+                   ("const PAGE = 0xa9 << 8;", 1),
+                   ("const P = 0x10;\nconst STEP = -P * 256 + P;", 0), ("const N = 4;\nconst w = N << 8;", 0),
+                   ("let PAGE = 0xad;\nPAGE = 0;\nconst at = (PAGE << 8) | lo;", 0)):
+        want(f"page fold {sg}: {src!r}", counts(src, sg)["addrs"], n)
+    helper = "function peek(m, hi, lo) { return m.mem8[(hi << 8) | lo]; }\n"
+    want("page slot found", page_slots(helper), {("peek", 1, "page")})
+    for src, n in (("const HI = 0xad;\nconst v = peek(m, HI, 0x30);", 1), ("const v = peek(m, 0xad, lo);", 1),
+                   ("const v = peek(m, 3, lo);", 0), ("const v = peek(m, hi, 0xad);", 0)):
+        want(f"page slot: {src!r}", counts(helper + src, sg, address_slots([helper + src], ""))["addrs"], n)
     want("page fold opt-in", counts("mem8[lo | (0xad << 8)] = 1;", lg)["addrs"], 0)
     want("pop/ret are pushes for TIGHT", counts("m.pop16(); m.pop8(); m.ret();", tg)["pushes"], 3)
     want("pop/ret not pushes for legacy", counts("m.pop16(); m.ret();", lg)["pushes"], 0)
@@ -1361,7 +1993,7 @@ def selftest():
                    ('import { h } from "./lib/h.js";', 0), ('import { u8, u16 } from "../../../core/int.js";', 0),
                    ('import { h } from "./lib/h.mjs";', 1), ('import { h } from "./h.cjs";', 1),
                    ('import { bcdAddByte } from "../../../core/bcd.js";', 0),
-                   ('import { F_Z, F_PV as P } from "../../../core/cpu/z80.js";', 0),
+                   ('import { F_Z, F_PV as P } from "../../../core/cpu/z80.js";', 1),   # R40 CD-1
                    ('import { NotImplemented } from "../../../boards/timeplt/io.js";', 0),
                    ('import { helper } from "../../../core/z80ops_tmp.js";', 1),         # the auditor's core mutant
                    ('import { Regs } from "../../../core/cpu/z80.js";', 1),
@@ -1388,8 +2020,9 @@ def selftest():
                            ("boards/timeplt/io.js", "", 0)):
         fake = lambda p, path=path, extra=extra: real(p) + extra if p == path else real(p)
         want(f"allowlist re-check: {path} + {extra!r}", len(verify_import_allowlist(tg, False, fake)), n)
-    swapped = lambda p: real(p).replace("export const F_Z = 0x40;", "export function F_Z() {}") if p == "core/cpu/z80.js" else real(p)
-    want("allowlist re-check: F_Z turned executable", len(verify_import_allowlist(tg, False, swapped)), 1)
+    swapped = lambda p: (real(p).replace("export class NotImplemented extends Error", "export function NotImplemented()")
+                         if p == "boards/timeplt/io.js" else real(p))
+    want("allowlist re-check: NotImplemented turned executable", len(verify_import_allowlist(tg, False, swapped)), 1)
     # OFFSET ALIAS (SHORT_ADDR, R40 tp-r40i OPEN 2): NAME +/- lit landing on ANOTHER names.js export counts
     nm = names_addresses("export const PLAY_ACTIVE = 0xad30;\nexport const PLAYER_ONE_ERA_INDEX = 0xad14;\n"
                          "export const STEP = 0xa9f0;\nexport const TICK = 0xa9f1;\nexport const CUR = 0xa9f7;\n"
@@ -1407,6 +2040,48 @@ def selftest():
     for src, n in (("mem8[POS + 1] = 0;", 0), ("mem8[POS + 2] = 0;", 1)):   # a declared 2-byte word base
         want(f"offset alias word base: {src!r}", counts(imp + src, sg, names=nm, bases={"POS": 2})["addrs"], n)
     want("offset alias opt-in: legacy game", counts(imp + "mem8[STEP + 1] = 0;", lg, names=nm)["addrs"], 0)
+    # (R40 GI-1, CD-3) a named offset: a module const of literal value, alone or in a literal expression
+    for src, n in (("const FIELD = 1;\nmem8[STEP + FIELD] = 0;", 1), ("const FIELD = 0x01;\nf(m, FIELD + STEP);", 1),
+                   ("const W = 1;\nmem8[POS + 2 * W] = 0;", 1), ("const S = 0x10;\nconst F = S >> 4;\nmem8[STEP + F] = 0;", 1),
+                   ("let FIELD = 1;\nmem8[STEP + FIELD] = 0;", 1), ("const T = [1];\nmem8[STEP + T.length] = 0;", 1),
+                   ("const FIELD = 1;\nconst at = () => STEP + FIELD;", 1), ("const at = () => STEP + 1;", 1),
+                   ("let FIELD = 1;\nFIELD = 2;\nmem8[STEP + FIELD] = 0;", 0), ("const K = 1;\nconst K2 = 1;\nmem8[STEP + K + i] = 0;", 0),
+                   ("const FIELD = 5;\nmem8[STEP + FIELD] = 0;", 0), ("function f() { const K = 1; }\nfunction g() { const K = 2; }\nmem8[STEP + K] = 0;", 0)):
+        want(f"offset alias named offset: {src!r}", counts(imp + src, sg, names=nm)["addrs"], n)
+    ms = names_addresses("export const MOTHER_SHIP_STATE = 0xa8a0;\nexport const MOTHER_SHIP_HITS_TO_ABSORB = 0xa8a4;\n"
+                         "export const CRAFT_RECORD_SLOT6 = 0xa8b0;\nexport const DEFERRED_WRITE_CURSOR = 0xae00;\n"
+                         "export const DEFERRED_WRITE_LIST = 0xae04;\n")
+    msi = 'import { MOTHER_SHIP_STATE, DEFERRED_WRITE_CURSOR } from "./names.js";\n'
+    for src, n in (("const RECORD_STRIDE = 0x10;\nconst FIRE_BYTE = 0x04;\nconst FIRE_ARMED = 0x07;\n"
+                    "if ((mem8[MOTHER_SHIP_STATE] | mem8[MOTHER_SHIP_STATE + RECORD_STRIDE]) !== 0) return;\n"
+                    "mem8[MOTHER_SHIP_STATE + FIRE_BYTE] = FIRE_ARMED;", 2),
+                   ("const FIRST_ENTRY = 4;\nm.mem16[DEFERRED_WRITE_CURSOR] = DEFERRED_WRITE_CURSOR + FIRST_ENTRY;\n"
+                    "return (m.regs.hl = DEFERRED_WRITE_CURSOR + FIRST_ENTRY);", 2)):
+        want(f"offset alias shipped form: {src[:40]!r}", counts(msi + src, sg, names=ms)["addrs"], n)
+    # (R40 GI-2) an aliased base, a namespace import, a straight-line cursor, a word access, an arrow body
+    for src, n in (("const intro = STEP;\nmem8[intro + 1] = 0;", 1), ("let intro = STEP;\nmem8[intro + 1] = 0;", 1),
+                   ("const v = STEP + 1;\nmem8[v] = 0;", 1), ("const v = STEP;\nconst w = v + 1;\nmem8[w] = 0;", 1),
+                   ("let p = STEP;\np++;\nmem8[p] = 0;", 1), ("let p = STEP;\nmem8[++p] = 0;", 1),
+                   ("let p = STEP;\nmem8[p++] = 1;\nmem8[p] = 0;", 1), ("let p = STEP;\np += 1;\nmem8[p] = 0;", 1),
+                   ("let p;\np = STEP;\np++;\nmem8[p] = 0;", 1), ("let p = STEP;\np++;\np++;", 0),
+                   ("let p = STEP;\np = p + 1;\nmem8[p] = 0;", 1), ("let p = STEP;\np = 1 + p;\nmem8[p] = 0;", 1),
+                   ("let p = STEP;\np++;\np = STEP;\nmem8[p] = 0;", 0), ("let p = q;\np = STEP + 1;", 1),
+                   ("if (p < STEP + 1) f();", 0), ("if (p === STEP + 1) f();", 1), ("mem8[STEP + 1] = 0;\nn++;", 1),
+                   ("let p = STEP;\np = q;\nmem8[p + 1] = 0;", 0), ("let p = STEP;\nif (c) p++;\nmem8[p] = 0;", 0),
+                   ("let p = STEP;\nfor (let i = 0; i < 4; i++) mem8[p++] = 0;\nmem8[p] = 0;", 0),
+                   ("let p = STEP;\nfor (let i = 0; i < 4; i++) { mem8[p] = 0; p++; }", 0),
+                   ("let p = STEP;\nwhile (n--) mem8[p++] = 0;", 0), ("let p = STEP;\np += k;\nmem8[p] = 0;", 0),
+                   ("for (let p = STEP; c; p++) mem8[p] = 0;", 0),
+                   ("m.mem16[STEP] = v;", 1), ("const w = mem16[POS];", 1), ("const w = mem16[POS + 1];", 2),
+                   ("const w = mem16[CUR];", 0)):
+        want(f"offset alias {sg}: {src!r}", counts(imp + src, sg, names=nm)["addrs"], n)
+    nsi = 'import * as N from "./names.js";\n'
+    want("offset alias namespace import", counts(nsi + "mem8[N.STEP + 1] = 0;", sg, names=nm)["addrs"], 1)
+    want("offset alias namespace control", counts(nsi + "mem8[N.STEP] = 0;", sg, names=nm)["addrs"], 0)
+    want("offset alias word base", counts(imp + "const w = mem16[POS];", sg, names=nm, bases={"POS": 2})["addrs"], 0)
+    want("names.js short export refused", nonstandard_exports("export const A = 0xad30;\nexport const EVIL_TABLE = 0xd1b;\n"),
+         ["EVIL_TABLE"])
+    want("names.js short export still an address", names_addresses("export const EVIL_TABLE = 0xd1b;\n"), {"EVIL_TABLE": 0xd1b})
     want("subdir module's ../names.js import", counts('import { STEP } from "../names.js";\nmem8[STEP + 1] = 0;', sg,
                                                     path="games/timeplt/idiomatic/lib/a.js", names=nm)["addrs"], 1)
     for bad in ("POS\n", "POS 2\n", "POS 1 a byte\n", "NOPE 2 not an export\n", "POS x reason\n"):

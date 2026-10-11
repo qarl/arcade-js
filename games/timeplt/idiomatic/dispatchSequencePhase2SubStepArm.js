@@ -3,7 +3,8 @@
  * index picks one arm from a fixed inline word table, that arm runs, then this mode's no-op tail.
  * Each case is the slot's literal target, called directly. The index is RAW; the entry doubling wraps
  * at 8 bits, so index and index+128 pick the same slot (low 7 bits key the switch). Only the first
- * five slots are transcribed arms; the rest are non-routine bytes and fault. LIVE-OUT: the arm's. */
+ * five slots are transcribed arms; the rest are non-routine bytes and fault. LIVE-OUT: the arm's.
+ * ROM 0x17FE-0x1805. Grounding: [seen] (names.js ROUTINES 0x17FE). */
 
 import { NotImplemented } from "../../../boards/timeplt/io.js";
 import { SEQUENCE_SUBSTEP } from "./names.js";

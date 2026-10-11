@@ -519,14 +519,20 @@ def comment_debt(game):
 
 
 def floor_files(game):
-    """Idiomatic .js files the floor governs: games/<game>/idiomatic/**.js minus names.js and test/."""
-    base = os.path.join("games", game, "idiomatic")
+    """Idiomatic .js files the floor governs, as STAGED (the index): games/<game>/idiomatic/**.js minus
+    names.js and test/. The floor reads the file list, the files and idiomaticComplete all from the index,
+    so the three always describe the same tree (an unstaged edit can neither pass nor fail it)."""
+    base = f"games/{game}/idiomatic/"
+    r = subprocess.run(["git", "ls-files", "--cached", "--", base], capture_output=True, text=True)
+    if r.returncode != 0:
+        raise GitError(r.stderr.strip() or f"cannot list {base}")
     out = []
-    for dirpath, dirs, files in os.walk(os.path.join(repo_root(), base)):
-        dirs[:] = [d for d in dirs if d != "test"]
-        for f in files:
-            if f.endswith(".js") and f != EXEMPT_LEAF:
-                out.append(os.path.relpath(os.path.join(dirpath, f), repo_root()))
+    for path in r.stdout.splitlines():
+        rest = path[len(base):]
+        if rest.startswith("test/") or "/test/" in rest:
+            continue
+        if path.endswith(".js") and os.path.basename(path) != EXEMPT_LEAF:
+            out.append(path)
     return out
 
 
@@ -1054,17 +1060,14 @@ def cmd_density(args):
 
 
 def cmd_floor(args):
-    """Comment FLOOR for a cleaned game: each idiomatic file must carry enough comment. Working tree."""
+    """Comment FLOOR for a cleaned game: each idiomatic file must carry enough comment. Reads the INDEX
+    (file list, contents, idiomaticComplete and comment-debt.txt alike)."""
     game = args.game
     if not _game_idiomatic_complete(game):
         print(f"comment_gate floor [{game}]: N/A (not idiomaticComplete — the floor is a cleanup-phase bar)")
         return 0
-    root = repo_root()
     try:
-        hits = floor_violations(
-            floor_files(game), lambda p: open(os.path.join(root, p), encoding="utf-8").read(),
-            comment_debt(game),
-        )
+        hits = floor_violations(floor_files(game), lambda p: blob(":0", p), comment_debt(game))
     except LexError as e:
         print(f"comment_gate floor: BLOCKED — cannot lex: {e}", file=sys.stderr)
         return 1

@@ -8,134 +8,28 @@
   "start": 500,
   "hold": 8,
   "pokes": [
-    {
-      "frame": 560,
-      "addr": "0xad14",
-      "val": "0x03",
-      "dur": 1
-    },
-    {
-      "frame": 700,
-      "addr": "0xaa81",
-      "val": "0x03",
-      "dur": 1
-    },
-    {
-      "frame": 716,
-      "addr": "0xaa81",
-      "val": "0x03",
-      "dur": 1
-    },
-    {
-      "frame": 732,
-      "addr": "0xaa81",
-      "val": "0x03",
-      "dur": 1
-    },
-    {
-      "frame": 748,
-      "addr": "0xaa81",
-      "val": "0x03",
-      "dur": 1
-    },
-    {
-      "frame": 764,
-      "addr": "0xaa81",
-      "val": "0x03",
-      "dur": 1
-    },
-    {
-      "frame": 780,
-      "addr": "0xaa81",
-      "val": "0x03",
-      "dur": 1
-    },
-    {
-      "frame": 796,
-      "addr": "0xaa81",
-      "val": "0x03",
-      "dur": 1
-    },
-    {
-      "frame": 812,
-      "addr": "0xaa81",
-      "val": "0x03",
-      "dur": 1
-    },
-    {
-      "frame": 828,
-      "addr": "0xaa81",
-      "val": "0x03",
-      "dur": 1
-    },
-    {
-      "frame": 844,
-      "addr": "0xaa81",
-      "val": "0x03",
-      "dur": 1
-    },
-    {
-      "frame": 860,
-      "addr": "0xaa81",
-      "val": "0x03",
-      "dur": 1
-    },
-    {
-      "frame": 876,
-      "addr": "0xaa81",
-      "val": "0x03",
-      "dur": 1
-    },
-    {
-      "frame": 892,
-      "addr": "0xaa81",
-      "val": "0x03",
-      "dur": 1
-    },
-    {
-      "frame": 908,
-      "addr": "0xaa81",
-      "val": "0x03",
-      "dur": 1
-    },
-    {
-      "frame": 924,
-      "addr": "0xaa81",
-      "val": "0x03",
-      "dur": 1
-    },
-    {
-      "frame": 940,
-      "addr": "0xaa81",
-      "val": "0x03",
-      "dur": 1
-    },
-    {
-      "frame": 956,
-      "addr": "0xaa81",
-      "val": "0x03",
-      "dur": 1
-    },
-    {
-      "frame": 972,
-      "addr": "0xaa81",
-      "val": "0x03",
-      "dur": 1
-    },
-    {
-      "frame": 988,
-      "addr": "0xaa81",
-      "val": "0x03",
-      "dur": 1
-    }
+    { "frame": 560, "addr": "0xad14", "val": "0x03", "dur": 1 },
+    { "frame": 700, "addr": "0xaa81", "val": "0x03", "dur": 1 },
+    { "frame": 716, "addr": "0xaa81", "val": "0x03", "dur": 1 },
+    { "frame": 732, "addr": "0xaa81", "val": "0x03", "dur": 1 },
+    { "frame": 748, "addr": "0xaa81", "val": "0x03", "dur": 1 },
+    { "frame": 764, "addr": "0xaa81", "val": "0x03", "dur": 1 },
+    { "frame": 780, "addr": "0xaa81", "val": "0x03", "dur": 1 },
+    { "frame": 796, "addr": "0xaa81", "val": "0x03", "dur": 1 },
+    { "frame": 812, "addr": "0xaa81", "val": "0x03", "dur": 1 },
+    { "frame": 828, "addr": "0xaa81", "val": "0x03", "dur": 1 },
+    { "frame": 844, "addr": "0xaa81", "val": "0x03", "dur": 1 },
+    { "frame": 860, "addr": "0xaa81", "val": "0x03", "dur": 1 },
+    { "frame": 876, "addr": "0xaa81", "val": "0x03", "dur": 1 },
+    { "frame": 892, "addr": "0xaa81", "val": "0x03", "dur": 1 },
+    { "frame": 908, "addr": "0xaa81", "val": "0x03", "dur": 1 },
+    { "frame": 924, "addr": "0xaa81", "val": "0x03", "dur": 1 },
+    { "frame": 940, "addr": "0xaa81", "val": "0x03", "dur": 1 },
+    { "frame": 956, "addr": "0xaa81", "val": "0x03", "dur": 1 },
+    { "frame": 972, "addr": "0xaa81", "val": "0x03", "dur": 1 },
+    { "frame": 988, "addr": "0xaa81", "val": "0x03", "dur": 1 }
   ],
-  "responded": {
-    "cell": "0xaa58",
-    "op": "eq",
-    "val": "0x0d"
-  },
-  "reaches": [
-    "stepCountdownSlotThenCloseTurn",
-    "serviceSlotByMarkerThenCloseSweepTurn"
-  ]
+  "responded": {"cell": "0xaa58", "op": "eq", "val": "0x0d"},
+  "reaches": ["stepCountdownSlotThenCloseTurn", "serviceSlotByMarkerThenCloseSweepTurn"],
+  "idiomatic_residual_frames": 57
 }

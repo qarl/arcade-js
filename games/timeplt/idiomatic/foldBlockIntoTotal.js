@@ -6,7 +6,8 @@
  * is not repeated here. The second pointer is still accepted, so the call keeps the shape its
  * callers use; the holder's prior value (C) is not, since nothing here or after it reads it. The length arrives as a count that means a full 256
  * when it is zero, and the total wraps at eight bits. Nothing is written.
- * LIVE-OUT: the total, returned and left standing in A for a caller that reaches it by address. */
+ * LIVE-OUT: the total, returned and left standing in A, as the ROM leaves it.
+ * ROM 0x291E-0x2926. Grounding: [seen] (names.js ROUTINES 0x291E). */
 
 import { u8, u16 } from "../../../core/int.js";
 

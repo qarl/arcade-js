@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** seatTheStackAndSettleTheControlLatch — power-on, the first code that decides anything. It probes the
+/** probeExpansionThenSettleControlLatch — power-on, the first code that decides anything. It probes the
  * expansion socket: an empty socket floats the bus high, never a fitted board's answer, so the question
  * always returns "no" and the rest runs; a "yes" would hand control to the expansion. Then it quiets the
  * watchdog, drives the control lines low, and enables the picture. The original also seats the stack just
@@ -16,6 +16,7 @@
  * 5, 6 and 7 are never written here (names.js), so "settle the latch" means five of its eight lines.
  */
 
+import { NotImplemented } from "../../../boards/timeplt/io.js";
 import { clearWorkRamAndSpriteBanksThenColdInit } from "./clearWorkRamAndSpriteBanksThenColdInit.js";
 import { EXPANSION_SOCKET_PROBE, WATCHDOG_RESET, NMI_ENABLE_LATCH, VIDEO_ENABLE_LATCH, DISPLAY_ON_VALUE } from "./names.js";
 
@@ -25,7 +26,7 @@ const EXPANSION_FITTED = 0x55;
 // The walk over 0xC300-0xC307 (the ROM's `ld b,0x08`); two addresses per latch line, so four lines.
 const CONTROL_LINE_ADDRESSES = 8;
 
-export function seatTheStackAndSettleTheControlLatch(m) {
+export function probeExpansionThenSettleControlLatch(m) {
   const { mem8 } = m;
 
   // Probe the expansion socket. 0x6000 is one past the end of the program ROM (0x0000-0x5FFF); on a
@@ -33,10 +34,9 @@ export function seatTheStackAndSettleTheControlLatch(m) {
   // whole machine to an expansion that answered 0x55. Nothing models that, so it raises instead.
   const socketAnswer = mem8[EXPANSION_SOCKET_PROBE];
   if (socketAnswer === EXPANSION_FITTED) {
-    throw new Error(
-      "the expansion socket answered, so this machine is being asked to run as an expanded one " +
-        "and control belongs in the expansion from here. Nothing models that, and a socket with " +
-        "nothing in it cannot give this answer.",
+    throw new NotImplemented(
+      "probeExpansionThenSettleControlLatch: the expansion socket answered, so control belongs in an " +
+        "expansion nothing models; a board with the socket empty never answers",
     );
   }
 

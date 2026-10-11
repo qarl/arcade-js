@@ -17,15 +17,16 @@
  *
  * RAM IS NOT THE GATE HERE, and test 1 proves it rather than assuming it: the routine writes no
  * memory, so a RAM comparison returns identical for the real routine, for every twin and for a
- * bare no-op. The live-out is the CARRY FLAG, mirrored by the returned boolean, and every unit arm
- * compares both. `r.equal` is never asserted — it folds in the register diff this contract drops.
+ * bare no-op. The live-out is the oracle's CARRY FLAG, which the rewrite RETURNS, and every unit arm
+ * compares the return against it. `r.equal` is never asserted — it folds in the register diff this
+ * contract drops.
  *
  * GATE: strict unit-capture, the attract corpus replayed at every dispatch, an exhaustive sweep of
  *   the routine's entire input space at five record bases, a whole-session hostile-register
  *   instrument, and a whole-machine replay. What it exercises, holes stated:
  *
  *   1. BLIND — a no-op passes the RAM diff, so RAM cannot be this gate.
- *   2. EQUAL at the real dispatch — carry and the returned boolean, with the registers allowed to
+ *   2. EQUAL at the real dispatch — the returned boolean against the carry, with the registers allowed to
  *      differ bounded by {a, f, sp}: a register outside that set diverging fails the arm, and a
  *      rewrite that diverges on fewer of them passes. The stack pointer is in that set because the
  *      layer models no stack: the frozen routine takes the return its caller pushed and the
@@ -34,7 +35,7 @@
  *   4. DEGENERATE ENTRY AND DEGENERATE CORPUS — the captured entry answers false, and so does
  *      every other dispatch; one record base and one era occur. Doubling the entry budget captures
  *      the SAME entry, so no frame budget escapes it, only crafting does.
- *   5. CORPUS — every dispatch of the attract session, compared on carry AND the returned boolean.
+ *   5. CORPUS — every dispatch of the attract session, compared on the returned boolean.
  *   6. EXHAUSTIVE — the routine reads exactly one cell, so 256 values IS its whole input space and
  *      every value is swept. The set answering true is asserted to be exactly four values.
  *   7. CRAFTED BASES — the same sweep at four further record bases, because real play presents one.
@@ -44,12 +45,19 @@
  *      and every non-carry flag forced hostile after each dispatch is bit-identical to the clean
  *      run, and the tooth beside it shows the instrument is wired, because flipping the carry
  *      instead forks the run.
+ *   9a. HAND-OFF — the carry is read back, so the rewrite leaves it out of the registers only
+ *      because every reader is an override that takes the return: measured on the ORACLE over the
+ *      tape sessions, the callers that hear F complemented at this exit are exactly CARRY_READERS
+ *      (each the return address after a `call 0x3CC4`, which tail-transfers here), each owned by a
+ *      ROUTINES entry, with the SP flip at the same exit heard. HOLE: a reader reached only in a
+ *      state no session drives is not measured.
  *  10. WHOLE-MACHINE — the attract session byte-identical with the rewrite wired through a shim
- *      that pays the oracle's T-states and takes its return, since every path in arrives by a tail
- *      transfer. Its BLIND SPOT is declared per twin and asserted, not summarised.
+ *      that pays the oracle's T-states, hands its return to the frozen caller in carry (as the
+ *      overrides that own those callers take it) and takes its return, since every path in arrives
+ *      by a tail transfer. Its BLIND SPOT is declared per twin and asserted, not summarised.
  *  11. The shim's total, checked against the oracle over the whole sweep.
- *  12. TEETH — eleven twins, each declaring the EXACT number of input values it is caught on, by
- *      carry and by the full returned contract separately, plus its whole-machine verdict.
+ *  12. TEETH — twins, each declaring the EXACT number of input values it is caught on by the
+ *      returned contract, plus its whole-machine verdict.
  *
  * HOLE: EVERY dispatch this gate has ever seen sits in ONE era of the attract demo, at ONE record
  * base. The routine's body reads a single cell and no era cell, so its ANSWER cannot depend on the
@@ -65,6 +73,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMachine, COIN_FRAME, START_FRAME, romsPresent } from "./_harness.js";
+import { TAPE_SESSIONS, handOffReaders, heardAs } from "./_deadAtExit.js";
 import { hasReachedHorizontalEdgeWindow } from "../hasReachedHorizontalEdgeWindow.js";
 import { loc_3ce1 as oracle } from "../../translated/loc_3ce1.js";
 import {
@@ -74,7 +83,7 @@ import {
 } from "../../../../core/equivalence.js";
 import { REG_FIELDS, F_C } from "../../../../core/cpu/z80.js";
 import { u8, u16 } from "../../../../core/int.js";
-import { ERA_INDEX } from "../names.js";
+import { ERA_INDEX, ROUTINES } from "../names.js";
 
 const TARGET = 0x3ce1;
 
@@ -91,6 +100,12 @@ const LEFT_BEHIND_FLAGS = 0xff & ~F_C;
 const HOSTILE = 0x5a;
 
 const CORPUS_FRAMES = 2600;
+
+/** Return address of each caller that reads the carry -> the override owning that code: `call 0x3cc4`
+ *  at 0x3B88 in advanceTwoTileObjectThenTryAimedSpawn (0x3B77) and at 0x4447 in
+ *  dressSpriteForHeadingOrRetireAtEdge (0x4447), each followed by `jp c`. */
+const CARRY_READERS = new Map([[0x3b8b, [0x3b77]], [0x444a, [0x4447]]]);
+const HANDOFF_FRAMES = 2500;
 
 /**
  * The shared harness budget is sized for entries a driven tape reaches early. This one is first
@@ -179,19 +194,14 @@ function entryState() {
   return entry;
 }
 
-/**
- * Two verdicts on one comparison, kept apart on purpose. `carry` is what a caller of this address
- * branches on and is the only thing the running machine can see; `contract` adds the returned
- * boolean, which is the rest of the declared live-out and which no running machine tests.
- */
+/** One comparison: RAM, then the candidate's returned answer against the oracle's carry. */
 function verdicts(candidate, machine) {
   const a = machine.clone();
   const b = machine.clone();
   oracle(a);
   const answer = candidate(b);
   const ram = firstStateDiff(a.dumpState(), b.dumpState(), (off) => a.stateOffsetToAddr(off));
-  const carry = ram !== null || a.regs.fC !== b.regs.fC;
-  return { carry, contract: carry || answer !== a.regs.fC, ram, expected: a.regs.fC };
+  return { contract: ram !== null || answer !== a.regs.fC, ram, expected: a.regs.fC };
 }
 
 /** A real captured machine with the read cell forced, which is the crafted-entry idiom. */
@@ -207,21 +217,17 @@ const CRAFT_BASES = [0xaa00, 0xaa26, 0xaa2a, 0xaa50];
 
 /** Split the whole input space into the values a candidate is caught on and the ones it survives. */
 function sweep(candidate, base) {
-  const carry = [];
   const contract = [];
   for (const v of everyValue) {
-    const r = verdicts(candidate, craft(v, base));
-    if (r.carry) carry.push(v);
-    if (r.contract) contract.push(v);
+    if (verdicts(candidate, craft(v, base)).contract) contract.push(v);
   }
-  return { carry, contract };
+  return { contract };
 }
 
 // ── replaying the attract session, one dispatch at a time ───────────────────────────────
 
 function replaySession(opts, candidate) {
   let dispatches = 0;
-  let caughtCarry = 0;
   let caughtContract = 0;
   let trues = 0;
   let firstFrame = null;
@@ -238,7 +244,6 @@ function replaySession(opts, candidate) {
       eras.add(mm.mem8[ERA_INDEX]); // read only to attribute the corpus to a game state
       carryIn.add(mm.regs.fC);
       const r = verdicts(candidate, mm);
-      if (r.carry) caughtCarry++;
       if (r.contract) caughtContract++;
       if (r.expected) trues++;
       return oracle(mm);
@@ -248,7 +253,7 @@ function replaySession(opts, candidate) {
   const frames = m.runFrames(CORPUS_FRAMES);
   assert.equal(m.stoppedBy, null, `session stopped early: ${m.stoppedBy}`);
   assert.equal(frames.length, CORPUS_FRAMES, "session ran short");
-  return { dispatches, firstFrame, caughtCarry, caughtContract, trues, values, bases, eras, carryIn };
+  return { dispatches, firstFrame, caughtContract, trues, values, bases, eras, carryIn };
 }
 
 let sessionCache = null;
@@ -280,7 +285,7 @@ function hostileSession(mutate) {
 
 function hosted(candidate) {
   return (mm) => {
-    candidate(mm);
+    mm.regs.fC = candidate(mm) === true;
     mm.tick(TSTATES - RET_TSTATES);
     mm.ret(RET_TSTATES);
   };
@@ -295,58 +300,50 @@ function replay(candidate) {
 }
 
 // ── the twins ───────────────────────────────────────────────────────────────────────────
-// Eleven ways to get a one-cell window test wrong: the window's width, its position, its wrap,
-// which cell it reads, and the two halves of how the answer is published.
+// Ways to get a one-cell window test wrong: the window's width, its position, its wrap, which cell
+// it reads, and answering in the flag instead of returning.
 
-const publish = (m, answer) => {
-  m.regs.f = (m.regs.f & ~F_C) | (answer ? F_C : 0);
-  return answer;
-};
 const at = (m, offset = 0) => m.mem8[u16(m.regs.iy + offset)];
 
 /** BUG: answers nothing — the tell that a gate is measuring an unreached routine. */
 const brokenNoOp = () => {};
 /** BUG: everything has arrived. */
-const brokenAlwaysTrue = (m) => publish(m, true);
+const brokenAlwaysTrue = () => true;
 /** BUG: nothing ever has — indistinguishable from the real routine on all real data. */
-const brokenAlwaysFalse = (m) => publish(m, false);
+const brokenAlwaysFalse = () => false;
 /** BUG: the window is one value too wide, so an object is retired a step early. */
-const brokenWider = (m) => publish(m, u8(at(m) + STARTS_BELOW_WRAP) < WINDOW + 1);
+const brokenWider = (m) => u8(at(m) + STARTS_BELOW_WRAP) < WINDOW + 1;
 /** BUG: one too narrow, so the value that arrives exactly on the far edge is missed. */
-const brokenNarrower = (m) => publish(m, u8(at(m) + STARTS_BELOW_WRAP) < WINDOW - 1);
+const brokenNarrower = (m) => u8(at(m) + STARTS_BELOW_WRAP) < WINDOW - 1;
 /** BUG: the window sits one value late, so it starts at the wrap instead of short of it. */
-const brokenShifted = (m) => publish(m, u8(at(m) + STARTS_BELOW_WRAP - 1) < WINDOW);
+const brokenShifted = (m) => u8(at(m) + STARTS_BELOW_WRAP - 1) < WINDOW;
 /** BUG: an unwrapped range test, so only the half at or past the wrap counts. */
-const brokenUnwrapped = (m) => publish(m, at(m) < WINDOW);
+const brokenUnwrapped = (m) => at(m) < WINDOW;
 /** BUG: reads the byte next door in the record. */
-const brokenNeighbour = (m) => publish(m, u8(at(m, NEIGHBOUR) + STARTS_BELOW_WRAP) < WINDOW);
+const brokenNeighbour = (m) => u8(at(m, NEIGHBOUR) + STARTS_BELOW_WRAP) < WINDOW;
 /** BUG: measures the record's other coordinate instead of this one. */
-const brokenOtherCoordinate = (m) =>
-  publish(m, u8(at(m, OTHER_COORDINATE) + STARTS_BELOW_WRAP) < WINDOW);
-/** BUG: right answer, never published in the flag a caller of this address branches on. */
-const brokenNoCarry = (m) => u8(at(m) + STARTS_BELOW_WRAP) < WINDOW;
-/** BUG: right flag, nothing returned to a caller that wants a value. */
+const brokenOtherCoordinate = (m) => u8(at(m, OTHER_COORDINATE) + STARTS_BELOW_WRAP) < WINDOW;
+/** BUG: right answer left in the carry flag, nothing returned to the caller that takes the value. */
 const brokenNoReturn = (m) => {
-  publish(m, u8(at(m) + STARTS_BELOW_WRAP) < WINDOW);
+  m.regs.fC = u8(at(m) + STARTS_BELOW_WRAP) < WINDOW;
 };
 
 /**
- * Per twin: the values it is caught on by CARRY alone, the values it is caught on by the full
- * returned contract, and whether the whole-machine replay sees it. All measured, all asserted as
- * exact sets or counts, so a twin caught on the WRONG values fails as loudly as one not caught.
+ * Per twin: the values it is caught on by the returned contract, and whether the whole-machine
+ * replay sees it. All measured, all asserted as exact counts, so a twin caught on the WRONG values
+ * fails as loudly as one not caught.
  */
 const TWINS = [
-  ["no-op", brokenNoOp, 4, 256, false],
-  ["always-true", brokenAlwaysTrue, 252, 252, true],
-  ["always-false", brokenAlwaysFalse, 4, 4, false],
-  ["window-one-wider", brokenWider, 1, 1, false],
-  ["window-one-narrower", brokenNarrower, 1, 1, false],
-  ["window-shifted-one", brokenShifted, 2, 2, false],
-  ["unwrapped", brokenUnwrapped, 4, 4, false],
-  ["reads-the-neighbour", brokenNeighbour, 252, 252, true],
-  ["reads-the-other-coordinate", brokenOtherCoordinate, 4, 4, true],
-  ["no-carry", brokenNoCarry, 4, 4, false],
-  ["no-return", brokenNoReturn, 0, 256, false],
+  ["no-op", brokenNoOp, 256, false],
+  ["always-true", brokenAlwaysTrue, 252, true],
+  ["always-false", brokenAlwaysFalse, 4, false],
+  ["window-one-wider", brokenWider, 1, false],
+  ["window-one-narrower", brokenNarrower, 1, false],
+  ["window-shifted-one", brokenShifted, 2, false],
+  ["unwrapped", brokenUnwrapped, 4, false],
+  ["reads-the-neighbour", brokenNeighbour, 252, true],
+  ["reads-the-other-coordinate", brokenOtherCoordinate, 4, true],
+  ["no-return", brokenNoReturn, 256, false],
 ];
 
 // ── the gate ────────────────────────────────────────────────────────────────────────────
@@ -359,10 +356,10 @@ test("BLIND: RAM is a TAUTOLOGY here — a bare no-op passes it too", { skip }, 
     "a no-op DIVERGED on RAM, so this routine writes memory after all and every claim in this " +
       "file has to be re-derived",
   );
-  console.log("  BLIND: the RAM diff is identical for a no-op — carry is the only gate");
+  console.log("  BLIND: the RAM diff is identical for a no-op — the answer is the only gate");
 });
 
-test("EQUAL at the real dispatch: carry and the returned boolean, excluded set bounded", { skip }, () => {
+test("EQUAL at the real dispatch: the returned boolean is the carry, excluded set bounded", { skip }, () => {
   const r = gate(hasReachedHorizontalEdgeWindow);
   assert.notEqual(entry, null, "vacuous: the attract run never reached the routine");
   assert.equal(r.ram, null, "RAM diverged");
@@ -372,8 +369,7 @@ test("EQUAL at the real dispatch: carry and the returned boolean, excluded set b
   oracle(a);
   const answer = hasReachedHorizontalEdgeWindow(b);
 
-  assert.equal(b.regs.fC, a.regs.fC, "the carry live-out");
-  assert.equal(answer, a.regs.fC, "the returned boolean must mirror the carry");
+  assert.equal(answer, a.regs.fC, "the returned boolean must be the oracle's carry");
   const moved = REG_FIELDS.filter((k) => a.regs[k] !== b.regs[k]);
   const unexpected = moved.filter((k) => !EXCLUDED.includes(k));
   assert.deepEqual(unexpected, [], "a register diverged outside the excluded set");
@@ -433,12 +429,11 @@ test("DEGENERATE ENTRY: doubling the budget captures the SAME entry", { skip }, 
   );
 });
 
-test("CORPUS: every real dispatch agrees on carry and on the returned boolean", { skip }, () => {
+test("CORPUS: every real dispatch returns the oracle's carry", { skip }, () => {
   const s = sessions().find((x) => x.label === "attract");
   assert.ok(s.dispatches > 0, "vacuous: the session never reached the routine");
-  assert.equal(s.caughtCarry, 0, `the rewrite diverged on ${s.caughtCarry} dispatches`);
   assert.equal(s.caughtContract, 0, `the rewrite's return diverged on ${s.caughtContract}`);
-  console.log(`  CORPUS: ${s.dispatches} real dispatches, carry and boolean identical on each`);
+  console.log(`  CORPUS: ${s.dispatches} real dispatches, the returned boolean identical on each`);
 });
 
 test("EXHAUSTIVE: all 256 values of the one cell it reads answer as the oracle does", { skip }, () => {
@@ -469,7 +464,6 @@ test("HONEST SIGNATURE: the explicit base agrees with the register default", { s
     const a = hasReachedHorizontalEdgeWindow(viaRegister);
     const b = hasReachedHorizontalEdgeWindow(viaArgument, viaArgument.regs.iy);
     assert.equal(a, b, `value ${value}: the two entry forms disagree`);
-    assert.equal(viaRegister.regs.fC, viaArgument.regs.fC, `value ${value}: carry disagrees`);
   }
   console.log("  HONEST SIGNATURE: the named parameter and the register default agree");
 });
@@ -513,6 +507,22 @@ test("TEETH: the hostile instrument is WIRED — flipping the carry forks the ru
   console.log(`  TEETH/instrument: flipping the carry forks ${r.cells} cells`);
 });
 
+test("HAND-OFF: every caller that reads the carry is an override that takes the return", { skip }, () => {
+  const { callers, readers, exitControl } = handOffReaders({
+    at: TARGET, poison: ["f"], sessions: TAPE_SESSIONS, frames: HANDOFF_FRAMES,
+  });
+  assert.ok(callers.size > 0, "vacuous: no session dispatched the window test");
+  assert.deepEqual([...readers.keys()].sort((p, q) => p - q), [...CARRY_READERS.keys()],
+    "the set of callers that read the oracle's carry moved -- a new reader needs its override checked");
+  for (const [ret, owners] of CARRY_READERS) {
+    const served = owners.filter((addr) => ROUTINES[addr] !== undefined);
+    assert.deepEqual(served, owners, `the reader after ${hex4(ret)} is not served by an override`);
+  }
+  console.log(`  HAND-OFF: ${callers.size} callers, F heard at ` +
+    `${[...readers].map(([r, w]) => `${hex4(r)} (${w})`).join(" ")}, each served by an override; ` +
+    `exit control heard (${heardAs(exitControl)})`);
+});
+
 test("WHOLE-MACHINE: the attract session is byte-identical with the rewrite wired", { skip }, () => {
   const w = replay(hasReachedHorizontalEdgeWindow);
   const fired = w.invocations.get(TARGET);
@@ -524,19 +534,12 @@ test("WHOLE-MACHINE: the attract session is byte-identical with the rewrite wire
 
 // ── teeth ───────────────────────────────────────────────────────────────────────────────
 
-for (const [label, twin, byCarry, byContract, wholeMachineSees] of TWINS) {
+for (const [label, twin, byContract, wholeMachineSees] of TWINS) {
   test(`TEETH: the ${label} twin is caught on EXACTLY the declared values`, { skip }, () => {
     const r = sweep(twin, entryState().regs.iy);
-    assert.equal(r.carry.length, byCarry, `${label}: the carry catch count moved`);
     assert.equal(r.contract.length, byContract, `${label}: the contract catch count moved`);
     assert.ok(r.contract.length > 0, `the sweep PASSED the ${label} twin — it has no teeth`);
-    assert.ok(
-      r.carry.every((v) => r.contract.includes(v)),
-      "a value caught by carry alone but not by the full contract is impossible",
-    );
-    console.log(
-      `  TEETH/${label}: caught on ${byCarry} of ${VALUES} by carry, ${byContract} by contract`,
-    );
+    console.log(`  TEETH/${label}: caught on ${byContract} of ${VALUES}`);
   });
 
   test(`TEETH: the whole-machine replay sees the ${label} twin, or is recorded blind`, { skip }, () => {
@@ -554,7 +557,7 @@ for (const [label, twin, byCarry, byContract, wholeMachineSees] of TWINS) {
 }
 
 test("TEETH: the crafted sweep is STRICTLY stronger than everything the machine can see", { skip }, () => {
-  const blind = TWINS.filter(([, , , , seen]) => !seen).map(([label]) => label);
+  const blind = TWINS.filter(([, , , seen]) => !seen).map(([label]) => label);
   for (const label of blind) {
     const twin = TWINS.find(([l]) => l === label)[1];
     assert.ok(

@@ -20,6 +20,7 @@
 
 import { velocityForHeading } from "./velocityForHeading.js";
 import { WORLD_SCROLL_X, WORLD_SCROLL_Y } from "./names.js";
+import { addToCoordinate } from "./objectGeometry.js";
 
 // Record +2: the heading the object flies on, one byte of a 256-step circle.
 const CURRENT_HEADING = 2;
@@ -33,15 +34,6 @@ export function flyAlongHeading(m, table = m.regs.hl, object = m.regs.ix, sprite
   // First coordinate: whole at sprite +0x31, fraction at record +3, moved by the scroll that lands
   // on that byte (WORLD_SCROLL_Y) plus the first component. Second coordinate: whole at sprite
   // +0x00, fraction at record +5, moved by WORLD_SCROLL_X plus the second component.
-  advanceCoordinate(m, sprite + 49, object + 3, m.mem16[WORLD_SCROLL_Y] + alongFirstAxis);
-  advanceCoordinate(m, sprite, object + 5, m.mem16[WORLD_SCROLL_X] + alongSecondAxis);
-}
-
-/** One coordinate: whole and fraction read as a single number, displaced, then split back. */
-function advanceCoordinate(m, wholeAddr, fractionAddr, displacement) {
-  const { mem8 } = m;
-  // 8.8 fixed point; the byte stores keep only the low sixteen bits, so the coordinate wraps.
-  const moved = (mem8[wholeAddr] << 8) + mem8[fractionAddr] + displacement;
-  mem8[wholeAddr] = moved >> 8;
-  mem8[fractionAddr] = moved;
+  addToCoordinate(m, sprite + 49, object + 3, m.mem16[WORLD_SCROLL_Y] + alongFirstAxis);
+  addToCoordinate(m, sprite, object + 5, m.mem16[WORLD_SCROLL_X] + alongSecondAxis);
 }

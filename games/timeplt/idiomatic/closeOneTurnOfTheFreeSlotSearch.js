@@ -27,10 +27,10 @@ const ENTRY_STRIDE = 2;
 
 // ix = the current object record, iy = its sprite entry, b = slots still to try; the body passes
 // all three in and they come back to it here, stepped.
-export function closeOneTurnOfTheFreeSlotSearch(m, ix = m.regs.ix, iy = m.regs.iy, b = m.regs.b) {
+export function closeOneTurnOfTheFreeSlotSearch(m, record = m.regs.ix, entry = m.regs.iy, turnsLeft = m.regs.b) {
   // Strike one off the count (ROM `dec b` at 0x3850).
-  const nextB = u8(b - 1); // a count of zero wraps, so it runs 256 turns
+  const remaining = u8(turnsLeft - 1); // a count of zero wraps, so it runs 256 turns
   // While slots remain, back both cursors off one element and go round again (ROM `jp nz,0x37d6`,
   // a tail jump into the body); when the count is spent the search simply returns.
-  if (nextB !== 0) return spawnEnemyIntoFreeSlotElseStepSearch(m, u16(ix - RECORD_STRIDE), u16(iy - ENTRY_STRIDE), nextB);
+  if (remaining !== 0) return spawnEnemyIntoFreeSlotElseStepSearch(m, u16(record - RECORD_STRIDE), u16(entry - ENTRY_STRIDE), remaining);
 }

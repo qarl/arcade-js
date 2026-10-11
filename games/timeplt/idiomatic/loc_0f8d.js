@@ -5,7 +5,8 @@
  * as one), so there is no chain on the stack to unwind and no faithful transcription of the unwind; it
  * raises where the transfer lands instead. It is reached only when the one image block the credit line
  * folds does not total 0x67, and that block is fixed program bytes, so a genuine image never arrives
- * here. No cell is read or written before the raise. LIVE-OUT: none — it never returns. */
+ * here. No cell is read or written before the raise. LIVE-OUT: none — it never returns.
+ * ROM 0x0F8D-0x0F96. Grounding: [code] (names.js ROUTINES 0x0F8D). */
 
 import { NotImplemented } from "../../../boards/timeplt/io.js";
 

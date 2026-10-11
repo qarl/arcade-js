@@ -6,7 +6,10 @@
  * copyright-glyph tamper divert that a genuine image never fires.
  * Decoded as code the bytes churn a long run of stack pops through the flag pair and finally transfer
  * to a computed / off-map address. Unreachable in real play, so it is modeled as a throw rather than
- * reproducing the churn. LIVE-OUT: none — control never returns; entry is the trap. */
+ * reproducing the churn. LIVE-OUT: none — control never returns; entry is the trap.
+ * Kept as the ROUTINES override of 0x1F99: no idiomatic module calls
+ * it, because only a tampered image reaches it (grounding-debt.txt 0x1f99).
+ * ROM 0x1F99-0x1FE1. Grounding: [code] (names.js ROUTINES 0x1F99). */
 
 import { NotImplemented } from "../../../boards/timeplt/io.js";
 

@@ -87,7 +87,7 @@ function mutantFor(name) {
     // inlined into the sweep: the mutant drops the sweep's drifting-countdown arm
     return {
       idiomaticEdits: {
-        "serviceSlotByMarkerThenCloseSweepTurn.js": (s) => s.replace("    stepDriftingCountdownObjectByEraFrames(m, ix, iy);\n", ""),
+        "serviceSlotByMarkerThenCloseSweepTurn.js": (s) => s.replace("    stepDriftingCountdownObjectByEraFrames(m, record, entry);\n", ""),
       },
     };
   }

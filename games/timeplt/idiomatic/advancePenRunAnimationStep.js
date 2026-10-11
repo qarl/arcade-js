@@ -23,7 +23,6 @@
  * LIVE-OUT: memory only (0xA817 and, via the tail, SEQUENCE_SUBSTEP).
  */
 
-import { F_Z } from "../../../core/cpu/z80.js";
 import { drawInterpolatedPenRun } from "./drawInterpolatedPenRun.js";
 import { advanceSequenceSubStep } from "./advanceSequenceSubStep.js";
 import { BANK_LAUNCH_COOLDOWN, holdCopyrightThenEraseTheCoinInvitation_ADDR } from "./names.js";
@@ -37,8 +36,7 @@ export function advancePenRunAnimationStep(m) {
   // Step 1 — draw. drawInterpolatedPenRun (ROM 0x0201) stamps one run of pen-glyph cells toward the
   // current target and loads the next run. The ROM follows it with `ret nz` at 0x1737: unless the
   // run reseated to a zero row integer, this frame's work is done and the arm will be called again.
-  // The run hands back the flags it settles on; Z set means it reseated to a zero row integer.
-  const reseatedAtRowZero = (drawInterpolatedPenRun(m) & F_Z) !== 0;
+  const reseatedAtRowZero = drawInterpolatedPenRun(m);
   if (!reseatedAtRowZero) return;
 
   // Step 2 — the anti-tamper checksum (ROM 0x1738-0x1742). The ROM zeroes A, then `sub (hl)` over each

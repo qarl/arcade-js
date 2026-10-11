@@ -38,8 +38,8 @@ export function advanceRoundWhenFieldCleared(m) {
   // Any failure returns at once with nothing written.
   if (mem8[KILLS_REMAINING] !== 0) return;
   if (mem8[ROUND_TRANSITION_HOLD] === 0) return;
-  for (let slot = ACTOR_RECORD_SLOT0; slot < ACTOR_RECORD_SLOT0 + 15 * 0x10; slot += 0x10) {
-    if (mem8[slot] !== 0) return;
+  for (let i = 0; i < 15; i++) {
+    if (mem8[ACTOR_RECORD_SLOT0 + i * 0x10] !== 0) return;
   }
 
   // The field is clear: queue the round-transition sound burst (ROM call 0x5634 — seven sound codes,

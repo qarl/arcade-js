@@ -1,0 +1,16 @@
+{
+  "name": "parachutist",
+  "description": "Pick up a parachutist: the collision pass marks the pickup and the parachutist's own handler shows the award and posts the next rescue bonus, vs MAME.",
+  "_grounding": "Parachutist respawn delay (PARACHUTIST_RECORD+0x0E, 0xA8FE) poked to 1 at f640, so the slot spawns at golden ~f955. At f1000 its sprite entry is moved onto the player (PARACHUTIST_ENTRY 0xAA2E=0x84, +0x31 0xAA5F=0x78); the game's collision pass then writes the pickup mark 0xF0 into PARACHUTIST_RECORD 0xA8F0 ('responded', golden f1002), and runParachutistSlot runs showParachutistAward and, at state 0x10, postNextParachutistBonus.",
+  "hold": 8,
+  "coin": 400,
+  "start": 500,
+  "pokes": [
+    { "frame": 640, "addr": "0xa8fe", "val": "0x01", "dur": 1 },
+    { "frame": 1000, "addr": "0xaa2e", "val": "0x84", "dur": 1 },
+    { "frame": 1000, "addr": "0xaa5f", "val": "0x78", "dur": 1 }
+  ],
+  "responded": {"cell": "0xa8f0", "op": "eq", "val": "0xf0"},
+  "reaches": ["showParachutistAward", "postNextParachutistBonus"],
+  "idiomatic_residual_frames": 59
+}

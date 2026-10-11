@@ -107,6 +107,7 @@ for (const gameId of GAMES) {
 
     if (manifest.audio) assert.ok(soundWrites > 0, `${gameId}: declares audio but wrote no sound in ${FRAMES} frames (dead sound seam?)`);
     // Node can't exercise the browser AUDIO RUNTIME (Web Audio/Safari) or the canvas -- the synth-404 + Safari
-    // 0-input bugs were runtime-only. A human browser confirm stays a DONE step (runbook §5 doctrine).
+    // 0-input bugs were runtime-only. done_gate's browser subsystem runs tools/browser_runtime_gate.mjs for that
+    // (BROWSER_GAMES); no human confirm (reviewer-rules R42).
   });
 }

@@ -12,10 +12,10 @@
  * fatal, and this routine then plays the object's death: the record head (0xFF while live) becomes
  * a countdown, the two tiles change colour, then shape, the kill is scored, and the slot retires.
  *
- * Parameters: `ix` is the object's record, `iy` its sprite entry (the two tiles are adjacent
+ * Parameters: `record` is the object's record, `entry` its sprite entry (the two tiles are adjacent
  * entries: +0x00 X, +0x01 tile, +0x30 attribute, +0x31 Y for the first; +0x02/+0x03/+0x32/+0x33
- * the same for the second). `a` is the record head plus one as the caller hands it over — the ROM
- * opens with `dec a` to recover the raw head. */
+ * the same for the second). `headPlusOne` is the record head plus one as the caller hands it over —
+ * the ROM opens with `dec a` to recover the raw head. */
 
 import { u8 } from "../../../core/int.js";
 import { HITS_REMAINING, DEATH_ANIMATION_SHAPE_TABLE } from "./names.js";
@@ -26,11 +26,9 @@ import { driftWithWorldScroll } from "./driftWithWorldScroll.js";
 import { postCommand } from "./postCommand.js";
 import { fetchTableByte } from "./fetchTableByte.js";
 
-export function advanceHitSoakingObjectThenAnimateDeath(m, ix = m.regs.ix, iy = m.regs.iy, a = m.regs.a) {
+export function advanceHitSoakingObjectThenAnimateDeath(m, record = m.regs.ix, entry = m.regs.iy, headPlusOne = m.regs.a) {
   const { mem8 } = m;
-  const record = ix;
-  const entry = iy;
-  const head = u8(a - 1);
+  const head = u8(headPlusOne - 1);
 
   /* Arm 1 — a hit absorbed (0x3B96-0x3BA6).
    * With hits still in hand, spend one, force the head back to 0xFF (live), request the hit's pair

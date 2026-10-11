@@ -14,7 +14,7 @@
  * the record at 0xA8C0. The two standoff points (ENEMY_STANDOFF_AIM_SET / _CLEAR) stand off
  * the ship rather than sitting on it: the object closes in on a point near the ship, not on the ship.
  *
- * Arguments: `ix` is the object's record (the ROM's IX), `iy` its sprite entry (the ROM's IY).
+ * Arguments: `record` is the object's record, `entry` its sprite entry.
  * LIVE-OUT: memory; whether the object reached a retire line is returned (the ROM's carry).
  */
 
@@ -40,7 +40,7 @@ const ARRIVED = 16;
 // the velocity table an approaching object flies along
 const APPROACH_VELOCITY_TABLE = OPENING_ERA_VELOCITY_TABLE;
 
-export function flyTowardShipStandoffThenEndApproach(m, ix = m.regs.ix, iy = m.regs.iy) {
+export function flyTowardShipStandoffThenEndApproach(m, record = m.regs.ix, entry = m.regs.iy) {
   const { mem8 } = m;
 
   /*
@@ -54,8 +54,8 @@ export function flyTowardShipStandoffThenEndApproach(m, ix = m.regs.ix, iy = m.r
      * Then store the heading from the object's sprite entry to that point as the new aim heading
      * (headingToward, ROM 0x33B8, returns a heading on a 256-step circle).
      */
-    const point = mem8[u16(ix + AIM_SELECTOR)] & 1 ? ENEMY_STANDOFF_AIM_SET : ENEMY_STANDOFF_AIM_CLEAR;
-    mem8[u16(ix + AIM_HEADING)] = headingToward(m, point, iy);
+    const point = mem8[u16(record + AIM_SELECTOR)] & 1 ? ENEMY_STANDOFF_AIM_SET : ENEMY_STANDOFF_AIM_CLEAR;
+    mem8[u16(record + AIM_HEADING)] = headingToward(m, point, entry);
     // headingToward drops the two axis gaps it measures; recompute them to spot arrival.
     /*
      * The ROM reads those two gaps from registers headingToward leaves behind (D, and the shadow A').
@@ -63,14 +63,14 @@ export function flyTowardShipStandoffThenEndApproach(m, ix = m.regs.ix, iy = m.r
      * (the byte below it, kept inside the same 256-byte page) against the
      * entry's second coordinate at +0x31.
      */
-    const firstGap = Math.abs(mem8[point] - mem8[iy]);
+    const firstGap = Math.abs(mem8[point] - mem8[entry]);
     const secondGap =
-      Math.abs(mem8[(point & (0xff << 8)) | u8(point - 1)] - mem8[u16(iy + SECOND_COORD)]);
+      Math.abs(mem8[(point & (0xff << 8)) | u8(point - 1)] - mem8[u16(entry + SECOND_COORD)]);
     /*
      * Arrived: both gaps under sixteen. endApproachNow (ROM 0x41EC) zeroes the record's countdown at
      * +0x04, so its handler takes the expired arm next frame instead of counting the rest of the delay.
      */
-    if (firstGap < ARRIVED && secondGap < ARRIVED) endApproachNow(m, ix);
+    if (firstGap < ARRIVED && secondGap < ARRIVED) endApproachNow(m, record);
   }
 
   /*
@@ -83,13 +83,13 @@ export function flyTowardShipStandoffThenEndApproach(m, ix = m.regs.ix, iy = m.r
    *  - animateFixedShapeCycleFromShape50 (0x41F1): dress the sprite with the current frame of an
    *    eight-frame shape cycle taken from FRAME_TICK bits 1-3.
    */
-  steerTowardAimAtFixedRate(m, ix);
-  flyAlongHeadingAtDoubleVelocity(m, APPROACH_VELOCITY_TABLE, ix, iy);
-  animateFixedShapeCycleFromShape50(m, iy);
+  steerTowardAimAtFixedRate(m, record);
+  flyAlongHeadingAtDoubleVelocity(m, APPROACH_VELOCITY_TABLE, record, entry);
+  animateFixedShapeCycleFromShape50(m, entry);
 
   /*
    * Finally (the ROM's tail `jp 0x2b83`): has the sprite entry drifted onto one of the two fixed retire
    * lines? The answer goes back to the caller; the callers that act on it free the slot.
    */
-  return hasReachedRetireLine(m, iy);
+  return hasReachedRetireLine(m, entry);
 }

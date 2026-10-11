@@ -22,6 +22,7 @@
  * it in the accumulator).
  */
 
+import { NotImplemented } from "../../../boards/timeplt/io.js";
 import { u8 } from "../../../core/int.js";
 import { RANDOM_REGISTER, RANDOM_REGISTER_SEED_SOURCE, RANDOM_SEED_GUARD_WORD0, RANDOM_SEED_GUARD_WORD1 } from "./names.js";
 
@@ -44,9 +45,9 @@ export function seedRandomRegister(m) {
   // Step 3: on any non-zero total the ROM jumps to 0x6000, which lies outside the program image, so
   // the machine derails rather than failing cleanly. There is nowhere real to go, so this raises.
   if (total !== 0) {
-    throw new Error(
-      `guard total ${total} rather than zero: the program space this run is reading is not the ` +
-        "one the guard constant was picked for, and control goes nowhere that exists",
+    throw new NotImplemented(
+      `seedRandomRegister: guard total ${total} rather than zero, so the image is tampered and control ` +
+        "jumps outside the program image; a genuine image never does",
     );
   }
   return (m.regs.a = total);

@@ -59,9 +59,12 @@ const TAPES = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "tapes")
 function loadTape(file) {
   const t = JSON.parse(readFileSync(join(TAPES, file), "utf8"));
   const num = (v) => (typeof v === "string" ? parseInt(v, 16) : v);
+  // A tape names its coin and start frames either as top-level fields or as entries of its `inputs`
+  // list; only those two presses are replayed here (later entry-screen presses are not this arm's).
+  const at = (key, press) => t[key] ?? t.inputs.find((i) => i.press === press).frame;
   const inputs = [
-    { frame: t.coin + 1, port: IN0, bits: 0x01, dur: t.hold },
-    { frame: t.start + 1, port: IN0, bits: 0x08, dur: t.hold },
+    { frame: at("coin", "coin") + 1, port: IN0, bits: 0x01, dur: t.hold },
+    { frame: at("start", "start1p") + 1, port: IN0, bits: 0x08, dur: t.hold },
   ];
   const pokes = t.pokes.map((p) => ({ frame: p.frame + 1, addr: num(p.addr), val: num(p.val), dur: p.dur }));
   return { inputs, pokes };

@@ -37,10 +37,6 @@ import { destroyTargetsReachedByFixedAttacker } from "./destroyTargetsReachedByF
 import { markObjectsTouchingPlayer } from "./markObjectsTouchingPlayer.js";
 import { ACTOR_ENTRY_SLOT0, ACTOR_RECORD_SLOT0, ERA_OBJECT_ENTRY_SLOT0, ERA_OBJECT_RECORD_SLOT0, MOTHER_SHIP_ARMED } from "./names.js";
 
-// The mark's enter-flags carry is dead here (it only feeds an unread return flag on the player-dead
-// guard-bail; this routine's live-out is memory plus the mark cursors), so pass a fixed zero.
-const MARK_ENTER_FLAGS = 0;
-
 export function runAllCollisionSweepsThisFrame(m) {
   const { mem8 } = m;
   // Stage 1 (`call 0x4f5d`): the player's six shots against the three era-weapon slots. It stages
@@ -70,11 +66,8 @@ export function runAllCollisionSweepsThisFrame(m) {
     const afterTargets = destroyTargetsReachedByFixedAttacker(m, ERA_OBJECT_RECORD_SLOT0, ERA_OBJECT_ENTRY_SLOT0, 3, 6, 13);
     // Stage 6 (ROM 0x4EB3-0x4EB9, tail `jp 0x51b3`): one object (B = 1, L = 8, H = 0x11) at the
     // cursor stage 5 left -- the parachutist slot, PARACHUTIST_RECORD 0xA8F0 [seen]. A touch stores
-    // 0xF0 into its state only; the callee takes the record cursor as page and low byte separately.
-    return markObjectsTouchingPlayer(
-      m, MARK_ENTER_FLAGS, 8, 17,
-      afterTargets.target & (0xff << 8), afterTargets.target & 0xff, afterTargets.entry, 1,
-    );
+    // 0xF0 into its state only.
+    return markObjectsTouchingPlayer(m, 8, 17, afterTargets.target, afterTargets.entry, 1);
   }
 
   // Unarmed: the contact sweep's cursor threads straight into the attacker sweep.
@@ -86,8 +79,5 @@ export function runAllCollisionSweepsThisFrame(m) {
   // bank, so no reseat is needed; B = 3, L = 6, H = 0x0D as on the armed path.
   const afterTargets = destroyTargetsReachedByFixedAttacker(m, afterSlots.record, afterSlots.entry, 3, 6, 13);
   // Stage 6, unarmed (ROM 0x4E8E-0x4E94, tail `jp 0x51b3`): the same parachutist mark as the armed path.
-  return markObjectsTouchingPlayer(
-    m, MARK_ENTER_FLAGS, 8, 17,
-    afterTargets.target & (0xff << 8), afterTargets.target & 0xff, afterTargets.entry, 1,
-  );
+  return markObjectsTouchingPlayer(m, 8, 17, afterTargets.target, afterTargets.entry, 1);
 }

@@ -61,5 +61,7 @@ export function loc_10f8(m) {
     // half the byte range away on both axes.
     mem8[slot.request] = request - HALF_RANGE;
     mem8[slot.partner] = mem8[slot.partner] + HALF_RANGE;
+    // Tell the beam-sync render which pair moved, so it can draw the first appearance in its band.
+    if (m.beamPlan) m.beamPlan.push({ y: slot.request, x: slot.partner });
   }
 }

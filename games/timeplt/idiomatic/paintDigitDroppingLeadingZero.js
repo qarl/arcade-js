@@ -24,7 +24,7 @@
  *
  * Parameters (with where their values come from in the ROM): `value` the digit in its low nibble (A);
  * `allowance` how many leading zeros may still be dropped (B), set by the caller before the run;
- * `colour` the colour byte (C); `de` the cursor, the character-plane cell to paint (DE). The ROM
+ * `colour` the colour byte (C); `cell` the cursor, the character-plane cell to paint (DE). The ROM
  * also saves and restores the caller's run pointer (HL) around the table lookup; nothing here
  * touches HL, so it is left exactly where the caller had it.
  *
@@ -39,7 +39,7 @@ import { DIGIT_GLYPH_TABLE_2 } from "./names.js";
 const DIGIT_BITS = 0x0f;
 const CHARACTER_PLANE_BIT = 1 << 10; // bit 10: character/attribute plane select
 
-export function paintDigitDroppingLeadingZero(m, value = m.regs.a, allowance = m.regs.b, colour = m.regs.c, de = m.regs.de) {
+export function paintDigitDroppingLeadingZero(m, value = m.regs.a, allowance = m.regs.b, colour = m.regs.c, cell = m.regs.de) {
   const { mem8 } = m;
   const digit = value & DIGIT_BITS;
 
@@ -48,7 +48,7 @@ export function paintDigitDroppingLeadingZero(m, value = m.regs.a, allowance = m
   // cursor is stepped one cell BACK (retreatCharCursor, the `rst 0x28` restart). The caller steps
   // it forward again after every digit, so the two steps cancel and the dropped zero takes no cell.
   if (digit === 0 && allowance !== 0) {
-    const cursor = retreatCharCursor(m, de);
+    const cursor = retreatCharCursor(m, cell);
     return [(m.regs.b = u8(allowance - 1)), cursor];
   }
 
@@ -59,10 +59,10 @@ export function paintDigitDroppingLeadingZero(m, value = m.regs.a, allowance = m
   const glyph = fetchTableByte(m, DIGIT_GLYPH_TABLE_2, digit);
   // Glyph into the character cell the cursor names (`ld (de),a`), then the caller's colour into the
   // same cell of the colour plane, reached by clearing bit 10 (`res 2,d` / `ld a,c` / `ld (de),a`).
-  mem8[de] = glyph;
-  mem8[de & ~CHARACTER_PLANE_BIT] = colour;
+  mem8[cell] = glyph;
+  mem8[cell & ~CHARACTER_PLANE_BIT] = colour;
   // Hand back: the spent allowance, and the cursor with bit 10 SET (`set 2,d`) — a set, not a
   // restore, so the cursor ends on the glyph side whichever side it arrived on. (The ROM's `push hl`
   // / `pop hl` around the lookup has nothing to restore here: HL is never touched.)
-  return [m.regs.b = 0, m.regs.de = de | CHARACTER_PLANE_BIT];
+  return [m.regs.b = 0, m.regs.de = cell | CHARACTER_PLANE_BIT];
 }

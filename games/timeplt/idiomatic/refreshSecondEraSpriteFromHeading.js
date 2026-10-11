@@ -20,7 +20,7 @@ import { u8 } from "../../../core/int.js";
 import { spriteForHeading } from "./spriteForHeading.js";
 
 // Sprite-entry slots: +0x01 holds the shape (tile code) and +0x30 the attribute byte (flip bits
-// plus colour), the same two slots refreshSpriteFromHeading writes. The biases are the lift's
+// plus colour), the same two slots refreshSpriteFromHeading writes. The biases are the ROM's
 // `add a,0x10` on the shape and `add a,0x35` on the attribute.
 const SHAPE = 1;
 const ATTRIBUTE = 0x30;

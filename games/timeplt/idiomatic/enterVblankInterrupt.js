@@ -9,9 +9,9 @@
  * everything the game does per frame starts here.
  */
 
-import { saveAccumulatorForFrameInterrupt } from "./saveAccumulatorForFrameInterrupt.js";
+import { enterVerticalBlankService } from "./enterVerticalBlankService.js";
 
 export function enterVblankInterrupt(m) {
   // On to 0x00D8, the one-byte `push af` that falls into the frame service at 0x00D9.
-  return saveAccumulatorForFrameInterrupt(m);
+  return enterVerticalBlankService(m);
 }

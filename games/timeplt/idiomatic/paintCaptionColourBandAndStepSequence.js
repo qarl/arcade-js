@@ -19,8 +19,10 @@
  * row is 32 bytes; the board is ROT90, so one row back in memory (ROW) is one cell along a
  * displayed line.
  *
- * `head` is the ROM's A (the lead byte), `body` its C (the run byte) and `hl` its HL (the cursor,
- * one cell before where writing starts).
+ * `head` is the lead byte, `body` the run byte and `cursor` the cursor (one cell before where
+ * writing starts).
+ * Kept as the ROUTINES override of 0x4A42: no idiomatic module calls
+ * it, because armRoundWonBandAnimationThenStepSequence runs this body inline.
  */
 
 import { u8, u16 } from "../../../core/int.js";
@@ -40,13 +42,13 @@ const ROW = 0x20;
 // names.js) are already folded through `res 2,h` into colour RAM; each cell's second value sits one
 // row (ROW) back.
 
-export function paintCaptionColourBandAndStepSequence(m, head = m.regs.a, body = m.regs.c, hl = m.regs.hl) {
+export function paintCaptionColourBandAndStepSequence(m, head = m.regs.a, body = m.regs.c, cursor = m.regs.hl) {
   const { mem8 } = m;
 
   /* Step 1 — the byte run (ROM 0x4A42-0x4A52). `inc hl / ld (hl),a` puts the lead byte one past
    * the caller's cursor; then `ld (hl),c / inc hl` under `djnz` lays thirteen body bytes, and
    * `ld (hl),a / inc hl` under `djnz` the four 0x0E tail bytes, each at the next address up. */
-  let cur = u16(hl + 1);
+  let cur = u16(cursor + 1);
   mem8[cur] = head;
   for (let i = 0; i < HEAD_RUN; i++) mem8[cur = u16(cur + 1)] = body;
   for (let i = 0; i < TAIL_RUN; i++) mem8[cur = u16(cur + 1)] = TAIL_FILL;

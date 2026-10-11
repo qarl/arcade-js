@@ -9,10 +9,11 @@
  * drawn again half the range away further down the frame. The waiting pass for hardware sprites
  * 19-23 is one 32-byte block per sprite (ROM 0x10F8 onward, loc_10f8). This routine is the ROM
  * entry at 0x10FD, five bytes into sprite 19's block, just past the block's own `ld a,(Y) / bit 7,a`:
- * the caller arrives with a byte already held (A) and already tested (the Z flag), and both are
- * used as if that block had loaded and tested sprite 19's Y byte itself.
+ * the caller arrives with a byte already held and already tested, and both are used as if that
+ * block had loaded and tested sprite 19's Y byte itself. `firstSlotRequested` is that test; it
+ * defaults to true because the one call site is a CALL NZ, which enters only with the test set.
  *
- *  - A clear test means no request: sprite 19 is stepped over.
+ *  - No request: sprite 19 is stepped over (ROM `jr z,0x1118`).
  *  - Otherwise the held byte is the request; if the raster has come (held + raster carries past
  *    255) sprite 19 trades from the held byte. If it has not, the ROM jumps back to the head of the
  *    block (0x10F8) -- here, the whole five-slot pass restarts via loc_10f8 and re-reads every slot.
@@ -26,6 +27,8 @@
  *
  * ROM 0x10FD-0x1198 (frozen lift translated/loc_10fd.js). Grounding: [code], anti-tamper entry
  * (names.js ROUTINES 0x10fd, grounding-debt.txt). LIVE-OUT: memory only.
+ * Kept as the ROUTINES override of 0x10FD: no idiomatic module calls
+ * it, because its only CALL (0x15D9) runs only on a tampered image (grounding-debt.txt 0x10fd).
  */
 
 import { loc_10f8 } from "./loc_10f8.js";
@@ -43,10 +46,10 @@ const TAIL_SLOTS = [
   { request: SPRITE_BANK1_SLOT23_Y, partner: SPRITE_BANK0_SLOT23_X },
 ];
 
-export function spinRemainingSpriteMultiplexSlots(m, held = m.regs.a, firstSlotRequestClear = m.regs.fZ) {
+export function spinRemainingSpriteMultiplexSlots(m, held = m.regs.a, firstSlotRequested = true) {
   const { mem8 } = m;
-  // Sprite 19, finished from where the caller left off (ROM `jr z,0x1118` skips it on a clear test).
-  if (!firstSlotRequestClear) {
+  // Sprite 19, finished from where the caller left off.
+  if (firstSlotRequested) {
     // `ld c,a / ld a,(0xc000) / add a,c`: no carry means the raster has not reached the line yet.
     // The ROM's `jr nc,0x10f8` goes back to the block head, i.e. the full five-slot pass.
     if (((held + mem8[SCANLINE_COUNTER]) & 0x100) === 0) return loc_10f8(m);

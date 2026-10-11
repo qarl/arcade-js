@@ -13,6 +13,8 @@
  * flies on while its countdown runs out.
  *
  * LIVE-OUT: memory. Whatever the sweep's turn-closer hands back is returned.
+ * Kept as the ROUTINES override of 0x418B: no idiomatic module calls
+ * it, because serviceSlotByMarkerThenCloseSweepTurn runs this arm inline.
  */
 import { u16 } from "../../../core/int.js";
 import { closeOneTurnOfTheSlotSweep } from "./closeOneTurnOfTheSlotSweep.js";
@@ -21,29 +23,29 @@ import { flyAndRetireSlotCyclingShapeInEra4 } from "./flyAndRetireSlotCyclingSha
 /* The slot's own countdown sits at +0x0E in its sixteen-byte record (the ROM's `dec (ix+0x0e)`). */
 const COUNTDOWN_OFFSET = 0x0e;
 
-/* `ix` is the slot's record, the sweep's record cursor (the ROM's IX); `iy` the slot's sprite entry,
- * the sweep's entry cursor (IY); `b` the turns the sweep has left (B). No idiomatic routine calls
- * this entry -- the sweep body serviceSlotByMarkerThenCloseSweepTurn runs the same three steps
- * inline -- so the three arrive only from a register-dispatched caller, and are handed on as
+/* `record` is the slot's record, the sweep's record cursor (the ROM's IX); `entry` the slot's sprite
+ * entry, the sweep's entry cursor (IY); `turnsLeft` the turns the sweep has left (B). No routine in
+ * this layer calls this entry -- the sweep body serviceSlotByMarkerThenCloseSweepTurn runs the same
+ * three steps inline -- so the three are the registers the ROM's caller seats, handed on as
  * arguments from here. */
-export function flyLiveSlotAndTickCountdown(m, ix = m.regs.ix, iy = m.regs.iy, b = m.regs.b) {
+export function flyLiveSlotAndTickCountdown(m, record = m.regs.ix, entry = m.regs.iy, turnsLeft = m.regs.b) {
   /*
    * Step 1 (the ROM's `call 0x3e6c`): fly the object one step along the velocity it carries and retire
    * the slot if that step put it on a retire line. The mover works on the sweep's current record and
    * sprite entry.
    */
-  flyAndRetireSlotCyclingShapeInEra4(m, ix, iy);
+  flyAndRetireSlotCyclingShapeInEra4(m, record, entry);
   /*
    * Step 2: count the slot's countdown down by one. The byte wraps as the Z80's `dec` does; the sweep
    * body only sends a slot here while it is nonzero, and when it reaches zero the next pass takes the
    * body's other arm.
    */
-  const countdown = u16(ix + COUNTDOWN_OFFSET);
+  const countdown = u16(record + COUNTDOWN_OFFSET);
   m.mem8[countdown] = m.mem8[countdown] - 1;
   /*
    * Step 3 (the ROM's tail `jp 0x410b`): close this turn of the sweep -- step both cursors on to the next
    * slot and go round again while turns remain. Because it is a tail, one call here services this slot
    * and every slot after it in the bank.
    */
-  return closeOneTurnOfTheSlotSweep(m, ix, iy, b);
+  return closeOneTurnOfTheSlotSweep(m, record, entry, turnsLeft);
 }

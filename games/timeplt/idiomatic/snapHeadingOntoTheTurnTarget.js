@@ -16,6 +16,8 @@
  *
  * PARAMETER: `target` -- the heading being turned toward (the ROM's B, loaded at 0x1F05 and not
  * written again before here). LIVE-OUT: memory.
+ * Kept as the ROUTINES override of 0x1F3E: no idiomatic module calls
+ * it, because turnShipTowardTargetHeading runs the snap inline.
  */
 
 import { scrollWorldAtTheEraPace } from "./scrollWorldAtTheEraPace.js";

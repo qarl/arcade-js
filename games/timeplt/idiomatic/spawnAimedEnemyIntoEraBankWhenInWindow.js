@@ -55,13 +55,13 @@ const NEW_SHAPE = 0x62;
 // era count != 1 with the scan flag clear selects the second bank; the guard and the seat both ask.
 const useSecondBank = (m) => m.mem8[ATTACKER_SPAWN_SLOT_COUNT] !== 1 && m.mem8[ERA_OBJECT_RECORD_SLOT2] === 0;
 
-export function spawnAimedEnemyIntoEraBankWhenInWindow(m, ix = m.regs.ix, iy = m.regs.iy) {
+export function spawnAimedEnemyIntoEraBankWhenInWindow(m, record = m.regs.ix, entry = m.regs.iy) {
   const { mem8 } = m;
 
   // Step 1 -- the gates, each an early return in the ROM: the caller's head byte, the shared
   // cooldown still running, the era fielding no attackers, and (when bank A would be the seat)
   // bank A already occupied.
-  if (mem8[ix] !== SLOT_FREE) return;
+  if (mem8[record] !== SLOT_FREE) return;
   if (mem8[ATTACKER_SPAWN_COOLDOWN] !== 0) return;
   if (mem8[ATTACKER_SPAWN_SLOT_COUNT] === 0) return;
   if (!useSecondBank(m) && mem8[ACTOR_RECORD_SLOT3] !== 0) return;
@@ -78,11 +78,11 @@ export function spawnAimedEnemyIntoEraBankWhenInWindow(m, ix = m.regs.ix, iy = m
   let count = SEARCH_SLOTS;
   let hit = false;
   do {
-    const x = u8(u8(X_ORIGIN - mem8[u16(iy + ENTRY_X)]) + half);
-    const y = u8(u8(Y_ORIGIN - mem8[u16(iy + ENTRY_Y)]) + half);
+    const x = u8(u8(X_ORIGIN - mem8[u16(entry + ENTRY_X)]) + half);
+    const y = u8(u8(Y_ORIGIN - mem8[u16(entry + ENTRY_Y)]) + half);
     if (x >= full || y >= full) { hit = true; break; }
-    ix = u16(ix + RECORD_STRIDE);
-    iy = u16(iy + ENTRY_STRIDE);
+    record = u16(record + RECORD_STRIDE);
+    entry = u16(entry + ENTRY_STRIDE);
     count = u8(count - 1);
   } while (count !== 0);
   // Neither object qualified: nothing is spawned and nothing is written.
@@ -93,14 +93,14 @@ export function spawnAimedEnemyIntoEraBankWhenInWindow(m, ix = m.regs.ix, iy = m
   // ENEMY_STANDOFF_AIM_MAIN 0xAC7F [seen]. The side toggle is stepped every spawn and its low bit
   // picks +0x18 (odd) or -0x18 (even), so successive attackers are aimed to alternate sides.
   requestEnemyLaunchSound(m);
-  const heading = headingToward(m, ENEMY_STANDOFF_AIM_MAIN, iy);
+  const heading = headingToward(m, ENEMY_STANDOFF_AIM_MAIN, entry);
   mem8[ATTACKER_SPAWN_AIM_SIDE_TOGGLE] = u8(mem8[ATTACKER_SPAWN_AIM_SIDE_TOGGLE] + 1);
   const turn = mem8[ATTACKER_SPAWN_AIM_SIDE_TOGGLE] & 1 ? TURN : u8(-TURN);
   const aimed = u8(turn + heading);
 
   // Step 4 -- choose the destination bank (the same test as the gate in step 1, asked again).
-  const foundY = mem8[u16(iy + ENTRY_Y)];
-  const foundX = mem8[u16(iy + ENTRY_X)];
+  const foundY = mem8[u16(entry + ENTRY_Y)];
+  const foundX = mem8[u16(entry + ENTRY_X)];
   let recBank, entBank;
   if (useSecondBank(m)) {
     recBank = ERA_OBJECT_RECORD_SLOT2;
@@ -115,11 +115,11 @@ export function spawnAimedEnemyIntoEraBankWhenInWindow(m, ix = m.regs.ix, iy = m
   // record +0x0A..+0x0D -- the stored velocity a separate mover later reads to move the object.
   mem8[entBank + ENTRY_Y] = foundY;
   mem8[entBank + ENTRY_X] = foundX;
-  const [de, bc] = loc_59c5(m, aimed); // doubled velocity pair for the aimed heading
-  mem8[recBank + 0x0a] = de;
-  mem8[recBank + 0x0b] = u8(de >> 8);
-  mem8[recBank + 0x0c] = bc;
-  mem8[recBank + 0x0d] = u8(bc >> 8);
+  const [alongFirstAxis, alongSecondAxis] = loc_59c5(m, aimed); // doubled velocity pair for the aimed heading
+  mem8[recBank + 0x0a] = alongFirstAxis;
+  mem8[recBank + 0x0b] = u8(alongFirstAxis >> 8);
+  mem8[recBank + 0x0c] = alongSecondAxis;
+  mem8[recBank + 0x0d] = u8(alongSecondAxis >> 8);
   mem8[entBank + 0x01] = NEW_SCRIPT;
   mem8[entBank + 0x30] = NEW_SHAPE;
   // The head byte was 0 (free) to get here, so the decrement makes it 0xFF: live.

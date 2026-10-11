@@ -198,9 +198,6 @@ for (const [label, live] of [["coin/start/play tape", true], ["attract", false]]
     assert.equal(frames, NMIS, "the run did not reach its NMI budget");
     assert.equal(tally.reads.size, 0, `idiomatic code read registers: ${show(tally)}`);
     assert.ok(tally.engineReads > 0, "no engine seam read was seen, so the engine carve-out was never tested");
-    // Attract's drifting objects make flag writes (hasReachedHorizontalEdgeWindow's carry), so the
-    // setter carve-out is met there and a green run is not green by never meeting one.
-    if (!live) assert.ok(tally.setterReads > 0, "no flag write was seen, so the setter carve-out was never tested");
   });
 }
 
@@ -236,9 +233,20 @@ test("TEETH: a round caption that leaves its cursor out is heard (DE through the
     `DE read not heard: ${keys.join(", ")}`);
 });
 
+test("CARVE-OUT: a flag write alone is not charged (the setter reads F from F), attract", async () => {
+  // The live layer makes no flag write, so the setter carve-out is met here, on a mutant that adds
+  // one, and a green run is not green by never meeting one.
+  const tree = idiomaticTree({ edits: {
+    "hasReachedHorizontalEdgeWindow.js": edit("return arrived;", "return (m.regs.fC = arrived);"),
+  } });
+  const { tally } = await runTape(false, tree.machine);
+  assert.ok(tally.setterReads > 0, "no flag write was seen, so the setter carve-out was never tested");
+  assert.equal(tally.reads.size, 0, `a flag write alone was charged as a read: ${show(tally)}`);
+});
+
 test("TEETH: a flag read beside a flag write is heard (F through the fC accessor)", async () => {
   const tree = idiomaticTree({ edits: {
-    "hasReachedHorizontalEdgeWindow.js": edit("return (m.regs.fC = arrived);", "void m.regs.fC; return (m.regs.fC = arrived);"),
+    "hasReachedHorizontalEdgeWindow.js": edit("return arrived;", "void m.regs.fC; return (m.regs.fC = arrived);"),
   } });
   const { tally } = await runTape(false, tree.machine);
   const keys = [...tally.reads.keys()];
@@ -247,7 +255,7 @@ test("TEETH: a flag read beside a flag write is heard (F through the fC accessor
 
 test("TEETH: a register-file copy made through a native frame is heard (Object.assign, attract)", async () => {
   const tree = idiomaticTree({ edits: {
-    "hasReachedHorizontalEdgeWindow.js": edit("return (m.regs.fC = arrived);", "void Object.assign({}, m.regs); return (m.regs.fC = arrived);"),
+    "hasReachedHorizontalEdgeWindow.js": edit("return arrived;", "void Object.assign({}, m.regs); return arrived;"),
   } });
   const { tally } = await runTape(false, tree.machine);
   const keys = [...tally.reads.keys()];
@@ -259,7 +267,7 @@ test("TEETH: a register-file copy made through a native frame is heard (Object.a
 function helperTree(spec, rel) {
   const tree = idiomaticTree({ edits: {
     "hasReachedHorizontalEdgeWindow.js": (src) =>
-      edit("return (m.regs.fC = arrived);", "helper(m); return (m.regs.fC = arrived);")(src)
+      edit("return arrived;", "helper(m); return arrived;")(src)
       + `\nimport { helper } from "${spec}";\n`,
   } });
   const path = join(dirname(fileURLToPath(tree.machine)), "idiomatic", rel);
@@ -285,7 +293,7 @@ test("TEETH: a register read in a helper OUTSIDE the layer is heard, charged via
 
 test("TEETH: a register read in an ENGINE file on behalf of idiomatic code is heard (a machine.js method, attract)", async () => {
   const tree = idiomaticTree({ edits: {
-    "hasReachedHorizontalEdgeWindow.js": edit("return (m.regs.fC = arrived);", "m.peekA(); return (m.regs.fC = arrived);"),
+    "hasReachedHorizontalEdgeWindow.js": edit("return arrived;", "m.peekA(); return arrived;"),
   } });
   const path = fileURLToPath(tree.machine);
   const src = readFileSync(path, "utf8");

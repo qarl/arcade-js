@@ -11,7 +11,7 @@
  * ROM 0x00D9-0x015E (serviceVerticalBlankInterrupt_ADDR), entered from the interrupt vector 0x0066
  * via the one-byte `push af` at 0x00D8; the arm table follows at 0x015F and the epilogue at 0x0174.
  * Grounding: [seen] (names.js ROUTINES 0x00D9), as are the routines around it (enterVblankInterrupt,
- * saveAccumulatorForFrameInterrupt, and each callee here).
+ * enterVerticalBlankService, and each callee here).
  *
  * Role in the machine: everything the game does happens once per frame, from here. The board raises
  * its non-maskable interrupt at vertical blank, between one picture and the next, and this
@@ -28,7 +28,7 @@ import { dispatchSequencePhase0SubStepArm } from "./dispatchSequencePhase0SubSte
 import { dispatchSequencePhase1SubStepArm } from "./dispatchSequencePhase1SubStepArm.js";
 import { dispatchSequencePhase2SubStepArm } from "./dispatchSequencePhase2SubStepArm.js";
 import { dispatchSequenceSubStepArm } from "./dispatchSequenceSubStepArm.js";
-import { sendOneQueuedSoundThenUnwindTheFrameInterrupt } from "./sendOneQueuedSoundThenUnwindTheFrameInterrupt.js";
+import { sendOneQueuedSoundThenReopenFrameInterrupt } from "./sendOneQueuedSoundThenReopenFrameInterrupt.js";
 import { ACTIVE_PLAYER, ATTACKER_SPAWN_COOLDOWN, BANK_LAUNCH_COOLDOWN, BCD_FRAME_COUNTER, UPRIGHT_CABINET, COINAGE_SETTINGS, DIP1_MIRROR, FRAME_TICK, IN0_MIRROR, IN1_MIRROR, IN2_MIRROR, SCREEN_UNFLIPPED, SEQUENCE_PHASE, WAVE_CLAIM_TIMER, WATCHDOG_RESET, DSW1_PORT, NMI_ENABLE_LATCH, IN0_PORT, FLIPSCREEN_LATCH, IN1_PORT, IN2_PORT, DSW0_PORT } from "./names.js";
 
 // The three countdowns, in the ROM's order (0xA817, 0xA812, 0xA8F4): each is taken one step toward
@@ -110,5 +110,5 @@ export function serviceVerticalBlankInterrupt(m) {
 
   // 8. Close the frame (0x0174): send the oldest queued sound byte, reopen the interrupt gate, and
   //    return to whatever the interrupt broke into (normally the foreground loop).
-  sendOneQueuedSoundThenUnwindTheFrameInterrupt(m);
+  sendOneQueuedSoundThenReopenFrameInterrupt(m);
 }

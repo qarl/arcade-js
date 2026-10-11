@@ -23,7 +23,7 @@
  * LIVE-OUT: memory (registers and the dead stack scratch aside).
  */
 
-import { sweepSpriteSlotsSkipping } from "./multiplexSpriteSlotsSkipping.js";
+import { multiplexSpriteSlotsSkipping } from "./multiplexSpriteSlotsSkipping.js";
 import { dispatchPlayerFrameByState } from "./dispatchPlayerFrameByState.js";
 import { runSceneryForEra } from "./runSceneryForEra.js";
 import { fireAndSweepPlayerShots } from "./fireAndSweepPlayerShots.js";
@@ -52,9 +52,9 @@ export function flyEnemyFreeLeadInThenStepSequence(m) {
   // The player-side services only, in the ROM's order: sprite fixup, the player's frame, sprite
   // fixup again, the era scenery, the player's shots, then the sprite multiplex that lets the
   // scenery slots show twice per frame. No enemy or collision service is called here.
-  sweepSpriteSlotsSkipping(m);
+  multiplexSpriteSlotsSkipping(m);
   dispatchPlayerFrameByState(m);
-  sweepSpriteSlotsSkipping(m);
+  multiplexSpriteSlotsSkipping(m);
   runSceneryForEra(m);
   fireAndSweepPlayerShots(m);
   multiplexSpriteSlots(m);

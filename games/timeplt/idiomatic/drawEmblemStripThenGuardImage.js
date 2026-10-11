@@ -20,6 +20,7 @@
  * PARAMETER: count = the reserve-ship count, the ring command's argument (the ROM's A).
  * LIVE-OUT: memory only. */
 
+import { NotImplemented } from "../../../boards/timeplt/io.js";
 import { u8 } from "../../../core/int.js";
 import { stampTwoByTwoTileBlock } from "./stampTwoByTwoTileBlock.js";
 import { paintGlyphOverBlankInColourThenStepCursor } from "./paintGlyphOverBlankInColourThenStepCursor.js";
@@ -64,5 +65,5 @@ export function drawEmblemStripThenGuardImage(m, count = m.regs.a) {
   // only ever runs in credited play.
   let check = 0;
   for (let i = 0; i < CHECK_LEN; i++) check ^= mem8[IMAGE_GUARD_BLOCK_0711_BASE + i];
-  if (u8(check + CHECK_BIAS) !== 0) throw new Error("Time Pilot: program image altered");
+  if (u8(check + CHECK_BIAS) !== 0) throw new NotImplemented("drawEmblemStripThenGuardImage: the guarded program block does not fold to zero, so the image is tampered; a genuine image never does");
 }

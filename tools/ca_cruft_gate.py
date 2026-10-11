@@ -50,6 +50,20 @@ PATTERNS = [
         r"|\b(?:observed|seen|watched)\s+(?:in|under|by)\s+(?:a|the|any|every|each|one)\s+capture\b"
         r"|\b(?:in|under|across)\s+(?:a|the|any|every|each|one|both)\s+captures?\b", re.I)),
     ("T-state / cycle-timing modelling", re.compile(r"\bT-?states?\b|\bt-?cycles?\b|\bwait\s?states?\b(?!.*\bpaces?\b)", re.I)),
+    # Our own documents: the map, the outside-in notes, the names registry and its debt files.
+    ("port document citation (mechanisms.md / names.js / ...)", re.compile(
+        r"\b(?:mechanisms|gameplay|understanding|runbook|names-registry)\.md\b|\bnames\.js\b|\b(?:grounding|names)-debt\.txt\b", re.I)),
+    # Talk about OUR label or its wording, never the game: "the name says", "why the name", a quoted
+    # fragment of a routine name weighed against the body ("'one' and not 'the'").
+    ("naming meta (the name says / the role names ...)", re.compile(
+        r"\b(?:the|this|its)\s+(?:routine's\s+)?(?:name|role)\s+(?:says|drops|names|claims|predicts|describes|is\s+taken|is\s+historical|deliberately)\b"
+        r"|\bwhy\s+the\s+name\b|\bthe\s+name\s+is\s+historical\b"
+        r"|'[a-z]+(?:\s+[a-z]+)*'\s+(?:and\s+not|rather\s+than)\s+'"
+        r"|'[a-z]+(?:\s+[a-z]+)+'\s+is\s+(?:only\s+)?(?:one|two|three|four|five|six|seven|half|part)\b", re.I)),
+    # How OUR JavaScript runtime reacts to a transfer it has no routine for -- on the Z80 the bytes just run.
+    ("port runtime (raises / throws / faults)", re.compile(
+        r"\b(?:raises|throws)\s+rather\s+than\b|\bthrow\s*/\s*halt\b|\bhalt-into-data\b|\bcarries\s+no\s+routine\b"
+        r"|\balways\s+faults\b|\band\s+fault\b|\bNotImplemented\b|\bUnmappedAccess\b", re.I)),
 ]
 
 # Deliberately-clean sample lines the selftest confirms pass (guard against an over-broad pattern that
@@ -64,6 +78,11 @@ CLEAN_SAMPLES = [
     "0a3b\tshot already airborne -- return, don't re-arm",
     "4b30\tread the cell level with the player and capture its glyph",
     "3deb\tany other value retires it on the spot without moving it first",
+    "4b30\tfold a program block into the total, which raises the sequence phase on a mismatch",
+    "39ae\tfault marker value -- the march test found a bad cell",
+    "0734\tsilence audio and halt the interrupt and starfield",
+    "2c0c\tthe live bonus is what paces the throws",
+    "0c50\tcaption record 4 reads AND TRY THIS GAME",
 ]
 
 
@@ -109,6 +128,17 @@ def selftest():
         "9999\tno capture wrote the head byte with any value but zero or all-ones)",
         "9999\tthe value was observed in a capture of the attract demo",
         "9999\tthe capture showed it only during play",
+        "9999\t; and mechanisms.md marks this as open",
+        "9999\tthe source is names.js and grounding-debt.txt",
+        "9999\t; the name says one, see the role",
+        "9999\tthe load-bearing thing the name drops",
+        "9999\tThe role names no address for the gate byte on purpose",
+        "9999\twhich is why the name says 'one' and not 'the'",
+        "9999\tso 'settle the control latch' is five of its eight lines",
+        "9999\ttransfers to 0x2E3E, which carries no routine, so that transfer RAISES rather than running",
+        "9999\tthrow/halt-into-data if it does not sum to zero",
+        "9999\ton a wrong guard transfer into a data table and fault",
+        "9999\trun as code it always faults",
     ]
     ok = True
     for line in injections:

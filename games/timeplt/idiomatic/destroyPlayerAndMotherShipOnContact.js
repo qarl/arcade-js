@@ -19,13 +19,9 @@
  * LIVE-OUT: memory.
  */
 
-import { u8, u16 } from "../../../core/int.js";
 import { postChainedHitScore } from "./postChainedHitScore.js";
-import { MOTHER_SHIP_ENTRY, MOTHER_SHIP_HITS_TO_ABSORB, MOTHER_SHIP_SPRITE_Y, MOTHER_SHIP_STATE, PLAYER_ENTRY, PLAYER_STATE } from "./names.js";
-
-// Sprite-entry offset of the Y byte (0x31): PLAYER_ENTRY 0xAA10 + 0x31 = the player's sprite Y 0xAA41.
-const ENTRY_SECOND_AXIS = 49;
-
+import { MOTHER_SHIP_ENTRY, MOTHER_SHIP_HITS_TO_ABSORB, MOTHER_SHIP_SPRITE_Y, MOTHER_SHIP_STATE, PLAYER_ENTRY, PLAYER_SPRITE_Y, PLAYER_STATE } from "./names.js";
+import { within } from "./objectGeometry.js";
 
 // The slot alphabet: 0xFF live, 0xF0 just hit (for the player, the start of the death).
 const LIVE = 255;
@@ -38,9 +34,6 @@ const FIRST_AXIS_SPAN = 17;
 const SECOND_AXIS_REACH = 25;
 const SECOND_AXIS_SPAN = 35;
 
-/** Two coordinates are close enough when their wrapped difference lands inside the box. */
-const within = (a, b, reach, span) => u8(u8(a - b) + reach) < span;
-
 export function destroyPlayerAndMotherShipOnContact(m) {
   const { mem8 } = m;
   // Tests 1 and 2: both craft still live.
@@ -48,9 +41,9 @@ export function destroyPlayerAndMotherShipOnContact(m) {
   if (mem8[MOTHER_SHIP_STATE] !== LIVE) return;
   // Test 3: the Mother-Ship's sprite entry +0 (0xAA24) against the player's (0xAA10).
   if (!within(mem8[MOTHER_SHIP_ENTRY], mem8[PLAYER_ENTRY], FIRST_AXIS_REACH, FIRST_AXIS_SPAN)) return;
-  // Test 4: the Mother-Ship's sprite Y (MOTHER_SHIP_SPRITE_Y 0xAA55) against the player's.
+  // Test 4: the Mother-Ship's sprite Y (MOTHER_SHIP_SPRITE_Y 0xAA55) against the player's (PLAYER_SPRITE_Y 0xAA41).
   if (
-    !within(mem8[MOTHER_SHIP_SPRITE_Y], mem8[u16(PLAYER_ENTRY + ENTRY_SECOND_AXIS)],
+    !within(mem8[MOTHER_SHIP_SPRITE_Y], mem8[PLAYER_SPRITE_Y],
       SECOND_AXIS_REACH, SECOND_AXIS_SPAN)
   ) {
     return;

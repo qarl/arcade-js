@@ -7,6 +7,8 @@
  * back-edge. In the original the drain loop jumps here when the ring is empty, and every command
  * handler it runs is handed 0x0B90 as its return address -- so "go round again" always passes
  * through this jump. It reads and writes nothing itself.
+ * Kept as the ROUTINES override of 0x0B90: no idiomatic module calls
+ * it, because runCommandRingDrainLoop carries the back-edge as its own loop.
  */
 
 import { runCommandRingDrainLoop } from "./runCommandRingDrainLoop.js";

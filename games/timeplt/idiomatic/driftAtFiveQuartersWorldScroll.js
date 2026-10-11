@@ -25,6 +25,7 @@
 
 import { displaceByFiveQuarters } from "./displaceByFiveQuarters.js";
 import { WORLD_SCROLL_X, WORLD_SCROLL_Y } from "./names.js";
+import { coordinateAt, storeCoordinate } from "./objectGeometry.js";
 
 export function driftAtFiveQuartersWorldScroll(m, object = m.regs.ix, sprite = m.regs.iy) {
   /* First coordinate: the sprite entry's native-Y byte at +0x31 (49) is the whole part and the
@@ -45,9 +46,7 @@ export function driftAtFiveQuartersWorldScroll(m, object = m.regs.ix, sprite = m
  * fraction. The sum wraps at sixteen bits, and the fraction carries into the whole, so the
  * coordinate moves and wraps as one number. */
 function driftCoordinate(m, wholeAddr, fractionAddr, displacement) {
-  const { mem8 } = m;
-  const moved = displaceByFiveQuarters(m, displacement, (mem8[wholeAddr] << 8) + mem8[fractionAddr]);
+  const moved = displaceByFiveQuarters(m, displacement, coordinateAt(m, wholeAddr, fractionAddr));
   // Split back: high byte to the sprite entry (ld (iy+..),h), low byte to the record (ld (ix+..),l).
-  mem8[wholeAddr] = moved >> 8;
-  mem8[fractionAddr] = moved;
+  storeCoordinate(m, wholeAddr, fractionAddr, moved);
 }

@@ -31,8 +31,7 @@ import {
 import { u8 } from "../../../core/int.js";
 
 /*
- * The six image bytes read as sound codes, in the ROM's order. The frozen lift records what each holds
- * on a genuine image: 0x167C = 0x86, 0x0A9C = 0x9C, 0x1484 = 0x9D, 0x0C78 = 0x9E, 0x07D3 = 0x9F and
+ * The six image bytes read as sound codes, in the ROM's order. On a genuine image they hold: 0x167C = 0x86, 0x0A9C = 0x9C, 0x1484 = 0x9D, 0x0C78 = 0x9E, 0x07D3 = 0x9F and
  * 0x33B4 = 0xA0. Each is a names.js cell (TRANSITION_SOUND_CODE_CELL_*).
  */
 const FIXED_CODE_SOURCES = [

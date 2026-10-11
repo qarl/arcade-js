@@ -11,9 +11,12 @@
  *      the table lookup with a push of the run pointer and pushes a return for the lookup, and
  *      the rewrite models no stack. Every arm walks the whole dump and asserts nothing escapes
  *      that window, so the exclusion cannot quietly widen.
- *   3. REGISTERS AND PC ARE EXCLUDED, DELIBERATELY, and pinned to exactly {f, sp}. Everything
+ *   3. REGISTERS AND PC ARE EXCLUDED, DELIBERATELY, and pinned to exactly {a, f, sp}. Everything
  *      else the routine leaves behind — the flag byte's neighbour in the pair, the cursor, the
- *      run pointer — is reproduced and compared, not excused.
+ *      run pointer — is reproduced and compared, not excused. A holds the colour the oracle's
+ *      `ld a,c` leaves; the DEAD AT EXIT arm measures it unread by every caller (complemented on
+ *      every exit of the all-frozen game over the tape sessions, nothing moves, with the SP flip
+ *      and the live flag in B both heard at the same exit).
  *   4. WHAT THE REAL DISPATCHES COVER — the digits and flag values the tapes actually present,
  *      asserted as sets per tape, so the sweep below is aimed at the hole rather than at a guess.
  *      And the raw backdrop is only PARTLY able to catch a no-op there: the count of dispatches
@@ -24,7 +27,7 @@
  *      byte-identical on an unaltered image, so one arm pokes that byte and re-runs: the routine
  *      must follow the poke and the twin must not. Its blindness without the poke is asserted,
  *      so its agreement on a genuine image is never read as reassurance.
- *   7. TEETH — seven twins, each caught inside the poisoned planes.
+ *   7. TEETH — twins, each caught inside the poisoned planes.
  *
  * HOLE: nothing here says what the glyph codes look like on screen, nor what the run of these a
  * caller strings together is displaying. The suppression is established as an effect on the
@@ -37,6 +40,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
+import { TAPE_SESSIONS, assertDeadAtExit } from "./_deadAtExit.js";
 import { paintSuppressedDigit } from "../paintSuppressedDigit.js";
 import { loc_0daf as oracle } from "../../translated/loc_0daf.js";
 import { fetchTableByte } from "../fetchTableByte.js";
@@ -57,7 +61,8 @@ const PLANE_BYTES = 0x400;
 const POISON = 0x5a;
 
 const SCRATCH_BYTES = 4;
-const EXCLUDED = ["f", "sp"];
+const EXCLUDED = ["a", "f", "sp"];
+const DEAD_FRAMES = 2500;
 
 const DISPATCHES = { shared: 12, attract: 24 };
 const TAPES = [["shared", {}], ["attract", { tape: [] }]];
@@ -222,6 +227,14 @@ test("EXCLUDED, deliberately: the flag byte, the stack pointer, pc and the scrat
     "a divergence escaped the scratch window");
   assert.ok(allDiffs(a, b).length > 0, "the scratch push vanished, so the window claims too much");
   console.log(`  EXCLUDED: ${EXCLUDED.join(", ")}, pc, and [SP-${SCRATCH_BYTES}, SP) at sp=${hex4(sp)}`);
+});
+
+test("A IS DEAD AT EXIT: the colour the oracle leaves in A is read by no caller", { skip }, () => {
+  assertDeadAtExit({
+    at: TARGET, poison: ["a"], sessions: TAPE_SESSIONS, frames: DEAD_FRAMES,
+    // CONTROL, same instrument and exit: the flag in B, which the caller carries on, must be heard.
+    controls: [{ label: "live B", poison: ["b"] }],
+  });
 });
 
 test("WHAT THE REAL DISPATCHES COVER: a handful of digits and two flag values", { skip }, () => {

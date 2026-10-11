@@ -4,7 +4,8 @@
  * faithful transcription of table bytes run as code, so this raises where the jump would land. It is
  * reached only when a caption witness sampled off the screen reads something other than what a
  * genuine image paints there. No cell is read or written before the raise. LIVE-OUT: none — it
- * never returns. */
+ * never returns.
+ * ROM 0x315B-0x315D. Grounding: [code] (names.js ROUTINES 0x315B). */
 
 import { NotImplemented } from "../../../boards/timeplt/io.js";
 

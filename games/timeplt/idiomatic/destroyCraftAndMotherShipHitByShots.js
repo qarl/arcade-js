@@ -30,16 +30,13 @@
 import { destroyTargetsHitByShots } from "./destroyTargetsHitByShots.js";
 import { postChainedHitScore } from "./postChainedHitScore.js";
 import { CRAFT_ENTRY_SLOT0, CRAFT_RECORD_SLOT0, ERA_INDEX, MOTHER_SHIP_ENTRY, MOTHER_SHIP_SPRITE_Y, MOTHER_SHIP_STATE, PLAYER_SHOT_ARRAY, SCRATCH_PTR_A, SCRATCH_PTR_B } from "./names.js";
-import { u8 } from "../../../core/int.js";
+import { within, nextRecordInPage } from "./objectGeometry.js";
 
 /** Sweep 1's parameters, as the ROM loads them: six shots (C), five craft (A' and B), box L = 7 / H = 0x0F. */
 const SHOTS = 6;
-const RECORD_STRIDE = 16;
 const TARGETS = 5;
 const TARGET_REACH = 7;
 const TARGET_SPAN = 15;
-
-
 
 /** Sweep 2's record layout: state byte at +0, and a shot's two whole coordinates at +6 and +4 (shots have
  *  no sprite entries). 0xFF is live and 0xF0 just hit, the same alphabet as every object slot. */
@@ -58,12 +55,6 @@ const NARROW_REACH = 6;
 const NARROW_SPAN = 13;
 const SECOND_AXIS_REACH = 23;
 const SECOND_AXIS_SPAN = 31;
-
-/** Two coordinates are close enough when their wrapped difference lands inside the box. */
-const within = (a, b, reach, span) => u8(u8(a - b) + reach) < span;
-
-/** Advance a cursor a whole record on WITHOUT leaving its page — the carry is dropped. */
-const nextRecord = (cursor) => (cursor - (cursor & 0xff)) | u8(cursor + RECORD_STRIDE);
 
 export function destroyCraftAndMotherShipHitByShots(m) {
   const { mem8, mem16 } = m;
@@ -97,6 +88,6 @@ export function destroyCraftAndMotherShipHitByShots(m) {
       mem8[shot + STATE] = DESTROYED;
       postChainedHitScore(m);
     }
-    shot = nextRecord(shot);
+    shot = nextRecordInPage(shot);
   }
 }

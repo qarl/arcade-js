@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * seatTheStackAndSettleTheControlLatch — memory-equivalent to the frozen oracle at ROM 0x07B1.
+ * probeExpansionThenSettleControlLatch — memory-equivalent to the frozen oracle at ROM 0x07B1.
  *
  * ★ READ THIS FIRST: THE STATE DUMP CANNOT SEE WHAT THIS ROUTINE DOES. Every write it makes goes
  *   to a device — the watchdog and the control latch — and the dump carries colour, video, work
@@ -63,7 +63,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
-import { seatTheStackAndSettleTheControlLatch } from "../seatTheStackAndSettleTheControlLatch.js";
+import { probeExpansionThenSettleControlLatch } from "../probeExpansionThenSettleControlLatch.js";
 import { loc_07b1 as oracle } from "../../translated/loc_07b1.js";
 import { buildRoutines } from "../../routines.js";
 import { firstStateDiff, wholeMachineEquivalence } from "../../../../core/equivalence.js";
@@ -461,7 +461,7 @@ function brokenNeverHandsOn(m) {
 /** BUG: scribbles on an index register — the control for the EXCLUDED ceiling. */
 function brokenMovesIndex(m) {
   m.regs.ix = (m.regs.ix + 1) & 0xffff;
-  return seatTheStackAndSettleTheControlLatch(m);
+  return probeExpansionThenSettleControlLatch(m);
 }
 
 const TWINS = [
@@ -507,17 +507,17 @@ test("SEAM: the captured entry agrees at the jump", { skip }, () => {
     const entries = capture(label, opts);
     assert.notEqual(entries[0] ?? null, null, `vacuous: the ${label} tape never reached the routine`);
     for (const e of entries) {
-      const d = seamDiff(seatTheStackAndSettleTheControlLatch, e, TRACED);
+      const d = seamDiff(probeExpansionThenSettleControlLatch, e, TRACED);
       assert.equal(d, null, `${label}: ${d}`);
     }
   }
-  const one = runToSeam(theEntry(), seatTheStackAndSettleTheControlLatch, TRACED);
+  const one = runToSeam(theEntry(), probeExpansionThenSettleControlLatch, TRACED);
   console.log(`  SEAM: identical at the jump; the rewrite leaves ${deviceSignature(one.c)}`);
 });
 
 test("LATCH: the RAM dump cannot see this routine, and the device comparison can", { skip }, () => {
   const entry = theEntry();
-  const good = runToSeam(entry, seatTheStackAndSettleTheControlLatch);
+  const good = runToSeam(entry, probeExpansionThenSettleControlLatch);
   const dark = runToSeam(entry, brokenLeavesPictureOff);
   const dumpsAgree = firstStateDiff(good.c.dumpState(), dark.c.dumpState()) === null;
   // The finding, not an aside: a twin that switches the picture off is INVISIBLE to the dump.
@@ -535,7 +535,7 @@ test("LATCH: the RAM dump cannot see this routine, and the device comparison can
 test("TAP: the ordered device writes agree, and a dropped write is seen", { skip }, () => {
   const entry = theEntry();
   const frozen = runToSeam(entry, oracle, TRACED);
-  const rewrite = runToSeam(entry, seatTheStackAndSettleTheControlLatch, TRACED);
+  const rewrite = runToSeam(entry, probeExpansionThenSettleControlLatch, TRACED);
   const short = runToSeam(entry, brokenWalksSeven, TRACED);
   assert.equal(rewrite.writes, frozen.writes, "the ordered device writes parted company");
   // The seven-address twin settles the SAME four lines, so only the ordered tap can catch it.
@@ -548,9 +548,9 @@ test("TAP: the ordered device writes agree, and a dropped write is seen", { skip
 });
 
 test("PRESET: entries whose lines are already high", { skip }, () => {
-  assert.equal(sweepPreset(seatTheStackAndSettleTheControlLatch), 0, "a preset line pattern diverged");
+  assert.equal(sweepPreset(probeExpansionThenSettleControlLatch), 0, "a preset line pattern diverged");
   const high = craft((c) => c.io.latch.set([1, 1, 1, 1, 1, 1, 1, 1]));
-  const after = runToSeam(high, seatTheStackAndSettleTheControlLatch);
+  const after = runToSeam(high, probeExpansionThenSettleControlLatch);
   // The walk reaches four lines, not eight, and the ninth address is a fifth line: arriving with
   // everything high, the three lines above the picture one must still be high afterwards.
   assert.deepEqual([...after.c.io.latch], [0, 0, 0, 0, 1, 1, 1, 1],
@@ -561,14 +561,14 @@ test("PRESET: entries whose lines are already high", { skip }, () => {
 });
 
 test("SOCKET: all 256 answers the expansion socket could give", { skip }, () => {
-  assert.equal(sweepSocket(seatTheStackAndSettleTheControlLatch), 0, "an expansion-socket answer diverged");
+  assert.equal(sweepSocket(probeExpansionThenSettleControlLatch), 0, "an expansion-socket answer diverged");
   let refused = 0;
   for (let v = 0; v < VALUES; v++) {
     const point = craft((c) => answerSocket(c, v));
-    if (runToSeam(point, seatTheStackAndSettleTheControlLatch).threw !== null) refused++;
+    if (runToSeam(point, probeExpansionThenSettleControlLatch).threw !== null) refused++;
   }
   const fitted = craft((c) => answerSocket(c, EXPANSION_FITTED));
-  assert.notEqual(runToSeam(fitted, seatTheStackAndSettleTheControlLatch).threw, null, "the rewrite ran on regardless when " +
+  assert.notEqual(runToSeam(fitted, probeExpansionThenSettleControlLatch).threw, null, "the rewrite ran on regardless when " +
     "the socket answered, so the refusal it is supposed to make is not there");
   assert.equal(refused, 1, "exactly one answer must refuse; anything else means the comparison " +
     "the routine makes has moved");
@@ -576,11 +576,11 @@ test("SOCKET: all 256 answers the expansion socket could give", { skip }, () => 
 });
 
 test("SETTING: the image byte the picture line follows, over all 256 values", { skip }, () => {
-  assert.equal(sweepSetting(seatTheStackAndSettleTheControlLatch), 0, "a picture setting diverged");
+  assert.equal(sweepSetting(probeExpansionThenSettleControlLatch), 0, "a picture setting diverged");
   const levels = new Set();
   for (let v = 0; v < VALUES; v++) {
     const point = craft((c) => setPictureSetting(c, v));
-    levels.add(`${v & 1}->${runToSeam(point, seatTheStackAndSettleTheControlLatch).c.io.latch[4]}`);
+    levels.add(`${v & 1}->${runToSeam(point, probeExpansionThenSettleControlLatch).c.io.latch[4]}`);
   }
   assert.deepEqual([...levels].sort(), ["0->0", "1->1"], "the picture line no longer follows the " +
     "low bit of the setting, so the sweep is not measuring what this arm says it is");
@@ -588,7 +588,7 @@ test("SETTING: the image byte the picture line follows, over all 256 values", { 
 });
 
 test("REGISTERS: scrambled entry register files", { skip }, () => {
-  assert.equal(sweepScrambles(seatTheStackAndSettleTheControlLatch), 0, "a scrambled register file diverged");
+  assert.equal(sweepScrambles(probeExpansionThenSettleControlLatch), 0, "a scrambled register file diverged");
   console.log(`  REGISTERS: ${SWEEP_RUNS.scrambles} register-and-line combinations identical`);
 });
 
@@ -611,7 +611,7 @@ test("TIME: the entry's own T-states, measured", { skip }, () => {
 test("WHOLE-MACHINE: both tapes are byte-identical with the rewrite wired", { skip }, () => {
   for (const [label, opts] of TAPES) {
     const mk = (ov) => makeMachine(ov, opts);
-    const w = wholeMachineEquivalence(mk, WHOLE_FRAMES, new Map([[TARGET, hosted(seatTheStackAndSettleTheControlLatch)]]));
+    const w = wholeMachineEquivalence(mk, WHOLE_FRAMES, new Map([[TARGET, hosted(probeExpansionThenSettleControlLatch)]]));
     assert.ok(w.invocations.get(TARGET) > 0, `vacuous: the override never dispatched under ${label}`);
     assert.equal(w.framesCompared, WHOLE_FRAMES, `the ${label} replay ran short`);
     assert.equal(w.equal, true, `${label} forked at frame ${w.frame} on ${hex4(w.addr ?? 0)}`);
@@ -632,7 +632,7 @@ function movedOver(candidate) {
 }
 
 test("EXCLUDED: nothing outside the ceiling moves, with a control twin", { skip }, () => {
-  const moved = movedOver(seatTheStackAndSettleTheControlLatch);
+  const moved = movedOver(probeExpansionThenSettleControlLatch);
   const control = movedOver(brokenMovesIndex);
   assert.ok(REG_FIELDS.some((k) => control.has(k) && !MOVED.includes(k)),
     "the control twin scribbles on an index register and this measurement did not notice, so a " +

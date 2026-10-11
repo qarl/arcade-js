@@ -39,16 +39,16 @@ import { headingToward } from "./headingToward.js";
 import { requestEraKeyedLaunchSound } from "./requestEraKeyedLaunchSound.js";
 import { loc_59cb } from "./loc_59cb.js";
 import { loc_59d1 } from "./loc_59d1.js";
-import { ACTOR_ENTRY_SLOT0, ACTOR_RECORD_SLOT0, ATTACKER_SPAWN_AIM_WINDOW_HALF, BANK_LAUNCH_COOLDOWN, BANK_LAUNCH_COOLDOWN_PERIOD, BANK_LAUNCH_HEADING_HALF_WIDTH, BANK_LAUNCH_NEAR_HALF_WIDTH, BANK_LAUNCH_SLOT_COUNT, ENEMY_STANDOFF_AIM_MAIN, ERA_INDEX, FRAME_TICK, PLAYER_HEADING, SCRATCH_PTR_A, SCRATCH_PTR_B } from "./names.js";
+import { ACTOR_ENTRY_SLOT0, ACTOR_RECORD_SLOT0, BANK_LAUNCH_COOLDOWN, BANK_LAUNCH_COOLDOWN_PERIOD, BANK_LAUNCH_HEADING_HALF_WIDTH, BANK_LAUNCH_NEAR_HALF_WIDTH, BANK_LAUNCH_SLOT_COUNT, ENEMY_STANDOFF_AIM_MAIN, ERA_INDEX, FRAME_TICK, PLAYER_HEADING, SCRATCH_PTR_A, SCRATCH_PTR_B } from "./names.js";
 
 // Offsets. Sprite entry: +0x00 and +0x31 are the two coordinate bytes, +0x01 the shape, +0x30 the
 // attribute. Record: +0x02 is the heading field every actor family shares (see PLAYER_HEADING in
-// names.js; the name OBJ_X below is historical), +0x0F the craft's phase key, +0x0A..+0x0D the two
+// names.js), +0x0F the craft's phase key, +0x0A..+0x0D the two
 // 16-bit velocity components. Records are 0x10 apart; sprite entries 2 apart.
-const SPRITE_STATE = 0x30;
+const SPRITE_ATTRIBUTE = 0x30;
 
 const PHASE_KEY = 0x0f;
-const OBJ_X = 0x02;
+const HEADING = 0x02;
 const COORD_Y = 0x31;
 const VELOCITY = 0x0a;
 const RECORD_STRIDE = 0x10;
@@ -102,25 +102,17 @@ export function launchBankEnemyWhenAimedNearPlayer(m, ixEntry = m.regs.ix, iyEnt
   // BANK_LAUNCH_HEADING_HALF_WIDTH (0xA837) of PLAYER_HEADING (0xA802).
   const halfHeading = mem8[BANK_LAUNCH_HEADING_HALF_WIDTH];
   const fullHeading = u8(halfHeading + halfHeading);
-  const headingGap = u8(u8(mem8[PLAYER_HEADING] - mem8[u16(ixEntry + OBJ_X)]) + halfHeading);
+  const headingGap = u8(u8(mem8[PLAYER_HEADING] - mem8[u16(ixEntry + HEADING)]) + halfHeading);
   if (headingGap >= fullHeading) return;
 
-  // the entry cursor's high byte is the bank page and nothing rewrites it, so this window never
-  // fires; kept as a faithful mirror of the detached block
-  // (ROM: `ld a,d` / `cp 0x02` at 0x3F2D, `jp z,0x3F9E`; the block would test the +0x00 axis against
-  // 0x84 once more with ATTACKER_SPAWN_AIM_WINDOW_HALF, 0xA8E6, and return to 0x3F32.)
-  if ((entry >> 8) === 0x02) {
-    const halfAim = mem8[ATTACKER_SPAWN_AIM_WINDOW_HALF];
-    const fullAim = u8(halfAim + halfAim);
-    const nearAim = u8(u8(0x84 - mem8[iyEntry]) + halfAim);
-    if (nearAim >= fullAim) return;
-  }
+  // (ROM 0x3F2D diverts to an extra window at 0x3F9E when the entry cursor's high byte is 0x02; the
+  // cursor stays on the sprite-entry page, so that divert is never taken.)
 
   // GATE 6 -- AIMED (0x3F32-0x3F40). headingToward (0x33B8) gives the heading from the craft to
   // ENEMY_STANDOFF_AIM_MAIN (0xAC7F), a point standing off the player's ship. The craft fires only if
   // that heading is within 16 steps (out of 256) of its own: the window test with h = 0x10.
   const heading = headingToward(m, ENEMY_STANDOFF_AIM_MAIN, iyEntry);
-  const aim = u8(u8(heading - mem8[u16(ixEntry + OBJ_X)]) + 0x10);
+  const aim = u8(u8(heading - mem8[u16(ixEntry + HEADING)]) + 0x10);
   if (aim >= 0x20) return; // aim not aligned to the object's own heading
 
   // LAUNCH. Request the launch sound (call 0x3F93; play-gated, so the attract demo stays silent).
@@ -137,18 +129,18 @@ export function launchBankEnemyWhenAimedNearPlayer(m, ixEntry = m.regs.ix, iyEnt
 
   // Velocity along the aim heading: the doubled component pair from one of two sample tables, the
   // third table (loc_59d1) from era 1 on and the second (loc_59cb) in era 0, keyed on ERA_INDEX (0xAD04).
-  const [de, bc] = mem8[ERA_INDEX] !== 0 ? loc_59d1(m, heading) : loc_59cb(m, heading);
+  const [alongFirstAxis, alongSecondAxis] = mem8[ERA_INDEX] !== 0 ? loc_59d1(m, heading) : loc_59cb(m, heading);
 
   // the shim's doubled pair: de then bc, stored low, high, low, high
-  mem8[u16(recIx + VELOCITY + 0)] = de;
-  mem8[u16(recIx + VELOCITY + 1)] = de >> 8;
-  mem8[u16(recIx + VELOCITY + 2)] = bc;
-  mem8[u16(recIx + VELOCITY + 3)] = bc >> 8;
+  mem8[u16(recIx + VELOCITY + 0)] = alongFirstAxis;
+  mem8[u16(recIx + VELOCITY + 1)] = alongFirstAxis >> 8;
+  mem8[u16(recIx + VELOCITY + 2)] = alongSecondAxis;
+  mem8[u16(recIx + VELOCITY + 3)] = alongSecondAxis >> 8;
   // Stamp the shot's sprite: shape 0x4D and attribute 0x62 (0x3F7D-0x3F85). Then re-arm the cooldown
   // from its fixed period BANK_LAUNCH_COOLDOWN_PERIOD (0xA814), and count the new record's head byte
   // down one (`dec (ix+0x00)`), which marks the slot as taken.
   mem8[u16(entIy + 0x01)] = 0x4d;
-  mem8[u16(entIy + SPRITE_STATE)] = 0x62;
+  mem8[u16(entIy + SPRITE_ATTRIBUTE)] = 0x62;
   mem8[BANK_LAUNCH_COOLDOWN] = mem8[BANK_LAUNCH_COOLDOWN_PERIOD];
   mem8[recIx] = u8(mem8[recIx] - 1);
 }

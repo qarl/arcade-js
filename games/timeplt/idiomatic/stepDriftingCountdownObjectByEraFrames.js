@@ -12,10 +12,10 @@
  * as that byte is counting down. Its paired sprite entry follows the usual Time Pilot entry layout
  * (names.js, the enemy-craft slot note): +0x01 = tile/shape, +0x30 = attribute (colour + flip).
  *
- * Parameters: `ix` is the object's record (the caller's object sweep seats it), `iy` is the sprite
- * entry paired with that record. Both default to the caller's IX/IY. */
+ * Parameters: `object` is the object's record (the caller's object sweep seats it), `sprite` is the
+ * sprite entry paired with that record. */
 
-import { stampObjectStateByte3bThenRequestSound } from "./stampObjectStateByte3bThenRequestSound.js";
+import { clampOneShotCountdownThenRequestSound } from "./clampOneShotCountdownThenRequestSound.js";
 import { driftWithWorldScroll } from "./driftWithWorldScroll.js";
 import { retireSlot } from "./retireSlot.js";
 import { fetchTableByte } from "./fetchTableByte.js";
@@ -39,19 +39,17 @@ const SPRITE_STATE = 0x30;
 const NEAR_STATE = 0x0d;
 const FAR_STATE = 0x02;
 
-export function stepDriftingCountdownObjectByEraFrames(m, ix = m.regs.ix, iy = m.regs.iy) {
+export function stepDriftingCountdownObjectByEraFrames(m, object = m.regs.ix, sprite = m.regs.iy) {
   const { mem8 } = m;
-  const object = ix;
-  const sprite = iy;
 
   /* Step 1 — top of the count: re-stamp, then drift (0x413C-0x4147).
-   * A count at or above the reset mark is clamped by stampObjectStateByte3bThenRequestSound (0x409D),
+   * A count at or above the reset mark is clamped by clampOneShotCountdownThenRequestSound (0x409D),
    * which writes 0x3B into the head and requests the object's sound — so a count arriving high is
    * pulled down to 0x3B before this frame's decrement. Every frame, whatever the count, the object
    * is then carried along with the world by driftWithWorldScroll (0x2B60): it adds this frame's
    * world-scroll displacement to the object's coordinates, so it stays put relative to the sky while
    * the player's ship appears to fly past it. */
-  if (mem8[object + COUNT] >= RESET_MARK) stampObjectStateByte3bThenRequestSound(m, object);
+  if (mem8[object + COUNT] >= RESET_MARK) clampOneShotCountdownThenRequestSound(m, object);
   driftWithWorldScroll(m, object, sprite);
 
   /* Step 2 — count down one frame (`dec (ix+0x00)` at 0x4147).

@@ -18,7 +18,7 @@
 import { u16 } from "../../../core/int.js";
 import { dressSpriteFlutterShapesByFrameTickBit } from "./dressSpriteFlutterShapesByFrameTickBit.js";
 
-// Constants off the lift: `and 0x7f` drops the selector bit, `cp 0x03` is the restart threshold,
+// Constants off the ROM: `and 0x7f` drops the selector bit, `cp 0x03` is the restart threshold,
 // `ld (ix+0x06),0x00` names the record's counter cell, and `ld (iy+0x30),0x51` /
 // `ld (iy+0x32),0x51` are the two attribute slots and the code they receive.
 const SELECTOR_BIT = 0x80;

@@ -67,6 +67,14 @@ def strip_grounding(s):
     return s.strip()
 
 GAME = None  # the game being emitted (main sets it); narrows the wrong-game leak pattern for its own pages
+# Games whose kept-hex (loc_) routines still get their names.js role as a header comment. Opt-in, so a
+# game's committed pages change only in the unit that regenerates them.
+LOC_ROLE_GAMES = {"timeplt"}
+
+
+def _role_header(rn):
+    """True when routine (name, role, cert) `rn` gets a role header above its label."""
+    return bool(rn) and bool(rn[1]) and (not rn[0].startswith("loc_") or GAME in LOC_ROLE_GAMES)
 
 
 def _has_cruft(s):
@@ -155,8 +163,8 @@ GAME_DESC = {
         "Time Pilot (Konami, 1982). A free-roaming aerial shooter: your fighter "
         "holds the centre of the screen and turns to face the way you steer, while "
         "the whole world scrolls and banks around it, and you gun down swarms of "
-        "enemy craft and the boss mother-ship that anchors each wave. Clearing a "
-        "wave carries you forward through five eras of flight, each faster and more "
+        "enemy craft; shoot enough of them to bring on the era's Mother-Ship, and "
+        "destroying it warps you forward to the next of five eras, each faster and more "
         "crowded than the last; parachutists drifting down are worth extra points "
         "if you collect them. Run out of fighters to end the game."
     ),
@@ -946,9 +954,10 @@ def gen_code(meta, raw_lines, routines, wr_lo, wr_hi, rom_hi, notes, rom=None):
                 pc = e + 1
                 sep()
                 rn = eff.get(pc)
-                if rn and not rn[0].startswith("loc_"):
+                if _role_header(rn):
                     for w in textwrap.wrap(clean_role(rn[1]), ROLE_WRAP):
                         body.append("; " + w)
+                if rn and not rn[0].startswith("loc_"):
                     body.append(rn[0] + ":")
                 else:
                     body.append("loc_%04x:" % pc)
@@ -973,9 +982,10 @@ def gen_code(meta, raw_lines, routines, wr_lo, wr_hi, rom_hi, notes, rom=None):
             addr = int(lm.group(1), 16)
             sep()
             rn = eff.get(addr)
-            if rn and not rn[0].startswith("loc_"):
+            if _role_header(rn):
                 for w in textwrap.wrap(clean_role(rn[1]), ROLE_WRAP):
                     body.append("; " + w)
+            if rn and not rn[0].startswith("loc_"):
                 body.append(rn[0] + ":")
             else:
                 body.append("loc_%04x:" % addr)

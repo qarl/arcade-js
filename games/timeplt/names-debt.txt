@@ -18,9 +18,7 @@ loc_0bdc  a lone ret filling slots 8, 9 and 12-15 of the 0x0BBC command handler 
 #
 # Recorded keep-hex decisions in names.js (binding per runbook "Recorded keep-hex decisions are binding"):
 loc_10f8  names.js why: no absolute entry point -- reached only by relative branches interior to multiplexSpriteSlots (0x1098-0x1198); a range fragment, not its own routine
-loc_12e2  names.js why: its body is the shared `ld hl,0xA9EB / dec (hl)` countdown prologue the image reuses at seven sites; a delay name would name the idiom, not this arm
 loc_3793  names.js why: no absolute entry point (the only transfer is a relative jr z at 0x37C8 interior to 0x37BD); stages one arm of 0x37BD's decision, a stretch of that routine's job
-loc_5254  no absolute entry point (a whole-image word scan finds no 0x5254; tools/registry-coverage.config.mjs records it as an interior continuation of destroyTargetsHitByShots); a range fragment, same rule as loc_10f8/loc_3793
 loc_598e  names.js why: the doubled-velocity table-shim family is kept hex -- an English name would have to say what the pace means, which no shim decides
 loc_5994  names.js why: byte-for-byte loc_598e apart from the table immediate; same recorded family decision
 loc_58b6  named in loc_598e's recorded keep-hex family decision (a two-instruction table shim of the doubled-velocity family)

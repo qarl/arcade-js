@@ -19,7 +19,6 @@ import { blankCaptionThenAdvancePenRunStep as candidate } from "../blankCaptionT
 import { loc_5bd7 as oracle } from "../../translated/loc_5bd7.js";
 import { blankFourteenCharCells } from "../blankFourteenCharCells.js";
 import { drawInterpolatedPenRun } from "../drawInterpolatedPenRun.js";
-import { F_Z } from "../../../../core/cpu/z80.js";
 import { advanceSequencePhase } from "../advanceSequencePhase.js";
 import { advanceSequenceSubStep } from "../advanceSequenceSubStep.js";
 import { u8 } from "../../../../core/int.js";
@@ -28,7 +27,7 @@ const TARGET = 0x5bd7;
 const SEQ_CELL = 0xa9ac;
 const GUARD_CELL = 0xa9ab;
 const RUN_INDEX = 0xa9e2;
-// Seating the run index here makes the pen run reseat to a zero row integer, so drawInterpolatedPenRun clears Z
+// Seating the run index here makes the pen run reseat to a zero row integer, so drawInterpolatedPenRun returns true
 // and the full checksum path runs rather than the early return; measured from advancePenRunAnimationStep's sibling arm.
 const ZERO_ROW_PRIOR = 0x69;
 
@@ -151,8 +150,7 @@ function build({ blank = true, branch = "nz", phase = "clean", bias = SUM_BIAS, 
   return (m) => {
     const { mem8 } = m;
     if (blank) blankFourteenCharCells(m);
-    // The run hands back its flags; Z set means it reseated to a zero row integer.
-    const reseatedAtRowZero = (drawInterpolatedPenRun(m) & F_Z) !== 0;
+    const reseatedAtRowZero = drawInterpolatedPenRun(m);
     if (branch === "nz" ? !reseatedAtRowZero : reseatedAtRowZero) return;
     let fold = 0;
     for (let i = 0; i < XOR_LEN; i++) fold ^= mem8[XOR_BLOCK + i];

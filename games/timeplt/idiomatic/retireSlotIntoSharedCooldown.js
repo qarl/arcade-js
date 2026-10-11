@@ -15,7 +15,7 @@
 import { retireSlot } from "./retireSlot.js";
 import { ATTACKER_SPAWN_COOLDOWN_PERIOD } from "./names.js";
 
-// The record's delay byte: `ld (ix+0x0e),a` in the lift.
+// The record's delay byte: `ld (ix+0x0e),a` in the ROM.
 const RECORD_BYTE = 14;
 
 export function retireSlotIntoSharedCooldown(m, record = m.regs.ix, entry = m.regs.iy) {

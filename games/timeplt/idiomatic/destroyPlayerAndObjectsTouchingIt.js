@@ -12,11 +12,10 @@
  * all when the mover was already spent, since that path never enters the sweep.
  * LIVE-OUT: memory, plus the two cursors (occupancy in E, coordinate in IY).
  *
- * THREADING RETURN (added for C2 de-register work): also returns the cursor pair as a tuple
- * { occupancy, entry } so a caller can thread it forward without reading regs.e/regs.iy back. The
- * register writes above are unchanged and remain the DECLARED live-out; on the spent-mover early
- * exit neither register is written (contract preserved) and the tuple echoes the un-advanced input
- * cursors. Both tuple fields are u16-wrapped at the boundary. */
+ * The cursor pair is also returned as { occupancy, entry }, each wrapped to sixteen bits, so a
+ * caller can carry it forward. On the spent-mover exit neither register is written and the pair
+ * echoes the un-advanced input cursors.
+ * ROM 0x5185-0x51B2. Grounding: [seen] (names.js ROUTINES 0x5185). */
 
 import { u8, u16 } from "../../../core/int.js";
 import { PLAYER_ENTRY, PLAYER_SPRITE_Y, PLAYER_STATE } from "./names.js";

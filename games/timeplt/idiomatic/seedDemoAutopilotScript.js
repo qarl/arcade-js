@@ -21,7 +21,7 @@ import { DEMO_AUTOPILOT_SCRIPT_FIRST, DEMO_AUTOPILOT_SCRIPT_SECOND, DEMO_AUTOPIL
 export function seedDemoAutopilotScript(m) {
   const { mem8 } = m;
 
-  /* Choose the script. The lift's compare ladder on (0xAD14): 0 or 3 -> 0x218C, 1 -> 0x2251,
+  /* Choose the script. The ROM's compare ladder on (0xAD14): 0 or 3 -> 0x218C, 1 -> 0x2251,
    * anything else (2 or 4 in practice) -> 0x22FA. */
   const selector = mem8[PLAYER_ONE_ERA_INDEX];
   const script =

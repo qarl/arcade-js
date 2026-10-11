@@ -21,11 +21,13 @@
  * The screen: the character plane (glyphs, based at 0xA400) and the colour plane (based at 0xA000)
  * hold the same grid at the same offsets, told apart only by address bit 10 (0x0400).
  *
- * Parameters (named after their ROM registers): `a` the digit in its low nibble; `b` the caller's
- * "significant digit seen" flag (0 = none yet); `c` the colour byte; `hl` the caller's pointer,
- * saved and restored by the ROM around the lookup; `de` the character-plane cell to paint.
+ * Parameters: `value` the digit in its low nibble; `flag` the caller's "significant digit seen" flag
+ * (0 = none yet); `colour` the colour byte; `cell` the character-plane cell to paint.
  *
- * LIVE-OUT: the two cells painted, the flag, the cursor, and the colour. */
+ * LIVE-OUT: the two cells painted, and { flag, cell }: the flag and the cursor. The ROM also leaves
+ * the colour in A, which no caller reads (equivalence-0daf, DEAD AT EXIT). */
+
+import { u8 } from "../../../core/int.js";
 
 import { fetchTableByte } from "./fetchTableByte.js";
 import { DIGIT_GLYPH_TABLE, LEADING_ZERO_BLANK_GLYPH_INDEX } from "./names.js";
@@ -34,9 +36,9 @@ const CHARACTER_PLANE_BIT = 1 << 10; // bit 10: character/attribute plane select
 // The ROM's `and 0x0f`: only the low nibble is the digit.
 const LOW_NIBBLE = 0x0f;
 
-export function paintSuppressedDigit(m, a = m.regs.a, b = m.regs.b, c = m.regs.c, hl = m.regs.hl, de = m.regs.de) {
+export function paintSuppressedDigit(m, value = m.regs.a, flag = m.regs.b, colour = m.regs.c, cell = m.regs.de) {
   const { mem8 } = m;
-  const digit = a & LOW_NIBBLE;
+  const digit = value & LOW_NIBBLE;
 
   // Choose the glyph-table entry.
   // - A non-zero digit (ROM 0x0DB3 `inc b`, then `jr 0x0dbe`) indexes by itself and steps the flag
@@ -45,23 +47,22 @@ export function paintSuppressedDigit(m, a = m.regs.a, b = m.regs.b, c = m.regs.c
   //   index of the blank. `inc b / dec b` then tests the flag: while it is still clear the zero is
   //   a LEADING zero and keeps that blank index; once it is set, `xor a` makes the index 0, the
   //   entry for the glyph '0'.
-  let entry, flag = b;
+  let entry, nextFlag = flag;
   if (digit !== 0) {
-    flag = b + 1;
+    nextFlag = u8(flag + 1);
     entry = digit;
   } else {
-    entry = b === 0 ? mem8[LEADING_ZERO_BLANK_GLYPH_INDEX] : 0;
+    entry = flag === 0 ? mem8[LEADING_ZERO_BLANK_GLYPH_INDEX] : 0;
   }
 
   // Look the entry up in the digit-glyph table at 0x0DCC (DIGIT_GLYPH_TABLE) through fetchTableByte
   // (`rst 0x08`); the ROM's `push hl` / `pop hl` around it keeps the caller's pointer.
   const glyph = fetchTableByte(m, DIGIT_GLYPH_TABLE, entry);
-  const cell = de;
   // Glyph into the character cell (`ld (de),a`), colour into the same cell of the colour plane
   // by clearing bit 10 (`res 2,d / ld a,c / ld (de),a`).
   mem8[cell] = glyph;
-  mem8[cell & ~CHARACTER_PLANE_BIT] = c;
-  // Hand back the flag, the caller's pointer, A holding the colour (left there by `ld a,c`), and the
-  // cursor with bit 10 SET (`set 2,d`) — a set, so it ends on the glyph side whichever side it came in.
-  return [m.regs.b = flag, m.regs.hl = hl, m.regs.a = c, m.regs.de = cell | CHARACTER_PLANE_BIT];
+  mem8[cell & ~CHARACTER_PLANE_BIT] = colour;
+  // Hand back the flag and the cursor with bit 10 SET (`set 2,d`) — a set, so it ends on the glyph
+  // side whichever side it came in.
+  return { flag: (m.regs.b = nextFlag), cell: (m.regs.de = cell | CHARACTER_PLANE_BIT) };
 }

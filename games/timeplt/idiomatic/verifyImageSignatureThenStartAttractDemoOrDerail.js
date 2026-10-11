@@ -14,7 +14,8 @@
  * PLAY_ACTIVE is cleared rather than raised, this is the demo run, not a real game.
  *
  * LIVE-OUT: memory only. The arm is reached by computed dispatch and its successor reloads every
- * register it uses before reading one, so no register is live out. */
+ * register it uses before reading one, so no register is live out.
+ * ROM 0x2730-0x2754. Grounding: [seen] (names.js ROUTINES 0x2730). */
 
 import {
   TAMPER_IMAGE_SIGNATURE,

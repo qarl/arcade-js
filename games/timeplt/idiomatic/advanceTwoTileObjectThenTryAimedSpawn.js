@@ -25,7 +25,7 @@ import { spawnAimedEnemyIntoEraBankWhenInWindow } from "./spawnAimedEnemyIntoEra
 
 // Offsets into the sprite-entry area (from IY). The first tile's Y lives at +0x31 and the second
 // tile's at +0x33; the first tile's X at +0x00 and the second's at +0x02 -- the two entries sit one
-// stride (two bytes) apart in each coordinate run, matching the lift's `ld (iy+0x33)` / `ld (iy+0x02)`.
+// stride (two bytes) apart in each coordinate run, matching the ROM's `ld (iy+0x33)` / `ld (iy+0x02)`.
 const TILE_Y = 0x31;
 const SECOND_TILE_Y = 0x33;
 const TILE_X = 0x00;

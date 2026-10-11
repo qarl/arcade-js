@@ -35,7 +35,7 @@ import { serviceRoundThenResolvePlayerState } from "./serviceRoundThenResolvePla
 import { fileScoreAfterGameOverHoldElsePassTurn } from "./fileScoreAfterGameOverHoldElsePassTurn.js";
 import { erasePenRouteThenOpenInitialsEntry } from "./erasePenRouteThenOpenInitialsEntry.js";
 import { stepHighScoreInitialsEntry } from "./stepHighScoreInitialsEntry.js";
-import { loc_12e2 } from "./loc_12e2.js";
+import { holdThenPassTurnToOtherPlayerIfLivesElseStepSequence } from "./holdThenPassTurnToOtherPlayerIfLivesElseStepSequence.js";
 import { restartAttractSequence } from "./restartAttractSequence.js";
 import { armRoundWonBandAnimationThenStepSequence } from "./armRoundWonBandAnimationThenStepSequence.js";
 import { stepRoundStartIntroAnimation } from "./stepRoundStartIntroAnimation.js";
@@ -71,7 +71,7 @@ export function dispatchSequenceSubStepArm(m) {
     case 10: stepHighScoreInitialsEntry(m); break;
     // Arms 11-14: a delay countdown, the attract restart, and the round-won band animation (arm 13
     // sets it up, arm 14 runs it frame by frame).
-    case 11: loc_12e2(m); break; // the delay countdown (SEQUENCE_DELAY); kept hex in names.js
+    case 11: holdThenPassTurnToOtherPlayerIfLivesElseStepSequence(m); break; // the delay countdown (SEQUENCE_DELAY), then the turn hand-over
     case 12: restartAttractSequence(m); break;
     case 13: armRoundWonBandAnimationThenStepSequence(m); break;
     case 14: stepRoundStartIntroAnimation(m); break;

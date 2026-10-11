@@ -20,7 +20,7 @@
  */
 
 import { u8 } from "../../../core/int.js";
-import { sweepSpriteSlotsSkipping } from "./multiplexSpriteSlotsSkipping.js";
+import { multiplexSpriteSlotsSkipping } from "./multiplexSpriteSlotsSkipping.js";
 import { dispatchPlayerFrameByState } from "./dispatchPlayerFrameByState.js";
 import { runSceneryForEra } from "./runSceneryForEra.js";
 import { multiplexSpriteSlots } from "./multiplexSpriteSlots.js";
@@ -53,9 +53,9 @@ export function flyRoundIntroFlashingEraYearThenEraseIntroCaptions(m) {
 
   // Fly the ship over the scenery: the player's frame and the era scenery between two sprite
   // fixup passes, closed by the sprite multiplex. No enemy or collision service runs.
-  sweepSpriteSlotsSkipping(m);
+  multiplexSpriteSlotsSkipping(m);
   dispatchPlayerFrameByState(m);
-  sweepSpriteSlotsSkipping(m);
+  multiplexSpriteSlotsSkipping(m);
   runSceneryForEra(m);
   multiplexSpriteSlots(m);
 

@@ -1,10 +1,10 @@
 # grounding-debt: routines and cells genuinely un-groundable on a good ROM (reviewer-verified, R39).
 # One "0xADDR  reason" per line. done_gate.check_grounding subtracts these from the ungrounded count.
 
-0x2251  [anti-tamper] names.js role: tamper-trap data table jumped into as code when the tile-ROM chec
-0x0f8d  [anti-tamper] names.js role: image-checksum tamper trap -- drops four return words to unwind t
-0x08fa  [anti-tamper] names.js role: checksum-failure landing whose bytes are really a read-as-data ta
-0x0167  [anti-tamper] names.js role: caption-record data run as code on the checksum-MISMATCH derail a
+0x2251  [anti-tamper] the second demo-autopilot script's bytes, entered as code only by jp 0x2251 at 0x213D, reached only when seedDemoAutopilotScript's readback witness fails (0xADFB != 0xFD, or 0xADFC not 0x10/0x05, tested 0x212C-0x213A); on a good ROM those cells hold FD and 05/10, so 0x213D never executes
+0x0f8d  [anti-tamper] ERA_PEN_TABLE's bytes run as code only when advanceSequenceUnlessImageTampered's image fold misses 0x67; on a genuine image the fold matches, so loc_0f8d never executes
+0x08fa  [anti-tamper] VELOCITY_TABLE_08FA's bytes run as code only on the checksum mismatch in erasePenRouteThenAdvanceStep (256-byte sum at 0x4AA0 != 0xB8) or buildCopyrightScreenThenVerifyImage; on a genuine image both match, so 0x08FA is never executed
+0x0167  [anti-tamper] caption record 9 ("PLAYER 1") runs as code only on armWholePlaneWipeThenDerailOnATamperedImage's image-total miss (240 bytes from 0x4BA5 must sum to 0x11); on a genuine image the total matches
 0x1f2e  [anti-tamper] direction-table bytes entered as code only by the jp 0x1F2E at 0x2063, taken iff TAMPER_GLYPH_STRIP 0xABFE != 0xA5 or TAMPER_COLOUR_STRIP 0xABFF not 0x05/0x10; on a good ROM those cells only ever hold A5 and 05/10, so 0x2063 never executes
 0x1f99  [anti-tamper] direction-table bytes decoded as code, entered only via the jr nz at 0x1F37 inside the 0x1F2E table, itself reached only through the tamper derail jp 0x1F2E at 0x2063 (0xABFE != 0xA5 or 0xABFF not 0x05/0x10), which never fires on a genuine image
 0x15b5  [dead-code] slot 15 of the 0x0F29 sub-step table: SEQUENCE_SUBSTEP reaches 15 only transiently inside arm 14 (0x1323 -> 4c75 -> inc at 0x0F1D), which overwrites it with 03 at 0x1363 in the same NMI with NMI disabled, so no dispatch ever reads 15

@@ -35,7 +35,7 @@ export function fillCellRun(m, fill = m.regs.a, start = m.regs.hl) {
     mem8[cursor] = fill;
     cursor = u16(cursor + CELL_STEP);
   }
-  // The cell-step register is a load-bearing live-out: the (frozen) callers walk on from it
-  // without reloading, reading it straight from the register bridge — set it AND return it.
+  // The cell step is a live-out: the ROM's callers walk on from DE without reloading it, so it is
+  // left in DE and returned.
   return (m.regs.de = u16(CELL_STEP));
 }

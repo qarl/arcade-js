@@ -14,8 +14,8 @@
  * START_RUNG, which the playfield reset later copies into ERA_RUNG.
  *
  * Not reached by the MAME sweeps (none completed a round); every write seen to these cells in
- * those runs came from the per-player context copy instead. The claims below are checked against
- * the lift and against the cells' own entries in names.js.
+ * those runs came from the per-player context copy instead. The claims below are code-level, read
+ * from the routine and the cells' own entries in names.js.
  *
  * LIVE-OUT: memory only. */
 

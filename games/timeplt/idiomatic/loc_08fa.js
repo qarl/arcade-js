@@ -4,7 +4,8 @@
  * genuine image the sum always matches, so the two live sites that could branch here never take it.
  * Decoded as code the bytes churn the index registers then derail into unmapped space, which faults.
  * Unreachable in real play, so it is modeled as a throw rather than reproducing the churn.
- * LIVE-OUT: none — every path faults; entry is the trap. */
+ * LIVE-OUT: none — every path faults; entry is the trap.
+ * ROM 0x08FA-0x094C. Grounding: [code] (names.js ROUTINES 0x08FA). */
 
 import { NotImplemented } from "../../../boards/timeplt/io.js";
 

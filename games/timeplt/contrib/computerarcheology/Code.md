@@ -18,21 +18,21 @@
 ; Time Pilot (Konami, 1982). A free-roaming aerial shooter: your fighter holds
 ; the centre of the screen and turns to face the way you steer, while the
 ; whole world scrolls and banks around it, and you gun down swarms of enemy
-; craft and the boss mother-ship that anchors each wave. Clearing a wave
-; carries you forward through five eras of flight, each faster and more
-; crowded than the last; parachutists drifting down are worth extra points if
-; you collect them. Run out of fighters to end the game.
+; craft; shoot enough of them to bring on the era's Mother-Ship, and
+; destroying it warps you forward to the next of five eras, each faster and
+; more crowded than the last; parachutists drifting down are worth extra
+; points if you collect them. Run out of fighters to end the game.
 ;
 ; Architecture: on reset ($0000) the CPU jumps to
-; seatTheStackAndSettleTheControlLatch ($07B1). What follows is the code
+; probeExpansionThenSettleControlLatch ($07B1). What follows is the code
 ; reached from the reset and interrupt entry points, shown as instructions;
 ; spans never reached appear as data (the "---- data ----" blocks).
 
 
 ; a bare transfer to 0x07B1 and no return; no cell is read or written and
 ; no register moves
-trampolineToSeatTheStackAndSettleTheControlLatch:
-0000: C3 B1 07        JP      $07B1               ; {code.seatTheStackAndSettleTheControlLatch}
+trampolineToProbeExpansionThenSettleControlLatch:
+0000: C3 B1 07        JP      $07B1               ; {code.probeExpansionThenSettleControlLatch}
 
 ; ---- $0003-$0007: data ----
 0003: FF FF FF 33 4B
@@ -142,7 +142,7 @@ loc_004d:
 ; interrupt and it transfers straight to the frame-service handler at
 ; 0x00d8, writing nothing of its own
 enterVblankInterrupt:
-0066: C3 D8 00        JP      $00D8               ; {code.saveAccumulatorForFrameInterrupt} hand the per-frame interrupt straight on to the frame-service handler
+0066: C3 D8 00        JP      $00D8               ; {code.enterVerticalBlankService} hand the per-frame interrupt straight on to the frame-service handler
 
 ; cold-start clear reached once at boot via 0x07B1: kicks the watchdog
 ; four times, zeroes the 0xB410 sprite-bank run and the whole 2 KB work
@@ -182,7 +182,7 @@ loc_009c:
 009D: 23              INC     HL                  
 009E: 10 FC           DJNZ    $009C               ; {code.loc_009c} on across all two hundred fifty-six bytes
 00A0: D6 87           SUB     $87                 ; weigh the total against a genuine image's value
-00A2: C4 D8 00        CALL    NZ,$00D8            ; {code.saveAccumulatorForFrameInterrupt} on a tampered image, run the frame service out of band
+00A2: C4 D8 00        CALL    NZ,$00D8            ; {code.enterVerticalBlankService} on a tampered image, run the frame service out of band
 00A5: C3 66 58        JP      $5866               ; {code.clearScreenRamAndVerifyImageThenColdInit} hand off to the screen-RAM clear and image verify
 
 ; bring the machine up and never come back: set the interrupt-enable bit
@@ -239,12 +239,12 @@ stampGridBox:
 ; that owns the rest of the frame service and the frame's work; the two
 ; bytes it stacks land in work RAM, so they are part of what the machine
 ; leaves behind
-saveAccumulatorForFrameInterrupt:
+enterVerticalBlankService:
 00D8: F5              PUSH    AF                  ; save the interrupted program's registers -- both banks and the index pair
 
 ; the vertical-blank service body, entered by falling through from the
-; one-byte `push af` at 0x00D8 (saveAccumulatorForFrameInterrupt): publish
-; the sprite shadow and drain the deferred cell lists, close the interrupt
+; one-byte `push af` at 0x00D8 (enterVerticalBlankService): publish the
+; sprite shadow and drain the deferred cell lists, close the interrupt
 ; gate (0xC300 <- 0) and kick the watchdog (0xC200), set SCREEN_UNFLIPPED
 ; and the flip-screen latch 0xC302 from ACTIVE_PLAYER and UPRIGHT_CABINET,
 ; latch the five complemented input/DIP ports into DIP1_MIRROR,
@@ -338,6 +338,9 @@ loc_0152:
 ; ---- $015F-$0166: jump table ----
 015F: C2 15 51 16 FE 17 1F 0F
 
+; caption-record data run as code on the checksum-mismatch derail arm:
+; bumps one work-RAM cell the accumulator points at, then falls into the
+; frame-interrupt epilogue that unwinds the frame and resumes
 loc_0167:
 0167: 6F              LD      L,A                 
 0168: A6              AND     (HL)                
@@ -358,7 +361,7 @@ loc_0167:
 ; service saved, reopen the interrupt gate from the program byte at 0x1600
 ; (0xC300 <- 0x01) and return into the interrupted code; reached as the
 ; resume address the service pushes at 0x0155, never by a call
-sendOneQueuedSoundThenUnwindTheFrameInterrupt:
+sendOneQueuedSoundThenReopenFrameInterrupt:
 0174: CD D4 55        CALL    $55D4               ; {code.sendOldestQueuedSoundCommand} hand one queued byte off to the sound processor
 0177: FD E1           POP     IY                  
 0179: DD E1           POP     IX                  
@@ -1424,14 +1427,11 @@ parkTheImageTotalForTheTamperVerdict:
 
 ; power-on: probe the expansion socket and give the machine away to it if
 ; a board answers there, otherwise seat the stack at the top of work RAM,
-; kick the watchdog, drive the four control lines the latch's first eight
-; addresses carry low, raise the video-enable line from a byte of the
-; program image, and hand on to the cold start. No work memory is touched
-; -- the whole effect is the seated stack and the latched lines. Latch
-; bits 5, 6 and 7 are NEVER WRITTEN here: the walk stops at 0xC307 and the
-; only other store is to 0xC308, so 'settle the control latch' is five of
-; its eight lines and not all eight
-seatTheStackAndSettleTheControlLatch:
+; kick the watchdog, drive latch bits 0-3 low (two addresses each,
+; 0xC300-0xC307), raise the video-enable line (bit 4, 0xC308) from a byte
+; of the program image, and hand on to the cold start. No work memory is
+; touched. Latch bits 5, 6 and 7 are not written here
+probeExpansionThenSettleControlLatch:
 07B1: 3A 00 60        LD      A,($6000)           ; read the expansion socket
 07B4: FE 55           CP      $55                 ; is an expansion board fitted?
 07B6: CA 00 60        JP      Z,$6000             ; fitted: hand control to the expansion -- never taken on a stock board, an empty socket floats high, not the magic value
@@ -2282,7 +2282,7 @@ loc_0e66:
 0E68: 85              ADD     A,L                 ; add in the low half
 0E69: 84              ADD     A,H                 ; add in the high half
 0E6A: D6 69           SUB     $69                 ; a genuine image nets to this constant
-0E6C: C2 00 00        JP      NZ,$0000            ; {code.trampolineToSeatTheStackAndSettleTheControlLatch} tampered: restart the machine from the reset entry
+0E6C: C2 00 00        JP      NZ,$0000            ; {code.trampolineToProbeExpansionThenSettleControlLatch} tampered: restart the machine from the reset entry
 0E6F: C9              RET                         
 
 ; lay one four-tile block into the character plane from a base code the
@@ -2354,8 +2354,8 @@ paintDoubleTile:
 
 ; paint the round number as two decimal digits into a caption frame via
 ; the leading-zero-dropping digit painter (nothing once it reaches 100),
-; then fold a fixed program block onto a seed and throw/halt-into-data if
-; it does not sum to zero -- an anti-tamper guard
+; then fold a fixed program block onto a seed and jump to 0x2509 if it
+; does not sum to zero -- an anti-tamper guard
 drawRoundNumberCaption:
 0EAC: 3A 01 AD        LD      A,($AD01)           ; {hard.workRam+501}
 0EAF: FE 64           CP      $64                 
@@ -2516,6 +2516,9 @@ loadDifficultyRecord:
 0F8A: ED A0           LDI                         ; copy the fourth
 0F8C: C9              RET                         
 
+; image-checksum tamper trap: drops four return words to unwind the caller
+; chain, then falls into the sprite position-fixup pass (rets on the fifth
+; word)
 loc_0f8d:
 0F8D: F1              POP     AF                  
 0F8E: 01 F1 02        LD      BC,$02F1            
@@ -2745,6 +2748,13 @@ loc_10d8:
 10F3: C6 80           ADD     A,$80               ; add half a screen across
 10F5: 32 14 B0        LD      ($B014),A           ; store it -- second image placed
 
+; give five display-list slots a second appearance half a screen away: a
+; slot is a byte pair whose first byte carries a request in its top bit,
+; and where that bit is set the pair trades half a byte range -- the
+; requester gives that half up and the partner takes it on, which is what
+; carries the slot into the far half of the display. A slot with no
+; request is stepped over rather than stopped at, so a gap in the middle
+; costs the slots after it nothing
 loc_10f8:
 10F8: 3A 37 B4        LD      A,($B437)           ; read the next slot's Y byte
 10FB: CB 7F           BIT     7,A                 ; test its request bit
@@ -3030,7 +3040,12 @@ loc_12bb:
 12C7: 74 B1 CC EC 5C 16 39 50 67 21 7A C5 F7 BE 54 80
 12D7: 2F 5F 9F 6D 44 B8 E7 BD 89 59 1A
 
-loc_12e2:
+; run the sequence delay down by one and, on the frame it reaches zero and
+; only then, let the sequence take its next decision; the countdown wraps
+; rather than sticking, so a delay that starts at zero buys a full 256
+; frames before that decision comes round again, and on every other frame
+; the one decremented cell is the whole effect
+holdThenPassTurnToOtherPlayerIfLivesElseStepSequence:
 12E2: 21 EB A9        LD      HL,$A9EB            ; point at the sequence delay counter
 12E5: 35              DEC     (HL)                ; tick it down one
 12E6: C0              RET     NZ                  ; still counting -- return; at zero it falls through into the turn-pass logic
@@ -3572,6 +3587,15 @@ loc_1598:
 15B3: 12              LD      (DE),A              ; store it
 15B4: C9              RET                         
 
+; a lone `ret` filling slot 15 of the sixteen-word arm table at 0x0F29
+; that dispatchSequenceSubStepArm indexes by the low nibble of
+; SEQUENCE_SUBSTEP: it reads and writes nothing and returns into
+; advanceAttractTowardGameStart (0x0F54), the continuation every arm of
+; that table returns into. The address occurs once in the image as a
+; little-endian word -- that table slot. Nibble 15 exists only transiently
+; (arm 14 steps the sub-step to 15 and overwrites it with 3 in the same
+; interrupt, interrupts disabled), so no dispatch reads it and the slot is
+; unreachable filler
 loc_15b5:
 15B5: C9              RET                         
 
@@ -3881,13 +3905,12 @@ loc_173e:
 ; records 3 and 4, whose glyph runs read PLEASE DEPOSIT COIN and AND TRY
 ; THIS GAME -- then step the sequence on. A cell holding zero on arrival
 ; wraps to 255 and waits the long way round rather than leaving at once.
-; The expiry frame also does the load-bearing thing the name drops: it
-; copies the glyph showing at 0xA63C and the colour of the same cell into
-; the pair at 0xACC7, and that pair is a COPYRIGHT TAMPER WITNESS rather
-; than a screen save. 0xA63C is the fifth cell of the `(c) KONAMI 1982`
-; caption -- the N, glyph 0x3B -- and the arm at 0x30E3 reads the pair
-; back, tests the glyph against 0x3B and the colour against 0x05 or 0x10,
-; and derails to 0x315B on anything else
+; The expiry frame also copies the glyph showing at 0xA63C and the colour
+; of the same cell into the pair at 0xACC7, and that pair is a COPYRIGHT
+; TAMPER WITNESS rather than a screen save. 0xA63C is the fifth cell of
+; the `(c) KONAMI 1982` caption -- the N, glyph 0x3B -- and the arm at
+; 0x30E3 reads the pair back, tests the glyph against 0x3B and the colour
+; against 0x05 or 0x10, and derails to 0x315B on anything else
 holdCopyrightThenEraseTheCoinInvitation:
 1748: CD 06 0B        CALL    $0B06               ; {code.stampCopyrightStrip} re-stamp the copyright caption strip
 174B: CD 39 0B        CALL    $0B39               ; {code.flashCopyrightLine} flash the copyright line
@@ -4638,6 +4661,11 @@ loc_1f1d:
 1F28: D2 6F 1F        JP      NC,$1F6F            ; {code.loc_1f6f} ahead: step the heading up a notch
 1F2B: C3 68 1F        JP      $1F68               ; {code.loc_1f68} behind: step the heading down a notch
 
+; the direction table's bytes run as code, reached only through the
+; copyright-glyph tamper divert in advancePlayerAnimationStrip (never on a
+; genuine image): fold B into A, take two early returns on the result,
+; else fall out of the table into the heading snap -- write PLAYER_HEADING
+; and scroll the world
 loc_1f2e:
 1F2E: 00              NOP                         
 1F2F: 00              NOP                         
@@ -4714,6 +4742,11 @@ loc_1f6f:
 1F86: F1 C3 F1 F1 F1 F1 EA F1 F1 F1 F1 F1 F1 F1 F1 F1
 1F96: B7 F1 F1
 
+; direction-table bytes decoded as code, not a routine: they unwind a run
+; of stack words and leave by an unpredictable transfer. Reached only
+; through the tamper derail into the 0x1F2E table, taken iff
+; TAMPER_GLYPH_STRIP is not 0xA5 or TAMPER_COLOUR_STRIP is not 0x05/0x10,
+; which never fires on a genuine image
 loc_1f99:
 1F99: F1              POP     AF                  
 1F9A: F1              POP     AF                  
@@ -4767,7 +4800,7 @@ advancePlayerAnimationStrip:
 201F: 3A 04 AD        LD      A,($AD04)           ; {hard.workRam+504} read the era number
 2022: FE 02           CP      $02                 
 2024: D4 79 56        CALL    NC,$5679            ; {code.requestLateEraProgressSound} past the second era: cue the extra progress sound
-2027: CD D2 56        CALL    $56D2               ; {code.requestRoundIntroSoundBurst} cue the round-intro sound burst
+2027: CD D2 56        CALL    $56D2               ; {code.requestDestructionSoundBurst} cue the destruction sound burst
 202A: 3A FE AB        LD      A,($ABFE)           ; {hard.workRam+3FE} read a game-state cell
 202D: FE A5           CP      $A5                 ; is it the running value?
 202F: C2 63 20        JP      NZ,$2063            ; {code.loc_2063} no: divert to the shared exit
@@ -5013,6 +5046,9 @@ loc_224a:
 224F: 3C              INC     A                   
 2250: 3C              INC     A                   
 
+; the second demo-autopilot script, entered as code by the jp 0x2251 at
+; 0x213D when the demo seed's readback witness (0xADFB/0xADFC) fails; its
+; bytes then run as code, not as a routine
 loc_2251:
 2251: 3C              INC     A                   
 2252: 3C              INC     A                   
@@ -6307,11 +6343,15 @@ driftTwoTileSceneryAtThreeQuarters:
 ; repaints the panel field from the packed-decimal credit count at 0xA986,
 ; queues caption record 8 -- whose glyph run reads CREDIT -- and then
 ; reads a guard byte that decides everything after. Anything but zero
-; transfers to 0x2E3E, which carries no routine, so that transfer RAISES
-; rather than running; zero stamps the copyright strip into the display
-; list, asks for its line in this frame's colour, and folds the twenty-
-; byte run at 0x086B into a total for the chain that judges it. What
-; writes the guard byte is not established here
+; jumps to 0x2E3E, into the second-fastest velocity table, and runs those
+; bytes as code; zero stamps the copyright strip into the display list,
+; asks for its line in this frame's colour, and folds the twenty-byte run
+; at 0x086B into a total for the chain that judges it. The guard byte is
+; BANK_LAUNCH_COOLDOWN 0xA817, which the step before,
+; advancePenRunAnimationStep, leaves holding the two's-complement sum of
+; the 34 bytes at 0x1748, zero on a genuine image; on the first cycle
+; after power-on, which skips that step, it still holds the power-on
+; clear's zero
 showCreditLine:
 2D3F: 3A C0 A9        LD      A,($A9C0)           ; {hard.workRam+1C0} read the free-play switch
 2D42: A7              AND     A                   ; is it set?
@@ -6563,6 +6603,11 @@ loc_3074:
 3079: FD 77 02        LD      (IY+$02),A          ; and the summed one into its other field
 307C: C3 9B 30        JP      $309B               ; {code.advanceToNextSlot} step both cursors onto the entry just written
 
+; tail of a per-slot sprite-entry fill: store a coordinate through the
+; pointer and fold it into A, then hand each slot to the straight placer
+; while the counter (B) holds; on the last slot index a word table by A,
+; bump the byte past the entry, drop two stack bytes into AF, and finish
+; through the diagonal placer
 loc_307f:
 307F: 73              LD      (HL),E              ; store the coordinate through the pointer
 3080: A6              AND     (HL)                ; fold it into the accumulator
@@ -6626,15 +6671,15 @@ loc_30bf:
 30C6: 3A 04 AD        LD      A,($AD04)           ; {hard.workRam+504} read the era again
 30C9: FE 04           CP      $04                 ; is it era four?
 30CB: 4F              LD      C,A                 ; keep the era for the tail
-30CC: CA 56 31        JP      Z,$3156             ; {code.seatSceneryFillByte0x28ThenClearEraScenery} era four: hand on with the 0x28 fill byte
+30CC: CA 56 31        JP      Z,$3156             ; {code.seatFinalEraSceneryFillThenClearEraScenery} era four: hand on with the 0x28 fill byte
 30CF: 3E CC           LD      A,$CC               ; otherwise use fill byte 0xCC
 
 ; clear a stride-two run of eight object cells to the fill byte carried in
 ; A, then branch on the era in C: below four, seat and run the frame's
 ; scenery through the four-object seat path; at four and up, when two
 ; work-RAM guards read their expected values seat eight entries from a
-; packed table before running the scenery, and on a wrong guard transfer
-; into a data table and fault
+; packed table before running the scenery, and on a wrong guard jump into
+; the packed table at 0x315B and run its bytes as code
 clearSceneryEntriesThenRunEraScenery:
 30D1: 21 60 AA        LD      HL,$AA60            ; point at the object attribute cells
 30D4: 11 02 00        LD      DE,$0002            ; stride of two
@@ -6721,10 +6766,12 @@ loc_3135:
 ; fix the fill byte and transfer to 0x30D1 without returning; choosing
 ; that one constant is the entire content of the entry, so whatever the
 ; caller carried in its place is discarded
-seatSceneryFillByte0x28ThenClearEraScenery:
+seatFinalEraSceneryFillThenClearEraScenery:
 3156: 3E 28           LD      A,$28               ; force the fill byte to 0x28
 3158: C3 D1 30        JP      $30D1               ; {code.clearSceneryEntriesThenRunEraScenery} hand on to clear the entries and run the era's scenery
 
+; a bare transfer to 0x3176 and no return; no cell is read or written and
+; no register moves
 loc_315b:
 315B: C3 76 31        JP      $3176               ; {code.loc_3176} derail into the scenery-row data table when a guard reads wrong
 
@@ -7414,6 +7461,11 @@ loc_3768:
 378F: D2 17 58        JP      NC,$5817            ; {code.requestEnemyWaveSound} filled met the count: request the enemy-wave sound
 3792: C9              RET                         
 
+; seat the record cursor and the sprite-entry cursor on the highest of
+; five consecutive object slots, set the turn count to five, and transfer
+; into the body that fills the first free one; all three are constants
+; chosen here, nothing is read and nothing is written, and control does
+; not come back
 loc_3793:
 3793: 06 05           LD      B,$05               ; a fixed run of five slots
 3795: DD 21 90 A8     LD      IX,$A890            ; point at the fifth craft record
@@ -7461,9 +7513,8 @@ loc_37b4:
 ; still owed picks between two runs of the one slot file -- while any are
 ; owed the run starts two records higher and is as long as the round's
 ; craft count asks, and once none are owed a fixed run of five starts
-; lower -- and control leaves for the search without coming back. The role
-; names no address for the gate byte on purpose: it is read through a
-; pointer, so the routine itself cannot know what it is
+; lower -- and control leaves for the search without coming back. The gate
+; byte is read through a pointer the caller supplies
 gateTheFreeSlotSearchAndPickItsRun:
 37BD: 7E              LD      A,(HL)              ; read the gate byte the caller points at
 37BE: A7              AND     A                   ; test it
@@ -8195,7 +8246,7 @@ loc_3e98:
 3E9D: CA AB 40        JP      Z,$40AB             ; {code.retireSlot} then retire the slot
 3EA0: DD 35 00        DEC     (IX+$00)            ; otherwise drop the countdown by one
 3EA3: FE 3C           CP      $3C                 ; was the count at or above $3C?
-3EA5: D4 CB 3E        CALL    NC,$3ECB            ; {code.stampObjectStateByte3bThenRequestTwoSounds} if so, clamp the slot's state and ask for two sounds
+3EA5: D4 CB 3E        CALL    NC,$3ECB            ; {code.clampOneShotCountdownThenRequestTwoSounds} if so, clamp the slot's state and ask for two sounds
 3EA8: CD 60 2B        CALL    $2B60               ; {code.driftWithWorldScroll} drift the object with the world scroll
 3EAB: DD 7E 00        LD      A,(IX+$00)          ; re-read the countdown -- the clamp may have moved it
 3EAE: FE 1C           CP      $1C                 ; below the animate threshold ($1C)?
@@ -8216,7 +8267,7 @@ loc_3e98:
 ; force the head byte of the record the caller points at to 0x3B, then
 ; request two sounds (requestTwoSounds); what the byte held is discarded
 ; unread, so this is a clamp and not a step
-stampObjectStateByte3bThenRequestTwoSounds:
+clampOneShotCountdownThenRequestTwoSounds:
 3ECB: DD 36 00 3B     LD      (IX+$00),$3B        ; force the slot's head byte to $3B
 3ECF: C3 83 56        JP      $5683               ; {code.requestTwoSounds} request the two sounds
 
@@ -8491,7 +8542,7 @@ loc_402b:
 runOneShotAnimatedObjectSlot:
 406C: DD 7E 00        LD      A,(IX+$00)          ; read the slot's countdown
 406F: FE 3C           CP      $3C                 ; at or above the reset mark (60)?
-4071: D4 9D 40        CALL    NC,$409D            ; {code.stampObjectStateByte3bThenRequestSound} yes -- re-stamp its state and ask for the paired sound
+4071: D4 9D 40        CALL    NC,$409D            ; {code.clampOneShotCountdownThenRequestSound} yes -- re-stamp its state and ask for the paired sound
 4074: DD 35 00        DEC     (IX+$00)            ; count the slot down one frame
 4077: 28 32           JR      Z,$40AB             ; {code.retireSlot} reached zero: retire the slot
 4079: CD 60 2B        CALL    $2B60               ; {code.driftWithWorldScroll} drift the object with the world scroll
@@ -8515,12 +8566,12 @@ runOneShotAnimatedObjectSlot:
 ; goes with it; the stamp is unconditional -- nothing here reads the byte
 ; first, and the ROM's test at this entry sends both of its answers to the
 ; same address
-stampObjectStateByte3bThenRequestSound:
+clampOneShotCountdownThenRequestSound:
 409D: DD 36 00 3B     LD      (IX+$00),$3B        ; stamp the object's state byte to fifty-nine
 40A1: 3A 04 AD        LD      A,($AD04)           ; {hard.workRam+504} read the era index
 40A4: A7              AND     A                   
-40A5: CA 8E 56        JP      Z,$568E             ; {code.requestObjectState3bSound} ask for the accompanying sound
-40A8: C3 8E 56        JP      $568E               ; {code.requestObjectState3bSound} the other arm asks for it too -- the test above changes nothing
+40A5: CA 8E 56        JP      Z,$568E             ; {code.requestOneShotCountdownSound} ask for the accompanying sound
+40A8: C3 8E 56        JP      $568E               ; {code.requestOneShotCountdownSound} the other arm asks for it too -- the test above changes nothing
 
 ; retire an object, zeroing only the INTEGER halves — occupancy byte and
 ; both sprite-entry coordinates — leaving the sub-pixel remainders
@@ -8659,7 +8710,7 @@ loc_412b:
 stepDriftingCountdownObjectByEraFrames:
 413C: DD 7E 00        LD      A,(IX+$00)          ; read the object's countdown
 413F: FE 3C           CP      $3C                 ; at or above the reset mark (60)?
-4141: D4 9D 40        CALL    NC,$409D            ; {code.stampObjectStateByte3bThenRequestSound} yes: re-stamp its state and ask for the paired sound
+4141: D4 9D 40        CALL    NC,$409D            ; {code.clampOneShotCountdownThenRequestSound} yes: re-stamp its state and ask for the paired sound
 4144: CD 60 2B        CALL    $2B60               ; {code.driftWithWorldScroll} drift the object with the world scroll
 4147: DD 35 00        DEC     (IX+$00)            ; count it down one frame
 414A: CA AB 40        JP      Z,$40AB             ; {code.retireSlot} reached zero: retire the slot
@@ -8900,16 +8951,14 @@ loc_428f:
 ; the last gate in front of a launch, and the one thing the launcher is
 ; told: on one of the two coordinates the sprite entry carries, the firing
 ; object must lie inside a window centred on a fixed line whose half-width
-; is READ FROM 0xA8E6 rather than baked in, and outside it this entry ends
-; and nothing is launched; inside it the OTHER coordinate is compared
-; against a second fixed line, and which side it falls on is handed to the
-; launcher at 0x42B7 in the narrow scratch byte as a plain zero or one,
-; which that routine turns into a mirroring of the NEW object's sprite
-; rather than of the firing one's. 0xA8E6 is one of the two aim windows
-; applyEraRungSettings scatters, which is why the name says 'one' and not
-; 'the'; the cell also has a NON-WINDOW reader at 0x43AE (`ld a,(0xa8e6) /
-; ld (ix+0x04),a`, seeding a record countdown), and mechanisms.md marks
-; what each of those twelve scattered cells governs as not fully settled
+; is read from 0xA8E6, and outside it this entry ends and nothing is
+; launched; inside it the OTHER coordinate is compared against a second
+; fixed line, and which side it falls on is handed to the launcher at
+; 0x42B7 in the narrow scratch byte as a plain zero or one, which that
+; routine turns into a mirroring of the new object's sprite rather than of
+; the firing one's. 0xA8E6 is one of the two aim windows
+; applyEraRungSettings scatters; the cell is also read at 0x43AE (`ld
+; a,(0xa8e6) / ld (ix+0x04),a`), where it seeds a record countdown
 setTheLaunchFacingInsideOneAimWindow:
 429C: 3A E6 A8        LD      A,($A8E6)           ; {hard.workRam+E6} read the aim-window half-width
 429F: 57              LD      D,A                 
@@ -9051,13 +9100,13 @@ loc_43ae:
 43B1: DD 77 04        LD      (IX+$04),A          ; seed it as the new slot's countdown byte
 43B4: C3 13 43        JP      $4313               ; {code.loc_4313} then take the aim path
 
-; once-in-eight-frames gate for the Mother-Ship: while the wave-hold flag
-; 0xacc6 is clear, defer to the deep-state stepper ($43F0) if it is
-; already live (MOTHER_SHIP_ARMED 0xad0d != 0), else -- only when the kill
-; quota (KILLS_REMAINING 0xad02) is spent and both records of its two-slot
-; bank (0xa8a0/0xa8b0) read empty -- arm it (0xad0d=0xff), seed the lead
-; record's seven-hit counter (ix+0x04=0x07), and retire the matching entry
-; pair into cooldown to spawn it
+; once-in-eight-frames gate for the Mother-Ship: unless
+; ROUND_TRANSITION_HOLD (0xacc6) reads 0xff, defer to the deep-state
+; stepper ($43F0) if it is already live (MOTHER_SHIP_ARMED 0xad0d != 0),
+; else -- only when the kill quota (KILLS_REMAINING 0xad02) is spent and
+; both records of its two-slot bank (0xa8a0/0xa8b0) read empty -- arm it
+; (0xad0d=0xff), seed the lead record's seven-hit counter (ix+0x04=0x07),
+; and retire the matching entry pair into cooldown to spawn it
 armMotherShipOrStep:
 43B7: 3A C6 AC        LD      A,($ACC6)           ; {hard.workRam+4C6} read the round-transition hold flag
 43BA: 3C              INC     A                   ; is it holding?
@@ -9093,6 +9142,25 @@ loc_43e9:
 43EB: 10 FC           DJNZ    $43E9               ; {code.loc_43e9} sum the whole block -- a length of zero means all 256 bytes
 43ED: C3 AD 07        JP      $07AD               ; {code.parkTheImageTotalForTheTamperVerdict} hand the total to the tamper-verdict check
 
+; one frame of the Mother-Ship, dispatched on the head byte of its record
+; MOTHER_SHIP_STATE (0xA8A0) with its sprite pair at MOTHER_SHIP_ENTRY
+; (0xAA24). Head 0x00 (idle): count the delay at +0x0E down, and once it
+; is spent and ROUND_TRANSITION_HOLD is clear, launch the ship at a
+; position chosen from PLAYER_HEADING, raising its hits-to-absorb (+0x04)
+; to 5 if below 6 and requesting the era's sound. Head 0xFF (live): move
+; both tiles by the ship's velocity and the world scroll, dress them for
+; the heading or retire the ship at the field edge, and while
+; BANK_LAUNCH_COOLDOWN is spent and a tile is on screen but outside the
+; near band around the player, fire an aimed shot into the first free of
+; the shot slots 0xA830/0xA840 and re-arm the cooldown. Any other head is
+; a hit (0xF0, written by the collision sweep) or a dying step: while
+; +0x04 holds hits one is spent and the ship goes back to live; otherwise,
+; at head 0xEF it sweeps the fifteen object records (each live one takes a
+; staggered dying code from 0x14 in steps of 10 and scores 200), holds the
+; round (ROUND_TRANSITION_HOLD=0xFE) and restarts the head at 0xE4, then
+; counts the wreck down through its warp shapes, at 0xB4 flashes it and
+; posts the 3,000-point award, and at 0 goes idle and releases
+; ROUND_TRANSITION_HOLD to 0xFF
 loc_43f0:
 43F0: DD 21 A0 A8     LD      IX,$A8A0            ; point at the mother-ship record
 43F4: FD 21 24 AA     LD      IY,$AA24            ; and its sprite entry
@@ -9274,7 +9342,7 @@ loc_4554:
 455A: AF              XOR     A                   ; clear the mother-ship progress cell
 455B: 32 DC A8        LD      ($A8DC),A           ; {hard.workRam+DC}
 455E: CD 34 56        CALL    $5634               ; {code.enqueueTransitionSoundBurst} quiet the running sound
-4561: CD D2 56        CALL    $56D2               ; {code.requestRoundIntroSoundBurst} sound the round-clear fanfare
+4561: CD D2 56        CALL    $56D2               ; {code.requestDestructionSoundBurst} cue the destruction sound burst for the Mother-Ship
 4564: 21 10 A8        LD      HL,$A810            ; point at the object bank
 4567: 11 10 00        LD      DE,$0010            ; record stride
 456A: 06 0F           LD      B,$0F               ; fifteen records to sweep
@@ -9961,7 +10029,7 @@ loc_49ca:
 49CB: 23              INC     HL                  
 49CC: 10 FC           DJNZ    $49CA               ; {code.loc_49ca} over all 256 bytes
 49CE: D6 C5           SUB     $C5                 ; compare the sum against its expected total (0xC5)
-49D0: C4 D8 00        CALL    NZ,$00D8            ; {code.saveAccumulatorForFrameInterrupt} a tampered image derails into the frame handler
+49D0: C4 D8 00        CALL    NZ,$00D8            ; {code.enterVerticalBlankService} a tampered image derails into the frame handler
 49D3: C3 EB 32        JP      $32EB               ; {code.petWatchdogThroughStartupDelayThenStartMachine} a good image cold-starts the machine and does not return
 
 ; drive coin slot 2's mechanical counter through one pulse for each coin
@@ -10266,10 +10334,10 @@ drawRandomByte:
 ; random register block, then check the image that run came out of: three
 ; bytes taken from two fixed words of program space are added to one
 ; constant, and any total but zero means the program space being read is
-; not the one the constant was picked for -- on that outcome control
-; transfers to 0x6000, outside the image, so it raises rather than
-; running. The copy is unconditional and COMPLETE before the check runs,
-; so nothing this entry wrote is gated by it
+; not the one the constant was picked for -- on that outcome control jumps
+; to 0x6000, outside the program image. The copy is unconditional and
+; COMPLETE before the check runs, so nothing this entry wrote is gated by
+; it
 seedRandomRegister:
 4B67: 21 84 4B        LD      HL,$4B84            ; point at the seventeen seed bytes in program space
 4B6A: 11 30 AB        LD      DE,$AB30            ; point at the random register
@@ -11951,7 +12019,7 @@ requestTwoSounds:
 
 ; read the byte at 0x2D87 and request it as a sound code, only while a
 ; game is being played
-requestObjectState3bSound:
+requestOneShotCountdownSound:
 568E: 3A 87 2D        LD      A,($2D87)           ; {hard.rom+2D87} a sound code from the program image
 5691: C3 0C 56        JP      $560C               ; {code.enqueueSoundIfGameInProgress} request it, only while a game is in progress
 
@@ -12007,7 +12075,7 @@ loc_56c5:
 ; all three refused unless a game is being played, then leave through the
 ; two-request tail whose permission is looser -- so a state that drops the
 ; three can still admit the pair
-requestRoundIntroSoundBurst:
+requestDestructionSoundBurst:
 56D2: 3A 5B 0C        LD      A,($0C5B)           ; {hard.rom+C5B} first sound code from the program image
 56D5: CD 0C 56        CALL    $560C               ; {code.enqueueSoundIfGameInProgress} request it, only while a game is in progress
 56D8: 3A 55 08        LD      A,($0855)           ; {hard.rom+855} second sound code from the program image
@@ -12019,7 +12087,7 @@ requestRoundIntroSoundBurst:
 ; 0x33A0; both go through the door at 0x5617, which admits them while a
 ; game is being played or while the cell at 0xA9C6 is set. Reached as a
 ; call from advanceScriptedCharPlaneBandTo4 and by falling out of the
-; bottom of requestRoundIntroSoundBurst; the same shape as
+; bottom of requestDestructionSoundBurst; the same shape as
 ; requestTwoSounds at 0x5683 with a different pair of program bytes
 requestInterRoundSoundPair:
 56E4: 3A CB 27        LD      A,($27CB)           ; {hard.rom+27CB} first sound code from the program image
@@ -12117,6 +12185,8 @@ flyAtSlowestSpeed:
 ; ---- $5846-$5853: data ----
 5846: 21 00 5C C3 BC 58 60 A7 14 96 10 0D 88 B9
 
+; fly one object a single step at the pace the velocity samples based at
+; 0x5E00 set, choosing that table and deciding nothing else
 loc_5854:
 5854: 21 00 5E        LD      HL,$5E00            ; point at a velocity table
 5857: C3 BC 58        JP      $58BC               ; {code.flyAlongHeading} fly the object one step along its heading using that table
@@ -12192,6 +12262,9 @@ flyAtFastestSpeed:
 58A4: 21 FA 08        LD      HL,$08FA            ; point at a velocity table
 58A7: C3 BC 58        JP      $58BC               ; {code.flyAlongHeading} fly the object one step along its heading using that table
 
+; fly one object a double step at the pace one fixed table of velocity
+; samples sets; choosing the table and the mover is the whole of this
+; entry, and a pointer the caller held is discarded
 loc_58aa:
 58AA: 21 D7 59        LD      HL,$59D7            ; point at the slowest velocity table
 58AD: C3 FE 58        JP      $58FE               ; {code.flyAlongHeadingAtDoubleVelocity} fly the object one step at double velocity using that table
@@ -12199,6 +12272,9 @@ loc_58aa:
 ; ---- $58B0-$58B5: data ----
 58B0: 21 00 5C C3 FE 58
 
+; fly one object a step at twice the velocity one fixed table of samples
+; sets, the shared drift added once; choosing that table is all this entry
+; does
 loc_58b6:
 58B6: 21 00 5E        LD      HL,$5E00            ; point at a velocity table
 58B9: C3 FE 58        JP      $58FE               ; {code.flyAlongHeadingAtDoubleVelocity} fly the object one step at double velocity using that table
@@ -12300,6 +12376,12 @@ loc_5919:
 593E: FD 74 00        LD      (IY+$00),H          ; store the new whole part into the sprite entry
 5941: C9              RET                         
 
+; hand back the perpendicular component pair for an object's heading from
+; the velocity samples at 0x59D7, the ladder's bottom rung; choosing that
+; table is all it does, an incoming pointer is discarded, and nothing is
+; written. Two readers: armBomberSlotWhenTimerFires stores the pair
+; straight into the slot it arms, and it is the era-0 word of the arm
+; table at 0x46C4 that setMotherShipVelocityFromHeading dispatches
 loc_5942:
 5942: 21 D7 59        LD      HL,$59D7            ; point at the slowest velocity table
 5945: C3 6E 59        JP      $596E               ; {code.velocityForHeading} look up the velocity vector for the heading using that table
@@ -12307,6 +12389,9 @@ loc_5942:
 ; ---- $5948-$594D: data ----
 5948: 21 00 5C C3 6E 59
 
+; hand back the perpendicular component pair an object's heading calls
+; for, at the pace the velocity samples based at 0x5E00 set; choosing that
+; table is all this entry does
 loc_594e:
 594E: 21 00 5E        LD      HL,$5E00            ; point at a velocity table
 5951: C3 6E 59        JP      $596E               ; {code.velocityForHeading} look up the velocity vector for the heading using that table
@@ -12315,10 +12400,17 @@ loc_594e:
 5954: 73 A6 14 7E 29 F8 96 5D 02 13 B9 21 30 25 C3 6E
 5964: 59
 
+; hand back the perpendicular component pair an object's heading calls
+; for, at the pace the velocity samples based at 0x2E3E set; choosing that
+; table is all this entry does
 loc_5965:
 5965: 21 3E 2E        LD      HL,$2E3E            ; point at a velocity table
 5968: C3 6E 59        JP      $596E               ; {code.velocityForHeading} look up the velocity vector for the heading using that table
 
+; hand back the perpendicular component pair an object's heading calls
+; for, at the pace the velocity samples based at 0x08FA set; choosing that
+; table is all this entry does, an incoming pointer is discarded, and the
+; pair is the whole product -- no memory is written
 loc_596b:
 596B: 21 FA 08        LD      HL,$08FA            ; point at a velocity table, then look up the velocity vector for the heading
 
@@ -12354,10 +12446,19 @@ loc_5989:
 598C: 4E              LD      C,(HL)              ; read its low byte -- the perpendicular component
 598D: C9              RET                         
 
+; hand back the doubled component pair an object's OWN heading calls for,
+; at the pace the first of the three fixed tables of samples sets; the
+; heading comes off the record and any pointer the caller was holding is
+; discarded, so choosing that table is all this entry adds
 loc_598e:
 598E: 21 D7 59        LD      HL,$59D7            ; point at the slowest velocity table
 5991: C3 9D 59        JP      $599D               ; {code.loc_599d} read that table's doubled velocity for this object's heading
 
+; hand back the doubled component pair an object's OWN heading calls for,
+; at the pace the second of the three fixed tables of samples sets; the
+; heading comes off the record and any pointer the caller was holding is
+; discarded, so choosing that table is all this entry adds -- it is $598E
+; with the other table immediate
 loc_5994:
 5994: 21 00 5C        LD      HL,$5C00            ; point at a velocity table
 5997: C3 9D 59        JP      $599D               ; {code.loc_599d} read that table's doubled velocity for this object's heading
@@ -12365,6 +12466,10 @@ loc_5994:
 ; ---- $599A-$599C: data ----
 599A: 21 00 5E
 
+; take the heading out of an object's own record and continue into the
+; doubled velocity lookup, forwarding rather than replacing the table
+; pointer the caller seated -- which is what separates it from the sibling
+; shims that choose a table themselves
 loc_599d:
 599D: DD 7E 02        LD      A,(IX+$02)          ; read this object's heading, then take the doubled velocity for it
 
@@ -12404,14 +12509,23 @@ loc_59bc:
 59C2: CB 10           RL      B                   ; carry into the high byte -- twice the table's length
 59C4: C9              RET                         
 
+; hand back the doubled component pair a heading handed straight in calls
+; for, at the pace one fixed table of samples sets; choosing that table is
+; all this entry does
 loc_59c5:
 59C5: 21 D7 59        LD      HL,$59D7            ; point at the slowest velocity table
 59C8: C3 A0 59        JP      $59A0               ; {code.doubledVelocityForHeading} take that table's doubled velocity for the heading in A
 
+; hand back the doubled component pair a heading handed straight in calls
+; for, at the pace a second fixed table of samples sets; choosing that
+; table is all this entry does
 loc_59cb:
 59CB: 21 00 5C        LD      HL,$5C00            ; point at a velocity table
 59CE: C3 A0 59        JP      $59A0               ; {code.doubledVelocityForHeading} take that table's doubled velocity for the heading in A
 
+; hand back the doubled component pair a heading handed straight in calls
+; for, at the pace a third fixed table of samples sets; choosing that
+; table is all this entry does
 loc_59d1:
 59D1: 21 00 5E        LD      HL,$5E00            ; point at a velocity table
 59D4: C3 A0 59        JP      $59A0               ; {code.doubledVelocityForHeading} take that table's doubled velocity for the heading in A

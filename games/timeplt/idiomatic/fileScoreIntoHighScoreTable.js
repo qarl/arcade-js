@@ -10,8 +10,7 @@
  *
  * Role in the machine: the insertion step of the high-score board, run once per finished game.
  * Its caller, fileScoreAfterGameOverHoldElsePassTurn, runs it when the GAME OVER hold expires and
- * branches on the carry this leaves: a filed score goes on to initials entry, a dropped one skips
- * it. The table is five records of eight bytes at 0xAB08..0xAB2F (HIGH_SCORE_TABLE_BASE ..
+ * branches on the answer: a filed score goes on to initials entry, a dropped one skips it. The table is five records of eight bytes at 0xAB08..0xAB2F (HIGH_SCORE_TABLE_BASE ..
  * HIGH_SCORE_TABLE_END), each record laid out +0 rank, +1..+3 score lo/mid/hi, +4..+7 name glyphs;
  * scores are three packed-BCD bytes compared from the most significant end (isScoreBelow).
  *
@@ -19,7 +18,8 @@
  * on the filed record's name cells, SCRATCH_PTR_B on that rank's initials row in the character
  * plane (HIGH_SCORE_INITIALS_CELL_BASE + 2 * rank).
  *
- * LIVE-OUT: the board, the two saved pointers, and carry — clear when filed, set when dropped. */
+ * LIVE-OUT: the board, the two saved pointers, and the answer, returned: true when the score was
+ * dropped. The ROM leaves it in carry; its one reader is that caller (the call at 0x3310). */
 
 import { u16 } from "../../../core/int.js";
 import { isScoreBelow } from "./isScoreBelow.js";
@@ -33,7 +33,7 @@ const RECORD_STRIDE = 0x08;
 const NAME_SENTINEL = 0xf1;
 
 export function fileScoreIntoHighScoreTable(m) {
-  const { regs, mem8, mem16 } = m;
+  const { mem8, mem16 } = m;
 
   // Whose score: ACTIVE_PLAYER 0 is player one, so the candidate is read from the most significant
   // byte of player one's score triple, else player two's.
@@ -50,8 +50,8 @@ export function fileScoreIntoHighScoreTable(m) {
     standing = u16(standing + RECORD_STRIDE);
   }
 
-  // Below all five: the board is left untouched and carry comes back set (the ROM's `scf; ret`).
-  if (!filed) return (regs.fC = true); // beat nothing
+  // Below all five: the board is left untouched and the score is dropped (the ROM's `scf; ret`).
+  if (!filed) return true;
 
   // Slide the records beneath the slot down one place, eight cells each; when the slot is the bottom
   // record none slide.
@@ -107,6 +107,6 @@ export function fileScoreIntoHighScoreTable(m) {
     rankAddr = u16(rankAddr + RECORD_STRIDE);
   }
 
-  // Filed: the ROM ends with `scf; ccf`, leaving carry clear for its caller to branch on.
-  return (regs.fC = false); // carry clear -> filed
+  // Filed (the ROM ends with `scf; ccf`, carry clear).
+  return false;
 }

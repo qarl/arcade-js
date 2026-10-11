@@ -35,7 +35,7 @@ const BLANK = 0xf1;
 
 // Packed decimal (BCD): one decimal digit per nibble. These two helpers do in JS what the ROM's
 // `add a,(hl) / adc a,(hl)` + `daa` pairs do in hardware: a decimal add with carry between bytes.
-const fromPackedDecimal = (b) => (b >> 4) * 10 + (b & 0x0f);
+const fromPackedDecimal = (byte) => (byte >> 4) * 10 + (byte & 0x0f);
 const toPackedDecimal = (n) => ((n / 10) << 4) | (n % 10);
 
 export function awardScoreToPlayer(m, award = m.regs.a) {

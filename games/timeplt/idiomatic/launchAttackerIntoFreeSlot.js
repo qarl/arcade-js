@@ -18,7 +18,7 @@
  * heading-follows launcher (0x42B7, commissionStagedAttackerByEra), which is handed the craft's
  * heading byte (record +0x02) as the new object's facing.
  *
- * PARAMETERS. `ix` is the launching craft's object record, `iy` its sprite entry.
+ * PARAMETERS. `craftRecord` is the launching craft's object record, `craftEntry` its sprite entry.
  *
  * LIVE-OUT: memory.
  */
@@ -36,12 +36,12 @@ const RECORD_STRIDE = 0x10;
 const FIRST_LINE = 0x78;
 const SECOND_LINE = 0x84;
 
-export function launchAttackerIntoFreeSlot(m, ix = m.regs.ix, iy = m.regs.iy) {
+export function launchAttackerIntoFreeSlot(m, craftRecord = m.regs.ix, craftEntry = m.regs.iy) {
   const { mem8 } = m;
 
   // Only on this craft's turn: the frame tick's low three bits, plus five, must equal the turn
   // byte at record +0x0F. That spreads the launch attempts of different craft over the eight frames.
-  if ((mem8[FRAME_TICK] & 7) + PHASE_BIAS !== mem8[ix + 0x0f]) return;
+  if ((mem8[FRAME_TICK] & 7) + PHASE_BIAS !== mem8[craftRecord + 0x0f]) return;
 
   // Shared cooldown (ATTACKER_SPAWN_COOLDOWN 0xA8F4): while it is nonzero, spend one from it and
   // launch nothing this turn.
@@ -78,15 +78,15 @@ export function launchAttackerIntoFreeSlot(m, ix = m.regs.ix, iy = m.regs.iy) {
   // the window on BOTH coordinates: sprite-entry +0x31 against 0x78, then +0x00 against 0x84.
   const margin = mem8[ATTACKER_SPAWN_WINDOW_HALF];
   const window = u8(margin + margin);
-  const along = u8(FIRST_LINE - mem8[iy + 0x31] + margin);
+  const along = u8(FIRST_LINE - mem8[craftEntry + 0x31] + margin);
   if (along < window) {
-    const across = u8(SECOND_LINE - mem8[iy + 0x00] + margin);
+    const across = u8(SECOND_LINE - mem8[craftEntry + 0x00] + margin);
     if (across < window) return;
   }
 
   // Launch: the craft's heading (record +0x02) becomes the facing handed on. Era 0 goes to the
   // aim-window launcher, every other era to the heading-follows launcher.
-  const facing = mem8[ix + 0x02];
-  if (mem8[ERA_INDEX] === 0) return setTheLaunchFacingInsideOneAimWindow(m, ix, iy);
-  return commissionStagedAttackerByEra(m, ix, iy, facing);
+  const facing = mem8[craftRecord + 0x02];
+  if (mem8[ERA_INDEX] === 0) return setTheLaunchFacingInsideOneAimWindow(m, craftRecord, craftEntry);
+  return commissionStagedAttackerByEra(m, craftRecord, craftEntry, facing);
 }

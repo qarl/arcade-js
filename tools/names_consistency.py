@@ -22,14 +22,26 @@ cell is named; no prose may contradict it. Two rules, both under `check`:
       - each non-blank, non-`#` line exactly `<game> 0x<addr>`, a shrinking set; fail-closed if
       that file is missing or malformed.
 
-Fail-closed on any git error. VACUOUS when no games/ file is staged; trailing comments escape
-is_comment() so are never scanned. Subcommands: check (the hook), selftest (fixtures for rule B).
+  (C) TAG rule: in an enrolled game (TAG_GAMES), every `NAME [tag]` citation in an idiomatic routine's
+      comments -- whole-line or trailing -- names a names.js cell or ROUTINES entry, and its tag equals that
+      entry's own tag (a cell's JSDoc/inline tag, a routine's cert). A tag the prose carries is a COPY of the
+      registry's; a stale copy is a contradiction. In a HEADER_GAMES game, every ROUTINES module's header
+      also names the routine's own ROM address and carries its cert as a `[tag]`. Binds to the INDEX, per
+      staged game.
+
+Fail-closed on any git error. Rules (A) and (C) are VACUOUS when no games/ file is staged; trailing
+comments escape is_comment() so rule (A) never scans them. Subcommands: check (the hook), tags --game <g>
+(rule C on the working tree, for done_gate), selftest (fixtures for rules B and C).
 """
+import functools
 import glob
 import os
 import re
 import subprocess
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import done_gate  # noqa: E402  (the strict R16 per-cell tag reader is the one definition of a cell's tag)
 
 
 class GitError(RuntimeError):
@@ -50,6 +62,7 @@ def repo_root():
     return r.stdout.strip()
 
 
+@functools.lru_cache(maxsize=None)  # one process sees one index; rules (A) and (C) read the same modules
 def blob(ref, path):
     """Staged (ref=':0') or committed (ref='HEAD') content, or '' if absent. Use ':0' not ':' - a bare ':' would make a broken '::path'."""
     r = subprocess.run(["git", "show", f"{ref}:{path}"], capture_output=True, text=True)
@@ -140,6 +153,159 @@ def scan(text, named, comments_only):
                 tok = "0x%04x" % bad[0]
                 srcline = next((j + 1 for j in range(block_start, i) if tok in lines[j].lower()), block_start + 1)
                 hits.append((srcline, bad, clause.strip()))
+    return hits
+
+
+# Rule (C). A citation is an identifier shaped like a routine (camelCase), a loc_<addr> or a cell
+# (UPPER_SNAKE), then optionally its address -- `(0xA9C1)`, `(ROM 0x52AA-...)` or ` 0xA9C1` -- and an
+# optional `is`/`stays`/`remains`, then the tag. `[code]->[seen]` reads as [seen] (done_gate.GND_ARROW).
+TAG_CITE = re.compile(
+    r"(?<![A-Za-z0-9_])([A-Za-z_][A-Za-z0-9_]*)`?\**\s*"
+    r"(?:\((?:ROM\s+)?0x[0-9A-Fa-f]+[^)\n]*\)\s*|0x[0-9A-Fa-f]+\s*)?"
+    r"(?:(?:is|stays|remains)\s+)?\**\s*\[(seen|code|guess)\](\s*(?:->|→)\s*\[seen\])?")
+CITE_SHAPE = re.compile(r"^(?:[a-z][a-z0-9]*[A-Z][A-Za-z0-9_]*|loc_[0-9a-fA-F]{4}|[A-Z][A-Z0-9]*_[A-Z0-9_]+)$")
+# Opted in game by game; frogger is out until setUpBoardOrContinueLife.js stops citing HUD_STAMP_BASE [code].
+TAG_GAMES = {"centiped", "dkong", "galaxian", "invaders", "pooyan", "tempest", "thepit", "timeplt"}
+
+
+def tag_citations(text):
+    """[(tag_offset, name, tag)] for every routine/cell-shaped `NAME [tag]` citation in `text`; tag_offset
+    is the index of the tag's `[`."""
+    out = []
+    for m in TAG_CITE.finditer(text):
+        if CITE_SHAPE.match(m.group(1)):
+            out.append((m.start(2) - 1, m.group(1), "seen" if m.group(3) else m.group(2)))
+    return out
+
+
+def registry_tags(names_text):
+    """{name: (addr, tag)} from names.js: every cell with its own tag (done_gate._strict_cells, None when
+    untagged), every ROUTINES entry with its cert, and every <routine>_ADDR alias with its routine's cert."""
+    lines = names_text.splitlines(True)
+    cells, aliases = done_gate._strict_cells(lines)
+    reg = {name: (addr, tag) for name, addr, tag in cells}
+    routines = _routine_entries(lines)
+    for addr, (name, cert) in routines.items():
+        if name:
+            reg[name] = (addr, cert)
+    for name, addr in aliases:
+        reg[name] = (addr, routines.get(addr, [None, None])[1])
+    return reg
+
+
+def routine_certs(names_text):
+    """{module name: (addr, cert)} for every names.js ROUTINES entry (the module file is `<name>.js`)."""
+    return {name: (addr, cert) for addr, (name, cert) in _routine_entries(names_text.splitlines(True)).items()
+            if name}
+
+
+def _routine_entries(lines):
+    """{addr: [name, cert]} from the names.js ROUTINES map."""
+    routines, cur, in_rout = {}, None, False
+    for ln in lines:
+        if ln.startswith("export const ROUTINES"):
+            in_rout = True
+            continue
+        if not in_rout:
+            continue
+        if ln.startswith("};"):
+            break
+        m = re.match(r"^\s*(0x[0-9a-fA-F]+)\s*:", ln)
+        if m:
+            cur = int(m.group(1), 16)
+            routines[cur] = [None, None]
+        nm = re.search(r'\bname:\s*"([^"]+)"', ln)
+        if nm and cur in routines:
+            routines[cur][0] = nm.group(1)
+        cm = re.search(r'\bcert:\s*"([^"]+)"', ln)
+        if cm and cur in routines:
+            routines[cur][1] = cm.group(1)
+    return routines
+
+
+# Rule (C) header half (R40 CC-2), opt-in per game: a ROUTINES module's header -- every comment line before
+# its first statement, imports skipped -- names the routine's own ROM address and carries the routine's
+# names.js cert as a `[tag]`. A header that drops its address or its tag no longer says which ROM routine
+# it lifts or how far that reading is grounded.
+HEADER_GAMES = {"timeplt"}
+
+
+def module_header(text):
+    """[(lineno, line)] of the comment lines before a module's first statement (import statements skipped)."""
+    out, in_block, in_import = [], False, False
+    for i, ln in enumerate(text.splitlines(), 1):
+        s = ln.strip()
+        if in_import:
+            in_import = not re.search(r"\bfrom\s*['\"]", s)
+            continue
+        if in_block:
+            out.append((i, ln))
+            in_block = "*/" not in s
+            continue
+        if not s:
+            continue
+        if re.match(r"import\b", s):
+            in_import = not re.search(r"\bfrom\s*['\"]|^import\s*['\"]", s)
+            continue
+        if s.startswith("//"):
+            out.append((i, ln))
+            continue
+        if s.startswith("/*"):
+            out.append((i, ln))
+            in_block = "*/" not in s[2:]
+            continue
+        break
+    return out
+
+
+def module_header_problems(path, text, addr, cert):
+    """[(path, line, message)] when a ROUTINES module's header lacks its own address or its cert tag."""
+    head = module_header(text)
+    body = "\n".join(ln for _, ln in head)
+    first = head[0][0] if head else 1
+    hits = []
+    if not re.search(r"0x0*%x(?![0-9a-fA-F])" % addr, body, re.I):
+        hits.append((path, first, f"module header does not name its ROM address 0x{addr:04X}"))
+    if cert and f"[{cert}]" not in body:
+        hits.append((path, first, f"module header does not carry its names.js cert [{cert}]"))
+    return hits
+
+
+def header_mismatches(game, names_text, read):
+    """Rule (C) header half over every ROUTINES module of `game`; read(path) returns a module's text or ''."""
+    hits = []
+    for name, (addr, cert) in sorted(routine_certs(names_text).items()):
+        path = f"games/{game}/idiomatic/{name}.js"
+        text = read(path)
+        if text:
+            hits += module_header_problems(path, text, addr, cert)
+    return hits
+
+
+def comment_text(text):
+    """Each line's comment part (whole-line comment, or the text after a trailing `//`), else ''."""
+    out = []
+    for ln in text.splitlines():
+        if is_comment(ln):
+            out.append(ln)
+        elif "//" in ln:
+            out.append(ln.split("//", 1)[1])
+        else:
+            out.append("")
+    return out
+
+
+def module_tag_mismatches(reg, path, text):
+    """Rule (C) core: [(path, line, message)] for each comment citation whose name is not in names.js or
+    whose tag differs from the registry's."""
+    hits = []
+    for i, ln in enumerate(comment_text(text), 1):
+        for _o, name, tag in tag_citations(ln):
+            if name not in reg:
+                hits.append((path, i, f"`{name} [{tag}]` cites a name names.js does not define"))
+            elif reg[name][1] != tag:
+                have = f"[{reg[name][1]}]" if reg[name][1] else "no tag"
+                hits.append((path, i, f"`{name} [{tag}]` but names.js gives it {have}"))
     return hits
 
 
@@ -247,6 +413,19 @@ def check():
             for ln, addrs, clause in scan(text, named, comments_only):
                 names = ", ".join(f"{named[a]} (0x{a:04x})" for a in addrs)
                 failures.append(f"    {path}:{ln}  calls {names} hex/unnamed — but names.js names it.\n        “{clause}”")
+    tag_failures = []
+    for game in sorted(games & TAG_GAMES):
+        names_js = f"games/{game}/idiomatic/names.js"
+        reg = registry_tags(blob(":0", names_js) or blob("HEAD", names_js))
+        for p in git(["ls-files", "--", f"games/{game}/idiomatic/"]).splitlines():
+            if p.endswith(".js") and not p.endswith("/names.js"):
+                for path, ln, msg in module_tag_mismatches(reg, p, blob(":0", p) or blob("HEAD", p)):
+                    tag_failures.append(f"    {path}:{ln}  {msg}")
+        if game in HEADER_GAMES:
+            staged = set(git(["ls-files", "--", f"games/{game}/idiomatic/"]).splitlines())
+            for path, ln, msg in header_mismatches(game, blob(":0", names_js) or blob("HEAD", names_js),
+                                                   lambda p: blob(":0", p) if p in staged else ""):
+                tag_failures.append(f"    {path}:{ln}  {msg}")
     if unwindowed:
         sys.stderr.write(
             "COMMIT BLOCKED — names-consistency gate: could not derive the work-RAM window for "
@@ -256,6 +435,14 @@ def check():
             "  Failing closed rather than inspecting a guessed address range.\n"
         )
         return 1
+    if tag_failures:
+        sys.stderr.write(
+            "\nCOMMIT BLOCKED — names-consistency gate, tag rule (C) (tools/names_consistency.py):\n"
+            "  names.js is the single source of a cell's or routine's tag; a module comment copies it.\n\n"
+            + "\n".join(tag_failures)
+            + "\n\n  Fix the comment's tag (or name) to match names.js. Do NOT --no-verify around this.\n\n"
+        )
+        rc = 1
     if failures:
         sys.stderr.write(
             "\nCOMMIT BLOCKED — names-consistency gate (tools/names_consistency.py):\n"
@@ -266,7 +453,95 @@ def check():
             "  Do NOT --no-verify around this.\n\n"
         )
         return 1
-    return rc  # rule (A) clean; propagate rule (B)'s result
+    return rc  # rule (A) clean; propagate rules (B) and (C)
+
+
+def tags_report(game):
+    """Rule (C) over the WORKING TREE for one game (done_gate's call). A game outside TAG_GAMES is info, rc 0."""
+    root = repo_root()
+    if game not in TAG_GAMES:
+        print(f"names_consistency tags [{game}]: not enrolled in TAG_GAMES (info only)")
+        return 0
+    names_js = os.path.join(root, "games", game, "idiomatic", "names.js")
+    try:
+        reg = registry_tags(open(names_js, encoding="utf-8").read())
+    except OSError as e:
+        raise GitError(f"cannot read {names_js}: {e}")
+    hits = []
+    for f in sorted(glob.glob(os.path.join(root, "games", game, "idiomatic", "*.js"))):
+        if f.endswith(os.sep + "names.js"):
+            continue
+        hits += module_tag_mismatches(reg, os.path.relpath(f, root), open(f, encoding="utf-8").read())
+    if game in HEADER_GAMES:
+        def read(path):
+            try:
+                return open(os.path.join(root, path), encoding="utf-8").read()
+            except OSError:
+                return ""
+        hits += header_mismatches(game, open(names_js, encoding="utf-8").read(), read)
+    if hits:
+        print(f"names_consistency tags [{game}]: FAIL")
+        for path, ln, msg in hits:
+            print(f"    {path}:{ln}  {msg}")
+        return 1
+    print(f"names_consistency tags [{game}]: PASS")
+    return 0
+
+
+def _selftest_tags(failures):
+    """Rule (C) fixtures: the controls must fail, the faithful copies must pass."""
+    names_js = (
+        "/** Coins accepted. [seen] */\n"
+        "export const COIN_COUNT = 0xa982;\n"
+        "export const DIP_COPY = 0xa9ad; // [code] read only\n"
+        "export const ROUTINES = {\n"
+        '  0x4984: { name: "pulseCoinCounter", role: "r", cert: "seen" },\n'
+        "  0x0167: {\n"
+        '    name: "loc_0167",\n'
+        '    cert: "code",\n'
+        "  },\n"
+        "};\n"
+    )
+    reg = registry_tags(names_js)
+    want = {"COIN_COUNT": (0xa982, "seen"), "DIP_COPY": (0xa9ad, "code"),
+            "pulseCoinCounter": (0x4984, "seen"), "loc_0167": (0x0167, "code")}
+    if reg != want:
+        failures.append(f"registry_tags: want {want}, got {reg}")
+    cases = [
+        ("faithful cell", " * COIN_COUNT (0xA982) [seen] counts coins", 0),
+        ("faithful routine", "  // then pulseCoinCounter [seen] runs", 0),
+        ("faithful [code]", " * the trap loc_0167 (0x0167, a data run) [code]", 0),
+        ("promotion arrow", " * DIP_COPY [code] -> [seen]", 1),
+        ("stale cell tag", " * COIN_COUNT 0xA982 [code] counts coins", 1),
+        ("stale routine cert", " * pulseCoinCounter is [code]", 1),
+        ("trailing comment", "x = 1; // COIN_COUNT [guess]", 1),
+        ("unknown name", " * pulseCoinCountr [seen]", 1),
+        ("plain word ignored", " * the role is [code]", 0),
+        ("code line ignored", 'const s = "COIN_COUNT [code]";', 0),
+    ]
+    for label, text, n in cases:
+        got = len(module_tag_mismatches(reg, "m.js", text))
+        if got != n:
+            failures.append(f"rule C {label}: want {n} hit(s), got {got} on {text!r}")
+    # header half (CC-2): the faithful header passes; a dropped address or tag is one hit each
+    good = ('// SPDX-License-Identifier: GPL-3.0-only\nimport { A,\n  B } from "./names.js";\n'
+            "/** pulseCoinCounter -- pulse the counter.\n * ROM 0x4984-0x4990. Grounding: [seen]. */\n"
+            "export function pulseCoinCounter(m) {}\n// 0x0167 [code] after the code is not header\n")
+    hcases = [("faithful header", good, 0),
+              ("dropped address", good.replace("ROM 0x4984-0x4990. ", ""), 1),
+              ("dropped tag", good.replace("Grounding: [seen]", "Grounding:"), 1),
+              ("stale tag", good.replace("[seen]", "[code]"), 1),
+              ("address only after code", good.replace("ROM 0x4984-0x4990. ", "").replace("0x0167", "0x4984"), 1)]
+    for label, text, n in hcases:
+        got = len(module_header_problems("m.js", text, 0x4984, "seen"))
+        if got != n:
+            failures.append(f"rule C header {label}: want {n} hit(s), got {got}")
+    mods = {"games/g/idiomatic/pulseCoinCounter.js": good.replace("ROM 0x4984-0x4990. ", "")}
+    got = len(header_mismatches("g", names_js, lambda p: mods.get(p, "")))
+    if got != 1:
+        failures.append(f"rule C header_mismatches: want 1 hit for a header that lost its address, got {got}")
+    if "timeplt" not in HEADER_GAMES:
+        failures.append("rule C header half: timeplt must be enrolled in HEADER_GAMES")
 
 
 def selftest():
@@ -310,18 +585,25 @@ def selftest():
     except GitError as e:
         failures.append(f"names-debt.txt failed to parse: {e}")
 
+    _selftest_tags(failures)
+
     if failures:
         sys.stderr.write("names_consistency selftest: FAIL\n")
         for f in failures:
             sys.stderr.write(f"  {f}\n")
         return 1
-    sys.stdout.write("names_consistency selftest: PASS (7 rule-(B) cases: teeth, allowlist, per-game, absent, scope, line#, ROM addr, debt-file well-formed)\n")
+    sys.stdout.write("names_consistency selftest: PASS (rule B: teeth, allowlist, per-game, absent, scope, line#, "
+                     "ROM addr, debt-file well-formed; rule C: registry read, faithful copies, stale tags, unknown name, scope, "
+                     "module header address + cert)\n")
     return 0
 
 
 def main():
-    if len(sys.argv) < 2 or sys.argv[1] not in ("check", "selftest"):
-        sys.stderr.write("usage: names_consistency.py {check|selftest}\n")
+    if len(sys.argv) < 2 or sys.argv[1] not in ("check", "selftest", "tags"):
+        sys.stderr.write("usage: names_consistency.py {check|selftest|tags --game <game>}\n")
+        return 2
+    if sys.argv[1] == "tags" and (len(sys.argv) != 4 or sys.argv[2] != "--game"):
+        sys.stderr.write("usage: names_consistency.py tags --game <game>\n")
         return 2
     # selftest is pure-logic (synthetic fixtures + the debt file); no git tree, so it runs before repo_root.
     if sys.argv[1] == "selftest":
@@ -332,7 +614,7 @@ def main():
         sys.stderr.write("COMMIT BLOCKED — names-consistency gate: not in a git work tree (failing closed).\n")
         return 1
     try:
-        return check()
+        return tags_report(sys.argv[3]) if sys.argv[1] == "tags" else check()
     except GitError as e:
         sys.stderr.write(f"COMMIT BLOCKED — names-consistency gate git error (failing closed): {e}\n")
         return 1

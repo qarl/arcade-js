@@ -476,7 +476,10 @@ test("GUARD: a changed image makes BOTH sides fault, a sound one makes neither",
     const r = diffOf(seedRandomRegister, tampered);
     assert.equal(r.faulted, true, `${label}: a changed image did NOT trip the guard, so the guard ` +
       "branch is untested and the throw might be reachable by nothing at all");
-    assert.equal(r.faultA, r.faultB, `${label}: ${r.faultA} on one side, ${r.faultB} on the other`);
+    // The frozen twin jumps outside the image and faults there; the rewrite stops at the jump with
+    // the unreached marker.
+    assert.ok(r.faultA, `${label}: the frozen twin did not fault`);
+    assert.equal(r.faultB, "NotImplemented", `${label}: the rewrite faulted as ${r.faultB}`);
     // Both sides seed BEFORE they test, so the copy must already agree at the point of the fault.
     assert.deepEqual(allDiffs(r.a, r.b), [], `${label}: the two sides had already parted company ` +
       "in memory before the guard fired");

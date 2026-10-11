@@ -11,16 +11,24 @@ subsystem with no gate guarding the done-claim. Subsystems:
   idiomatic   - tools/idiomatic_gate.py: the idiomatic layer holds ZERO CPU/memory cruft — no
                 registers, no m.call, no m.push*, no raw 0xHHHH addresses.
   grounding   - no ungrounded [code]/[guess] proposals remain in names.js (the registry).
+  understanding - mechanisms.md and the idiomatic comments cite names.js and carry its tags
+                (tools/understanding_gate.py map, tools/names_consistency.py tags; opt-in per game).
   naming      - tools/naming_gate.py: every grounded idiomatic routine has a descriptive name, not loc_.
   comments    - tools/comment_gate.py floor: a cleaned game's idiomatic files carry verbose comments.
   audio       - tools/audio_gate.py: a wired, tested audio layer.
-  pixel       - the game's idiomatic pixel suite matches MAME golden.
-  whole-game  - the standing whole-game tests (boot/attract, tape, transition) pass.
+  pixel       - the game's idiomatic pixel suite matches MAME golden; for LONG_GOLDEN_GAMES also
+                tools/long_golden.py, the FULL ~10-minute golden (attract + gameplay, both layers).
+  whole-game  - the standing whole-game tests (boot/attract, tape, transition) and the per-routine
+                equivalence suite (games/<g>/idiomatic/test) pass.
+  browser     - the worker-form boot (node); for BROWSER_GAMES also the manifest input map vs MAME's ports
+                (tools/input_map_gate.py) and the page in headless Chrome (tools/browser_runtime_gate.mjs).
   disasm      - a shipped Computer Archeology disassembly is clean-room (tools/ca_cruft_gate.py) and
                 current (equals what tools/gen_ca_contrib.py emits now; staleness skipped without the ROM).
                 Opt-in (DISASM_GAMES); a non-enrolled game's result is printed as info, never RED.
+  wiring also runs tools/translated_live_probe.mjs (tape + attract): the live game executes no translated code.
 Slow subsystems (pixel, suite) are fine: this is a ship-time gate, not per-commit. A subsystem whose
-tooling is absent or errors is reported RED (fail-closed), never silently skipped.
+tooling is absent or errors is reported RED (fail-closed), never silently skipped. The DONE.md record must
+be committed AND well-formed (done_record_problems).
 
 Subcommands: check --game <game>; selftest; strict-report --game <game> (read-only R16 per-cell tag
 accounting for any game, enrolled in STRICT_TAG_GAMES or not).
@@ -35,10 +43,12 @@ import subprocess
 import sys
 
 
-def run(cmd):
-    """Return (returncode, combined_output). rc=-1 on launch failure (fail-closed)."""
+def run(cmd, timeout=2400):
+    """Return (returncode, combined_output). rc=-1 on launch failure (fail-closed). NODE_TEST_CONTEXT is dropped:
+    under a parent `node --test` a child test run reports to the parent and exits 0 on a failure."""
+    env = {k: v for k, v in os.environ.items() if k != "NODE_TEST_CONTEXT"}
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=2400)
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=env)
         return r.returncode, (r.stdout + r.stderr)
     except (OSError, subprocess.SubprocessError) as e:
         return -1, f"launch failed: {e}"
@@ -152,6 +162,7 @@ def _read_grounding_debt(game):
 # so enrolling a game is a deliberate, reviewed step, never a silent reddening of a shipped game's status.
 STRICT_TAG_GAMES = {"timeplt"}
 STRICT_CONST = re.compile(r"^export const ([A-Za-z_$][\w$]*)\s*=\s*(0x[0-9a-fA-F]+)\s*;")
+DERIVED_CONST = re.compile(r"^export const ([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z0-9_$+\-\s]+?)\s*;")  # NAME + 1, 0xad00 + 0x31
 ROUTINE_ALIAS = re.compile(r"^[a-z][A-Za-z0-9]*_ADDR$")   # <routineName>_ADDR: a code address used as a value
 
 
@@ -165,6 +176,24 @@ def _own_tag(text):
         if t in ("code", "guess"):
             return t
     return "seen" if tags else None
+
+
+def _derived_addr(expr, values):
+    """Address of a derived cell const (`NAME + 1`, `0xad00 + 0x31`): a +/- sum of hex/decimal literals and
+    names.js hex consts. None when any term is unknown -- the caller then grades the cell untagged."""
+    total, sign = 0, 1
+    for tok in re.findall(r"[+-]|[A-Za-z0-9_$]+", expr):
+        if tok in "+-":
+            sign = 1 if tok == "+" else -1
+            continue
+        if tok in values:
+            v = values[tok]
+        elif re.fullmatch(r"0x[0-9a-fA-F]+|\d+", tok):
+            v = int(tok, 0)
+        else:
+            return None
+        total += sign * v
+    return total
 
 
 def _strict_cells(lines):
@@ -184,14 +213,20 @@ def _strict_cells(lines):
             m = re.match(r"^\s*(0x[0-9a-fA-F]+)\s*:", ln)
             if m:
                 rkeys.add(int(m.group(1), 16))
+    values = {m.group(1): int(m.group(2), 16) for m in map(STRICT_CONST.match, lines) if m}
     cells, aliases = [], []
     for i, ln in enumerate(lines):
-        m = STRICT_CONST.match(ln)
-        if not m:
-            if re.match(r"^export const [A-Za-z_$][\w$]*\s*=\s*(0x|$)", ln):  # multi-line/compound hex const: fail-closed
+        m = STRICT_CONST.match(ln) or DERIVED_CONST.match(ln)
+        addr = None
+        if m and m.re is STRICT_CONST:
+            addr = int(m.group(2), 16)
+        elif m:
+            addr = _derived_addr(m.group(2), values)
+        if addr is None:
+            if m or re.match(r"""^export const [A-Za-z_$][\w$]*\s*=(?!\s*(?:[{\["'`]|function\b|async\b|class\b|new\b|\([^)]*\)\s*=>|[\w$]+\s*=>))""", ln):  # unresolvable cell: fail-closed
                 cells.append((ln.split()[2].split("=")[0], None, None))
             continue
-        name, addr = m.group(1), int(m.group(2), 16)
+        name = m.group(1)
         if ROUTINE_ALIAS.match(name) and addr in rkeys:
             aliases.append((name, addr))
             continue
@@ -240,6 +275,16 @@ def _strict_grounding(lines, debt):
     return r
 
 
+def _debt_reason_ok(reason, strict=False):
+    """(R40 U9) A debt reason is the reviewed account of why an item can never be grounded on a good ROM,
+    written for the entry: never a pasted names.js role (`names.js role: ...`). For a STRICT_TAG_GAMES game it
+    must also end on a whole word (two letters or more, or a number, optionally closed by `.`, `)` or `]`), so a
+    reason cut off mid-word or mid-clause (`... then,`, `... reach h`) blocks."""
+    if "names.js role:" in reason:
+        return False
+    return not strict or bool(re.search(r"(?:\b[A-Za-z_]\w+|\b\d+)[.)\]]*$", reason))
+
+
 def check_grounding(game):
     # names.js (the registry) is the authoritative grounding artifact; mechanisms.md `[code]` are
     # accounted-for prose, not counted here. grounding-debt.txt subtracts the honestly-irreducible tail.
@@ -252,6 +297,10 @@ def check_grounding(game):
     noreason = sorted(a for a, r in debt.items() if not r)
     if noreason:
         return False, "grounding-debt.txt: entries need a reason -> " + ", ".join(hex(a) for a in noreason)
+    unreasoned = sorted(a for a, r in debt.items() if not _debt_reason_ok(r, game in STRICT_TAG_GAMES))
+    if unreasoned:
+        return False, ("grounding-debt.txt: a reason is a pasted names.js role or is cut off mid-word -> "
+                       + ", ".join(hex(a) for a in unreasoned))
     if game in STRICT_TAG_GAMES:
         return _check_grounding_strict(lines, rout_addrs, debt)
     ung = {a for a in cell_addrs + rout_addrs if a is not None}
@@ -330,7 +379,7 @@ def check_pixel(game):
         return False, dnote
     # Legacy pre-runbook ports (runbook "Legacy games": do not retrofit) are grandfathered on the attract
     # pixel gate; the --done gameplay bar is the go-forward standard for games ported under the runbook.
-    LEGACY_ATTRACT_ONLY = {"timeplt", "thepit"}
+    LEGACY_ATTRACT_ONLY = {"thepit"}
     if "--done" not in open(suite, encoding="utf-8", errors="replace").read():
         if game not in LEGACY_ATTRACT_ONLY:
             return False, "pixel_suite.py has no --done mode (attract-only gate is blind to gameplay)"
@@ -339,10 +388,28 @@ def check_pixel(game):
         return ok, (f"PASS (legacy attract-only, grandfathered; {dnote})" if ok else "pixel suite FAILED")
     rc, out = run(["python3", suite, "--layer", "idiomatic", "--done"])
     passed = rc == 0 and re.search(r"^pixel_suite: PASS", out, re.M) is not None
-    if passed:
+    if not passed:
+        last = next((ln for ln in reversed(out.splitlines()) if ln.strip()), "")
+        return False, "pixel --done FAILED: " + last[:90]
+    if game not in LONG_GOLDEN_GAMES:
         return True, f"PASS (--done: attract completeness + gameplay vs MAME; {dnote})"
+    ok, lnote = check_long_golden(game)
+    return ok, (f"PASS (--done; {dnote}; {lnote})" if ok else lnote)
+
+
+# runbook §5: the pixel gate against the FULL ~10-minute golden, never a short window. Opt-in per game: a game
+# is enrolled in the unit that makes its long run pass, so a DONE game's ship status never flips red unrun.
+LONG_GOLDEN_GAMES = {"timeplt"}
+
+
+def check_long_golden(game):
+    """tools/long_golden.py run: attract + gameplay, both layers, RAM byte-exact + pixel band vs a 10-minute
+    MAME golden. PASS is its literal `long_golden: PASS -- <game>` line AND exit 0; SKIP/FAIL/timeout are RED."""
+    rc, out = run(["python3", "tools/long_golden.py", "run", "--game", game], timeout=4 * 3600)
+    if rc == 0 and re.search(rf"^long_golden: PASS -- {re.escape(game)}$", out, re.M):
+        return True, "10-min long golden PASS (attract+gameplay, idiomatic+oracle)"
     last = next((ln for ln in reversed(out.splitlines()) if ln.strip()), "")
-    return False, "pixel --done FAILED: " + last[:90]
+    return False, "long golden NOT PASS: " + last[:100]
 
 
 def check_distant(game):
@@ -373,7 +440,15 @@ def check_wholegame(game):
     if not standing:
         return False, "no standing whole-game tests found"
     rc, out = run(["node", "--test", *standing])
-    return (rc == 0), ("PASS" if rc == 0 else "whole-game tests FAILED")
+    if rc != 0:
+        return False, "whole-game tests FAILED"
+    # The per-routine equivalence suite: the only teeth some in-play routines have, so the ship runs it too.
+    eq = sorted(glob.glob(f"games/{game}/idiomatic/test/*.test.js"))
+    if eq:
+        rc, _ = run(["node", "--test", *eq], timeout=3600)
+        if rc != 0:
+            return False, "per-routine equivalence suite FAILED (games/%s/idiomatic/test)" % game
+    return True, "PASS" + (" (+ per-routine equivalence suite)" if eq else "")
 
 
 def check_wiring(game):
@@ -393,7 +468,46 @@ def check_wiring(game):
         rc, _ = run(["node", "--test", path])
         if rc != 0:
             return False, f"wiring gate {g} FAILED"
-    return True, "PASS (registry-coverage, no-stale-mcall, no-frozen-twin-call)"
+    ok, pnote = check_live_probe(game)
+    if not ok:
+        return False, pnote
+    return True, f"PASS (registry-coverage, no-stale-mcall, no-frozen-twin-call; {pnote})"
+
+
+def check_live_probe(game):
+    """runbook §5(a): tools/translated_live_probe.mjs over the game's play tape AND attract alone -- the live
+    game executes no translated routine, and the tape reaches play (frames as the standing DONE test runs)."""
+    import tempfile
+    for label, extra, frames in (("tape", [], 3600), ("attract", ["--attract"], 7200)):
+        with tempfile.TemporaryDirectory() as td:
+            out = os.path.join(td, "r.json")
+            rc, text = run(["node", "tools/translated_live_probe.mjs", "--game", game, "--frames", str(frames),
+                            "--json", out, *extra])
+            try:
+                res = json.load(open(out))[0]
+            except (OSError, ValueError, IndexError):
+                return False, f"live probe ({label}) wrote no result: " + text.strip()[-80:]
+        s = res.get("summary", {})
+        ran = len(s.get("routines", [])) + len(s.get("uncounted", [])) + len(s.get("late", [])) + len(s.get("deferred", []))
+        if rc != 0 or res.get("stopError") or res.get("stop") != "reached maxFrames" or ran:
+            return False, (f"live probe ({label}): {ran} translated run(s), stop {res.get('stop')!r}, "
+                           f"error {res.get('stopError')!r}")
+        if label == "tape" and not res.get("play", {}).get("frames"):
+            return False, "live probe (tape): the tape never reached play -- a zero over attract only"
+    return True, "live probe 0 translated (tape+attract)"
+
+
+def check_understanding(game):
+    """The map cites only registry names with the registry's tags, every [code]/[guess] in it accounted for in
+    grounding-debt.txt (understanding_gate CHECK C), and no module comment contradicts a names.js tag
+    (names_consistency rule C). Both are opt-in per game and report a non-enrolled game as info, rc 0."""
+    for cmd in (["python3", "tools/understanding_gate.py", "map", "--game", game],
+                ["python3", "tools/names_consistency.py", "tags", "--game", game]):
+        rc, out = run(cmd)
+        if rc != 0:
+            lines = [ln.strip() for ln in out.splitlines() if ln.strip()]
+            return False, (lines[1] if len(lines) > 1 else (lines or ["errored"])[0])[:120]
+    return True, "PASS (mechanisms.md and module-comment citations match names.js)"
 
 
 def check_naming(game):
@@ -408,6 +522,10 @@ def check_naming(game):
     return (rc == 0), detail[:120]
 
 
+# DONE before the cleanup phase existed (runbook "Legacy games"); every other game must be idiomaticComplete.
+COMMENT_FLOOR_LEGACY = {"dkong", "thepit"}
+
+
 def check_comment_floor(game):
     """The COMMENT half of the §4-end cleanup, symmetric to check_naming's RENAME half: every idiomatic
     file of a cleaned (idiomaticComplete) game must carry verbose comments (>= code // 2 + 3 lines).
@@ -416,9 +534,27 @@ def check_comment_floor(game):
     nothing then requiring the comments -- the exact gap that let invaders ship DONE at a 0.27 comment ratio."""
     rc, out = run(["python3", "tools/comment_gate.py", "floor", "--game", game])
     line = next((ln for ln in out.splitlines() if ln.strip()), "")
+    if rc == 0 and ": N/A" in line and game not in COMMENT_FLOOR_LEGACY:
+        return False, "not idiomaticComplete -- a game cannot be DONE before its cleanup phase"
     detail = re.sub(rf"^comment_gate floor \[{re.escape(game)}\]:\s*", "", line) or (
         "OK" if rc == 0 else "idiomatic files below the comment floor")
     return (rc == 0), detail[:120]
+
+
+# Opt-in per game, like DISASM_GAMES: the input-map and headless-browser checks run only for an enrolled game,
+# so a DONE game's status never flips red before its own run and no other game launches a browser.
+BROWSER_GAMES = {"timeplt"}
+
+
+def check_browser_runtime(game):
+    """The manifest input map vs MAME's own ports, then the page itself in headless Chrome."""
+    rc, out = run(["python3", "tools/input_map_gate.py", "check", "--game", game], timeout=300)
+    if rc != 0 or not re.search(rf"^input_map: PASS -- {re.escape(game)}$", out, re.M):
+        return False, "input map: " + next((ln for ln in reversed(out.splitlines()) if ln.strip()), "")[:100]
+    rc, out = run(["node", "tools/browser_runtime_gate.mjs", "--game", game], timeout=300)
+    if rc != 0 or not re.search(rf"^browser_runtime: PASS -- {re.escape(game)}$", out, re.M):
+        return False, "browser runtime: " + next((ln for ln in reversed(out.splitlines()) if ln.strip()), "")[:100]
+    return True, "input map == MAME ports; headless browser boot+canvas+keys+audio, mutants red"
 
 
 def check_browser(game):
@@ -427,13 +563,16 @@ def check_browser(game):
     in node (web/test/games-boot.test.js). This is the class every OTHER gate is blind to: none construct the
     board Inputs or boot the worker loop, so a game passed everything and was UNPLAYABLE (invaders: no Inputs
     export; galaxian: black screen from a gfx key + an input crash-loop). Wired here so DONE fail-closes on it
-    BEFORE the R40 DONE.md lands. Node CANNOT exercise the browser audio/canvas RUNTIME (the galaxian synth-404
-    + Safari 0-input bugs were runtime-only), so a human browser confirm remains a DONE step; this gate covers
-    construction/render/seam. A SKIP (ROM absent / §2 skeleton) is NOT verified -> RED."""
+    BEFORE the R40 DONE.md lands. Node cannot exercise the browser audio/canvas RUNTIME (the galaxian synth-404
+    + Safari 0-input bugs were runtime-only), so check_browser_runtime runs the page in headless Chrome and
+    checks the input map against MAME. A SKIP (ROM absent / §2 skeleton) is NOT verified -> RED."""
     rc, out = run(["node", "--test", "--test-reporter", "tap", "web/test/games-boot.test.js"])
     line = next((ln for ln in out.splitlines() if re.search(rf" - {re.escape(game)}: boots", ln)), "")
     if line.startswith("ok") and "skip" not in line.lower():
-        return True, "PASS (worker-form construct+render+input+sound seam; browser runtime = human confirm)"
+        if game not in BROWSER_GAMES:   # a browser launch per game is not free: only enrolled games run it
+            return True, "PASS (worker-form boot; not in BROWSER_GAMES: input map + headless browser not run)"
+        ok, rnote = check_browser_runtime(game)
+        return ok, ("PASS (worker-form boot; " + rnote + ")") if ok else rnote
     if "skip" in line.lower():
         return False, "games-boot SKIPPED (ROM absent or §2 skeleton) -- browser boot NOT verified"
     return False, "games-boot FAILED (worker-form boot broke)"
@@ -549,6 +688,7 @@ SUBSYSTEMS = [
     ("idiomatic", check_idiomatic),
     ("wiring", check_wiring),
     ("grounding", check_grounding),
+    ("understanding", check_understanding),
     ("naming", check_naming),
     ("comments", check_comment_floor),
     ("audio", check_audio),
@@ -557,6 +697,56 @@ SUBSYSTEMS = [
     ("browser", check_browser),
     ("disasm", check_disasm_enrolled),
 ]
+
+
+SHA_HEX = re.compile(r"\b[0-9a-f]{7,40}\b")
+NOT_DONE_VERDICT = re.compile(r"^[\s>*#_-]*(verdict:?\s*)?\**\s*not done\b", re.I | re.M)
+
+
+def done_record_problems(text, rom_shas, commit_state):
+    """What a committed DONE.md must hold (runbook §5): a "zero open criteria" conclusion and no NOT-DONE
+    verdict line, the auditor's identity, a manifest ROM sha256 cited verbatim, and an audited commit (a hex
+    sha on or just after a line naming it) that is an ancestor of HEAD. `commit_state(sha)` returns
+    "ancestor", "not-ancestor" or "unknown" (absent from this clone's history: noted, not judged)."""
+    problems, notes = [], []
+    if not re.search(r"zero open criteria", text, re.I):
+        problems.append('no "zero open criteria" conclusion')
+    if NOT_DONE_VERDICT.search(text):
+        problems.append("a line opens with a NOT DONE verdict")
+    if not re.search(r"\bauditor\b", text, re.I):
+        problems.append("no auditor identity")
+    if not any(sh and sh.lower() in text.lower() for sh in rom_shas):
+        problems.append("cites no manifest ROM sha256")
+    lines = text.splitlines()
+    cands = []
+    for i, ln in enumerate(lines):
+        if re.search(r"audited", ln, re.I):
+            for nxt in lines[i:i + 4]:
+                cands += [m for m in SHA_HEX.findall(nxt) if not m.isdigit()]
+    states = {c: commit_state(c) for c in dict.fromkeys(cands)}
+    if not cands:
+        problems.append("no audited commit sha")
+    elif "ancestor" not in states.values():
+        if "not-ancestor" in states.values():
+            problems.append("the audited commit is not an ancestor of HEAD: "
+                            + ", ".join(c for c, st in states.items() if st == "not-ancestor"))
+        else:
+            notes.append("audited commit not in this clone's history (ancestry unchecked)")
+    return problems, notes
+
+
+def _commit_state(sha):
+    if run(["git", "cat-file", "-e", f"{sha}^{{commit}}"])[0] != 0:
+        return "unknown"
+    return "ancestor" if run(["git", "merge-base", "--is-ancestor", sha, "HEAD"])[0] == 0 else "not-ancestor"
+
+
+def _manifest_rom_shas(game):
+    try:
+        txt = open(f"games/{game}/manifest.js", encoding="utf-8").read()
+    except OSError:
+        return []
+    return re.findall(r'sha256\s*:\s*"([0-9a-fA-F]{64})"', txt)
 
 
 def done_record_committed(game, tracked=None):
@@ -583,6 +773,14 @@ def check(game):
         print(f"\n{game}: NOT DONE — a subsystem gate is red (above). The ship is refused.", file=sys.stderr)
         return 1
     if done_record_committed(game):
+        problems, notes = done_record_problems(open(f"games/{game}/DONE.md", encoding="utf-8").read(),
+                                               _manifest_rom_shas(game), _commit_state)
+        for n in notes:
+            print(f"  note: DONE.md {n}")
+        if problems:
+            print(f"\n{game}: NOT DONE — games/{game}/DONE.md is committed but malformed: " + "; ".join(problems),
+                  file=sys.stderr)
+            return 1
         print(f"\n{game}: DONE — every subsystem gate passed and the adversarial done-audit is on "
               f"record (games/{game}/DONE.md).")
         return 0
@@ -678,6 +876,48 @@ def selftest():
     # UNTAGGED cell (R16: rated first) -- it is reported stale instead.
     if _strict_cells(["export const orphan_ADDR = 0x9999;\n"]) != ([("orphan_ADDR", 0x9999, None)], []):
         print("selftest FAIL: strict grounding orphan _ADDR alias not graded as a cell", file=sys.stderr); ok = False
+    # a derived cell (`NAME + 1`) is a cell like any other: its own tag grades it, untagged is ungrounded
+    derived = ["/** [seen] */\n", "export const BASE = 0xa010;\n", "export const NEXT = BASE + 1;\n",
+               "export const SUM = 0xad00 + 0x31; // [code]\n", "export const ODD = BASE + UNKNOWN; // [seen]\n"]
+    if _strict_cells(derived)[0] != [("BASE", 0xa010, "seen"), ("NEXT", 0xa011, None), ("SUM", 0xad31, "code"),
+                                     ("ODD", None, None)]:
+        print(f"selftest FAIL: strict grounding derived cells -> {_strict_cells(derived)[0]!r}", file=sys.stderr); ok = False
+    # (R40 :226) any other value form is a cell, unresolvable -> fail-closed; a non-value const is not a cell
+    for src, want in [("export const PAREN = (BASE + 1); // [seen]\n", [("PAREN", None, None)]),
+                      ("export const OR = BASE | 0x80; // [seen]\n", [("OR", None, None)]),
+                      ("export const MUL = BASE + 2 * 1; // [seen]\n", [("MUL", None, None)]),
+                      ("export const CMT = BASE + 1 /* x */; // [seen]\n", [("CMT", None, None)]),
+                      ("export const ROUTINES = {\n", []), ("export const T = [1, 2];\n", []),
+                      ('export const S = "x";\n', []), ("export const F = (m) => 1;\n", []),
+                      ("export const G = function () {};\n", []), ("export const H = x => x;\n", []),
+                      ("export const N = new Map();\n", [])]:
+        got = [c for c in _strict_cells(["/** [seen] */\n", "export const BASE = 0xa010;\n", src])[0] if c[0] != "BASE"]
+        if got != want:
+            print(f"selftest FAIL: strict grounding value form {src.strip()!r} -> {got!r} want {want!r}", file=sys.stderr); ok = False
+    # (R40 U9) a debt reason: a pasted names.js role, or (strict) a mid-word / mid-clause ending, is refused
+    old_2251 = ("[anti-tamper] names.js role: tamper-trap data table jumped into as code when the tile-ROM chec")
+    for reason, strict, want in [(old_2251, False, False), (old_2251, True, False),
+                                 ("the guard holds on a genuine image, then,", True, False),
+                                 ("no pc 0x17CE-0x17E1 in any capture and no read by any pc", True, True),
+                                 ("so no dispatch ever reads 15", True, True), ("never fetched (MAME).", True, True),
+                                 ("not reached; reach h", True, False), ("not reached; reach h", False, True)]:
+        if _debt_reason_ok(reason, strict) != want:
+            print(f"selftest FAIL: debt reason {reason[-30:]!r} strict={strict} -> {not want}", file=sys.stderr); ok = False
+    import tempfile as _tf
+    here = os.getcwd()
+    with _tf.TemporaryDirectory() as root:   # the wiring: check_grounding itself refuses the pasted role
+        os.makedirs(os.path.join(root, "games", "dg", "idiomatic"))
+        with open(os.path.join(root, "games", "dg", "idiomatic", "names.js"), "w") as fh:
+            fh.write("export const W = 0xa001; // [code]\n")
+        try:
+            os.chdir(root)
+            for reason, want in [("the witness is never written on a good ROM", True), (old_2251, False)]:
+                with open(os.path.join("games", "dg", "grounding-debt.txt"), "w") as fh:
+                    fh.write(f"0xa001  {reason}\n")
+                if check_grounding("dg")[0] != want:
+                    print(f"selftest FAIL: check_grounding with debt reason {reason[-30:]!r} -> {not want}", file=sys.stderr); ok = False
+        finally:
+            os.chdir(here)
     if _strict_cells(["/** [code] from the routines */\n", "export const MIX = 0xa006; // [seen]\n"])[0] != [("MIX", 0xa006, "code")]:
         print("selftest FAIL: strict grounding an own [seen] masked an own [code] (fail-closed precedence)", file=sys.stderr); ok = False
     # mixed tags in ONE own comment (R40 timeplt OPEN 1): a leading [seen] must not mask a later [code]/[guess]
@@ -732,8 +972,79 @@ def selftest():
     if not ok_none:
         print("selftest FAIL: check_distant red for a game with no distant_suite.py", file=sys.stderr); ok = False
     ok = _selftest_disasm() and ok
+    ok = _selftest_done_bar() and ok
     print("selftest OK" if ok else "selftest FAILED")
     return 0 if ok else 1
+
+
+def _selftest_done_bar():
+    """The ship-bar additions, driven through faked tool runs: each must go RED on its mutant."""
+    global run
+    real_run, ok = run, True
+
+    def expect(label, got, want):
+        nonlocal ok
+        if got != want:
+            print(f"selftest FAIL: {label} -> {got!r} want {want!r}", file=sys.stderr)
+            ok = False
+
+    rom = "ab" * 32
+    good = (f"**Verdict: DONE — zero open criteria.**\n- **Audited commit:** `{'1' * 39}a`\n"
+            f"- **Auditor:** fresh agent\n- rom_sha256: `{rom}`\n| done_gate | PASS | reports NOT DONE only for DONE.md |\n")
+    anc = lambda sha: "ancestor"
+    expect("DONE.md well-formed", done_record_problems(good, [rom], anc), ([], []))
+    expect("DONE.md 'NOT DONE: 2 open criteria' mutant",
+           len(done_record_problems("# g\n\nNOT DONE: 2 open criteria.\n", [rom], anc)[0]) > 0, True)
+    expect("DONE.md verdict flipped", len(done_record_problems(good.replace("**Verdict: DONE", "**Verdict: NOT DONE"),
+                                                               [rom], anc)[0]), 1)
+    expect("DONE.md with a stale ROM sha", done_record_problems(good, ["cd" * 32], anc)[0], ["cites no manifest ROM sha256"])
+    expect("DONE.md audited at a non-ancestor", len(done_record_problems(good, [rom], lambda sha: "not-ancestor")[0]), 1)
+    expect("DONE.md audited commit absent from the clone", done_record_problems(good, [rom], lambda sha: "unknown")[0], [])
+    expect("DONE.md without an auditor", done_record_problems(good.replace("Auditor", "Author"), [rom], anc)[0],
+           ["no auditor identity"])
+
+    na = "comment_gate floor [g]: N/A (not idiomaticComplete — the floor is a cleanup-phase bar)\n"
+    try:
+        run = lambda cmd, timeout=2400: (0, na)
+        expect("comments N/A for a non-legacy game is RED", check_comment_floor("g")[0], False)
+        expect("comments N/A for a pre-cleanup DONE game stays OK", check_comment_floor(sorted(COMMENT_FLOOR_LEGACY)[0])[0], True)
+        for label, fake, want in [
+            ("long golden PASS (control)", (0, "  ...\nlong_golden: PASS -- g\n"), True),
+            ("long golden SKIP", (1, "long_golden: SKIP -- no `mame` on PATH (NOT validated)\n"), False),
+            ("long golden PASS line but exit 1", (1, "long_golden: PASS -- g\n"), False),
+            ("long golden another game's PASS", (0, "long_golden: PASS -- h\n"), False),
+        ]:
+            run = lambda cmd, timeout=2400, fake=fake: fake
+            expect(label, check_long_golden("g")[0], want)
+        for label, outs, want in [
+            ("input map + runtime PASS (control)", ["input_map: PASS -- g\n", "browser_runtime: PASS -- g\n"], True),
+            ("input map FAIL", ["input_map: FAIL -- g: fire bit\n", "browser_runtime: PASS -- g\n"], False),
+            ("runtime FAIL", ["input_map: PASS -- g\n", "browser_runtime: FAIL -- audio: no clip\n"], False),
+            ("runtime SKIP", ["input_map: PASS -- g\n", "browser_runtime: SKIP -- no Chrome found\n"], False),
+        ]:
+            it = iter(outs)
+            run = lambda cmd, timeout=2400, it=it: (0 if "PASS" in (o := next(it)) else 1, o)
+            expect(label, check_browser_runtime("g")[0], want)
+
+        def probe(result):
+            def f(cmd, timeout=2400):
+                with open(cmd[cmd.index("--json") + 1], "w") as fh:
+                    json.dump([result], fh)
+                return 0, ""
+            return f
+        clean = {"stop": "reached maxFrames", "stopError": None, "play": {"frames": 9},
+                 "summary": {"routines": [], "uncounted": [], "late": [], "deferred": []}}
+        for label, res, want in [
+            ("live probe clean (control)", clean, True),
+            ("live probe ran a translated routine", {**clean, "summary": {**clean["summary"], "routines": [{"name": "loc_1"}]}}, False),
+            ("live probe never reached play", {**clean, "play": {"frames": 0}}, False),
+            ("live probe stopped early", {**clean, "stop": "boot gap"}, False),
+        ]:
+            run = probe(res)
+            expect(label, check_live_probe("g")[0], want)
+    finally:
+        run = real_run
+    return ok
 
 
 def _selftest_disasm():

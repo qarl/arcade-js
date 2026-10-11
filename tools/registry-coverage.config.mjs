@@ -35,13 +35,10 @@ export const UNWIRED = {
       "measured session takes, and the translated loc_3074 never runs. Not a ROUTINES override: 0x3074 " +
       "is not a dispatch entry (the one decoded transfer to it, a djnz at 0x3081, is a caption record " +
       "read as code; the genuine way in is a fall-through from 0x306A, which has no transcribed routine).",
-    "loc_5254.js":
-      "DISSOLVED by absorption, not oracle-served: destroyTargetsHitByShots already carries this " +
-      "continuation in its own body (it reloads the two target cursors from 0xA991/0xA993 and the " +
-      "inner count between passes), no idiomatic module imports this one, and the translated loc_5254 " +
-      "never runs (no machine.call after boot). Not a ROUTINES override: 0x5254 is no dispatch entry -- " +
-      "its little-endian word occurs nowhere in the image; both ways in (a jr nz at 0x5215, the djnz " +
-      "fall-through at 0x5252) are interior to 0x5211's body.",
+    "objectGeometry.js":
+      "NOT a ROM routine, so nothing to dissolve and nothing oracle-served: it has no ROM address and no " +
+      "ROUTINES entry can name it. It holds the 8.8 coordinate glue/split, the wrapped collision window " +
+      "and the in-page record step that the movers and collision tests import directly.",
     "appendSoundCommandToQueue.js":
       "DISSOLVED into a direct call, not oracle-served: enqueueSoundIfGameInProgress, " +
       "enqueueSoundIfGameOrAttract and enqueueSoundUnconditional call it directly with the sound code " +

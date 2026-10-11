@@ -13,7 +13,7 @@
  * COUNT_PICTOGRAM_STRIP_START (0xA463) up to EMBLEM_STRIP_FLOOR (0xA623); the emblem strip grows
  * toward it from the other end of the same band.
  *
- * PARAMETER. `a` is the count the ring command carried.
+ * PARAMETER. `tally` is the count the ring command carried.
  *
  * THE IMAGE CHECK. Like many Time Pilot routines this one carries an anti-tamper test on the program
  * image: three fixed low-ROM words (at 0x009D, 0x00A0, 0x00A3 — code bytes read as data) are added,
@@ -24,7 +24,7 @@
  * vector and never returns.
  */
 
-import { trampolineToSeatTheStackAndSettleTheControlLatch } from "./trampolineToSeatTheStackAndSettleTheControlLatch.js";
+import { trampolineToProbeExpansionThenSettleControlLatch } from "./trampolineToProbeExpansionThenSettleControlLatch.js";
 import { drawSlotWithOneGlyph } from "./drawSlotWithOneGlyph.js";
 import { paintDoubleTile } from "./paintDoubleTile.js";
 import { paintQuadTile } from "./paintQuadTile.js";
@@ -37,16 +37,13 @@ const BLANK_COLOUR = 0x10;
 // The image check's expected fold (`sub 0x69` at 0x0E6A).
 const CHECKSUM_TARGET = 0x69;
 
-// paintQuadTile hands back [colourPtr, cursor]; the slot painters hand back the cursor alone.
-const nextCursor = (ret) => (Array.isArray(ret) ? ret[1] : ret);
-
-export function drawCountAsPictogramStrip(m, a = m.regs.a) {
+export function drawCountAsPictogramStrip(m, tally = m.regs.a) {
   const { mem16 } = m;
 
   // Clamp (0x0DDA `cp 0x64`): 100 or more is drawn as 99.
   // Split greedily (0x0DE3-0x0E02), as the ROM does by repeated subtraction of 30, 10 and 5:
   // e.g. 47 = one thirty, one ten, one five, two ones.
-  let value = a >= 100 ? 99 : a;
+  let value = tally >= 100 ? 99 : tally;
   const thirties = Math.floor(value / 30); value %= 30;
   const tens = Math.floor(value / 10); value %= 10;
   const fives = Math.floor(value / 5); value %= 5;
@@ -70,7 +67,7 @@ export function drawCountAsPictogramStrip(m, a = m.regs.a) {
   // clear of it, so the blocks chain one after another along the strip.
   let cursor = COUNT_PICTOGRAM_STRIP_START;
   for (const [count, glyph, colour, paint] of denominations) {
-    for (let i = 0; i < count; i++) cursor = nextCursor(paint(m, cursor, glyph, colour));
+    for (let i = 0; i < count; i++) cursor = paint(m, cursor, glyph, colour);
   }
   // Pad (0x0E4C-0x0E58): blank the rest of the strip up to EMBLEM_STRIP_FLOOR, so a smaller count
   // than last time leaves no stale blocks. (The ROM detects the floor as the carry out of
@@ -79,9 +76,9 @@ export function drawCountAsPictogramStrip(m, a = m.regs.a) {
 
   // Image check (0x0E5A-0x0E6C): add the three little-endian program words, then add the sum's low
   // and high bytes together; the 8-bit result minus 0x69 must be zero. A mismatch takes
-  // `jp nz,0x0000` — the reset vector, trampolineToSeatTheStackAndSettleTheControlLatch [seen] —
+  // `jp nz,0x0000` — the reset vector, trampolineToProbeExpansionThenSettleControlLatch [seen] —
   // which restarts the machine from power-on. A genuine image simply returns.
   const sum = mem16[IMAGE_CHECKSUM_WORD_00A0] + mem16[IMAGE_CHECKSUM_WORD_00A3] + mem16[IMAGE_CHECKSUM_WORD_009D];
   const fold = ((sum & 0xff) + ((sum >> 8) & 0xff) - CHECKSUM_TARGET) & 0xff;
-  if (fold !== 0) return trampolineToSeatTheStackAndSettleTheControlLatch(m);
+  if (fold !== 0) return trampolineToProbeExpansionThenSettleControlLatch(m);
 }

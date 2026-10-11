@@ -4,11 +4,16 @@
  * are CRAFTED: a real machine's RAM with a seated descending board and a candidate score. Frozen side
  * vs rewrite on independent clones, RAM diffed outside the masked stack scratch. The frogger standard
  * applies: RAM is the whole contract, and only genuine named live-outs are pinned beside it. Here the
- * board and the two saved pointers are RAM, so the ONE register-file live-out is carry — clear when
- * filed, set when dropped — checked on its own; every other register the body touches is
- * dead-after-return scratch and pinned to nothing (GENUINE_LIVE_OUTS empty). A scratch-not-pinned
- * control proves the reading: a twin that only scribbles a scratch register passes by design, while
- * a scribbled RAM cell is still caught. Run: node --test this file.
+ * board and the two saved pointers are RAM, so the ONE further live-out is the oracle's carry — clear
+ * when filed, set when dropped — which the rewrite RETURNS, checked on its own; every other register
+ * the body touches is dead-after-return scratch and pinned to nothing (GENUINE_LIVE_OUTS empty). A
+ * scratch-not-pinned control proves the reading: a twin that only scribbles a scratch register passes
+ * by design, while a scribbled RAM cell is still caught.
+ * HAND-OFF: the carry is read back, so the rewrite drops it from the registers only because every
+ * reader is an override that takes the return — measured on the ORACLE over the tape sessions, the
+ * callers that hear F complemented at this exit are exactly CARRY_READERS, each owned by a ROUTINES
+ * entry, with the SP flip at the same exit heard. HOLE: a reader reached only in a state no session
+ * drives is not measured. Run: node --test this file.
  */
 
 import test from "node:test";
@@ -18,6 +23,8 @@ import { makeMachine, romsPresent } from "./_harness.js";
 import { fileScoreIntoHighScoreTable as candidate } from "../fileScoreIntoHighScoreTable.js";
 import { loc_4cc3 as frozen } from "../../translated/loc_4cc3.js";
 import { F_C } from "../../../../core/cpu/z80.js";
+import { TAPE_SESSIONS, handOffReaders, heardAs } from "./_deadAtExit.js";
+import { ROUTINES } from "../names.js";
 
 const ACTIVE_PLAYER = 0xad32;
 const P1_SCORE = 0xad35;
@@ -37,6 +44,14 @@ const DATA_TOP = 0xadff;
 // leaves f where the rewrite does not. RAM (masked over the stack scratch) is the contract; the sole
 // register-file live-out is carry, checked on its own. No full register is a genuine live-out.
 const GENUINE_LIVE_OUTS = [];
+
+const TARGET = 0x4cc3;
+/** Return address of each caller that reads the carry -> the override owning that code. The one
+ *  call is `call 0x4cc3` at 0x3310 inside fileScoreAfterGameOverHoldElsePassTurn (0x330B), then `jp nc`. */
+const CARRY_READERS = new Map([[0x3313, [0x330b]]]);
+const HANDOFF_FRAMES = 2500;
+/** The helper's exit control runs on the first session; game over is the one that files a score. */
+const HANDOFF_SESSIONS = [...TAPE_SESSIONS].sort((p, q) => (q.label === "high-score") - (p.label === "high-score"));
 
 // The default board, descending packed decimal.
 const BOARD = [10000, 8800, 8460, 6520, 4300];
@@ -91,8 +106,8 @@ const INSERTS = SCENARIOS.filter(([, , filed]) => filed);
 //
 // Frozen vs candidate on independent clones. The frozen side drops a ret and scrambles the scratch
 // registers, so RAM is diffed outside [low, seat) — low measured by watching the frozen side's own
-// pushes — carry (the one register-file live-out) is checked on its own, and only genuine full-register
-// live-outs are pinned (none here).
+// pushes — the candidate's returned answer is checked against the frozen side's carry, and only genuine
+// full-register live-outs are pinned (none here).
 function compare(cand, m) {
   const a = m.clone();
   const b = m.clone();
@@ -104,8 +119,9 @@ function compare(cand, m) {
     if (a.regs.sp < low) low = a.regs.sp;
   };
   frozen(a);
+  let answer;
   try {
-    cand(b);
+    answer = cand(b);
   } catch (e) {
     return { escaped: { addr: null }, liveOut: null, carryOk: false, threw: String(e).slice(0, 40) };
   }
@@ -122,7 +138,7 @@ function compare(cand, m) {
   for (const k of GENUINE_LIVE_OUTS) {
     if (a.regs[k] !== b.regs[k]) { liveOut = { k, a: a.regs[k], b: b.regs[k] }; break; }
   }
-  const carryOk = (a.regs.f & F_C) === (b.regs.f & F_C);
+  const carryOk = ((a.regs.f & F_C) !== 0) === answer;
   return { escaped, liveOut, carryOk, low, seat: seatSp, spDiff: a.regs.sp - b.regs.sp };
 }
 const caught = (r) => r.escaped !== null || r.liveOut !== null || !r.carryOk;
@@ -146,28 +162,32 @@ function brokenNoOp() {}
 
 /** BUG: corrupts a blanked name cell of the freed slot. */
 function brokenWrongSentinel(m) {
-  candidate(m);
+  const dropped = candidate(m);
   const slot = m.mem.read16(SLOT_PTR);
   m.mem8[slot] ^= 0xff;
+  return dropped;
 }
 
 /** BUG: renumbers the rank column 1..5 instead of 0..4. */
 function brokenWrongRank(m) {
-  candidate(m);
+  const dropped = candidate(m);
   for (let r = 0; r < RECORD_COUNT; r++) m.mem8[RANK_COLUMN + r * RECORD_STRIDE] = r + 1;
+  return dropped;
 }
 
 // ── scratch-not-pinned controls: a register-only twin passes by design; RAM still bites ────────
 /** A scratch register moved after the routine — DELIBERATELY not flagged, since no full register is a
  *  genuine live-out. */
 function scribbleScratchReg(m) {
-  candidate(m);
+  const dropped = candidate(m);
   m.regs.b = (m.regs.b + 1) & 0xff;
+  return dropped;
 }
 /** A scribbled RAM cell — the same measurement MUST catch this, or the clean read above is worthless. */
 function scribbleData(m) {
-  candidate(m);
+  const dropped = candidate(m);
   m.mem8[RANK_COLUMN] ^= 0xff;
+  return dropped;
 }
 
 function caughtInMemory(cand) {
@@ -176,7 +196,7 @@ function caughtInMemory(cand) {
 
 // ── the gate ────────────────────────────────────────────────────────────────────────────────
 
-test("EQUAL: every crafted scenario is RAM-identical, carry matches, sp re-seats by two", { skip }, () => {
+test("EQUAL: every crafted scenario is RAM-identical, the answer is the carry, sp re-seats by two", { skip }, () => {
   for (const [label, input] of SCENARIOS) {
     const r = compare(candidate, craft(input));
     assert.equal(r.escaped, null, `${label}: escaped at ${r.escaped && hex4(r.escaped.addr)}`);
@@ -226,10 +246,10 @@ for (const [label, twin] of MEMORY_TWINS) {
   });
 }
 
-test("TEETH: the carry live-out has teeth, and the real rewrite is clean", { skip }, () => {
-  // Flip carry after the routine on the dropped path: the carry check must catch it, proving the pin
-  // is not vacuous, while the real rewrite diverges on nothing across every scenario.
-  const flipCarry = (m) => { candidate(m); m.regs.f ^= F_C; };
+test("TEETH: the answer live-out has teeth, and the real rewrite is clean", { skip }, () => {
+  // Invert the answer: the carry check must catch it, proving the pin is not vacuous, while the real
+  // rewrite diverges on nothing across every scenario.
+  const flipCarry = (m) => !candidate(m);
   let carryCaught = 0;
   let real = 0;
   for (const [, input] of SCENARIOS) {
@@ -239,4 +259,20 @@ test("TEETH: the carry live-out has teeth, and the real rewrite is clean", { ski
   assert.equal(carryCaught, SCENARIOS.length, "the carry-flip control slipped a scenario");
   assert.equal(real, 0, "the real rewrite was flagged on a scenario");
   console.log(`  TEETH/carry: control caught ${carryCaught}/${SCENARIOS.length}, real rewrite ${real}`);
+});
+
+test("HAND-OFF: every caller that reads the carry is an override that takes the return", { skip }, () => {
+  const { callers, readers, exitControl } = handOffReaders({
+    at: TARGET, poison: ["f"], sessions: HANDOFF_SESSIONS, frames: HANDOFF_FRAMES,
+  });
+  assert.ok(callers.size > 0, "vacuous: no session filed a score");
+  assert.deepEqual([...readers.keys()].sort((p, q) => p - q), [...CARRY_READERS.keys()],
+    "the set of callers that read the oracle's carry moved -- a new reader needs its override checked");
+  for (const [ret, owners] of CARRY_READERS) {
+    const served = owners.filter((addr) => ROUTINES[addr] !== undefined);
+    assert.deepEqual(served, owners, `the reader after ${hex4(ret)} is not served by an override`);
+  }
+  console.log(`  HAND-OFF: ${callers.size} callers, F heard at ` +
+    `${[...readers].map(([r, w]) => `${hex4(r)} (${w})`).join(" ")}, each served by an override; ` +
+    `exit control heard (${heardAs(exitControl)})`);
 });

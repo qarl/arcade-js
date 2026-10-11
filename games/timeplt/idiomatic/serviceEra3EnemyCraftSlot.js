@@ -16,9 +16,8 @@
  * The body below runs, for a live slot, in the ROM's call order at 0x29BF-0x29D4: steer, fly,
  * retire test, bank launch, dress the sprite, attacker launch.
  *
- * PARAMETERS. `ix` is the slot's 16-byte object record (lifecycle byte at +0); `iy` is its two-byte
- * sprite entry -- named for the Z80 index registers the ROM carries them in; the defaults read those
- * registers for a caller that still seats them there.
+ * PARAMETERS. `record` is the slot's 16-byte object record (lifecycle byte at +0); `entry` is its
+ * two-byte sprite entry.
  *
  * LIVE-OUT: memory only.
  */
@@ -38,29 +37,29 @@ const IDLE = 0;
 const LIVE = 0xff;
 const HELD = 0xfe;
 
-export function serviceEra3EnemyCraftSlot(m, ix = m.regs.ix, iy = m.regs.iy) {
+export function serviceEra3EnemyCraftSlot(m, record = m.regs.ix, entry = m.regs.iy) {
   // Decode the lifecycle byte (ROM: `and a`, `inc a`, `inc a`). Idle: nothing to do. Held: count
   // the release delay down, turning live when it expires (releaseHeldObject, 0x2B52). Anything else
   // that is not live: one step of the dying state (stepDyingObjectState, 0x2B93). The last two are
   // ROM tail jumps, so their result is returned as this routine's.
-  const state = m.mem8[ix];
+  const state = m.mem8[record];
   if (state === IDLE) return;
   if (state !== LIVE) {
-    if (state === HELD) return releaseHeldObject(m, ix);
-    return stepDyingObjectState(m, ix, iy);
+    if (state === HELD) return releaseHeldObject(m, record);
+    return stepDyingObjectState(m, record, entry);
   }
   // Live craft. Turn one step toward the aim heading every frame (steerTowardAimHeading, 0x2BEF),
   // then move one step on the top rung of the velocity tables (flyAtFastestSpeed, 0x58A4).
-  steerTowardAimHeading(m, ix);
-  flyAtFastestSpeed(m, ix, iy);
+  steerTowardAimHeading(m, record);
+  flyAtFastestSpeed(m, record, entry);
   // Retire test: a craft on either fixed retire line has left play. hasReachedRetireLine (0x2B83)
   // answers with the carry flag and the ROM tail-jumps (`jp c,0x2BDE`) to retireSlotAndSubPixel,
   // which zeroes the slot; nothing else runs for it.
-  if (hasReachedRetireLine(m, iy)) return retireSlotAndSubPixel(m, ix, iy);
+  if (hasReachedRetireLine(m, entry)) return retireSlotAndSubPixel(m, record, entry);
   // Still in play: one gated bank launch when aimed near the player (0x3ED6); point the sprite
   // along the heading rounded to sixteen sectors (dressSpriteForCoarseHeading, 0x2AFC); then the
   // attacker launch into a free slot on this object's turn (launchAttackerIntoFreeSlot, 0x4243).
-  launchBankEnemyWhenAimedNearPlayer(m, ix, iy);
-  dressSpriteForCoarseHeading(m, ix, iy);
-  return launchAttackerIntoFreeSlot(m, ix, iy);
+  launchBankEnemyWhenAimedNearPlayer(m, record, entry);
+  dressSpriteForCoarseHeading(m, record, entry);
+  return launchAttackerIntoFreeSlot(m, record, entry);
 }

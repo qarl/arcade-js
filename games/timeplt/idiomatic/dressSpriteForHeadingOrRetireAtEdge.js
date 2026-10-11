@@ -58,10 +58,8 @@ const CLOSED_OUT = 0x80;
 const HEADING_BIAS = 0x40;
 const HALF = 0x80;
 
-export function dressSpriteForHeadingOrRetireAtEdge(m, ix = m.regs.ix, iy = m.regs.iy) {
+export function dressSpriteForHeadingOrRetireAtEdge(m, record = m.regs.ix, entry = m.regs.iy) {
   const { mem8 } = m;
-  const record = ix;
-  const entry = iy;
 
   /* Step 1 -- the edge test (call 0x3CC4, jp c,0x46DB). hasReachedBoundaryBandSelectedByHeading
    * answers whether the object has reached a boundary band chosen by its heading; if so the object

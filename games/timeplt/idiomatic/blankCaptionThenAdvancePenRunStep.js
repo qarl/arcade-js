@@ -27,7 +27,6 @@ import { drawInterpolatedPenRun } from "./drawInterpolatedPenRun.js";
 import { advanceSequencePhase } from "./advanceSequencePhase.js";
 import { advanceSequenceSubStep } from "./advanceSequenceSubStep.js";
 import { u8 } from "../../../core/int.js";
-import { F_Z } from "../../../core/cpu/z80.js";
 import { advancePenRunAnimationStep_ADDR, IMAGE_GUARD_BLOCK_0BDD_BASE, SEQUENCE_PHASE } from "./names.js";
 
 /** Fold 1: 256 bytes (ROM `ld b,a` with A = 0, so `djnz` runs 256 times) from 0x0BDD must XOR to 0x1C. */
@@ -43,8 +42,7 @@ export function blankCaptionThenAdvancePenRunStep(m) {
   blankFourteenCharCells(m);
   // Draw one interpolated pen run (ROM call 0x0201) and, as the ROM's `ret nz` does, stop here for this
   // frame unless the run just finished.
-  // The run hands back the flags it settles on; Z set means it reseated to a zero row integer.
-  const reseatedAtRowZero = (drawInterpolatedPenRun(m) & F_Z) !== 0;
+  const reseatedAtRowZero = drawInterpolatedPenRun(m);
   if (!reseatedAtRowZero) return;
 
   // Fold 1 (ROM 0x5BDE-0x5BEB): XOR check; a mismatch steps the outer phase (the ROM's `call nz,0x0f11`).

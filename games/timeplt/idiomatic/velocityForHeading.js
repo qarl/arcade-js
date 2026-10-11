@@ -29,12 +29,12 @@ const HEADING_OFFSET = 2;
 export function velocityForHeading(m, table = m.regs.hl, heading = m.mem8[m.regs.ix + HEADING_OFFSET]) {
   // First component: the sample at the heading itself (the ROM doubles the heading into a byte
   // offset and reads the word into DE).
-  const de = sampleAt(m, table, heading);
+  const alongFirstAxis = sampleAt(m, table, heading);
   // Second component: the sample a quarter turn back, wrapping round the table — the ROM reaches it
   // by stepping back 0x40 entries, or forward 0xC0 when the heading is under 0x40, which is the
   // same index modulo 256. Being a quarter turn from the first, it is the perpendicular component.
-  const bc = sampleAt(m, table, heading - QUARTER_TURN);
-  return [m.regs.de = de, m.regs.bc = bc];
+  const alongSecondAxis = sampleAt(m, table, heading - QUARTER_TURN);
+  return [m.regs.de = alongFirstAxis, m.regs.bc = alongSecondAxis];
 }
 
 // Read sample `sample` (taken modulo 256) of a table of little-endian 16-bit words.

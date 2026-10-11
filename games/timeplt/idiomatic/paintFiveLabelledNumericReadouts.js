@@ -32,8 +32,8 @@ const READOUTS = [
 ];
 
 export function paintFiveLabelledNumericReadouts(m) {
-  // the pen threads to the column as an explicit argument and on through the field, so seating it in
-  // the register file is no longer needed; the pen is dead after return (equivalence GENUINE_LIVE_OUTS=[]).
+  // The pen goes to each column as an explicit argument and on through its field; nothing reads it
+  // after the return.
   for (const { source, cursor, pen } of READOUTS) {
     paintLabelledNumericReadoutColumn(m, source, cursor, pen);
   }

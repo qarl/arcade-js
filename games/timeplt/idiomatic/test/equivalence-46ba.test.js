@@ -37,8 +37,9 @@
  *   6. ★ SEAM     — the rewrite is seam-placeable on every defined era and a direct call leaves
  *                   the stack where it found it; a control that parks a word nothing lifts is
  *                   refused, and one that dispatches the arm without a park drifts the stack.
- *   7. PAST       — the three indices past the table fault on both sides: two name no routine,
- *                   and the last runs the six-digit painter into a write the machine refuses.
+ *   7. PAST       — the three indices past the table fault on both sides: two name no routine
+ *                   and fault alike; on the last the frozen twin runs the six-digit painter into a
+ *                   ROM write the board refuses, while the rewrite stops before it with NotImplemented.
  *   8. STORES     — the era really selects different stored values, so the sweep is
  *                   separating arms rather than agreeing on one outcome.
  *   9. TEETH      — four broken twins, each caught outside the window.
@@ -93,6 +94,8 @@ const LIFTED_ARMS = [
 ];
 /** Indices the mask admits past the table's defined arms. */
 const PAST_THE_TABLE = [5, 6, 7];
+/** The index whose word names the six-digit painter. */
+const PAINTER_ARM = 7;
 /** Where the block past the table parks the two pairs the arm hands back. */
 const STORED_AT = [0x0c, 0x0d, 0x1c, 0x1d];
 
@@ -321,7 +324,12 @@ test("PAST: the indices past the table fault on both sides", { skip }, () => {
   for (const era of PAST_THE_TABLE) {
     const r = run(setMotherShipVelocityFromHeading, era);
     assert.ok(r.faultA, `era ${era}: the frozen twin did not fault`);
-    assert.equal(r.faultB, r.faultA, `era ${era}: the rewrite faulted as ${r.faultB}, the frozen twin as ${r.faultA}`);
+    if (era === PAINTER_ARM) {
+      assert.equal(r.faultA, "UnmappedAccess", `era ${era}: the frozen twin faulted as ${r.faultA}, not on the painter's ROM write`);
+      assert.equal(r.faultB, "NotImplemented", `era ${era}: the rewrite faulted as ${r.faultB}`);
+    } else {
+      assert.equal(r.faultB, r.faultA, `era ${era}: the rewrite faulted as ${r.faultB}, the frozen twin as ${r.faultA}`);
+    }
   }
   console.log(`  PAST: eras ${PAST_THE_TABLE.join(", ")} fault identically on both sides`);
 });

@@ -1,7 +1,7 @@
 {
   "name": "game-over",
   "description": "Reach the GAME OVER banner (single player exhausts its last life) and pixel-validate the game-over sequence vs MAME.",
-  "_grounding": "coin@400 + 1P start@500; one-shot poke LIVES_REMAINING 0xAD00=1 and its save block 0xAD10=1 @650, then force death 0xA800=0xF0 @660 (ship alive from f612). At f954 loseLifeAndHandOver(0x11ed) brings lives to 0 and tail-calls postGameOverBanner(0x1253): SEQUENCE_DELAY 0xA9EB=0xB4, GAME OVER glyph 0x7D at 0xA672. Held ~180 frames then returns to attract. Deterministic, no entropy. scratchpad/gameover-recipe.md.",
+  "_grounding": "coin@400 + 1P start@500; one-shot poke LIVES_REMAINING 0xAD00=1 and its save block 0xAD10=1 @650, then force death 0xA800=0xF0 @660 (ship alive from f612). At f954 loseLifeAndHandOver(0x11ed) brings lives to 0 and tail-calls postGameOverBanner(0x1253): SEQUENCE_DELAY 0xA9EB=0xB4, GAME OVER glyph 0x7D at 0xA672. Held ~180 frames then returns to attract. Deterministic, no entropy.",
   "coin": 400,
   "start": 500,
   "hold": 8,
@@ -10,11 +10,8 @@
     { "frame": 650, "addr": "0xad10", "val": "0x01", "dur": 1 },
     { "frame": 660, "addr": "0xa800", "val": "0xf0", "dur": 1 }
   ],
-  "responded": { "cell": "0xa672", "op": "eq", "val": "0x7d" },
-  "reaches": [
-    "fileScoreAfterGameOverHoldElsePassTurn"
-  ],
-  "pixel_invisible": {
-    "fileScoreAfterGameOverHoldElsePassTurn": "each in-window run ticks SEQUENCE_DELAY, a RAM-only hold; only its expiry (score not filed, turn passes) changes the screen"
-  }
+  "responded": {"cell": "0xa672", "op": "eq", "val": "0x7d"},
+  "reaches": ["fileScoreAfterGameOverHoldElsePassTurn"],
+  "pixel_invisible": {"fileScoreAfterGameOverHoldElsePassTurn": "each in-window run ticks SEQUENCE_DELAY, a RAM-only hold; only its expiry (score not filed, turn passes) changes the screen"},
+  "idiomatic_residual_frames": 59
 }

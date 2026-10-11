@@ -13,29 +13,22 @@
  * advances a record at a time WITHOUT leaving its page; the entry cursor advances a stride.
  * LIVE-OUT: memory, plus the two cursors left where the sweep ended (record in DE, entry in IY).
  *
- * THREADING RETURN (added for C2 de-register work): also returns the cursor pair as a tuple
- * { target, entry } so the final mark can consume the record page/index and entry pointer without
- * reading regs.de/regs.iy back. The register writes are unchanged and remain the declared live-out;
- * on the early attacker-not-live exit neither register is written and the tuple echoes the seated
- * inputs (so the caller's mark sees the un-advanced cursor). Fields are u16-wrapped. */
+ * The cursor pair is also returned as { target, entry }, each wrapped to sixteen bits, so the
+ * final mark takes the record page/index and entry pointer from the return. On the early
+ * attacker-not-live exit neither register is written and the pair echoes the inputs, so the
+ * caller's mark sees the un-advanced cursor.
+ * ROM 0x5121-0x5151. Grounding: [seen] (names.js ROUTINES 0x5121). */
 
 import { u8, u16 } from "../../../core/int.js";
 import { postChainedHitScore } from "./postChainedHitScore.js";
-import { PLAYER_ENTRY, PLAYER_STATE } from "./names.js";
+import { PLAYER_ENTRY, PLAYER_SPRITE_Y, PLAYER_STATE } from "./names.js";
+import { within, nextRecordInPage } from "./objectGeometry.js";
 
 const STATE = 0;
 const LIVE = 255;
 const DESTROYED = 240;
-const RECORD_STRIDE = 16;
 const ENTRY_STRIDE = 2;
 const ENTRY_SECOND_AXIS = 49;
-
-
-/** Two coordinates are close enough when their wrapped difference lands inside the box. */
-const within = (a, b, reach, span) => u8(u8(a - b) + reach) < span;
-
-/** Advance a cursor a whole record on WITHOUT leaving its page — the carry is dropped. */
-const nextRecord = (cursor) => (cursor - (cursor & 0xff)) + u8(cursor + RECORD_STRIDE);
 
 export function destroyTargetsReachedByFixedAttacker(m, target = m.regs.de, entry = m.regs.iy, targets = m.regs.b, reach = m.regs.l, span = m.regs.h) {
   const { mem8, regs } = m;
@@ -50,7 +43,7 @@ export function destroyTargetsReachedByFixedAttacker(m, target = m.regs.de, entr
       mem8[targetCursor + STATE] === LIVE &&
       within(mem8[PLAYER_ENTRY], mem8[entryCursor], reach, span) &&
       within(
-        mem8[PLAYER_ENTRY + ENTRY_SECOND_AXIS],
+        mem8[PLAYER_SPRITE_Y],
         mem8[entryCursor + ENTRY_SECOND_AXIS],
         reach,
         span,
@@ -61,10 +54,10 @@ export function destroyTargetsReachedByFixedAttacker(m, target = m.regs.de, entr
       postChainedHitScore(m);
     }
     entryCursor = u16(entryCursor + ENTRY_STRIDE);
-    targetCursor = nextRecord(targetCursor);
+    targetCursor = nextRecordInPage(targetCursor);
     left = u8(left - 1);
   } while (left !== 0);
 
-  // Fold the declared live-out cursor writes into the return, dropping the bare register statements.
+  // The cursors where the sweep ended: left in DE and IY, as the ROM leaves them, and returned.
   return { target: u16(regs.de = targetCursor), entry: u16(regs.iy = entryCursor) };
 }

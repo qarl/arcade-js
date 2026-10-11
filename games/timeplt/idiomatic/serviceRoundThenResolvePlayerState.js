@@ -31,7 +31,7 @@ import { reaimAndAnimateEnemyCraftOnPhaseTick } from "./reaimAndAnimateEnemyCraf
 import { dispatchPlayerFrameByState } from "./dispatchPlayerFrameByState.js";
 import { fireAndSweepPlayerShots } from "./fireAndSweepPlayerShots.js";
 import { driveEnemyWaveForLifePhase } from "./driveEnemyWaveForLifePhase.js";
-import { sweepSpriteSlotsSkipping } from "./multiplexSpriteSlotsSkipping.js";
+import { multiplexSpriteSlotsSkipping } from "./multiplexSpriteSlotsSkipping.js";
 import { runParachutistSlot } from "./runParachutistSlot.js";
 import { stepSevenCraftSlots } from "./stepSevenCraftSlots.js";
 import { runSceneryForEra } from "./runSceneryForEra.js";
@@ -65,31 +65,31 @@ export function serviceRoundThenResolvePlayerState(m) {
   dispatchPlayerFrameByState(m);
   fireAndSweepPlayerShots(m);
   driveEnemyWaveForLifePhase(m);
-  sweepSpriteSlotsSkipping(m);
+  multiplexSpriteSlotsSkipping(m);
   // The parachutist; the Mother-Ship (armed once the kill quota is spent, else stepped if live); the
   // seven fixed craft slots.
   runParachutistSlot(m);
   armMotherShipOrStep(m);
   stepSevenCraftSlots(m);
-  sweepSpriteSlotsSkipping(m);
+  multiplexSpriteSlotsSkipping(m);
   // The era's scenery (one of three fixed lists of parallax movers, by era), then the object bank
   // swept from era 2 on.
   runSceneryForEra(m);
   sweepEra2PlusObjectBank(m);
-  sweepSpriteSlotsSkipping(m);
+  multiplexSpriteSlotsSkipping(m);
   // Era 1's bomber and its companion fixed slot (both guarded on the era index), then the four
   // actor slots, stepped as a fixed group.
   serviceEra1BomberObject(m);
   serviceFixedSlotInEra1(m);
   stepFourActorSlots(m);
-  sweepSpriteSlotsSkipping(m);
+  multiplexSpriteSlotsSkipping(m);
   // Era 0's three-slot ballistic-object bank; then, with everything moved, the collision pass (chosen
   // by era); then a sound request made on every thirty-second frame from the third era on, only
   // while three fixed object records are all empty.
   serviceEra0BallisticObjectBank(m);
   dispatchCollisionPassByEra(m);
   askForSoundWhileTheGroupIsClear(m);
-  sweepSpriteSlotsSkipping(m);
+  multiplexSpriteSlotsSkipping(m);
   // Bookkeeping: an extra life at a bonus score mark; run the chained-hit window down; step the
   // difficulty escalation counter; repaint the kill meter (kills still owed). Close with the full
   // sprite pass.

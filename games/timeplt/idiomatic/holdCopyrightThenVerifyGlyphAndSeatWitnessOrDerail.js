@@ -15,7 +15,8 @@
  * The derived pointer is the tamper mechanism itself: add 2 to the program byte for the low pointer
  * byte, then add 0x6A for the high byte, so a modified opcode moves the read off the caption cell and
  * the glyph test fails. On the genuine image the byte is 0x3A, the pointer lands on the copyright
- * caption's N cell and the glyph is that N, so the derail is unreachable in normal play. */
+ * caption's N cell and the glyph is that N, so the derail is unreachable in normal play.
+ * ROM 0x178C-0x17B8. Grounding: [seen] (names.js ROUTINES 0x178C). */
 
 import { u8, u16 } from "../../../core/int.js";
 import { SEQUENCE_DELAY, TAMPER_GLYPH_SOURCE_CELL, TAMPER_GLYPH_COPY, runParachutistSlot_ADDR } from "./names.js";

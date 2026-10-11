@@ -13,10 +13,11 @@
  *   0x3234 calls 0x4B30, which loads HL and B first; 0x4984 and 0x4987 both begin
  *   `ld a,(0xA981)`. No successor reads a register this entry leaves, and none tests the flags.
  *   THE DECLARED LIVE-OUT IS THEREFORE MEMORY ONLY. The rewrite nevertheless agrees with the
- *   oracle on every register except the accumulator, the flags and the stack pointer, and the
- *   gate holds that agreement as a CEILING — a register outside those fails, a rewrite that
- *   diverged on fewer still passes. That is strictly more than the contract asks and it never
- *   requires a divergence.
+ *   oracle on every register except the accumulator, the flags, the pointer in HL and the stack
+ *   pointer, and the gate holds that agreement as a CEILING — a register outside those fails, a
+ *   rewrite that diverged on fewer still passes. That is strictly more than the contract asks and
+ *   it never requires a divergence. HL, which the oracle leaves on the credit count, is measured
+ *   dead where this entry hands back (DEAD AT EXIT, with the SP flip at the same exit heard).
  *
  * ★ THE REAL CORPUS IS ALMOST CONSTANT. The packed byte barely varies across the sessions, and
  *   the panel is mostly already showing what gets painted, so much of what the oracle writes is
@@ -65,6 +66,7 @@ import { readFileSync } from "node:fs";
 
 import { makeMachine, COIN_FRAME, START_FRAME, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { paintCreditCountPanel } from "../paintCreditCountPanel.js";
+import { TAPE_SESSIONS, assertDeadAtExit } from "./_deadAtExit.js";
 import { paintTwoUnsuppressedDigitsFromByte } from "../paintTwoUnsuppressedDigitsFromByte.js";
 import { paintTwoSuppressedDigitsFromByte } from "../paintTwoSuppressedDigitsFromByte.js";
 import { paintUnsuppressedDigit } from "../paintUnsuppressedDigit.js";
@@ -94,7 +96,8 @@ const SCRATCH_BYTES = 8;
  * leaves RAM (minus dead stack scratch below SP), pc and SP identical frame by frame over the
  * session, where the same probe on drawRandomByte's A (a real live-out) forks.
  */
-const MOVED = ["a", "f", "sp", "c"];
+const MOVED = ["a", "f", "sp", "c", "h", "l"];
+const DEAD_FRAMES = 2500;
 
 const CORPUS_FRAMES = 2000;
 const WHOLE_FRAMES = 1400;
@@ -459,9 +462,9 @@ const TWINS = [
   ["wrong-colour", brokenWrongColour, 1024, [3, 1, 3], true],
   ["keeps-caller-colour", brokenKeepsCallerColour, 1024, [3, 1, 3], true],
   ["keeps-caller-cursor", brokenKeepsCallerCursor, 1024, [3, 1, 3], true],
-  ["keeps-caller-pointer", brokenKeepsCallerPointer, 1024, [1, 1, 1], true],
+  ["keeps-caller-pointer", brokenKeepsCallerPointer, 1020, [1, 1, 1], true],
   ["cursor-one-cell-on", brokenCursorOneCellOn, 1024, [3, 1, 3], true],
-  ["source-next-byte", brokenSourceNextByte, 1024, [3, 1, 3], true],
+  ["source-next-byte", brokenSourceNextByte, 1020, [2, 1, 2], true],
   ["digits-swapped", brokenDigitsSwapped, 960, [1, 0, 1], true],
   ["high-digit-only", brokenHighDigitOnly, 960, [3, 1, 3], true],
   ["cursor-left-off-plane", brokenCursorLeftOffPlane, 1024, [3, 1, 3], false],
@@ -522,6 +525,10 @@ function movedOver(candidate) {
   }
   return moved;
 }
+
+test("HL IS DEAD AT EXIT: the pointer the oracle leaves is read by no caller", { skip }, () => {
+  assertDeadAtExit({ at: TARGET, poison: ["h", "l"], sessions: TAPE_SESSIONS, frames: DEAD_FRAMES });
+});
 
 test("EXCLUDED, deliberately: no register outside the ceiling moves", { skip }, () => {
   const moved = movedOver(paintCreditCountPanel);

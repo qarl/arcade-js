@@ -35,11 +35,11 @@ const BAND_SLOTS = 0x07;
 const BUSY_CEILING = 0x02;
 const OPEN_PHASE = 0x30;
 
-export function spawnEnemyCraftWhenBandUnderTwo(m, hl = m.regs.hl) {
+export function spawnEnemyCraftWhenBandUnderTwo(m, phaseCell = m.regs.hl) {
   const { mem8 } = m;
 
   // run only when the phase byte the caller points at is idle or at OPEN_PHASE
-  const phase = mem8[hl];
+  const phase = mem8[phaseCell];
   if (phase !== 0x00 && phase !== OPEN_PHASE) return;
 
   // count busy heads across the seven-record craft band (max 7, so the count never wraps)

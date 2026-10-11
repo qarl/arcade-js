@@ -10,12 +10,19 @@
  * seam supplies the `ret` the frozen twin executes itself. So every comparison runs the rewrite
  * THROUGH the seam, as a dispatch reaches it, and the STACK arm pins the plain-return contract the
  * direct callers rely on (they lay nothing down for it) with a control that still pops a word.
+ *
+ * LIVE-OUT is the sprite bytes alone. The frozen twin leaves A, C and the flags as its last slot set
+ * them; the DEAD AT EXIT arm complements all three where the ORACLE hands back, over every tape
+ * session, and no cell moves (with the SP exit control heard), so they are EXCLUDED from the register
+ * comparison. Every other register is compared, with a control that moves one.
+ * HOLE: a reader reached only in a state no session drives is not measured.
  * Run: node --test games/timeplt/idiomatic/test/equivalence-0f97.test.js
  */
 import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
+import { TAPE_SESSIONS, assertDeadAtExit } from "./_deadAtExit.js";
 import { multiplexSpriteSlotsSkipping } from "../multiplexSpriteSlotsSkipping.js";
 import { loc_0f97 as oracle } from "../../translated/loc_0f97.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
@@ -33,6 +40,10 @@ const PAIRS = [
   [0xb439, 0xb038], [0xb43b, 0xb03a], [0xb43d, 0xb03c], [0xb43f, 0xb03e],
 ];
 const SCANLINE_COUNTER = 0xc000;
+/** What the last slot leaves in A, C and the flags: measured dead at the oracle's exit (DEAD AT EXIT). */
+const REG_EXCLUDED = ["a", "c", "f"];
+const COMPARED = REG_FIELDS.filter((k) => !REG_EXCLUDED.includes(k));
+const DEAD_FRAMES = 2500;
 
 const hex4 = (v) => "0x" + (v & 0xffff).toString(16).padStart(4, "0");
 const show = (d) =>
@@ -57,7 +68,7 @@ function unitDiff(candidate, machine, scanline) {
   }
   const ram = firstStateDiff(a.dumpState(), b.dumpState(), (off) => a.stateOffsetToAddr(off));
   if (ram) return ram;
-  for (const k of REG_FIELDS) {
+  for (const k of COMPARED) {
     if (a.regs[k] !== b.regs[k]) return { addr: null, a: `${k}=${a.regs[k]}`, b: `${k}=${b.regs[k]}` };
   }
   if (a.pc !== b.pc) return { addr: null, a: `pc=${hex4(a.pc)}`, b: `pc=${hex4(b.pc)}` };
@@ -209,6 +220,14 @@ test("LIVE-OUT: registers are checked, with a control that moves one", { skip },
   console.log("  LIVE-OUT: register check catches the spare-register control");
 });
 
+test("A, C AND F ARE DEAD AT EXIT: complemented where the ORACLE hands back, no cell moves", { skip }, () => {
+  // CONTROL: C and the flags complemented on ENTRY reach only that hand-back, so they too stay silent.
+  assertDeadAtExit({
+    at: TARGET, poison: REG_EXCLUDED, sessions: TAPE_SESSIONS, frames: DEAD_FRAMES, reachEvery: true,
+    controls: [{ label: "entry C and flags", poison: ["c", "f"], before: true, expect: "silent" }],
+  });
+});
+
 for (const [label, fn] of TWINS) {
   test(`TEETH: the ${label} twin is CAUGHT`, { skip }, () => {
     const caught = sweepCaught(fn, craftMixed());
@@ -251,7 +270,7 @@ test("UNPINNED: the two DO diverge without the pin, proving it is load-bearing",
     oracle(a);
     withOmittedRet(multiplexSpriteSlotsSkipping, TARGET)(b);
     if (firstStateDiff(a.dumpState(), b.dumpState()) !== null) { diverged++; continue; }
-    for (const k of REG_FIELDS) if (a.regs[k] !== b.regs[k]) { diverged++; break; }
+    for (const k of COMPARED) if (a.regs[k] !== b.regs[k]) { diverged++; break; }
   }
   // If nothing diverges unpinned, the scanline never drifts here and the pin is decoration —
   // which would mean this whole file is testing an environment the routine never meets.

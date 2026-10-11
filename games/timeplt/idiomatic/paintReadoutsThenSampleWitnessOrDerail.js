@@ -16,7 +16,8 @@
  * LIVE-OUT: memory only. Reached as a table-dispatched tail (nothing static calls it) whose two
  * transfers — the wrong-glyph derail and the sequence step — both leave through the successor the
  * dispatcher parked, and that successor reloads every register it uses before reading one, so no
- * register is live out. */
+ * register is live out.
+ * ROM 0x176A-0x178B. Grounding: [seen] (names.js ROUTINES 0x176A). */
 
 import {
   TAMPER_GLYPH_SOURCE_CELL,

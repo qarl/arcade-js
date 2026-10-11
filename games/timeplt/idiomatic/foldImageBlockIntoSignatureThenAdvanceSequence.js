@@ -38,8 +38,7 @@ export function foldImageBlockIntoSignatureThenAdvanceSequence(m) {
   const [blockStart, blockLength] = trampolineToSelectFoldBlock(m);
   /*
    * Step 3: fold the block into a total and bank it (ROM `call 0x291e / ld (0xaa6f),a`).
-   *  - The seed is the image byte at 0x27C0 (TAMPER_SIGNATURE_SEED_BYTE; 0x00 on a genuine image, per
-   *    the frozen lift).
+   *  - The seed is the image byte at 0x27C0 (TAMPER_SIGNATURE_SEED_BYTE; 0x00 on a genuine image).
    *  - The total wraps at eight bits.
    *  - The passenger pointer starts at 0x17B9, the first byte of routine guardBlockOrBlankDisplay's own
    *    code read as data (the ROM's `ld de,0x17b9`). foldBlockIntoTotal walks it alongside the block but

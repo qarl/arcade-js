@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * loc_12e2 — memory-equivalent to the frozen oracle at ROM 0x12E2.
+ * holdThenPassTurnToOtherPlayerIfLivesElseStepSequence — memory-equivalent to the frozen oracle at ROM 0x12E2.
  *
  * WHAT IT IS. Three instructions: point at the sequence delay, decrement it in place, and return
  * unless it has just reached zero. When it has, control falls through into ROM 0x12E7, WHICH IS
@@ -55,7 +55,7 @@ import { readFileSync } from "node:fs";
 
 import { makeMachine, COIN_FRAME, START_FRAME, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { buildRoutines } from "../../routines.js";
-import { loc_12e2 } from "../loc_12e2.js";
+import { holdThenPassTurnToOtherPlayerIfLivesElseStepSequence } from "../holdThenPassTurnToOtherPlayerIfLivesElseStepSequence.js";
 import { passTurnToOtherPlayerIfLivesElseStepSequence } from "../passTurnToOtherPlayerIfLivesElseStepSequence.js";
 import { advanceSequenceSubStep } from "../advanceSequenceSubStep.js";
 import {
@@ -209,7 +209,7 @@ function gate(candidate) {
 }
 
 function entryState() {
-  if (entry === null) gate(loc_12e2);
+  if (entry === null) gate(holdThenPassTurnToOtherPlayerIfLivesElseStepSequence);
   return entry;
 }
 
@@ -469,7 +469,7 @@ function callsRatherThanRestates(text, [name, file, ownName]) {
 // ── the gate ────────────────────────────────────────────────────────────────────────────
 
 test("CONTRACT: unitEquivalence at the first real dispatch, the whole dump identical", { skip }, () => {
-  const r = gate(loc_12e2);
+  const r = gate(holdThenPassTurnToOtherPlayerIfLivesElseStepSequence);
   assert.notEqual(entry, null, "vacuous: the session never reached the routine");
   assert.equal(r.ram, null, `the dump diverged — ${show(r.ram)}`);
   const e = entryState();
@@ -541,7 +541,7 @@ test("ARM REACH: the countdown fires rarely and never hands the turn over", { sk
 });
 
 test("CORPUS: every dispatch of every session replays identically", { skip }, () => {
-  const caught = corpusCaught(loc_12e2);
+  const caught = corpusCaught(holdThenPassTurnToOtherPlayerIfLivesElseStepSequence);
   const total = sessions().reduce((n, s) => n + s.dispatches, 0);
   assert.ok(total > 0, "vacuous: no session reaches the routine at all");
   assert.deepEqual(caught, SESSIONS.map(() => 0), "the rewrite diverged on a real dispatch");
@@ -562,11 +562,11 @@ function movedOver(candidate) {
 }
 
 test("EXCLUDED, as a CEILING: no register outside the declared set moves", { skip }, () => {
-  const moved = movedOver(loc_12e2);
+  const moved = movedOver(holdThenPassTurnToOtherPlayerIfLivesElseStepSequence);
   // The absence is evidence only if the same measurement CAN report a register outside the
   // ceiling, so the control leaves a mark in one the contract does not cover.
   const control = movedOver((m) => {
-    loc_12e2(m);
+    holdThenPassTurnToOtherPlayerIfLivesElseStepSequence(m);
     m.regs.b = u8(m.regs.b + 1);
   });
   assert.ok(REG_FIELDS.some((k) => control.has(k) && !EXCLUDED.includes(k)),
@@ -582,7 +582,7 @@ test("EXCLUDED, as a CEILING: no register outside the declared set moves", { ski
 
 test("EXHAUSTIVE: every delay value, and a cross over the tail's inputs", { skip }, () => {
   for (const p of points()) {
-    const d = unitDiff(loc_12e2, p);
+    const d = unitDiff(holdThenPassTurnToOtherPlayerIfLivesElseStepSequence, p);
     assert.equal(d, null, `delay ${p.mem8[SEQUENCE_DELAY]} index ${p.mem8[ACTIVE_PLAYER]} counts ` +
       `${p.mem8[PLAYER_ONE_LIVES]}/${p.mem8[PLAYER_TWO_LIVES]}: ${show(d)}`);
   }
@@ -614,7 +614,7 @@ test("LIVE-OUT: no register this routine leaves behind steers anything", { skip 
 });
 
 test("DISSOLVES, NOT RESTATES: the module's text, with an inlined variant as the control", () => {
-  const module = read("../loc_12e2.js");
+  const module = read("../holdThenPassTurnToOtherPlayerIfLivesElseStepSequence.js");
   const helper = read(HELPER[1]);
   assert.ok(callsRatherThanRestates(module, HELPER), `the module does not call ${HELPER[0]}`);
   const inlined = module.replace(`${HELPER[0]}(m);`, helper);
@@ -626,7 +626,7 @@ test("DISSOLVES, NOT RESTATES: the module's text, with an inlined variant as the
 });
 
 test("WHOLE-MACHINE: a stepped session is byte-identical with the rewrite wired", { skip }, () => {
-  const w = replay(loc_12e2);
+  const w = replay(holdThenPassTurnToOtherPlayerIfLivesElseStepSequence);
   assert.equal(w.threw, null, `the replay threw: ${w.threw}`);
   assert.ok(w.fired > 0, "vacuous: the override never dispatched");
   assert.equal(w.frames, WHOLE_FRAMES, "the replay ran short of the frames asked for");

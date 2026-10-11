@@ -2,7 +2,7 @@
 
 **Scope & method.** This is a *day-zero* description of how **Time Pilot** (Konami, 1982; distributed in North America by Centuri; MAME romset `timeplt`) is *played*, assembled **only from public sources** — the Centuri operator's manual, the Centuri flyer text, Wikipedia, the Konami Wiki, arcade-history.com, KLOV / Museum of the Game, StrategyWiki, Hardcore Gaming 101 and hobbyist write-ups. It is what you'd write down **before** touching the ROM. Nothing here is derived from the disassembly, the translated layer, the MAME driver, our emulator, or any in-repo note; that earned inside-knowledge is deliberately excluded so this stays a clean "what the public record says" baseline, usable later to adjudicate mechanics the code alone can't disambiguate.
 
-**Bottom line up front: the public record is rich — and one source is primary.** Unlike The Pit, Time Pilot has a surviving, scanned **Centuri operator's manual** online, and it contains a per-round GAME DESCRIPTION, a GAME INSTRUCTIONS page with an illustrated **SCORING** chart, and the full **DIP-switch tables**. That pins down the headline numbers — 56 enemies then 7 mothership hits, 100 / 1,500 / 2,000 / 3,000 point values, the parachutist ladder, the bonus-plane thresholds, and 3/4/5/256 lives — from the manufacturer rather than from fan memory.
+**Bottom line up front: the public record is rich — and one source is primary.** Unlike The Pit, Time Pilot has a surviving, scanned **Centuri operator's manual** online, and it contains a per-round GAME DESCRIPTION, a GAME INSTRUCTIONS page with an illustrated **SCORING** chart, and the full **DIP-switch tables**. That pins down the headline numbers — 56 enemies then 7 mothership hits, 100 / 1,500 / 2,000 / 3,000 point values, the parachutist ladder, the bonus-plane thresholds, and 3/4/5/256 lives — from the manufacturer rather than from fan memory. **⚠ OVERTURNED (code + MAME): the Mother-Ship absorbs seven hits and the eighth destroys it; one that idled and relaunched after two or more hits needs six more (that clause from the code; mechanisms.md §6).** **⚠ OVERTURNED (code + MAME): the fourth lives setting stores 0xFF, i.e. 255 lives (mechanisms.md §2).**
 
 **Two caveats about the rest of the record, both important:**
 
@@ -29,8 +29,8 @@ There is no ending. Clearing 2001 sends you back to 1910, harder. [Centuri manua
 ## 3. The player's ship — what it can and cannot do
 
 - **Free-roaming in all directions.** The airspace *"scrolls indefinitely in all directions"*; there is no ground, no ceiling and no arena wall. [Wikipedia; Konami Wiki]
-- **The ship rotates rather than strafes.** You lock into one of **eight facings**, but *"you will pass through many more while turning from one direction to another, allowing your shots to fire at a variety of angles while you transition."* [StrategyWiki – Gameplay] Hardcore Gaming 101 agrees the rotation is smooth and notes the learning curve: *"It takes awhile to get used to, since you turn so slowly."*
-- **⚠ Conflict — can it about-face?** StrategyWiki says the plane *"can travel in any direction, and turn very quickly, but it can't about face."* arcade-history's tips say the opposite: *"you can turn through 180 degrees very quickly to pick off an enemy directly behind you… you will flip round."* **Unresolved.** This is a first-order control question and needs settling hands-on.
+- **The ship rotates rather than strafes.** You lock into one of **eight facings**, but *"you will pass through many more while turning from one direction to another, allowing your shots to fire at a variety of angles while you transition."* [StrategyWiki – Gameplay] Hardcore Gaming 101 agrees the rotation is smooth and notes the learning curve: *"It takes awhile to get used to, since you turn so slowly."* **⚠ OVERTURNED (code + MAME): the heading is a 256-step byte; release the stick mid-turn and the ship holds any intermediate heading (mechanisms.md §5).**
+- **⚠ Conflict — can it about-face?** StrategyWiki says the plane *"can travel in any direction, and turn very quickly, but it can't about face."* arcade-history's tips say the opposite: *"you can turn through 180 degrees very quickly to pick off an enemy directly behind you… you will flip round."* **Unresolved.** This is a first-order control question and needs settling hands-on. **RESOLVED (code + MAME): no flip; a reversal is a 128-step sweep, 44 frames at 3 steps a frame in eras 0–2 and 32 frames at 4 steps a frame in eras 3–4.**
 - **The ship is one-hit fragile.** *"Your ship cannot withstand a collision to any enemy or their weapons."* [StrategyWiki – Gameplay]
 - **Gravity does not apply to you.** The 1910 bombs fall on a parabola, but *"the player can fly downward indefinitely and never reach the 'ground'. This is the only time when 'gravity' is present."* [Konami Wiki]
 
@@ -58,7 +58,7 @@ Time Pilot's signature is that a "level" is a **time period**, and the eras run 
 
 **Per-era detail, quoting the manual where possible:**
 
-- **1910.** *"The attackers are biplanes coming from random directions. Enemy plane shoots at your plane and throws hand grenades when close to you. After 56 biplanes are destroyed, the 'Mother-Ship' appears… Only 7 hits will destroy the 'Mother-Ship.' During the same stage, one to five parachutes will appear."* [Centuri manual] The bombs *"are initially fired upward but accelerate downward… following the parabolic trajectory of a thrown object"* — fly up to avoid them. [Konami Wiki; arcade-history; StrategyWiki]
+- **1910.** *"The attackers are biplanes coming from random directions. Enemy plane shoots at your plane and throws hand grenades when close to you. After 56 biplanes are destroyed, the 'Mother-Ship' appears… Only 7 hits will destroy the 'Mother-Ship.' During the same stage, one to five parachutes will appear."* [Centuri manual] The bombs *"are initially fired upward but accelerate downward… following the parabolic trajectory of a thrown object"* — fly up to avoid them. [Konami Wiki; arcade-history; StrategyWiki] **⚠ OVERTURNED (code + MAME): the Mother-Ship absorbs seven hits and the eighth destroys it; one that idled and relaunched after two or more hits needs six more (that clause from the code; mechanisms.md §6).**
 - **1940.** *"Enemies are: monoplane fighters, middle size bombers and large bomber ('Mother-Ship')."* [Centuri manual] The monoplanes are *"slimmer than the biplanes and blend in with the background, making them tougher to target"* and are better at tailing you than biplanes were. [Konami Wiki; StrategyWiki]
 - **1970.** *"Enemies now are helicopters and large one ('Mother-Ship'). As a new level of difficulty, the helicopters are using homing missiles."* [Centuri manual] The missiles *"travel slightly faster than the player but cannot make sharp turns"*; they can be shot down, or shaken by turning sharply / circling. [arcade-history; Konami Wiki; StrategyWiki]
 - **1982/1983.** *"The enemies are modern jet fighters shooting and launching homing missiles… one of the most difficult rounds of the game due to increased speed of jet fighters and random direction attacks."* [Centuri manual] The jets *"resemble the player's own craft"*, match your speed and turn rate, fire more missiles than the helicopters did, and will happily collide with you; StrategyWiki adds *"they will eventually turn around and leave if they can't catch you."* [Konami Wiki; StrategyWiki]
@@ -68,14 +68,14 @@ Time Pilot's signature is that a "level" is a **time period**, and the eras run 
 
 The manual states it as a rule:
 
-> **"Advance to next stage by destroying 56 enemies and 7 hits on 'Mother Ship.'"** — Centuri operator's manual, GAME INSTRUCTIONS #2
+> **"Advance to next stage by destroying 56 enemies and 7 hits on 'Mother Ship.'"** — Centuri operator's manual, GAME INSTRUCTIONS #2 **⚠ OVERTURNED (code + MAME): the Mother-Ship absorbs seven hits and the eighth destroys it; one that idled and relaunched after two or more hits needs six more (that clause from the code; mechanisms.md §6).**
 
-The flyer says the same for 1910: *"Destroy 56 of the nuisances plus 7 direct hits to the mother-ship and escape through the time warp."* [Centuri flyer] Wikipedia/KLOV/Konami Wiki all repeat 56 and 7.
+The flyer says the same for 1910: *"Destroy 56 of the nuisances plus 7 direct hits to the mother-ship and escape through the time warp."* [Centuri flyer] Wikipedia/KLOV/Konami Wiki all repeat 56 and 7. **⚠ OVERTURNED (code + MAME): the Mother-Ship absorbs seven hits and the eighth destroys it; one that idled and relaunched after two or more hits needs six more (that clause from the code; mechanisms.md §6).**
 
 Additional, secondary details:
 - **Killing the Mother-Ship clears the field.** *"After you have destroyed the mothership, all the other ships will be destroyed and then your jet will advance to the next time period."* [KLOV] Konami Wiki: *"any remaining enemy craft are also eliminated."* Whether those swept-away enemies score anything is not stated anywhere.
 - **Mother-Ships fly straight across and don't chase you.** *"The Mother Ships always move horizontally across the screen. Wait until they pass you, and then move directly behind them."* [arcade-history tips] A play blog concurs: *"All the bosses essentially operate the same as they fly across the screen and randomly fire bullets at you, never deviating."* [ancientelectronics]
-- **⚠ Does the 56 change?** Konami Wiki writes: *"Once 56 enemy craft are defeated, initially 25 on the MSX platform and increasing by 5 after each game cycle…"* — the sentence is ambiguous as to whether the "increasing by 5 per cycle" applies to the MSX only or to the arcade too. **Unresolved.** The Centuri manual describes the loop's escalation purely in terms of attacker count/speed/fire rate and says nothing about the quota.
+- **⚠ Does the 56 change?** Konami Wiki writes: *"Once 56 enemy craft are defeated, initially 25 on the MSX platform and increasing by 5 after each game cycle…"* — the sentence is ambiguous as to whether the "increasing by 5 per cycle" applies to the MSX only or to the arcade too. **Unresolved.** The Centuri manual describes the loop's escalation purely in terms of attacker count/speed/fire rate and says nothing about the quota. **RESOLVED (code + MAME): 56 in every era, loop and difficulty.**
 
 ## 7. Formations (waves)
 
@@ -95,7 +95,7 @@ It is real, it is in the manual, and it is the game's dominant scoring lever.
 - **Value ladder:** the manual's scoring chart says only *"PARACHUTIST — 1st 1,000 PTS. 2nd 2,000 PTS.…ETC."* Every secondary source caps it: **1,000 / 2,000 / 3,000 / 4,000 / 5,000, then 5,000 for all subsequent ones.** [arcade-history scoring table; StrategyWiki – Gameplay and Walkthrough; Konami Wiki]
 - **Reset rule (secondary only):** *"The award is reset to 1000 points upon losing a life or advancing a level."* [Konami Wiki] StrategyWiki – Walkthrough says the same in other words: 5,000s continue *"unless your plane is destroyed or you kill the Mother Ship and go on to the next period."* **The manual does not state this.**
 - **They drift and can be lost:** *"Parachutes waft slowly downward, and they will disappear from the game if they scroll off of the screen."* [StrategyWiki – Gameplay] Hence the standard advice to hold the *upper* corners of the screen so parachutes drift toward you. [StrategyWiki – Walkthrough]
-- **⚠ Conflict — 2001.** arcade-history: *"All stages except the 2001 stage have parachutes that can be collected."* Konami Wiki: *"In all but the space levels, a parachuting pilot will occasionally appear."* But StrategyWiki – Gameplay opens with *"In each time era, fellow Time Pilots are wafting through the air in need of rescue."* **Unresolved**, though the two sources that explicitly address 2001 both say *no parachutes there*.
+- **⚠ Conflict — 2001.** arcade-history: *"All stages except the 2001 stage have parachutes that can be collected."* Konami Wiki: *"In all but the space levels, a parachuting pilot will occasionally appear."* But StrategyWiki – Gameplay opens with *"In each time era, fellow Time Pilots are wafting through the air in need of rescue."* **Unresolved**, though the two sources that explicitly address 2001 both say *no parachutes there*. **RESOLVED (code + MAME): no parachutist in 2001.**
 - **⚠ Whose pilots are they?** The Konami/Centuri framing is that you are *rescuing* friendly pilots. Hardcore Gaming 101 instead describes it as *"Certain enemies will eject from their planes, and picking them up will yield extra points."* Probably a misreading of a visual, but flagged.
 
 ## 9. Scoring
@@ -104,8 +104,8 @@ Straight from the Centuri operator's manual's illustrated SCORING chart (page 7)
 
 | Target | Points |
 |--------|--------|
-| Any common enemy craft — biplane / monoplane / helicopter / jet / UFO | **100** |
-| Any bomb, bullet, missile or alien weapon shot down | **100** |
+| Any common enemy craft — biplane / monoplane / helicopter / jet / UFO | **100** — **⚠ OVERTURNED (code + MAME): hits inside the chain window pay 100, 200 … 800 and then wrap to 100 (mechanisms.md §2).** |
+| Any bomb, bullet, missile or alien weapon shot down | **100** — **⚠ OVERTURNED in part (code + MAME): craft bullets cannot be shot in eras 0–3 (only in 2001); bombs and missiles pay the chained score, not a flat 100.** |
 | **Middle-size bomber** (1940 only) | **1,500** |
 | **Enemy formation** (all of it) | **2,000** |
 | **Mother-Ship** (all five) | **3,000** |
@@ -113,7 +113,7 @@ Straight from the Centuri operator's manual's illustrated SCORING chart (page 7)
 
 Notes and oddities:
 
-- **The 1940 middle-size bomber is the best per-shot value in the game outside parachutists**, and the manual is explicit that it takes multiple hits: *"It could be destroyed by 4 hits and awards 1,500 points."* **⚠ StrategyWiki says three shots**, twice ("they take three shots to destroy"). **Unresolved: 3 or 4.**
+- **The 1940 middle-size bomber is the best per-shot value in the game outside parachutists**, and the manual is explicit that it takes multiple hits: *"It could be destroyed by 4 hits and awards 1,500 points."* **⚠ StrategyWiki says three shots**, twice ("they take three shots to destroy"). **Unresolved: 3 or 4.** **RESOLVED (code + MAME): 4 hits.**
 - **⚠ Does the middle-size bomber shoot at you?** The manual says *"Middle size bombers are aiming constantly at your plane!"* arcade-history says the exact opposite: *"They cannot fire at the player and pose no real threat as long as the player does not crash into them."* StrategyWiki says only that they *"do not deviate from their straight flight path."* **Unresolved, and substantive.**
 - **⚠ Bomber colour** is described as *"red-and-yellow supply planes"* [arcade-history] and as *"dark brown Bombers"* [StrategyWiki]. Possibly a version/palette difference; possibly one of them is simply wrong.
 - **Parachutist farming is the documented high-score strategy.** *"Finish the 1910 stage as soon as possible. On the 1940 stage, don't shoot anything!! Eventually, parachutes will start to appear… Each parachute (after #4) will give you 5,000 points. It's possible to roll the machine over (999,999+ points) while remaining on Stage 2 using this strategy."* [arcade-history tips] StrategyWiki calls the same tactic "hunting" and likewise names **1940 as the best hunting era** (no homing missiles, more parachutists than 1910).
@@ -128,7 +128,7 @@ Notes and oddities:
 
 | Setting | Options (manual's "normal" marked ●) |
 |---------|--------------------------------------|
-| **Number of planes** | ● **3** / 4 / 5 / 256 |
+| **Number of planes** | ● **3** / 4 / 5 / 256 — **⚠ OVERTURNED (code + MAME): the fourth setting is 255 lives (stored 0xFF).** |
 | **Bonus (extra plane)** | ● **10,000 pts and after every 50,000 pts** / 20,000 pts and after every 60,000 pts |
 | **Difficulty** | eight steps, **1 (VERY EASY) … 8 (VERY DIFFICULT)** |
 | **Type of game** | TABLE / UPRIGHT |
@@ -138,7 +138,7 @@ Notes and oddities:
 
 **The prose instructions restate the default:** *"Bonus plane after 10,000 points, 60,000 points and each additional 50,000 points."* [Centuri manual, GAME INSTRUCTIONS #4] — i.e. 10k, 60k, 110k, 160k, …
 
-**⚠ The extra-life cap is a Wikipedia-only claim.** Wikipedia says *"Extra lives are given at 10,000 points, and per 50,000 scored up to 960,000; thereafter, the game goes to 'survival of the fittest' mode."* 960,000 = 10,000 + 19×50,000, so the arithmetic is at least self-consistent, but **the phrase "survival of the fittest" appears nowhere in the manual or flyer, and every other site carrying it is echoing Wikipedia.** Konami Wiki hedges to *"Extra lives are usually given at 10,000, and per 50,000 scored thereafter"* with no cap. **Unresolved.**
+**⚠ The extra-life cap is a Wikipedia-only claim.** Wikipedia says *"Extra lives are given at 10,000 points, and per 50,000 scored up to 960,000; thereafter, the game goes to 'survival of the fittest' mode."* 960,000 = 10,000 + 19×50,000, so the arithmetic is at least self-consistent, but **the phrase "survival of the fittest" appears nowhere in the manual or flyer, and every other site carrying it is echoing Wikipedia.** Konami Wiki hedges to *"Extra lives are usually given at 10,000, and per 50,000 scored thereafter"* with no cap. **Unresolved.** **⚠ OVERTURNED in part (code + MAME): the mark lists end at 960,000/980,000, but the score wraps past 999,900 and the marks pay again.**
 
 **Nothing public describes what happens on death** — respawn position, respawn invulnerability, whether the era's kill counter is preserved or reset, or whether the wave state restarts.
 
@@ -160,7 +160,7 @@ There is also **within-loop escalation baked into the era order** — the manual
 ## 12. Version differences worth knowing
 
 - **The fourth era's year differs by region.** *"In the Konami version, the fourth era is 1982 while in the Centuri licensed version, the fourth era is 1983."* [KLOV Trivia; Centuri fan site; StrategyWiki: *"In some versions of the game, the year is 1983"*] Wikipedia explains it as a running update: releases produced after 1982 relabelled the "present day" era. **Note an internal inconsistency in Centuri's own materials:** the Centuri *flyer* headlines **"A.D.1983 – The Age of the Jet Plane"** while the Centuri *operator's manual* prints **"A.D. 1982"**.
-- **Attract mode differs too.** arcade-history: in the Konami version *"the 1910 and 2001 stages are never played in the attract mode"*; in the **Centuri and Atari versions** *"the 2001 stage IS played in the attract mode."*
+- **Attract mode differs too.** arcade-history: in the Konami version *"the 1910 and 2001 stages are never played in the attract mode"*; in the **Centuri and Atari versions** *"the 2001 stage IS played in the attract mode."* **CONFIRMED (code + MAME): the Konami set demos only 1940, 1970 and 1982.**
 - **Bootleg:** a modified-chipset bootleg exists under the title **"Space Pilot"**; *"Game play is just like Time Pilot."* [C64-Wiki; StrategyWiki – Versions]
 - **Ports diverge on gameplay numbers.** Konami Wiki notes the **MSX** version needs only 25 kills initially. The **GBA** compilation version adds a **hidden sixth era, 1,000,000 BC, with pterodactyls** — arcade-absent. [Konami Wiki] Home ports (Atari 2600, ColecoVision, MSX, all 1983) are not the arcade game and should not be used as evidence about it. [StrategyWiki – Versions]
 

@@ -150,7 +150,7 @@ meaningful instruction (omit pure plumbing — a bare instruction is honest). Th
 run the **leak scan** over every gloss AND every role header, and confirm the **byte round-trip** (the
 instruction bytes still reconstruct the ROM exactly). Voice: terse, present-tense, lower-case start,
 no trailing period, `--` for asides. A worked pilot is the reset routine
-(`seatTheStackAndSettleTheControlLatch`) in Time Pilot's `Code.md`.
+(`probeExpansionThenSettleControlLatch`) in Time Pilot's `Code.md`.
 
 ## Anti-tamper crash sites — force the DATA ones to data blocks before shipping
 

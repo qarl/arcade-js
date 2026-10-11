@@ -29,7 +29,7 @@
  *   8. THE COUNT OF ZERO WALKS 256 SLOTS — asserted against a count of one, so the loop's shape
  *      is pinned at the value a naive rewrite gets wrong; in the cross, a count of zero over a
  *      planted object is what shows it in memory.
- *   9. TEETH — nine twins, each reported with its catch count over the crafted cross.
+ *   9. TEETH — twins, each reported with its catch count over the crafted cross.
  *
  * HOLE: what a marked object goes on to do is not covered here, nor what the guard byte or the
  * reference position belong to. The crafted arms use a run of one slot except where stated, so
@@ -154,7 +154,7 @@ const anEntry = () => corpus()[0].states[0];
  * chosen offset from the reference on each axis.
  */
 function craft({ guard = IN_PLAY, state = IN_PLAY, first = 0, second = 0, slots = 1,
-  offset = CRAFTED_OFFSET, width = CRAFTED_WIDTH, reference = 0x80, count = slots } = {}) {
+  offset = CRAFTED_OFFSET, width = CRAFTED_WIDTH, reference = 0x80, count = slots, start = 0 } = {}) {
   const m = anEntry().clone();
   m.mem8[PLAYER_STATE] = guard;
   m.mem8[REFERENCE_FIRST_AXIS] = reference;
@@ -162,11 +162,11 @@ function craft({ guard = IN_PLAY, state = IN_PLAY, first = 0, second = 0, slots 
   for (let i = 0; i < 256; i++) m.mem8[CRAFTED_STATES + i] = 0;
   for (let i = 0; i < 256; i++) m.mem8[CRAFTED_ENTRY + i] = 0;
   for (let i = 0; i < slots; i++) {
-    m.mem8[CRAFTED_STATES + u8(i * STATE_STRIDE)] = state;
+    m.mem8[CRAFTED_STATES + u8(start + i * STATE_STRIDE)] = state;
     m.mem8[CRAFTED_ENTRY + i * ENTRY_STRIDE] = u8(reference - first);
     m.mem8[CRAFTED_ENTRY + i * ENTRY_STRIDE + SECOND_AXIS_OFFSET] = u8(reference - second);
   }
-  m.regs.de = CRAFTED_STATES;
+  m.regs.de = CRAFTED_STATES + start;
   m.regs.iy = CRAFTED_ENTRY;
   m.regs.b = count;
   m.regs.l = offset;
@@ -192,6 +192,8 @@ for (const guard of [IN_PLAY, 0x00, 0x7f]) {
 CROSS.push({ slots: 3 }, { slots: 8 }, { slots: 0 }, { width: 1 }, { width: 255 }, { offset: 0 });
 // a count of zero over a planted object: the whole-256 walk marks it, a walk of none does not
 CROSS.push({ slots: 1, count: 0 });
+// a run that starts on the page's last slot: the state cursor wraps to the page's first, not the next page
+CROSS.push({ slots: 2, start: 0xf0 });
 
 function crossCaught(candidate) {
   let caught = 0;
@@ -314,11 +316,16 @@ test("A COUNT OF ZERO WALKS 256 SLOTS, not none", { skip }, () => {
   console.log("  ZERO COUNT: 256 slots walked, against one for a count of one");
 });
 
+test("CROSS: the rewrite agrees with the oracle on every crafted entry the teeth use", { skip }, () => {
+  assert.equal(crossCaught(markObjectsTouchingPlayer), 0, "the rewrite diverged on a crafted entry");
+  console.log(`  CROSS: ${CROSS.length} crafted entries identical, the page-wrapping run included`);
+});
+
 // ── teeth ───────────────────────────────────────────────────────────────────────────────
 
 function sweep(m, { checkGuard = true, axes = 2, mark = MARKED, requireInPlay = true,
   stateStride = STATE_STRIDE, entryStride = ENTRY_STRIDE, secondOffset = SECOND_AXIS_OFFSET,
-  zeroIsNone = false } = {}) {
+  zeroIsNone = false, wrapsInPage = true } = {}) {
   const { mem8, regs } = m;
   if (checkGuard && mem8[PLAYER_STATE] !== IN_PLAY) return;
   const offset = regs.l;
@@ -334,7 +341,7 @@ function sweep(m, { checkGuard = true, axes = 2, mark = MARKED, requireInPlay = 
     const inBox = near(REFERENCE_FIRST_AXIS, entry) &&
       (axes < 2 || near(REFERENCE_SECOND_AXIS, entry + secondOffset));
     if (live && inBox) mem8[page + index] = mark;
-    index = u8(index + stateStride);
+    index = wrapsInPage ? u8(index + stateStride) : index + stateStride;
     entry = u16(entry + entryStride);
     left = u8(left - 1);
   } while (left !== 0);
@@ -367,6 +374,9 @@ const brokenEntryStride = (m) => sweep(m, { entryStride: 1 });
 /** BUG: reads the second axis from the byte beside it. */
 const brokenSecondOffset = (m) => sweep(m, { secondOffset: SECOND_AXIS_OFFSET + 1 });
 
+/** BUG: carries the state cursor into the next page instead of wrapping inside its own. */
+const brokenLeavesPage = (m) => sweep(m, { wrapsInPage: false });
+
 /** BUG: treats a count of zero as no slots rather than as 256. */
 const brokenZeroIsNone = (m) => sweep(m, { zeroIsNone: true });
 
@@ -380,6 +390,7 @@ const TWINS = [
   ["entry-stride-of-one", brokenEntryStride],
   ["second-axis-off-by-one", brokenSecondOffset],
   ["zero-count-walks-nothing", brokenZeroIsNone],
+  ["state-cursor-leaves-its-page", brokenLeavesPage],
 ];
 
 for (const [label, twin] of TWINS) {

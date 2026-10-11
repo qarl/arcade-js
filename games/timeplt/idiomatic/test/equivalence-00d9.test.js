@@ -55,7 +55,7 @@ import { dispatchSequencePhase0SubStepArm } from "../dispatchSequencePhase0SubSt
 import { dispatchSequencePhase1SubStepArm } from "../dispatchSequencePhase1SubStepArm.js";
 import { dispatchSequencePhase2SubStepArm } from "../dispatchSequencePhase2SubStepArm.js";
 import { dispatchSequenceSubStepArm } from "../dispatchSequenceSubStepArm.js";
-import { sendOneQueuedSoundThenUnwindTheFrameInterrupt } from "../sendOneQueuedSoundThenUnwindTheFrameInterrupt.js";
+import { sendOneQueuedSoundThenReopenFrameInterrupt } from "../sendOneQueuedSoundThenReopenFrameInterrupt.js";
 import {
   ROUTINES, SEQUENCE_PHASE, SEQUENCE_PHASE_ARM_TABLE, BCD_FRAME_COUNTER, FRAME_TICK, ACTIVE_PLAYER,
   UPRIGHT_CABINET, SCREEN_UNFLIPPED, FLIPSCREEN_LATCH, DIP1_MIRROR, IN0_MIRROR, IN1_MIRROR, IN2_MIRROR,
@@ -109,7 +109,7 @@ function build({
     }
     if (coins) serviceCoinInputs(m);
     arms[mem8[SEQUENCE_PHASE] & 0x03](m);
-    if (close) sendOneQueuedSoundThenUnwindTheFrameInterrupt(m);
+    if (close) sendOneQueuedSoundThenReopenFrameInterrupt(m);
     if (popAfter) m.pop16();
   };
 }

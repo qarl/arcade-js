@@ -6,7 +6,7 @@
  * ROM: 0x1ED1. Tag [seen] (names.js). Role in the machine: a cocktail cabinet has two control panels
  * facing each other, and the picture is turned round for the second player. The vertical-blank service
  * copies both panels into work RAM every frame, complemented so a set bit means "asserted" (the ports
- * are active-low): IN1_MIRROR 0xA9AF [code] for the main panel, IN2_MIRROR 0xA9B0 [code] for the
+ * are active-low): IN1_MIRROR 0xA9AF [seen] for the main panel, IN2_MIRROR 0xA9B0 [seen] for the
  * cocktail panel. Callers then split the word themselves — the stick nibble, the fire bit, and the
  * individual bits initials entry rolls into its press histories.
  */

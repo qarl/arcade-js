@@ -1,7 +1,7 @@
 {
   "name": "deep-round",
   "description": "Climb the difficulty rung to its maximum so the escalated wave-spawn renders vs MAME.",
-  "_grounding": "coin@400 + 1P start@500; hold ERA_RUNG 0xACC0=0x0F + ERA_RUNG_TIMER 0xA9D7=1 + ERA_RUNG_PERIOD 0xA9D6=1 from f620 so the rung tick wraps fast and escalateDifficultyRungOnCounterWrap -> applyEraRungSettings steps the craft count 0xACC1 0x05->0x07 (game-set) at ~f1014, held ~307 frames (a dense churning wave). Exercises 0x4d3a, applyEraRungSettings (0x1846), spawnEnemyWaveIntoFreeSlots (0x386e). A ROUND_NUMBER poke (0xAD01) does NOT escalate -- the start-rung bracket is fixed at credit init from the DIP record. scratchpad/boss-deep-recipe.md.",
+  "_grounding": "coin@400 + 1P start@500; hold ERA_RUNG 0xACC0=0x0F + ERA_RUNG_TIMER 0xA9D7=1 + ERA_RUNG_PERIOD 0xA9D6=1 from f620 so the rung tick wraps fast and escalateDifficultyRungOnCounterWrap -> applyEraRungSettings steps the craft count 0xACC1 0x05->0x07 (game-set) at ~f1014, held ~307 frames (a dense churning wave). Exercises escalateDifficultyRungOnCounterWrap (0x4D3A) and applyEraRungSettings (0x1A9A); spawnEnemyWaveIntoFreeSlots (0x386E) is era 4's wave and runs in mothership-era4.poke.json, not here (this tape stays in era 0). A ROUND_NUMBER poke (0xAD01) does NOT escalate -- the start-rung bracket is fixed at credit init from the DIP record.",
   "coin": 400,
   "start": 500,
   "hold": 8,
@@ -10,10 +10,7 @@
     { "frame": 620, "addr": "0xa9d7", "val": "0x01" },
     { "frame": 620, "addr": "0xa9d6", "val": "0x01" }
   ],
-  "responded": { "cell": "0xacc1", "op": "eq", "val": "0x07" },
-  "reaches": [
-    "postRoundStartCaptionsAndResetPlayfield",
-    "flyRoundIntroFlashingEraYearThenEraseIntroCaptions",
-    "flyEnemyFreeLeadInThenStepSequence"
-  ]
+  "responded": {"cell": "0xacc1", "op": "eq", "val": "0x07"},
+  "reaches": ["postRoundStartCaptionsAndResetPlayfield", "flyRoundIntroFlashingEraYearThenEraseIntroCaptions", "flyEnemyFreeLeadInThenStepSequence"],
+  "idiomatic_residual_frames": 58
 }

@@ -24,16 +24,20 @@
  *
  * LIVE-OUT: the component pair velocityForHeading leaves (DE, BC), also returned — the pair is the
  * whole product; no memory is written.
+ * Kept as the ROUTINES override of 0x596B: no idiomatic module calls
+ * it, because scrollWorldAtTheEraPace hands velocityForHeading the table itself.
  */
 
 import { velocityForHeading } from "./velocityForHeading.js";
 import { VELOCITY_TABLE_08FA } from "./names.js";
 
 // The ROM's `ld hl,0x08fa`: the 331-peak velocity table.
+// Byte +2 of an object record: its heading, which velocityForHeading samples the table at.
+const HEADING_CELL = 2;
 const VELOCITY_TABLE = VELOCITY_TABLE_08FA;
 
-export function loc_596b(m) {
+export function loc_596b(m, heading = m.mem8[m.regs.ix + HEADING_CELL]) {
   // The fall-through into 0x596E: velocityForHeading runs next, so its return is this entry's
   // return; the pair is also left in DE and BC.
-  return velocityForHeading(m, VELOCITY_TABLE);
+  return velocityForHeading(m, VELOCITY_TABLE, heading);
 }

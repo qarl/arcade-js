@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * saveAccumulatorForFrameInterrupt — memory-equivalent to the frozen oracle at ROM 0x00D8, in the DISSOLVED
+ * enterVerticalBlankService — memory-equivalent to the frozen oracle at ROM 0x00D8, in the DISSOLVED
  * form (see _vblankService.js for the contract every gate in this family shares: memory outside the
  * oracle's measured dead stack scratch, every device, SP).
  *
@@ -36,7 +36,7 @@ import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { captureAt, dissolvedDiff, runOracle, TAPES, hex4 } from "./_vblankService.js";
-import { saveAccumulatorForFrameInterrupt } from "../saveAccumulatorForFrameInterrupt.js";
+import { enterVerticalBlankService } from "../enterVerticalBlankService.js";
 import { loc_00d8 as oracle } from "../../translated/loc_00d8.js";
 import { buildRoutines } from "../../routines.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
@@ -54,8 +54,8 @@ const diff = (cand, e) => dissolvedDiff(oracle, cand, e, { placedAt: TARGET });
 
 const TWINS = [
   ["no-op", () => {}],
-  ["double-service", (m) => { saveAccumulatorForFrameInterrupt(m); saveAccumulatorForFrameInterrupt(m); }],
-  ["own-return", (m) => { saveAccumulatorForFrameInterrupt(m); m.ret(); }],
+  ["double-service", (m) => { enterVerticalBlankService(m); enterVerticalBlankService(m); }],
+  ["own-return", (m) => { enterVerticalBlankService(m); m.ret(); }],
 ];
 
 test("REACH: once per vector dispatch on a genuine image, the vector as the positive control", { skip }, () => {
@@ -86,7 +86,7 @@ test("FULL: every captured entry, the whole service both ways", { skip }, () => 
     const entries = corpusOf(label, opts);
     assert.ok(entries.length > 0, `vacuous: the ${label} tape never reached the entry`);
     for (const e of entries) {
-      const d = diff(saveAccumulatorForFrameInterrupt, e);
+      const d = diff(enterVerticalBlankService, e);
       assert.equal(d, null, `${label}: ${d}`);
     }
     total += entries.length;
@@ -112,14 +112,14 @@ test("ACCUMULATOR: the dropped push lost nothing — no accumulator or flag valu
   const base = corpusOf("coin-start", {})[0];
   const { low, seat } = runOracle(oracle, base);
   const seen = { rewrite: new Set(), oracle: new Set(), control: new Set() };
-  const readsA = (m) => { m.mem8[FRAME_TICK] = m.regs.a; saveAccumulatorForFrameInterrupt(m); };
+  const readsA = (m) => { m.mem8[FRAME_TICK] = m.regs.a; enterVerticalBlankService(m); };
   let n = 0;
   for (const f of FLAG_WORDS) {
     for (let a = 0; a < 256; a++) {
       const e = base.clone();
       e.regs.af = (a << 8) | f;
-      assert.equal(diff(saveAccumulatorForFrameInterrupt, e), null, `a=${hex4(a)} f=${hex4(f)}`);
-      seen.rewrite.add(productOf(saveAccumulatorForFrameInterrupt, e, low, seat));
+      assert.equal(diff(enterVerticalBlankService, e), null, `a=${hex4(a)} f=${hex4(f)}`);
+      seen.rewrite.add(productOf(enterVerticalBlankService, e, low, seat));
       seen.oracle.add(productOf(oracle, e, low, seat));
       seen.control.add(productOf(readsA, e, low, seat));
       n++;

@@ -8,7 +8,7 @@
  *
  * Role in the machine: the sound pair between rounds. It is reached as a call from
  * advanceScriptedCharPlaneBandTo4 (when band-to-4 reaches its lower sentinel and sets step 4) and
- * by falling out of the bottom of requestRoundIntroSoundBurst. It has the same shape as
+ * by falling out of the bottom of requestDestructionSoundBurst. It has the same shape as
  * requestTwoSounds (0x5683), with a different pair of program bytes.
  *
  * The codes are INTER_ROUND_SOUND_1 (0x27CB) and INTER_ROUND_SOUND_2 (0x33A0). Both go through

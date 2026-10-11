@@ -16,17 +16,15 @@
  *
  * Each table row (SCENERY_SEED_TABLE 0x316E) is a packed byte pair that fills TWO sprite slots, at
  * the entry cursor and two bytes on: the first byte goes to +0x31 of the first slot and, plus 0x10,
- * to +0x31 of the second; the second byte goes to +0x00 of both. The constants below call the
- * pair (tint, shape), an older vocabulary; names.js and mechanisms.md record that +0x31 and +0x00
- * are where a sprite entry keeps its native-Y and native-X, so these are really starting
- * positions, and the local names are due for re-derivation.
+ * to +0x31 of the second; the second byte goes to +0x00 of both. +0x31 and +0x00 are where a
+ * sprite entry keeps its native-Y and native-X, so each pair is a starting position.
  *
  * PARAMETERS (all from the caller, and read only by the divert arm): `era` (the ROM's C),
  * `entryCursor` (IY), `clearStride` (E), `clearCount` (B, the caller's clear loop's spent count) and
  * `recordCursor` (IX, which the placed tile's closing step advances with the entry cursor).
  * On the seat arm every register the body touches is dead-after-return scratch -- the scenery run
  * reseats both cursors before reading either -- so it lives here as JS locals. The divert arm is
- * different: the lifted destination stores the caller's clear stride through the walked pointer,
+ * different: the divert's destination stores the caller's clear stride through the walked pointer,
  * folds the byte under it, counts the caller's spent clear count down (wrapping, so it keeps to its
  * one-tile arm) and places one tile through the caller's entry cursor offset by the era -- so the
  * pointer, the byte, the era, the cursors, the stride and the count are all handed across.
@@ -44,11 +42,11 @@ const OBJECTS = 4;
 const SENTINEL_MATCH = 0x68;
 const SUBGUARD_A = 0x10;
 const SUBGUARD_B = 0x05;
-const SEED_STRIDE = 2; // packed (tint,shape) pair a row
+const SEED_STRIDE = 2; // packed (nativeY,nativeX) pair a row
 const SEAT_STRIDE = 4; // entry cursor steps four slots a row
-const SPRITE_TINT = 0x31; // tint lands at entry +value 0x31
-const SHADOW_TINT = 0x33; // the shadow cell above it
-const TINT_STEP = 0x10; // shadow tint = sprite tint plus this
+const NATIVE_Y = 0x31; // native Y lands at entry +0x31
+const NEXT_SLOT_NATIVE_Y = 0x33; // the next slot's native Y
+const NEXT_SLOT_Y_STEP = 0x10; // next slot's Y = this slot's Y plus this
 
 export function seedSceneryEntriesThenRunScenery(m, era = m.regs.c, entryCursor = m.regs.iy, clearStride = m.regs.e, clearCount = m.regs.b, recordCursor = m.regs.ix) {
   const { mem8 } = m;
@@ -72,12 +70,12 @@ export function seedSceneryEntriesThenRunScenery(m, era = m.regs.c, entryCursor 
   let src = SCENERY_SEED_TABLE;
   let entry = SCENERY_ENTRY_SLOT0;
   for (let n = OBJECTS; n !== 0; n--) {
-    const tint = mem8[src];
-    mem8[u16(entry + SPRITE_TINT)] = tint;
-    mem8[u16(entry + SHADOW_TINT)] = tint + TINT_STEP;
-    const shape = mem8[u16(src + 1)];
-    mem8[entry] = shape;
-    mem8[u16(entry + 2)] = shape;
+    const nativeY = mem8[src];
+    mem8[u16(entry + NATIVE_Y)] = nativeY;
+    mem8[u16(entry + NEXT_SLOT_NATIVE_Y)] = nativeY + NEXT_SLOT_Y_STEP;
+    const nativeX = mem8[u16(src + 1)];
+    mem8[entry] = nativeX;
+    mem8[u16(entry + 2)] = nativeX;
     src = u16(src + SEED_STRIDE);
     entry = u16(entry + SEAT_STRIDE);
   }

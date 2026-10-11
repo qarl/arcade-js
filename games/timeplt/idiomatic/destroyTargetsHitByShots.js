@@ -38,6 +38,7 @@
 import { u8, u16 } from "../../../core/int.js";
 import { postChainedHitScore } from "./postChainedHitScore.js";
 import { SCRATCH_PTR_A, SCRATCH_PTR_B } from "./names.js";
+import { within, nextRecordInPage } from "./objectGeometry.js";
 
 // Record/entry offsets. A record's byte 0 is its state (head) byte. A shot keeps each coordinate
 // as an 8.8 word at +3 and +5 of its record, so the WHOLE parts sit at +4 and +6. A sprite entry
@@ -49,8 +50,7 @@ const ENTRY_SECOND_AXIS = 49;
 // 0xFF is the "flying/live" head, 0xF0 the destroyed code both parties take on a hit.
 const LIVE = 255;
 const DESTROYED = 240;
-// Records are 16 bytes apart; sprite entries two bytes apart (the paired-slot layout).
-const RECORD_STRIDE = 16;
+// Sprite entries are two bytes apart (the paired-slot layout); records step by nextRecordInPage.
 const ENTRY_STRIDE = 2;
 
 // A coordinate this close to zero is not a position yet: on the first axis the 8 values below
@@ -60,16 +60,6 @@ const FIRST_AXIS_LEAD = 8;
 const FIRST_AXIS_BAND = 25;
 const SECOND_AXIS_LEAD = 16;
 const SECOND_AXIS_BAND = 17;
-
-/** Two coordinates are close enough when their wrapped difference lands inside the box.
- * ROM `sub (iy+..) / add a,l / cp h`: the 8-bit difference is biased by the half-width, so an
- * unsigned compare against the width accepts exactly -reach .. span-reach-1 and wraps cleanly. */
-const within = (a, b, reach, span) => u8(u8(a - b) + reach) < span;
-
-/** Advance a cursor a whole record on WITHOUT leaving its page — the carry is dropped.
- * ROM `ld a,e / add a,0x10 / ld e,a` (inner, DE) and `ld a,ixl / add a,0x10 / ld ixl,a` (outer,
- * IX): only the low byte is stepped, so the high byte never changes. */
-const nextRecord = (cursor) => (cursor - (cursor & 0xff)) | u8(cursor + RECORD_STRIDE);
 
 /** The per-pair hit test, in the ROM's order (0x5217-0x523F): each failed test skips to the
  * cursor step at 0x524A without touching anything. */
@@ -118,7 +108,7 @@ export function destroyTargetsHitByShots(m, shot = m.regs.ix, entry = m.regs.iy,
         }
         // Step the target pair to its next slot: entry by 2 (`inc iy` twice), record by 16.
         entryCursor = u16(entryCursor + ENTRY_STRIDE);
-        targetCursor = nextRecord(targetCursor);
+        targetCursor = nextRecordInPage(targetCursor);
         left = u8(left - 1);
       } while (left !== 0);
     }
@@ -129,7 +119,7 @@ export function destroyTargetsHitByShots(m, shot = m.regs.ix, entry = m.regs.iy,
     targetCursor = mem16[SCRATCH_PTR_B];
     targets = targetsPerPass;
     // Next shot record, within its page.
-    shotSlot = nextRecord(shotSlot);
+    shotSlot = nextRecordInPage(shotSlot);
     shotsLeft = u8(shotsLeft - 1);
   } while (shotsLeft !== 0);
 }

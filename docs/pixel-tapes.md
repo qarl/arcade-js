@@ -70,7 +70,9 @@ one credit's worth of play.
 **timeplt (worked):** the tapes live in `games/timeplt/tapes/*.poke.json`, run by
 `games/timeplt/tools/distant_suite.py`, each pixel-validated against MAME — era 1 (1940), era 4 (2001),
 two-player, game-over, high-score entry, mother-ship (boss) armed collision, a deep round, and an era-3
-countdown slot. Most carry a
+countdown slot; also the round won and next era seated (era 0 → 1, with steering and a bonus life), the
+Mother-Ship killed in eras 1–4 (rounds 10→11 and 5→6 brackets, the era 4→0 wrap during a life loss), the
+Mother-Ship rammed in the narrow and wide boxes, the 2P game-over pass-turn, and a parachutist pickup. Most carry a
 game-set `responded` cell — a value the ROM writes only on reaching the state, read from the golden dump — so
 a pass is not two engines agreeing on the same wrong thing; the two era tapes' `responded` instead confirms
 the held era poke landed in the golden (that state's coherence comes from the MAME grounding, not the cell).
@@ -116,7 +118,16 @@ directly-called ones by host call-stack attribution on a read their own body mak
 | era-advance | flyRoundIntroFlashingEraYearThenEraseIntroCaptions, flyEnemyFreeLeadInThenStepSequence, serviceSlotByMarkerThenCloseSweepTurn |
 | countdown-slot | stepCountdownSlotThenCloseTurn, serviceSlotByMarkerThenCloseSweepTurn |
 | game-over | fileScoreAfterGameOverHoldElsePassTurn — **reached, pixel-invisible** (see below) |
-| high-score | fileScoreAfterGameOverHoldElsePassTurn (its filing arm), erasePenRouteThenOpenInitialsEntry, stepHighScoreInitialsEntry |
+| high-score | fileScoreAfterGameOverHoldElsePassTurn (its filing arm), erasePenRouteThenOpenInitialsEntry, stepHighScoreInitialsEntry, startTwoPlayerGame |
+| round-won | armRoundWonBandAnimationThenStepSequence, stepRoundStartIntroAnimation, startNextRound, advanceScriptedCharPlaneBandTo2, advanceScriptedCharPlaneBandTo4, floodColourPlaneWithSavedPlayerColour, requestBonusLifeSound, turnShipTowardTargetHeading |
+| mothership-era1 | setMotherShipVelocityFromHeading, splitCollisionWorkByFrameParity, startNextRound |
+| mothership-era2 | setMotherShipVelocityFromHeading, loc_5994, serviceEra2EnemyCraftSlot, startNextRound |
+| mothership-era3 | setMotherShipVelocityFromHeading, loc_5994, startNextRound |
+| mothership-era4 | setMotherShipVelocityFromHeading, spawnEnemyWaveIntoFreeSlots, startNextRound, loseLifeAndHandOver |
+| mothership-ram | ramTestPlayerVsMotherShip, loseLifeAndHandOver, startNextRound |
+| mothership-ram-wide | destroyPlayerAndMotherShipOnContact, loseLifeAndHandOver, startNextRound |
+| pass-turn | passTurnToOtherPlayerIfLivesElseStepSequence, handPlayOverToOtherPlayer, loadActivePlayerContextAndPostRoundHud |
+| parachutist | showParachutistAward, postNextParachutistBonus |
 
 - **stepCountdownSlotThenCloseTurn (0x4108): covered by countdown-slot.** It is inlined into
   serviceSlotByMarkerThenCloseSweepTurn as the sweep's drifting-countdown arm. The tape loads era 3 from
@@ -133,8 +144,11 @@ directly-called ones by host call-stack attribution on a read their own body mak
   control on era-advance proves the probe fires and its mutant silences it.
 - **Not in a window:** postRoundStartCaptionsAndResetPlayfield runs in era-advance, game-over and
   high-score only before the distant state, so those tapes do not declare it.
-- **Not reach-checked:** startTwoPlayerGame and handPlayOverToOtherPlayer (two-player) are called directly
-  and have no probe yet.
+- **Teeth beyond the px budgets.** Each tape pins `idiomatic_residual_frames`, the idiomatic layer's
+  differing-frame count at its measured correct floor (pixel_suite RESIDUAL_FRAMES, the same rule for the
+  tripwire and --done). Each run diffs the 0xC000 sound-command stream, value and frame, against a MAME
+  write tap. `distant_suite.PINNED_TAPES` fails any run whose tapes/ set differs from it. Inputs may press
+  the P1 stick/fire and coin 2, with an `every`/`until` repeat.
 - **Pixel-invisible — chosen: mark, not RAM-compare.** A routine whose in-window effect is RAM-only is
   listed in the schedule's `pixel_invisible` with the reason, and printed as "reached, pixel-invisible"; it
   is NOT `[seen]` from that tape. game-over's fileScoreAfterGameOverHoldElsePassTurn only ticks the

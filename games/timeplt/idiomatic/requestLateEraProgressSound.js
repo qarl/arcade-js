@@ -10,8 +10,8 @@
  * strip). mechanisms.md records that which sound this is, heard at the latter site, is not yet
  * identified.
  *
- * The code is LATE_ERA_PROGRESS_SOUND (0x07FE), a byte of the program ROM read as data (the lift
- * notes it holds 0x86). It goes through enqueueSoundIfGameInProgress, so it is queued only while
+ * The code is LATE_ERA_PROGRESS_SOUND (0x07FE), a byte of the program ROM read as data (0x86 on a
+ * genuine image). It goes through enqueueSoundIfGameInProgress, so it is queued only while
  * PLAY_ACTIVE is set.
  */
 

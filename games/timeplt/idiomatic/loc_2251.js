@@ -4,7 +4,8 @@
  * good image the readback always passes, so the caller never reaches here. Decoded as code the bytes
  * churn registers then fault storing through BC into non-writable space. Unreachable on a good image,
  * so it is modeled as a throw rather than reproducing the churn.
- * LIVE-OUT: none — control never returns; entry is the trap. */
+ * LIVE-OUT: none — control never returns; entry is the trap.
+ * ROM 0x2251-0x22B8. Grounding: [code] (names.js ROUTINES 0x2251). */
 
 import { NotImplemented } from "../../../boards/timeplt/io.js";
 

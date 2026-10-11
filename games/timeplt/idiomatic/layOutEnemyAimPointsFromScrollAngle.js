@@ -18,7 +18,7 @@
  * The "scroll angle" in the name is PLAYER_HEADING 0xA802 [seen]: the world scroll is the negated
  * ship velocity (names.js WORLD_SCROLL_Y), so the ship's heading also fixes the scroll direction. The fields are written from ENEMY_AIM_ANCHOR_Y 0xAC64 [seen], the enemy aim anchor.
  *
- * PARAMETER: c = the mode byte (the ROM's C, which the caller loaded from LIFE_TICKS_LOW).
+ * PARAMETER: mode = the mode byte (which the caller loaded from LIFE_TICKS_LOW).
  * LIVE-OUT: fields 0x10-0x1b of that object; no return value. */
 
 import { loc_59d1 } from "./loc_59d1.js";
@@ -52,11 +52,11 @@ function plot(m, base, term, centre, off8, off16, mirror) {
   if (mirror) mem8[u16(base + off16 + 4)] = u8(centre - h16);
 }
 
-export function layOutEnemyAimPointsFromScrollAngle(m, c = m.regs.c) {
+export function layOutEnemyAimPointsFromScrollAngle(m, mode = m.regs.c) {
   const { mem8 } = m;
 
   /* Step 1 -- only on sub-mode 7 (0x326D-0x3272); every other value returns with no write. */
-  if ((c & SUBMODE_MASK) !== SUBMODE) return;
+  if ((mode & SUBMODE_MASK) !== SUBMODE) return;
   // The base is a fixed anchor; the index register it once rode through is dead past this routine,
   // so a plain constant reproduces the field writes.
   const base = ENEMY_AIM_ANCHOR_Y;
@@ -65,13 +65,13 @@ export function layOutEnemyAimPointsFromScrollAngle(m, c = m.regs.c) {
    * component pair for a heading from a fixed table of samples (the velocity table): the first
    * component lands across (fields 0x10/0x12, mirrored to 0x14/0x16), the second down (0x11/0x13,
    * mirrored to 0x15/0x17). Each mirrored point is the first reflected through the centre. */
-  const [deQuarter, bcQuarter] = loc_59d1(m, u8(mem8[PLAYER_HEADING] + QUARTER_TURN));
-  plot(m, base, deQuarter, ACROSS, 0x10, 0x12, true);
-  plot(m, base, bcQuarter, DOWN, 0x11, 0x13, true);
+  const [quarterAcross, quarterDown] = loc_59d1(m, u8(mem8[PLAYER_HEADING] + QUARTER_TURN));
+  plot(m, base, quarterAcross, ACROSS, 0x10, 0x12, true);
+  plot(m, base, quarterDown, DOWN, 0x11, 0x13, true);
 
   /* Step 3 -- the heading itself, unmirrored (fields 0x18-0x1B): one point at each of the same
    * two radii, with no reflection. */
-  const [deStraight, bcStraight] = loc_59d1(m, mem8[PLAYER_HEADING]);
-  plot(m, base, deStraight, ACROSS, 0x18, 0x1a, false);
-  plot(m, base, bcStraight, DOWN, 0x19, 0x1b, false);
+  const [straightAcross, straightDown] = loc_59d1(m, mem8[PLAYER_HEADING]);
+  plot(m, base, straightAcross, ACROSS, 0x18, 0x1a, false);
+  plot(m, base, straightDown, DOWN, 0x19, 0x1b, false);
 }

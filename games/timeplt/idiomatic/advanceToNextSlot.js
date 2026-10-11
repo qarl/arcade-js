@@ -33,8 +33,7 @@ const ENTRY_STRIDE = 2;
 
 export function advanceToNextSlot(m, record = m.regs.ix, entry = m.regs.iy) {
   // Both cursors are stepped together, each wrapped to sixteen bits as the index registers are.
-  // They are returned as a pair, which is how every idiomatic caller takes them. They are also left
-  // in IX and IY for a register-dispatched caller in the frozen layer (the ROM's scenery steps read
-  // them back after the call), which is the only reason the return assigns them.
+  // They are returned as a pair, which is how every caller takes them, and also left in IX and IY,
+  // where the ROM leaves them for its scenery steps to read back after the call.
   return [m.regs.ix = u16(record + RECORD_STRIDE), m.regs.iy = u16(entry + ENTRY_STRIDE)];
 }

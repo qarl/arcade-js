@@ -18,14 +18,13 @@
  * PARAMETERS. `entryCursor` is the sprite-entry pointer the caller leaves behind (IY in the ROM,
  * defaulting to ERA_OBJECT_ENTRY_SLOT0, 0xAA28, where the caller last pointed it); `recordCursor` is
  * the record pointer the caller leaves behind (IX; resetPlayfieldAndArmNewRound's numbering walk ends
- * it one record past the object run -- under the oracle every dispatch into the scenery clear arrived
- * with IX = 0xA980). Both are only passed on to the scenery chain, where only the seed step's tamper
- * divert reads them.
+ * it one record past the object run). Both are only passed on to the scenery chain, where only the
+ * seed step's tamper divert reads them.
  */
 
 import { sumByteRunAndCompareToExpected } from "./sumByteRunAndCompareToExpected.js";
 import { offsetAddress } from "./offsetAddress.js";
-import { seatSceneryFillByte0x28ThenClearEraScenery } from "./seatSceneryFillByte0x28ThenClearEraScenery.js";
+import { seatFinalEraSceneryFillThenClearEraScenery } from "./seatFinalEraSceneryFillThenClearEraScenery.js";
 import { clearSceneryEntriesThenRunEraScenery } from "./clearSceneryEntriesThenRunEraScenery.js";
 import { u8, u16 } from "../../../core/int.js";
 import { SCENERY_SPRITE_CODE_SLOT0, ERA_INDEX, COPYRIGHT_CAPTION_RECORD, ERA_OBJECT_ENTRY_SLOT0, ERA_SCENERY_ROW_TABLE } from "./names.js";
@@ -66,9 +65,9 @@ export function seatEraSceneryRowThenClearAndRunScenery(m, entryCursor = ERA_OBJ
 
   // Hand on to the scenery clear + run (0x30D1), which fills a stride-two run of eight object cells
   // with the fill byte and then sets up the era's scenery by era. Era 4 enters via
-  // seatSceneryFillByte0x28ThenClearEraScenery (0x3156), whose only job is to choose 0x28; every
+  // seatFinalEraSceneryFillThenClearEraScenery (0x3156), whose only job is to choose 0x28; every
   // other era falls into 0x30D1 with 0xCC. Both are ROM jumps, so control does not come back here.
   // fill byte 0x28 at era four, else 0xCC
-  if (era === ERA_FOUR) return seatSceneryFillByte0x28ThenClearEraScenery(m, era, entryCursor, recordCursor);
+  if (era === ERA_FOUR) return seatFinalEraSceneryFillThenClearEraScenery(m, era, entryCursor, recordCursor);
   return clearSceneryEntriesThenRunEraScenery(m, FILL_BYTE, era, entryCursor, recordCursor);
 }

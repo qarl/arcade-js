@@ -47,12 +47,12 @@ export function commissionStagedAttackerByEra(m, spawnerRecord = m.regs.ix, spaw
   const { mem8 } = m;
 
   // STEP 1 -- READ THE LAUNCHER'S POSITION (0x42B7-0x42C3). Each axis is split across the record and
-  // the sprite entry: one axis in the entry's +0x31 byte with its record partner at +0x03, the other in
-  // the entry's +0x00 byte with its record partner at +0x05. (Register letters kept from the ROM.)
-  const d = mem8[spawnerEntry + 0x31];
-  const e = mem8[spawnerRecord + 0x03];
-  const h = mem8[spawnerEntry + 0x00];
-  const l = mem8[spawnerRecord + 0x05];
+  // the sprite entry: the vertical whole part in the entry's +0x31 byte with its fraction at record
+  // +0x03, the horizontal whole part in the entry's +0x00 byte with its fraction at record +0x05.
+  const verticalWhole = mem8[spawnerEntry + 0x31];
+  const verticalFraction = mem8[spawnerRecord + 0x03];
+  const horizontalWhole = mem8[spawnerEntry + 0x00];
+  const horizontalFraction = mem8[spawnerRecord + 0x05];
 
   // STEP 2 -- FIND THE NEW SLOT. The slot finder left the free slot's record pointer in SCRATCH_PTR_A
   // (0xA991) and its sprite-entry pointer in SCRATCH_PTR_B (0xA993) (`ld ix,(0xa991)` / `ld iy,(0xa993)`).
@@ -61,10 +61,10 @@ export function commissionStagedAttackerByEra(m, spawnerRecord = m.regs.ix, spaw
 
   // STEP 3 -- START IT WHERE THE LAUNCHER IS (0x42D1-0x42E0): copy both coordinate pairs across, and
   // store the caller's facing in the new record's +0x01.
-  mem8[record + 0x03] = e;
-  mem8[entry + 0x31] = d;
-  mem8[record + 0x05] = l;
-  mem8[entry + 0x00] = h;
+  mem8[record + 0x03] = verticalFraction;
+  mem8[entry + 0x31] = verticalWhole;
+  mem8[record + 0x05] = horizontalFraction;
+  mem8[entry + 0x00] = horizontalWhole;
   mem8[record + 0x01] = facing;
 
   // STEP 4 -- FIT IT OUT BY ERA. ERA_INDEX (0xAD04) is 0-4; the ROM tests 4, then 0, then 3, and
@@ -87,9 +87,9 @@ export function commissionStagedAttackerByEra(m, spawnerRecord = m.regs.ix, spaw
   // +0x07/+0x08 are seeded 0x00 and 0xFF (names.js: the slow-fall marker). Sound: requestAttackerSpawnSoundEra0 (0x5664).
   if (era === 0) {
     mem8[entry + 0x01] = 0x4f;
-    let a = ((facing >> 1) | (facing << 7)) & 0xff; // rrca
-    a = (a >> 1) | (a & 0x80); // sra a: keep only the facing's bit 0, in bits 7 and 6
-    mem8[entry + 0x30] = ((a & 0xc0) + 0x0b);
+    let mirror = ((facing >> 1) | (facing << 7)) & 0xff; // rrca
+    mirror = (mirror >> 1) | (mirror & 0x80); // sra a: keep only the facing's bit 0, in bits 7 and 6
+    mem8[entry + 0x30] = ((mirror & 0xc0) + 0x0b);
     mem8[record + 0x07] = 0x00;
     mem8[record + 0x08] = 0xff;
     return tailOff(requestAttackerSpawnSoundEra0);
@@ -106,11 +106,11 @@ export function commissionStagedAttackerByEra(m, spawnerRecord = m.regs.ix, spaw
     mem8[record + 0x02] = backHalf ? u8(facing - OFFSET_STEP) : u8(facing + OFFSET_STEP);
     // Look up the doubled velocity component pair for that offset heading (call 0x598E) and store the
     // two 16-bit components in the record's +0x0A..+0x0D.
-    const [de, bc] = loc_598e(m, mem8[record + 0x02]);
-    mem8[record + 0x0a] = de;
-    mem8[record + 0x0b] = de >> 8;
-    mem8[record + 0x0c] = bc;
-    mem8[record + 0x0d] = bc >> 8;
+    const [alongFirstAxis, alongSecondAxis] = loc_598e(m, mem8[record + 0x02]);
+    mem8[record + 0x0a] = alongFirstAxis;
+    mem8[record + 0x0b] = alongFirstAxis >> 8;
+    mem8[record + 0x0c] = alongSecondAxis;
+    mem8[record + 0x0d] = alongSecondAxis >> 8;
     // Then put the un-offset facing back in +0x02 (the ROM's `pop bc`), point the sprite for it (call
     // 0x3FAF), and set the record's +0x0E to 0x20. Sound: requestTwoSoundsWhilePlaying (0x566E).
     mem8[record + 0x02] = facing;
@@ -129,9 +129,9 @@ export function commissionStagedAttackerByEra(m, spawnerRecord = m.regs.ix, spaw
   if (era >= 3) {
     mem8[record + 0x02] = aim;
   } else {
-    let a = ((mem8[record + 0x0f] >> 1) | (mem8[record + 0x0f] << 7)) & 0xff; // rrca
-    a = (a & 0x80) + 0x40; // 0x40 or 0xC0: a quarter turn either side, picked by bit 0 of the stored byte
-    mem8[record + 0x02] = (a + mem8[record + 0x01]);
+    let skew = ((mem8[record + 0x0f] >> 1) | (mem8[record + 0x0f] << 7)) & 0xff; // rrca
+    skew = (skew & 0x80) + 0x40; // 0x40 or 0xC0: a quarter turn either side, picked by bit 0 of the stored byte
+    mem8[record + 0x02] = (skew + mem8[record + 0x01]);
   }
   // Point the sprite along the flight heading (call 0x3FAF), clear +0x0E, and finish. Sound: era 4
   // requestAttackerSpawnSoundLateEra (0x5674), eras 1-2 requestTwoSoundsWhilePlaying (0x566E).

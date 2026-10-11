@@ -83,7 +83,7 @@ def _stubbed(responded, diff_px, offset, seen):
     gate handed each: rough_verdict's is the call with a non-zero from_frame, the distant-state
     window (the whole-run window starts at pixel_suite.DIFF_FROM, 0)."""
     w, h, bpf = ps.pixel_gate.screen_geometry(ps.HW)
-    real = (ps.capture_golden, ds.render_js, ds.band_scan, ps.pixel_gate.rough_verdict, ds.subprocess)
+    real = (ps.capture_golden, ds.render_js, ds.band_scan, ps.pixel_gate.rough_verdict, ds.subprocess, ps.sound_gate)
 
     def capture(_rompath, out, _tape):
         os.makedirs(out, exist_ok=True)
@@ -119,10 +119,13 @@ def _stubbed(responded, diff_px, offset, seen):
     ps.capture_golden, ds.render_js = capture, render
     ds.band_scan, ps.pixel_gate.rough_verdict = band, rough
     ds.subprocess = SimpleNamespace(run=run_cmd)
+    # the synthetic dumps carry no sound-latch stream; the latch verdict is not what this harness tests
+    ps.sound_gate = lambda *_a, **_k: (True, "  sound 0xC000: not compared (synthetic dumps)")
     try:
         yield
     finally:
-        ps.capture_golden, ds.render_js, ds.band_scan, ps.pixel_gate.rough_verdict, ds.subprocess = real
+        (ps.capture_golden, ds.render_js, ds.band_scan, ps.pixel_gate.rough_verdict, ds.subprocess,
+         ps.sound_gate) = real
 
 
 def run(sched, diff_px):

@@ -30,11 +30,12 @@ export function freeAndNumberEveryObjectSlot(m) {
   const { mem8 } = m;
   // One pass over the run: free the record (`ld (ix+0x00),0x00`) and stamp its 1-based position
   // (`ld (ix+0x0f),a / inc a`, A starting at 1).
+  let record = ACTOR_RECORD_SLOT0;
   for (let i = 0; i < RECORDS; i++) {
-    const record = ACTOR_RECORD_SLOT0 + i * RECORD_BYTES;
     mem8[record + STATE] = 0;
     mem8[record + NUMBER] = i + 1;
+    record += RECORD_BYTES;
   }
   // The walk's record cursor ends one record past the run (`add ix,de` after the last record).
-  return ACTOR_RECORD_SLOT0 + RECORDS * RECORD_BYTES;
+  return record;
 }

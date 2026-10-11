@@ -15,7 +15,7 @@ import { makeMachine, COIN_FRAME, START_FRAME, ENTRY_FRAMES, romsPresent } from 
 import { ROUTINES as TRANSLATED } from "../../routines.js";
 import { runOneShotAnimatedObjectSlot as candidate } from "../runOneShotAnimatedObjectSlot.js";
 import { loc_406c as oracle } from "../../translated/loc_406c.js";
-import { stampObjectStateByte3bThenRequestSound } from "../stampObjectStateByte3bThenRequestSound.js";
+import { clampOneShotCountdownThenRequestSound } from "../clampOneShotCountdownThenRequestSound.js";
 import { driftWithWorldScroll } from "../driftWithWorldScroll.js";
 import { fetchTableByte } from "../fetchTableByte.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
@@ -159,7 +159,7 @@ function twin({ rearm = true, drift = true, floor = SHAPE_FLOOR, table = SHAPE_T
     const { regs, mem8 } = m;
     const object = regs.ix;
     const sprite = regs.iy;
-    if (rearm && mem8[object + COUNTER] >= REARM_AT) stampObjectStateByte3bThenRequestSound(m);
+    if (rearm && mem8[object + COUNTER] >= REARM_AT) clampOneShotCountdownThenRequestSound(m);
     mem8[object + COUNTER] = (mem8[object + COUNTER] - 1) & 0xff;
     if (mem8[object + COUNTER] === 0) {
       if (clear) {
