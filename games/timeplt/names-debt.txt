@@ -14,6 +14,7 @@ loc_2251  DEMO_AUTOPILOT_SCRIPT_SECOND's bytes run as code only when the tile-im
 loc_307f  caption record 2 ("READY") run as code, entered only through trampolineToLoc_307f on a failed TAMPER_WITNESS check; its last-slot arm unwinds the stack and is never taken; cert code, not a routine of its own
 loc_315b  a bare jp into the per-era scenery row table 0x3176, taken only on a failed caption-witness check; the module raises; no effect of its own to name
 loc_15b5  a lone ret filling slot 15 of the 0x0F29 sub-step arm table; nibble 15 is never dispatched (unreachable filler), reads and writes nothing; no effect to name
+loc_0bdc  a lone ret filling slots 8, 9 and 12-15 of the 0x0BBC command handler table; no poster posts those commands (unreachable filler), reads and writes nothing; no effect to name
 #
 # Recorded keep-hex decisions in names.js (binding per runbook "Recorded keep-hex decisions are binding"):
 loc_10f8  names.js why: no absolute entry point -- reached only by relative branches interior to multiplexSpriteSlots (0x1098-0x1198); a range fragment, not its own routine

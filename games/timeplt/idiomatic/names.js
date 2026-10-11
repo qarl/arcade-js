@@ -3292,6 +3292,16 @@ export const ROUTINES = {
     role: "the foreground loop: take commands off the ring one at a time and run each, for ever. A read cursor names a cell; while its high bit is set the cell is empty and the loop polls again -- the ring is refilled from outside the loop, so this is where the foreground waits for the frame. An occupied cell gives up a command byte and an argument byte, both freed BEFORE the command runs so a command may reuse the pair it arrived in, and the command's low nibble indexes a sixteen-way table. Where the handler lands is the exit test: it is handed one fixed place to come back to, and anything else means it has taken the machine somewhere this loop no longer owns",
     cert: "seen",
   },
+  0x0bdc: {
+    name: "loc_0bdc",
+    role: "a lone `ret` filling slots 8, 9 and 12-15 of the sixteen-word command handler table at 0x0BBC that runCommandRingDrainLoop indexes by the command's low nibble: it reads and writes nothing and returns to the top of the drain loop, so such a command only frees its pair. The address occurs in the image only as those six table words. No poster puts a command with one of those low nibbles on the ring, so the slots are unreachable filler",
+    cert: "code",
+  },
+  0x0bdd: {
+    name: "loc_0bdd",
+    role: "command 0's handler (word 0 of the handler table at 0x0BBC): paint the glyph run of the caption record an index selects from CAPTION_RECORD_TABLE into the character plane, one cell along the line per glyph from the record's start cell, stepping over the record's colour byte and writing no colour cell. No poster in the image puts command 0 on the ring, so the handler is never dispatched; its bytes are still read as part of the IMAGE_GUARD_BLOCK_0BDD_BASE checksum span",
+    cert: "code",
+  },
   0x0c0f: {
     name: "drawCaptionInPenColour",
     role: "paint the caption a caller's index selects, taking the glyph run from a record in the table at 0x0C50 and colouring every cell from the low nibble of the shared colour cell instead of from the record's own colour byte",

@@ -45,10 +45,11 @@
  * HOLE: every dispatch any of the three tapes produces sits in the FIRST era, which the corpus arm
  * asserts. This entry reads no era cell, so what it does cannot depend on one — but nothing here
  * speaks for the states a later era dispatches it in, because none was reached.
- * HOLE: THE WHOLE-RUN ARM IS PARTLY BLIND TO THE PAIR'S VALUE. Two twins that queue a different
- * pair leave the session identical outside the scratch window, so it is the unit arms, not the
- * whole-run one, that hold this entry to the pair it chooses. The per-twin verdicts are measured
- * and asserted individually rather than summarised, so a twin that changes side fails loudly.
+ * HOLE: THE WHOLE-RUN ARM IS BLIND TO THE APPEND'S GUARD AND CURSOR. The ignores-guard and
+ * cursor-runs-on twins leave no more differing cells than the scratch window holds, so it is the
+ * unit arms, not the whole-run one, that hold this entry to the append it transfers to. The
+ * per-twin verdicts are measured and asserted individually rather than summarised, so a twin that
+ * changes side fails loudly.
  *
  * Run: node --test games/timeplt/idiomatic/test/equivalence-0b46.test.js
  */
@@ -386,8 +387,8 @@ const TWINS = [
   ["no-op", brokenNoOp, 1024, [103, 103, 257], true],
   ["argument-off-by-one", brokenArgumentOffByOne, 1024, [103, 103, 257], true],
   ["command-off-by-one", brokenCommandOffByOne, 1024, [103, 103, 257], true],
-  ["swaps-pair", brokenSwapsPair, 1024, [103, 103, 257], false],
-  ["forwards-callers-pair", brokenForwardsCallersPair, 1024, [103, 103, 257], false],
+  ["swaps-pair", brokenSwapsPair, 1024, [103, 103, 257], true],
+  ["forwards-callers-pair", brokenForwardsCallersPair, 1024, [103, 103, 257], true],
   ["ignores-guard", brokenIgnoresGuard, 512, [0, 0, 0], false],
   ["cursor-runs-on", brokenCursorRunsOn, 384, [0, 0, 0], false],
   ["drops-the-pair", brokenDropsThePair, 1024, [103, 103, 257], true],

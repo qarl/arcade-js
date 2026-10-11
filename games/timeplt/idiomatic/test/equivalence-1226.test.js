@@ -34,7 +34,8 @@
  *      there because the armed dispatch happens to arrive holding the value the oracle leaves.
  *   8. WHOLE-MACHINE — the two sessions that reach the caller, the rewrite wired through the
  *      omitted-return seam, compared frame by frame for their whole length.
- *   9. TEETH/seam — the same wiring with the seam removed, which must die.
+ *   9. TEETH/seam — the same wiring with the seam removed, which must die or diverge outside the
+ *      dead stack bytes.
  *  10. TEETH — eight twins, each with an exact crafted count, an exact per-tape armed count, and a
  *      recorded whole-machine verdict.
  *
@@ -436,14 +437,18 @@ for (const [label, opts] of DRIVEN) {
   });
 }
 
-test("TEETH/seam: without the omitted-return seam the session dies", { skip }, () => {
+test("TEETH/seam: without the omitted-return seam the session dies or diverges", { skip }, () => {
   const r = wholeRunCells(handPlayOverToOtherPlayer, "shared", {}, (fn) => fn);
+  const diverged = r.cells.length > SESSION_SCRATCH.length;
   assert.ok(
-    r.threw !== null || r.stopped !== null,
-    "the run COMPLETED with the seam removed, so the caller of this address no longer expects a " +
-      "return and the whole-machine arms above should drop the seam rather than keep it",
+    r.threw !== null || r.stopped !== null || diverged,
+    "the run matched the oracle with the seam removed, so the caller of this address no longer " +
+      "expects a return and the whole-machine arms above should drop the seam rather than keep it",
   );
-  console.log(`  TEETH/seam: the unshimmed rewrite dies — ${r.threw ?? r.stopped}`);
+  console.log(
+    `  TEETH/seam: the unshimmed rewrite ${diverged ? `diverges in ${r.cells.length} cells` : "dies"} — ` +
+      `${r.threw ?? r.stopped ?? r.cells.slice(0, 4).map(hex4).join(" ")}`,
+  );
 });
 
 // ── teeth ───────────────────────────────────────────────────────────────────────────────

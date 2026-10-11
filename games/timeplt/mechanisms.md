@@ -1454,7 +1454,7 @@ Most text is not drawn by the code that decides to show it. The sequence arms ru
 | 10 | drawCaptionFivePastSharedColour [seen] | caption, pen colour + 5 |
 | 11 | drawCaptionTenPastSharedColour [seen] | caption, pen colour + 10 |
 
-Commands 8, 9 and 12–15 all point at 0x0BDC, which is a single RET byte. Taking one of them only consumes the pair. Command 0 points at 0x0BDD, the byte after that RET; see the last subsection.
+Commands 8, 9 and 12–15 all point at loc_0bdc [code] at 0x0BDC, which is a single RET byte. Taking one of them only consumes the pair. Command 0 points at loc_0bdd [code] at 0x0BDD, the byte after that RET; see the last subsection. (Both are translated; understanding pending.)
 
 **Who posts what.** The attract screens post their layout as a burst of command-1 captions (buildCopyrightScreenThenVerifyImage [seen], postAttractInfoCaptions [seen], armAttractScreenShowingHighScore [seen], showCreditLine [seen], stepCopyrightScreenAwaitingStart [seen]). holdCopyrightThenEraseTheCoinInvitation [seen] erases the coin invitation pair with command 3.
 
