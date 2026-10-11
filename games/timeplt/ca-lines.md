@@ -10,10 +10,10 @@
 0018	add the unsigned byte offset onto the address
 001A	no carry -- the address's high half stands
 001B	carry into the address's high byte
-0021	take thirty-two off the cursor's address: the next cell on along the line
+0021	take thirty-two off the cursor's address: the next cell on along the column
 0024	no borrow -- the cursor's high byte stands
 0025	borrow into the cursor's high byte
-0029	add thirty-two to the cursor's address: one cell back along the line
+0029	add thirty-two to the cursor's address: one cell back along the column
 002C	no carry -- the cursor's high byte stands
 002D	carry into the cursor's high byte
 0030	take the inline word table the caller left behind -- its return address points straight at it
@@ -58,9 +58,9 @@
 00A8	raise the interrupt-enable line from the low bit the caller carries
 00AB	kick the watchdog
 00AE	fall into the foreground command loop, never to return
-00B1	point the cursor one line above the lattice's first band
+00B1	point the cursor one row above the lattice's first band
 00B4	fourteen bands to lay down
-00B9	step down a line before this band -- from the seat line 0xA420 to 0xA440 the first time, past the previous band's lower row after that, so the bands come out contiguous
+00B9	step down a row before this band -- from the seat row 0xA420 to 0xA440 the first time, past the previous band's lower row after that, so the bands come out contiguous
 00BA	sixteen boxes across the band
 00BC	stamp one box at the cursor
 00BF	step the cursor two cells on to the next box
@@ -127,8 +127,8 @@
 0198	leave the pointer just past the entry
 019A	the character plane's first cell
 019D	seat the wipe cursor there
-01A0	thirty-two lines -- the whole plane
-01A2	set that as the lines-left count
+01A0	thirty-two columns -- the whole plane
+01A2	set that as the columns-left count
 01A5	two hundred forty bytes of the image to fold
 01A7	point at the checked run of the program image
 01AA	clear the running total
@@ -138,21 +138,21 @@
 01B1	on a tampered image, transfer into bytes that carry no routine
 01B5	the plane's fifth cell, where this wipe starts
 01B8	seat the wipe cursor there
-01BB	take the line count from a fixed cell of the program image
-01BE	set it as the lines-left count
-01C2	fetch the wipe cursor -- where this line starts
-01C5	thirty-two cells across the line
+01BB	take the column count from a fixed cell of the program image
+01BE	set it as the columns-left count
+01C2	fetch the wipe cursor -- where this column starts
+01C5	thirty-two cells down the column
 01C7	the step from one cell to the next
 01CA	lay a blank glyph in this cell
 01CC	cross to the colour plane for the same cell
 01CE	set its colour
 01D0	cross back to the glyph plane
-01D2	step to the next cell of the line
+01D2	step to the next cell of the column
 01D3	on across all thirty-two cells
 01D5	reload the wipe cursor
-01D8	step it on to the start of the next line
+01D8	step it on to the start of the next column
 01D9	store the advanced cursor
-01DF	count the lines still owed down by one
+01DF	count the columns still owed down by one
 01E2	send the pen back to leg zero of its route
 01E5	the route's first row coordinate, from the program image
 01E8	seat the pen's row -- whole cell and fraction together
@@ -634,7 +634,7 @@
 0E73	back to the base code
 0E74	step one cell back
 0E75	lay the top-left quarter (the base code)
-0E76	drop down one line
+0E76	drop down one row
 0E77	the base code again
 0E78	the bottom-left quarter is base+2
 0E7A	lay it in
@@ -643,7 +643,7 @@
 0E7D	lay it in
 0E7E	offset down to the colour plane
 0E81	point at the bottom-right quarter's colour cell
-0E82	leave the cursor two lines on, clear of the block
+0E82	leave the cursor two rows on, clear of the block
 0E83	colour the bottom-right quarter
 0E84	step back one cell
 0E85	colour the bottom-left quarter
@@ -1337,8 +1337,8 @@
 15F6	over all 256 bytes
 15F8	exclusive-or a fixed key into the result
 15FA	write it back as the phase -- corrupts the sequence if the image was altered
-15FE	blank one line of the character plane
-1601	more lines still to blank -- leave until the block is cleared
+15FE	blank one column of the character plane
+1601	more columns still to blank -- leave until the block is cleared
 1602	command 1, argument 5
 1605	queue it on the request ring
 1606	argument 6
@@ -1539,7 +1539,7 @@
 1821	point at the character cell to sample
 1824	point at the two-byte record to hold it
 1827	copy the cell's glyph and colour into the record
-182A	arm the line wipe from the plane's fifth line
+182A	arm the column wipe from the plane's fifth column
 182D	step the sequence sub-index
 1830	re-stamp the copyright caption strip
 1833	flash the copyright line
@@ -1758,9 +1758,9 @@
 1B01	read the same cell's colour
 1B02	store it beside the glyph
 1ED1	read the screen-orientation flag
-1ED5	point at the first panel's control mirror
+1ED5	point at the first panel's inverted control copy
 1ED8	unflipped: use that panel
-1EDA	flipped: use the second panel's mirror
+1EDA	flipped: use the second panel's inverted copy
 1EDD	hand back the chosen panel's control word
 1EDF	point at the player record
 1EE3	and its paired sprite entry
@@ -2199,8 +2199,8 @@
 2A0D	otherwise turn toward aim at the standing rate
 2A10	read the frame tick counter
 2A14	isolate bit 1 of it
-2A16	that bit clear: fly the slot at double velocity
-2A19	otherwise fly it at single velocity
+2A16	that bit clear: fly the slot at twice the bottom table's pace -- the faster of the two
+2A19	otherwise fly it once at the second-fastest table's pace
 2A1D	force the era index to zero -- it keys the turn-rate table
 2A20	turn toward aim at that forced rate
 2A25	reseat the era index to four
@@ -2359,8 +2359,8 @@
 2CD1	drift a two-tile scenery object at three quarters
 2CD4	and another two-tile object at three quarters
 2CD7	drift a one-tile object at half -- the farthest, slowest layer
-2CDB	blank the next line of the wipe; comes back saying whether any lines are still owed
-2CDE	lines still owed -- end the turn here
+2CDB	blank the next column of the wipe; comes back saying whether any columns are still owed
+2CDE	columns still owed -- end the turn here
 2CDF	four passes of...
 2CE2	...the fixed 1024-byte program-image block at $4980
 2CE5	clear the running total
@@ -2635,19 +2635,19 @@
 31E7	any other head: leave
 31E8	step the craft along its flight script
 31EB	read its steering order
-31EE	hold the heading?
+31EE	hold the current aim?
 31F0	hold: nothing more to do
 31F1	the turn-away order?
-31F3	yes: turn directly away from the anchor, then hold
+31F3	yes: aim directly away from the anchor, then hold
 31F5	order x 2 to index the aim table
 31F6	point at the aim-point table
 31F9	index it by the order
 31FA	compute the heading toward that aim point
-31FD	store it as the craft's heading
+31FD	store it as the craft's aim heading
 3201	point at the aim-point table base
 3204	compute the heading toward it
 3207	turn it a half-circle
-3209	store as the craft's heading
+3209	store as the craft's aim heading
 320C	set the order to hold
 3210	clear its script position
 3215	park the caption sprites off-screen
@@ -2914,8 +2914,8 @@
 372A	write it to the sprite entry's +0x00 coordinate
 372D	read the player heading
 3730	flip it half a turn
-3732	store it as the craft's heading
-3735	and as its facing
+3732	store it as the craft's aim heading
+3735	and as its current heading
 3738	pick a script at random or in turn
 373B	offset the script number by nine
 373D	store the script index
@@ -3007,9 +3007,9 @@
 3800	read the spawn record's X byte
 3801	write it to the entry head
 3804	read the player heading
-3807	flip it half a turn -- the craft's heading
-3809	store the heading
-380C	and the facing
+3807	flip it half a turn -- the craft's starting heading
+3809	store it as the aim heading
+380C	and as the current heading
 380F	pick a script at random or in turn
 3812	store the script index
 3816	clear the spare byte nothing reads
@@ -3069,8 +3069,8 @@
 3897	read the record's X
 3898	write it to the entry head
 389C	read the record's heading byte
-389D	store it as the heading
-38A0	and as the facing
+389D	store it as the aim heading
+38A0	and as the current heading
 38A3	read the round's craft count
 38A6	subtract the remaining count -- the ordinal within the pass
 38A7	point at the ordinal table
@@ -4162,7 +4162,7 @@
 4873	on to the X
 4875	seat it
 4878	zero its Y velocity word
-4880	set its downward drift speed
+4880	set its X velocity word: a slow drift toward larger X
 4888	mark the slot live last, so it never runs with stale contents
 48AD	clear the record's occupancy byte -- the object leaves play
 48B1	clear the sprite entry's X

@@ -19,7 +19,7 @@ whose role is only partly pinned, carry a terse caveat.
 | a811 | waveKillCountdown | How many more qualifying kills until the current wave's shared claim fires. |
 | a812 | waveClaimTimer | Frame-countdown window during which a spawned wave's shared claim is armed. |
 | a814 | bankLaunchCooldownPeriod | Reload period (interval constant) that re-arms BANK_LAUNCH_COOLDOWN after a launch; never decremented. |
-| a817 | bankLaunchCooldown | Live per-vblank cooldown for the bank-launch arm (launchBankEnemyWhenAimedNearPlayer) and the Mother-Ship's aimed shot. |
+| a817 | bankLaunchCooldown | Live per-vblank cooldown for the bank-launch arm (launchBankEnemyWhenAimedNearPlayer) and the Mother-Ship's aimed shot, and in attract the tamper self-check's checksum verdict. |
 | a820 | actorRecordSlot1 | Actor slot 1's record head. |
 | a821 | claimToken | The shared "last of the wave" token, holding one claimant at a time. |
 | a827 | bankLaunchNearHalfWidth | Near-band proximity half-width gating a bank launch, the same value on both axes. |
@@ -45,7 +45,7 @@ whose role is only partly pinned, carry a terse caveat.
 | a8e0 | eraObjectRecordSlot2 | Era-object bank slot 2's record head; also doubles as the aimed-spawn era "bank B" record seat. |
 | a8e6 | attackerSpawnAimWindowHalf | Half-width of the final launch-facing window for the attacker spawn. |
 | a8f0 | parachutistRecord | The parachutist's record head (array slot 15); its +7 is PARACHUTIST_RUNG 0xa8f7. |
-| a8f4 | attackerSpawnCooldown | Live shared per-vblank cooldown for the era attacker-bank spawn arms. |
+| a8f4 | attackerSpawnCooldown | Live shared cooldown for the era attacker-bank spawn arms, wound down every vblank and also by launchAttackerIntoFreeSlot. |
 | a8f6 | attackerSpawnCooldownPeriod | Reload period (interval constant) for ATTACKER_SPAWN_COOLDOWN; never decremented. |
 | a8f7 | parachutistRung | How many rescue awards this life has already been paid, which is the rung the next one takes. |
 | a900 | sceneryRecordSlot0 | Scenery record base, scenery slot 0 (array slot 16); the record cursor runSceneryForEra starts from (paired with SCENERY_ENTRY_SLOT0). |

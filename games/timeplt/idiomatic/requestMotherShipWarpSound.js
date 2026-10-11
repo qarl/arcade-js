@@ -4,10 +4,11 @@
  *
  * ROM 0x580B-0x5810 (frozen lift loc_580b). Grounding: [seen] (names.js ROUTINES 0x580B).
  *
- * Role in the machine: the warp sound. loc_43f0 asks for it (mechanisms.md places the
- * request in the sweep that follows the Mother-Ship's destruction) and
- * setUpTwoPlayerStartObjectOnce asks for it too; both callers first check that PLAYER_STATE reads
- * 0xFF, i.e. the player is alive.
+ * Role in the machine: the warp sound. Its one call in the image is `call z,0x580b` at 0x463A, in
+ * loc_43f0's flash step for the dying Mother-Ship (head 0xB4, `jr z,0x4623` at 0x45E2; mechanisms.md
+ * places the request at that flash step), made only when PLAYER_STATE reads 0xFF, i.e. the player
+ * is alive. setUpTwoPlayerStartObjectOnce reaches that same call only on its tamper arm, by
+ * falling into 0x4623.
  *
  * The code is MOTHER_SHIP_WARP_SOUND (0x49EE), a byte of the program ROM read as data, not an
  * immediate operand. It goes through enqueueSoundIfGameInProgress, so it is queued only while

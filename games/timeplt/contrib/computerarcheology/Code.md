@@ -91,7 +91,7 @@ offsetAddress:
 ; drawn
 advanceCharCursor:
 0020: 7B              LD      A,E                 
-0021: D6 20           SUB     $20                 ; take thirty-two off the cursor's address: the next cell on along the line
+0021: D6 20           SUB     $20                 ; take thirty-two off the cursor's address: the next cell on along the column
 0023: 5F              LD      E,A                 
 0024: D0              RET     NC                  ; no borrow -- the cursor's high byte stands
 0025: 15              DEC     D                   ; borrow into the cursor's high byte
@@ -104,7 +104,7 @@ advanceCharCursor:
 ; the inverse of the advance vector
 retreatCharCursor:
 0028: 7B              LD      A,E                 
-0029: C6 20           ADD     A,$20               ; add thirty-two to the cursor's address: one cell back along the line
+0029: C6 20           ADD     A,$20               ; add thirty-two to the cursor's address: one cell back along the column
 002B: 5F              LD      E,A                 
 002C: D0              RET     NC                  ; no carry -- the cursor's high byte stands
 002D: 14              INC     D                   ; carry into the cursor's high byte
@@ -212,12 +212,12 @@ enableInterruptAndEnterForegroundLoop:
 ; contiguous; every position is counted out here and nothing is read to
 ; decide where a box goes
 tileCharPlaneWithBoxLattice:
-00B1: 21 20 A4        LD      HL,$A420            ; point the cursor one line above the lattice's first band
+00B1: 21 20 A4        LD      HL,$A420            ; point the cursor one row above the lattice's first band
 00B4: 0E 0E           LD      C,$0E               ; fourteen bands to lay down
 
 loc_00b6:
 00B6: 11 20 00        LD      DE,$0020            
-00B9: 19              ADD     HL,DE               ; step down a line before this band -- from the seat line 0xA420 to 0xA440 the first time, past the previous band's lower row after that, so the bands come out contiguous
+00B9: 19              ADD     HL,DE               ; step down a row before this band -- from the seat row 0xA420 to 0xA440 the first time, past the previous band's lower row after that, so the bands come out contiguous
 00BA: 06 10           LD      B,$10               ; sixteen boxes across the band
 
 loc_00bc:
@@ -427,8 +427,8 @@ loc_0195:
 armWholePlaneWipeThenDerailOnATamperedImage:
 019A: 21 00 A4        LD      HL,$A400            ; the character plane's first cell
 019D: 22 89 A9        LD      ($A989),HL          ; {hard.workRam+189} seat the wipe cursor there
-01A0: 3E 20           LD      A,$20               ; thirty-two lines -- the whole plane
-01A2: 32 88 A9        LD      ($A988),A           ; {hard.workRam+188} set that as the lines-left count
+01A0: 3E 20           LD      A,$20               ; thirty-two columns -- the whole plane
+01A2: 32 88 A9        LD      ($A988),A           ; {hard.workRam+188} set that as the columns-left count
 01A5: 06 F0           LD      B,$F0               ; two hundred forty bytes of the image to fold
 01A7: 21 A5 4B        LD      HL,$4BA5            ; point at the checked run of the program image
 01AA: AF              XOR     A                   ; clear the running total
@@ -448,16 +448,16 @@ loc_01ab:
 armLineWipeFromFifthLine:
 01B5: 21 04 A4        LD      HL,$A404            ; the plane's fifth cell, where this wipe starts
 01B8: 22 89 A9        LD      ($A989),HL          ; {hard.workRam+189} seat the wipe cursor there
-01BB: 3A CD 0C        LD      A,($0CCD)           ; {hard.rom+CCD} take the line count from a fixed cell of the program image
-01BE: 32 88 A9        LD      ($A988),A           ; {hard.workRam+188} set it as the lines-left count
+01BB: 3A CD 0C        LD      A,($0CCD)           ; {hard.rom+CCD} take the column count from a fixed cell of the program image
+01BE: 32 88 A9        LD      ($A988),A           ; {hard.workRam+188} set it as the columns-left count
 01C1: C9              RET                         
 
 ; blank one line of the character plane in both planes, step the wipe's
 ; cursor on to the next line, and count the lines still owed down by one;
 ; the zero test is left in the flags for the caller
 blankNextLine:
-01C2: 2A 89 A9        LD      HL,($A989)          ; {hard.workRam+189} fetch the wipe cursor -- where this line starts
-01C5: 06 20           LD      B,$20               ; thirty-two cells across the line
+01C2: 2A 89 A9        LD      HL,($A989)          ; {hard.workRam+189} fetch the wipe cursor -- where this column starts
+01C5: 06 20           LD      B,$20               ; thirty-two cells down the column
 01C7: 11 20 00        LD      DE,$0020            ; the step from one cell to the next
 
 loc_01ca:
@@ -465,13 +465,13 @@ loc_01ca:
 01CC: CB 94           RES     2,H                 ; cross to the colour plane for the same cell
 01CE: 36 10           LD      (HL),$10            ; set its colour
 01D0: CB D4           SET     2,H                 ; cross back to the glyph plane
-01D2: 19              ADD     HL,DE               ; step to the next cell of the line
+01D2: 19              ADD     HL,DE               ; step to the next cell of the column
 01D3: 10 F5           DJNZ    $01CA               ; {code.loc_01ca} on across all thirty-two cells
 01D5: 2A 89 A9        LD      HL,($A989)          ; {hard.workRam+189} reload the wipe cursor
-01D8: 23              INC     HL                  ; step it on to the start of the next line
+01D8: 23              INC     HL                  ; step it on to the start of the next column
 01D9: 22 89 A9        LD      ($A989),HL          ; {hard.workRam+189} store the advanced cursor
 01DC: 21 88 A9        LD      HL,$A988            
-01DF: 35              DEC     (HL)                ; count the lines still owed down by one
+01DF: 35              DEC     (HL)                ; count the columns still owed down by one
 01E0: C9              RET                         
 
 ; put the cell-stamping pen back at the start of its route -- leg index to
@@ -2313,7 +2313,7 @@ paintQuadTile:
 0E73: 3D              DEC     A                   ; back to the base code
 0E74: 1B              DEC     DE                  ; step one cell back
 0E75: 12              LD      (DE),A              ; lay the top-left quarter (the base code)
-0E76: EF              RST     $28                 ; drop down one line
+0E76: EF              RST     $28                 ; drop down one row
 0E77: 78              LD      A,B                 ; the base code again
 0E78: C6 02           ADD     A,$02               ; the bottom-left quarter is base+2
 0E7A: 12              LD      (DE),A              ; lay it in
@@ -2322,7 +2322,7 @@ paintQuadTile:
 0E7D: 12              LD      (DE),A              ; lay it in
 0E7E: 21 00 FC        LD      HL,$FC00            ; offset down to the colour plane
 0E81: 19              ADD     HL,DE               ; point at the bottom-right quarter's colour cell
-0E82: EF              RST     $28                 ; leave the cursor two lines on, clear of the block
+0E82: EF              RST     $28                 ; leave the cursor two rows on, clear of the block
 0E83: 71              LD      (HL),C              ; colour the bottom-right quarter
 0E84: 2B              DEC     HL                  ; step back one cell
 0E85: 71              LD      (HL),C              ; colour the bottom-left quarter
@@ -3711,8 +3711,8 @@ loc_15f3:
 ; digit high-score readout, set the outer phase to 1 and the inner step to
 ; 2, and enqueue a fifth command when free play is set
 armAttractScreenShowingHighScore:
-15FE: CD C2 01        CALL    $01C2               ; {code.blankNextLine} blank one line of the character plane
-1601: C0              RET     NZ                  ; more lines still to blank -- leave until the block is cleared
+15FE: CD C2 01        CALL    $01C2               ; {code.blankNextLine} blank one column of the character plane
+1601: C0              RET     NZ                  ; more columns still to blank -- leave until the block is cleared
 1602: 11 05 01        LD      DE,$0105            ; command 1, argument 5
 1605: FF              RST     $38                 ; queue it on the request ring
 1606: 1C              INC     E                   ; argument 6
@@ -4105,7 +4105,7 @@ parkSpritesAndArmLineWipeThenAdvanceSequence:
 1821: 21 FC A5        LD      HL,$A5FC            ; point at the character cell to sample
 1824: 11 BE AC        LD      DE,$ACBE            ; point at the two-byte record to hold it
 1827: CD FC 1A        CALL    $1AFC               ; {code.sampleCellGlyphAndColour} copy the cell's glyph and colour into the record
-182A: CD B5 01        CALL    $01B5               ; {code.armLineWipeFromFifthLine} arm the line wipe from the plane's fifth line
+182A: CD B5 01        CALL    $01B5               ; {code.armLineWipeFromFifthLine} arm the column wipe from the plane's fifth column
 182D: C3 1A 0F        JP      $0F1A               ; {code.advanceSequenceSubStep} step the sequence sub-index
 
 ; one arm of the two-level sequence machine (inner index 2 of
@@ -4628,9 +4628,9 @@ sampleCellGlyphAndColour:
 readPlayerControls:
 1ED1: 3A 87 A9        LD      A,($A987)           ; {hard.workRam+187} read the screen-orientation flag
 1ED4: A7              AND     A                   
-1ED5: 21 AF A9        LD      HL,$A9AF            ; point at the first panel's control mirror
+1ED5: 21 AF A9        LD      HL,$A9AF            ; point at the first panel's inverted control copy
 1ED8: 20 03           JR      NZ,$1EDD            ; {code.loc_1edd} unflipped: use that panel
-1EDA: 21 B0 A9        LD      HL,$A9B0            ; flipped: use the second panel's mirror
+1EDA: 21 B0 A9        LD      HL,$A9B0            ; flipped: use the second panel's inverted copy
 
 loc_1edd:
 1EDD: 7E              LD      A,(HL)              ; hand back the chosen panel's control word
@@ -5905,8 +5905,8 @@ loc_2a10:
 2A10: 3A 80 A9        LD      A,($A980)           ; {hard.workRam+180} read the frame tick counter
 2A13: 0F              RRCA                        
 2A14: E6 01           AND     $01                 ; isolate bit 1 of it
-2A16: CA AA 58        JP      Z,$58AA             ; {code.loc_58aa} that bit clear: fly the slot at double velocity
-2A19: C3 60 58        JP      $5860               ; {code.flyAtSecondFastestSpeed} otherwise fly it at single velocity
+2A16: CA AA 58        JP      Z,$58AA             ; {code.loc_58aa} that bit clear: fly the slot at twice the bottom table's pace -- the faster of the two
+2A19: C3 60 58        JP      $5860               ; {code.flyAtSecondFastestSpeed} otherwise fly it once at the second-fastest table's pace
 
 loc_2a1c:
 2A1C: AF              XOR     A                   
@@ -6312,8 +6312,8 @@ runSceneryForEra:
 ; inner index somewhere else entirely -- derailing the sequence rather
 ; than halting it
 blankOneLineThenGuardBlockOrDerailSequence:
-2CDB: CD C2 01        CALL    $01C2               ; {code.blankNextLine} blank the next line of the wipe; comes back saying whether any lines are still owed
-2CDE: C0              RET     NZ                  ; lines still owed -- end the turn here
+2CDB: CD C2 01        CALL    $01C2               ; {code.blankNextLine} blank the next column of the wipe; comes back saying whether any columns are still owed
+2CDE: C0              RET     NZ                  ; columns still owed -- end the turn here
 2CDF: 01 04 00        LD      BC,$0004            ; four passes of...
 2CE2: 21 80 49        LD      HL,$4980            ; ...the fixed 1024-byte program-image block at $4980
 2CE5: 97              SUB     A                   ; clear the running total
@@ -6880,11 +6880,12 @@ loc_3176:
 ; (0xad05) is 0 or 3, service enemy-craft slot (units digit, only slots
 ; 0-6 whose record head at 0xa850 reads 0xff): step that record's flight
 ; script (stepCraftFlightScript), then obey the steering order at ix+8 --
-; 0x10 holds the heading; 0x11 takes the heading toward the aim-table base
-; 0xac65, stores heading+0x80 (directly away) into ix+1 and sets
-; ix+8=0x10, ix+9=0; any other order indexes that aim-point table and
-; stores the heading toward the point straight into ix+1; on any other
-; tens digit hand off to layOutEnemyAimPointsFromScrollAngle
+; 0x10 keeps the current aim heading; 0x11 takes the heading toward the
+; aim-table base 0xac65, stores heading+0x80 (directly away) into the aim
+; heading ix+1 and sets ix+8=0x10, ix+9=0; any other order indexes that
+; aim-point table and stores the heading toward the point straight into
+; the aim heading ix+1; on any other tens digit hand off to
+; layOutEnemyAimPointsFromScrollAngle
 reaimEnemyCraftByFlightScriptOnPhaseTick:
 31B4: 3A 05 AD        LD      A,($AD05)           ; {hard.workRam+505} read the packed-decimal life-tick
 31B7: 4F              LD      C,A                 ; keep it
@@ -6917,22 +6918,22 @@ loc_31c9:
 31E7: C0              RET     NZ                  ; any other head: leave
 31E8: CD 3A 32        CALL    $323A               ; {code.stepCraftFlightScript} step the craft along its flight script
 31EB: DD 7E 08        LD      A,(IX+$08)          ; read its steering order
-31EE: FE 10           CP      $10                 ; hold the heading?
+31EE: FE 10           CP      $10                 ; hold the current aim?
 31F0: C8              RET     Z                   ; hold: nothing more to do
 31F1: FE 11           CP      $11                 ; the turn-away order?
-31F3: 28 0C           JR      Z,$3201             ; {code.loc_3201} yes: turn directly away from the anchor, then hold
+31F3: 28 0C           JR      Z,$3201             ; {code.loc_3201} yes: aim directly away from the anchor, then hold
 31F5: 87              ADD     A,A                 ; order x 2 to index the aim table
 31F6: 21 65 AC        LD      HL,$AC65            ; point at the aim-point table
 31F9: DF              RST     $18                 ; index it by the order
 31FA: CD B8 33        CALL    $33B8               ; {code.headingToward} compute the heading toward that aim point
-31FD: DD 77 01        LD      (IX+$01),A          ; store it as the craft's heading
+31FD: DD 77 01        LD      (IX+$01),A          ; store it as the craft's aim heading
 3200: C9              RET                         
 
 loc_3201:
 3201: 21 65 AC        LD      HL,$AC65            ; point at the aim-point table base
 3204: CD B8 33        CALL    $33B8               ; {code.headingToward} compute the heading toward it
 3207: C6 80           ADD     A,$80               ; turn it a half-circle
-3209: DD 77 01        LD      (IX+$01),A          ; store as the craft's heading
+3209: DD 77 01        LD      (IX+$01),A          ; store as the craft's aim heading
 320C: DD 36 08 10     LD      (IX+$08),$10        ; set the order to hold
 3210: DD 36 09 00     LD      (IX+$09),$00        ; clear its script position
 3214: C9              RET                         
@@ -7462,8 +7463,8 @@ loc_3717:
 372A: FD 77 00        LD      (IY+$00),A          ; write it to the sprite entry's +0x00 coordinate
 372D: 3A 02 A8        LD      A,($A802)           ; {hard.workRam+2} read the player heading
 3730: C6 80           ADD     A,$80               ; flip it half a turn
-3732: DD 77 01        LD      (IX+$01),A          ; store it as the craft's heading
-3735: DD 77 02        LD      (IX+$02),A          ; and as its facing
+3732: DD 77 01        LD      (IX+$01),A          ; store it as the craft's aim heading
+3735: DD 77 02        LD      (IX+$02),A          ; and as its current heading
 3738: CD 2D 38        CALL    $382D               ; {code.pickScriptAtRandomOrInTurn} pick a script at random or in turn
 373B: C6 09           ADD     A,$09               ; offset the script number by nine
 373D: DD 77 0A        LD      (IX+$0A),A          ; store the script index
@@ -7613,9 +7614,9 @@ spawnEnemyIntoFreeSlotElseStepSearch:
 3800: 7E              LD      A,(HL)              ; read the spawn record's X byte
 3801: FD 77 00        LD      (IY+$00),A          ; write it to the entry head
 3804: 3A 02 A8        LD      A,($A802)           ; {hard.workRam+2} read the player heading
-3807: C6 80           ADD     A,$80               ; flip it half a turn -- the craft's heading
-3809: DD 77 01        LD      (IX+$01),A          ; store the heading
-380C: DD 77 02        LD      (IX+$02),A          ; and the facing
+3807: C6 80           ADD     A,$80               ; flip it half a turn -- the craft's starting heading
+3809: DD 77 01        LD      (IX+$01),A          ; store it as the aim heading
+380C: DD 77 02        LD      (IX+$02),A          ; and as the current heading
 380F: CD 2D 38        CALL    $382D               ; {code.pickScriptAtRandomOrInTurn} pick a script at random or in turn
 3812: DD 77 0A        LD      (IX+$0A),A          ; store the script index
 3815: AF              XOR     A                   
@@ -7676,9 +7677,10 @@ closeOneTurnOfTheFreeSlotSearch:
 
 ; order the five enemy-craft records from 0xA850 (sixteen apart) to turn
 ; away: steering order +8 = 0x11 and script position +9 = 0, so no script
-; step replaces the order and the re-aim pass turns each craft to the
-; heading directly away from the 0xAC65 anchor, then holds it — but only
-; while the byte the caller points at (LIFE_TICKS_LOW) still reads zero
+; step replaces the order and the re-aim pass aims each craft at the
+; heading directly away from the 0xAC65 anchor, then holds that aim — but
+; only while the byte the caller points at (LIFE_TICKS_LOW) still reads
+; zero
 turnFiveCraftAway:
 3855: 7E              LD      A,(HL)              ; read the guard byte the caller points at
 3856: A7              AND     A                   ; test it
@@ -7724,8 +7726,8 @@ loc_3882:
 3898: FD 77 00        LD      (IY+$00),A          ; write it to the entry head
 389B: 23              INC     HL                  
 389C: 7E              LD      A,(HL)              ; read the record's heading byte
-389D: DD 77 01        LD      (IX+$01),A          ; store it as the heading
-38A0: DD 77 02        LD      (IX+$02),A          ; and as the facing
+389D: DD 77 01        LD      (IX+$01),A          ; store it as the aim heading
+38A0: DD 77 02        LD      (IX+$02),A          ; and as the current heading
 38A3: 3A C1 AC        LD      A,($ACC1)           ; {hard.workRam+4C1} read the round's craft count
 38A6: 90              SUB     B                   ; subtract the remaining count -- the ordinal within the pass
 38A7: 21 D2 38        LD      HL,$38D2            ; point at the ordinal table
@@ -9511,11 +9513,13 @@ loc_45f9:
 4609: FD 36 03 FF     LD      (IY+$03),$FF        
 460D: C9              RET                         
 
-; two-player-start setup arm (called from 0x189E): when the video cell
-; 0xA67C and work cell 0xAB43 disagree, decrement the counter at (IX+0),
-; seat 0xFE/0xFD and 0x6C/0x6C into the object slot at
-; (IY+1/+3/+0x30/+0x32), request sound 0x580B when 0xA800 is 0xFF, and
-; queue ring command 0x04/0x0D; a no-op when the two cells agree
+; tamper-witness test run at a two-player start (called from 0x189E): a
+; no-op when the video cell 0xA67C and work cell 0xAB43 agree; on a
+; mismatch it jumps (0x4643, then jp 0x461B) into eight shape-table bytes
+; that run as code and fall into 0x4623, which on whatever IX/IY the
+; caller left decrements the counter at (IX+0), seats 0xFE/0xFD and
+; 0x6C/0x6C into the object slot at (IY+1/+3/+0x30/+0x32), requests sound
+; 0x580B when 0xA800 is 0xFF, and queues ring command 0x04/0x0D
 setUpTwoPlayerStartObjectOnce:
 460E: 21 7C A6        LD      HL,$A67C            ; point at the watched video cell
 4611: 7E              LD      A,(HL)              ; read it
@@ -9878,7 +9882,7 @@ spawnAtEdgeAhead:
 4875: FD 77 00        LD      (IY+$00),A          ; seat it
 4878: DD 36 0A 00     LD      (IX+$0A),$00        ; zero its Y velocity word
 487C: DD 36 0B 00     LD      (IX+$0B),$00        
-4880: DD 36 0C 40     LD      (IX+$0C),$40        ; set its downward drift speed
+4880: DD 36 0C 40     LD      (IX+$0C),$40        ; set its X velocity word: a slow drift toward larger X
 4884: DD 36 0D 00     LD      (IX+$0D),$00        
 4888: DD 36 00 FF     LD      (IX+$00),$FF        ; mark the slot live last, so it never runs with stale contents
 488C: C9              RET                         
@@ -10457,8 +10461,9 @@ loadDefaultHighScores:
 trampolineToSelectFoldBlock:
 4BD9: C3 AE 08        JP      $08AE               ; {code.selectFoldBlock} hand on to the routine that picks a program block to fold
 
-; paint five labelled numeric readouts up the tile plane: seat each of
-; five source records (0xab08, stride 8), its tile-plane cursor cell
+; paint five labelled numeric readouts, each up one native tile-plane
+; column (on the quarter-turned monitor, five horizontal lines): seat each
+; of five source records (0xab08, stride 8), its tile-plane cursor cell
 ; (0xa711, stride 2) and its pen colour, then hand to the column painter
 ; paintLabelledNumericReadoutColumn; writes tile/colour cells
 ; 0xa0f1-0xa719
@@ -10488,10 +10493,11 @@ paintFiveLabelledNumericReadouts:
 ; ---- $4C14-$4C1E: data ----
 4C14: 73 A6 14 7E 29 F8 96 5D F3 13 B9
 
-; paint a labelled numeric readout as one upward tile-plane column: a
-; table-indexed three-tile pictogram (source lead byte x3 into 0x4cb4), a
-; six-digit field, then a three-tile suffix, each cell paired into the
-; colour plane with the caller's pen colour
+; paint a labelled numeric readout up one native tile-plane column (a
+; horizontal line on the quarter-turned monitor): a table-indexed three-
+; tile pictogram (source lead byte x3 into 0x4cb4), a six-digit field,
+; then a three-tile suffix, each cell paired into the colour plane with
+; the caller's pen colour
 paintLabelledNumericReadoutColumn:
 4C1F: E5              PUSH    HL                  ; save the source record pointer
 4C20: 7E              LD      A,(HL)              ; read the record's lead byte

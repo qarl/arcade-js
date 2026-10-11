@@ -8,7 +8,7 @@
  * (one fixed tint), so shapes advance at half the phase's speed.
  * Below 10 the object lives only while CLAIM_TOKEN names it — top bit set and low seven bits
  * matching this record's number, else it is retired; while named the phase advances unless FRAME_TICK's low three bits
- * are zero, a fixed shape and tint hold, and only its first phase posts a command and clears the token,
+ * are zero, a fixed shape and tint hold, and only the pass on which the phase reads 1 (the countdown's last value) posts a command and clears the token,
  * consuming it once. LIVE-OUT: memory-only.
  *
  * ROM 0x2C31-0x2C93 (frozen lift loc_2c31). Grounding: [seen] (names.js ROUTINES 0x2C31).

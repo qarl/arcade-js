@@ -33,8 +33,8 @@ import { loc_59c5 } from "./loc_59c5.js";
 import { ACTOR_ENTRY_SLOT3, ACTOR_RECORD_SLOT3, ATTACKER_SPAWN_AIM_SIDE_TOGGLE, ATTACKER_SPAWN_COOLDOWN, ATTACKER_SPAWN_COOLDOWN_PERIOD, ATTACKER_SPAWN_SLOT_COUNT, ATTACKER_SPAWN_WINDOW_HALF, ENEMY_STANDOFF_AIM_MAIN, ERA_OBJECT_ENTRY_SLOT2, ERA_OBJECT_RECORD_SLOT2 } from "./names.js";
 
 
-// The caller's record head must read 0xFF for the routine to go on (ROM `inc a / ret nz` at 0x3D28).
-const SLOT_FREE = 0xff;
+// The caller's record head must read 0xFF (live) for the routine to go on (ROM `inc a / ret nz` at 0x3D28).
+const SLOT_LIVE = 0xff;
 // The caller's bank: two objects, records sixteen bytes apart, sprite entries two bytes apart.
 const SEARCH_SLOTS = 2;
 const RECORD_STRIDE = 0x10;
@@ -61,7 +61,7 @@ export function spawnAimedEnemyIntoEraBankWhenInWindow(m, record = m.regs.ix, en
   // Step 1 -- the gates, each an early return in the ROM: the caller's head byte, the shared
   // cooldown still running, the era fielding no attackers, and (when bank A would be the seat)
   // bank A already occupied.
-  if (mem8[record] !== SLOT_FREE) return;
+  if (mem8[record] !== SLOT_LIVE) return;
   if (mem8[ATTACKER_SPAWN_COOLDOWN] !== 0) return;
   if (mem8[ATTACKER_SPAWN_SLOT_COUNT] === 0) return;
   if (!useSecondBank(m) && mem8[ACTOR_RECORD_SLOT3] !== 0) return;

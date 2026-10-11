@@ -8,9 +8,10 @@
  * test misses, a second, four-wide window test on the same sprite entry's head byte
  * (hasReachedHorizontalEdgeWindow) decides -- so the answer is the OR of the two tests.
  *
- * ROLE IN THE MACHINE: advanceTwoTileObjectThenTryAimedSpawn uses it as the retire test for its
- * two-tile object: on a yes the object is retired, otherwise it is dressed and
- * the aimed-spawn attempt runs (names.js 0x3b77).
+ * ROLE IN THE MACHINE: it has two callers, and both use it as a retire test. advanceTwoTileObjectThenTryAimedSpawn
+ * (0x3B88) uses it for its two-tile object: on a yes the object is retired, otherwise it is dressed and
+ * the aimed-spawn attempt runs (names.js 0x3b77). dressSpriteForHeadingOrRetireAtEdge (0x4447) uses it
+ * the same way for the Mother-Ship: on a yes the ship is retired, otherwise it is dressed.
  *
  * No memory is written. LIVE-OUT: the answer, returned (the ROM's carry).
  */

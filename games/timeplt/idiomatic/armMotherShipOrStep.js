@@ -11,8 +11,8 @@
  * time to bring it on.
  *
  * ROLE IN THE MACHINE. Called once per dispatch of the round engine's service list
- * (serviceRoundThenResolvePlayerState, phase-3 sub-step 7). While the Mother-Ship is
- * armed it simply hands the pass to loc_43f0 (ROM 0x43F0). Otherwise it arms the Mother-Ship
+ * (serviceRoundThenResolvePlayerState, phase-3 sub-step 7). It does nothing at all while
+ * ROUND_TRANSITION_HOLD (0xACC6) reads 0xFF. Otherwise, while the Mother-Ship is armed it simply hands the pass to loc_43f0 (ROM 0x43F0). Otherwise it arms the Mother-Ship
  * at most once every eight frames, and only when the quota is spent and its two-slot record bank
  * (MOTHER_SHIP_STATE 0xA8A0 and the record one stride on, 0xA8B0) is empty. Arming raises
  * MOTHER_SHIP_ARMED (0xAD0D), seeds the lead record's hit counter with seven, and retires the record

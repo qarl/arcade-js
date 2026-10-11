@@ -7,7 +7,7 @@
  * byte of the same record, read through a table of script pointers. A position already at zero is
  * left alone and nothing at all is written, so the craft keeps whatever order it last took.
  * The order is not a picture: the re-aim pass (reaimEnemyCraftByFlightScriptOnPhaseTick) reads it
- * as hold the heading (0x10), turn away (0x11) or steer toward an aim point (any other value).
+ * as keep the current aim heading (0x10), aim away (0x11) or aim at an aim point (any other value).
  * LIVE-OUT: the position and the steering order.
  *
  * ROM 0x323A-0x3251. Grounding: [seen] -- under MAME, one record's +0x08 byte always equalled

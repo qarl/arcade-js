@@ -15,7 +15,8 @@
  *
  * The table seated here is OPENING_ERA_VELOCITY_TABLE (0x5E00), the ROM velocity table that
  * scrollWorldAtTheEraPace also uses for the opening era's world pace (names.js). This is one of a
- * family of hex-named shims (0x58B6, 0x598E, 0x5994, 0x599D, 0x59C5, 0x59CB, 0x59D1) that differ
+ * family of hex-named entries -- the table shims 0x58B6, 0x598E, 0x5994, 0x59C5, 0x59CB and 0x59D1, plus
+ * 0x599D, the shared heading-read entry that 0x598E and 0x5994 jump to and which seats no table of its own -- that differ
  * in the table immediate, in where the heading comes from, or in the body they enter (the double-velocity mover here, the doubled lookup for the rest); names.js keeps them all hex
  * because nothing reachable from a shim settles what class of object moves at its pace.
  * Kept as the ROUTINES override of 0x58B6: no idiomatic module calls

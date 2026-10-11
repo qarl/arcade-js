@@ -7,8 +7,10 @@
  * WHAT IT IS. Enemy craft arrive in waves. How they arrive depends on the era and on how long the
  * current life has lasted: the life-tick counter (LIFE_TICKS_LOW 0xAD05 / LIFE_TICKS_MID 0xAD06, the
  * low and middle places of a base-sixty counter stepped once per round-engine dispatch) is split into
- * "phases" by the low nibble of its middle place, and each phase runs a different spawner. At phase
- * nine and up (a units digit, so it recurs every ten wraps of the low place) this routine builds a fresh wave itself, inline: it fills free slots of
+ * "phases" by the low nibble of its middle place, and each phase runs a different spawner -- except in
+ * the last era (ERA_INDEX 0xAD04 reading 4), where the whole step goes to spawnEnemyWaveIntoFreeSlots instead. At phase
+ * nine and up (a units digit, so it recurs every ten wraps of the low place) this routine builds a fresh wave itself, inline,
+ * on the one pass of the phase whose low place (LIFE_TICKS_LOW) reads zero: it fills free slots of
  * the seven-slot enemy-craft band (records from CRAFT_RECORD_SLOT0 0xA850, sprite entries from
  * CRAFT_ENTRY_SLOT0 0xAA1A) with craft seated at points on the screen's edge. A ROM wave descriptor
  * picks each point from a table of edge positions, offset by the direction the player is flying,
