@@ -15,7 +15,7 @@
  * with 3 and so absorbs three hits and dies on the fourth. A sprite entry only says where the object is;
  * dressing writes its shape code (+1) and its attribute -- colour and flip bits -- (+0x30), which
  * publishSpriteShadow later copies to the hardware (mechanisms.md, "Dressing a sprite for heading and
- * frame"). Its caller is advanceTwoTileObjectThenTryAimedSpawn.
+ * frame"). Its caller is flyBomberThenTryAimedShot.
  *
  * Why it is a MIRROR and not two poses: the two attribute values, 0x6D and 0xED, are the same colour
  * differing only in the flip-Y bit, and the swap falls at two opposite headings, 0x40 and 0xC0. Under

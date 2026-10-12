@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Memory-equivalence for advanceTwoTileObjectThenTryAimedSpawn vs its frozen translation at ROM 0x3b77. Attract dispatches only
+// Memory-equivalence for flyBomberThenTryAimedShot vs its frozen translation at ROM 0x3b77. Attract dispatches only
 // the mirror+spawn arm (all carry-clear); coin-start never reaches it. Real attract entries prove
 // that arm; the retire arm and a live spawn body are crafted from a real entry with one nudge each.
 // Diffed whole, minus the frozen side's push window and a register ceiling. Teeth part in memory.
@@ -9,7 +9,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
-import { advanceTwoTileObjectThenTryAimedSpawn } from "../advanceTwoTileObjectThenTryAimedSpawn.js";
+import { flyBomberThenTryAimedShot } from "../flyBomberThenTryAimedShot.js";
 import { loc_3b77 as frozen } from "../../translated/loc_3b77.js";
 import { flyAlongStoredVelocity } from "../flyAlongStoredVelocity.js";
 import { hasReachedBoundaryBandSelectedByHeading } from "../hasReachedBoundaryBandSelectedByHeading.js";
@@ -148,7 +148,7 @@ test("REACHABILITY: attract dispatches the address on the carry-clear arm; coin-
 test("REAL DISPATCHES: every attract entry identical", { skip }, () => {
   const entries = captureAttract();
   for (const e of entries) {
-    const d = unitDiff(advanceTwoTileObjectThenTryAimedSpawn, e);
+    const d = unitDiff(flyBomberThenTryAimedShot, e);
     assert.equal(d, null, `an attract dispatch diverged: ${show(d)}`);
   }
   const foots = entries.map(footprint);
@@ -158,7 +158,7 @@ test("REAL DISPATCHES: every attract entry identical", { skip }, () => {
 
 test("RETIRE ARM: crafted carry entry identical, and the retire really fires", { skip }, () => {
   const c = craftRetire();
-  assert.equal(unitDiff(advanceTwoTileObjectThenTryAimedSpawn, c), null, `the retire arm diverged: ${show(unitDiff(advanceTwoTileObjectThenTryAimedSpawn, c))}`);
+  assert.equal(unitDiff(flyBomberThenTryAimedShot, c), null, `the retire arm diverged: ${show(unitDiff(flyBomberThenTryAimedShot, c))}`);
   const after = c.clone();
   frozen(after);
   assert.equal(after.mem8[u16(c.regs.ix + RECORD_HEAD)], 0, "the record head was not cleared, so this is not the retire arm");
@@ -168,7 +168,7 @@ test("RETIRE ARM: crafted carry entry identical, and the retire really fires", {
 
 test("SPAWN BODY: crafted no-carry entry identical, and the body writes", { skip }, () => {
   const c = craftSpawn();
-  assert.equal(unitDiff(advanceTwoTileObjectThenTryAimedSpawn, c), null, `the spawn body diverged: ${show(unitDiff(advanceTwoTileObjectThenTryAimedSpawn, c))}`);
+  assert.equal(unitDiff(flyBomberThenTryAimedShot, c), null, `the spawn body diverged: ${show(unitDiff(flyBomberThenTryAimedShot, c))}`);
   assert.ok(footprint(c) > 6, "the crafted entry did not run the spawn body, so it proves nothing about that arm");
   console.log(`  SPAWN: identical; footprint ${footprint(c)}`);
 });
@@ -182,7 +182,7 @@ test("STACK: the drift is exactly two bytes and the mask floor clears the data",
     const push = a.push16.bind(a);
     a.push16 = (v) => { push(v); if (a.regs.sp < low) low = a.regs.sp; };
     frozen(a);
-    advanceTwoTileObjectThenTryAimedSpawn(b);
+    flyBomberThenTryAimedShot(b);
     assert.equal(a.regs.sp - b.regs.sp, 2, `the frozen side no longer re-seats two bytes higher (${a.regs.sp - b.regs.sp})`);
     assert.ok(low > DATA_TOP, `the push window ${hex4(low)} reached down into game data`);
   }
@@ -208,7 +208,7 @@ test("TEETH: each broken twin parts company IN MEMORY; the genuine routine does 
     const d = unitDiff(twin, machine);
     assert.notEqual(d, null, `the "${label}" twin escaped the gate`);
     assert.notEqual(d.addr, null, `the "${label}" twin was caught only in a register, not in memory: ${show(d)}`);
-    assert.equal(unitDiff(advanceTwoTileObjectThenTryAimedSpawn, machine), null, `the genuine routine is flagged on the "${label}" machine, so its teeth prove nothing`);
+    assert.equal(unitDiff(flyBomberThenTryAimedShot, machine), null, `the genuine routine is flagged on the "${label}" machine, so its teeth prove nothing`);
   }
   console.log(`  TEETH: ${TWINS.length} twins caught in memory; genuine clean on each`);
 });

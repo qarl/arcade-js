@@ -19,7 +19,7 @@
  * banked by other routines (e.g. fireBomberShotWhenClearOfPlayer and
  * fireCraftShotWhenAimedNearPlayer), never by this one; its sibling flyAlongHeading looks the
  * velocity up from a heading instead. Callers include serviceSlotByHeadByte, runParachutistSlot,
- * flyAndRetireSlotCyclingShapeInEra4 and advanceTwoTileObjectThenTryAimedSpawn.
+ * flyAndRetireSlotCyclingShapeInEra4 and flyBomberThenTryAimedShot.
  *
  * `object` is the object's record (the ROM's IX); `sprite` is its sprite entry (the ROM's IY).
  */

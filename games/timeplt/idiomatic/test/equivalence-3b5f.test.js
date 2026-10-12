@@ -21,7 +21,7 @@ import { ERA_INDEX, FRAME_TICK, BOMBER_HITS_TO_ABSORB, MOTHER_SHIP_ARMED } from 
 import { armBomberSlotWhenTimerFires } from "../armBomberSlotWhenTimerFires.js";
 import { loc_5942 } from "../loc_5942.js";
 import { advanceHitSoakingObjectThenAnimateDeath } from "../advanceHitSoakingObjectThenAnimateDeath.js";
-import { advanceTwoTileObjectThenTryAimedSpawn } from "../advanceTwoTileObjectThenTryAimedSpawn.js";
+import { flyBomberThenTryAimedShot } from "../flyBomberThenTryAimedShot.js";
 
 const TARGET = 0x3b5f;
 const RECORD = 0xa8c0;
@@ -119,7 +119,7 @@ function brokenSwapArms(m) {
   const head = mem8[RECORD];
   if (head === 0) return armBomberSlotWhenTimerFires(m);
   regs.a = (head + 1) & 0xff;
-  if (head !== 0xff) return advanceTwoTileObjectThenTryAimedSpawn(m);
+  if (head !== 0xff) return flyBomberThenTryAimedShot(m);
   return advanceHitSoakingObjectThenAnimateDeath(m);
 }
 
@@ -131,9 +131,9 @@ function brokenEmptyMoves(m) {
   regs.iy = ENTRY;
   const head = mem8[RECORD];
   regs.a = (head + 1) & 0xff;
-  if (head === 0) return advanceTwoTileObjectThenTryAimedSpawn(m);
+  if (head === 0) return flyBomberThenTryAimedShot(m);
   if (head !== 0xff) return advanceHitSoakingObjectThenAnimateDeath(m);
-  return advanceTwoTileObjectThenTryAimedSpawn(m);
+  return flyBomberThenTryAimedShot(m);
 }
 
 /** BUG: dispatches regardless of era, so it moves the object outside era one. */
@@ -145,7 +145,7 @@ function brokenNoEraGate(m) {
   if (head === 0) return armBomberSlotWhenTimerFires(m);
   regs.a = (head + 1) & 0xff;
   if (head !== 0xff) return advanceHitSoakingObjectThenAnimateDeath(m);
-  return advanceTwoTileObjectThenTryAimedSpawn(m);
+  return flyBomberThenTryAimedShot(m);
 }
 
 // ── the gate ──────────────────────────────────────────────────────────────────────────────

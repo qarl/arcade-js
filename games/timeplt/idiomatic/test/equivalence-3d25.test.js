@@ -27,7 +27,7 @@ const SCRIBBLE_CELL = 0xa5af; // a compared (non-stack) cell the scratch control
 
 // The frogger standard: RAM (masked over the frozen side's stack scratch) is the whole contract, and
 // only genuine named register live-outs are pinned beside it. This spawn is a pure writer -- its sole
-// caller (advanceTwoTileObjectThenTryAimedSpawn) tail-returns and reads no register it leaves, and the
+// caller (flyBomberThenTryAimedShot) tail-returns and reads no register it leaves, and the
 // whole dispatch chain up to serviceEra1BomberObject is memory-only -- so the set is empty. The search
 // pointers, doubled velocity pair, aim byte and the exx / ex-af shadows are all scratch, not live-outs.
 const GENUINE_LIVE_OUTS = [];

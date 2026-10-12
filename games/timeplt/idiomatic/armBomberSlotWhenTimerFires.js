@@ -76,7 +76,7 @@ export function armBomberSlotWhenTimerFires(m, record = m.regs.ix, entry = m.reg
 
   // BOMBER_HITS_TO_ABSORB (0xA8DC) is how many more hits the big two-slot object can absorb before it
   // dies: three here. Finally the record head becomes 0xFF, the "live" marker, so the caller's
-  // next dispatch runs the two-tile move (advanceTwoTileObjectThenTryAimedSpawn) instead of this
+  // next dispatch runs the two-tile move (flyBomberThenTryAimedShot) instead of this
   // arming step.
   mem8[BOMBER_HITS_TO_ABSORB] = 3;
   mem8[u16(record + 0x00)] = 0xff;

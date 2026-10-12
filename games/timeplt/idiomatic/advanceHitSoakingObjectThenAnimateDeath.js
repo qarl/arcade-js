@@ -20,7 +20,7 @@
 import { u8 } from "../../../core/int.js";
 import { BOMBER_HITS_TO_ABSORB, DEATH_ANIMATION_SHAPE_TABLE } from "./names.js";
 import { requestTwoSounds } from "./requestTwoSounds.js";
-import { advanceTwoTileObjectThenTryAimedSpawn } from "./advanceTwoTileObjectThenTryAimedSpawn.js";
+import { flyBomberThenTryAimedShot } from "./flyBomberThenTryAimedShot.js";
 import { retireObjectAndHold } from "./retireObjectAndHold.js";
 import { driftWithWorldScroll } from "./driftWithWorldScroll.js";
 import { postCommand } from "./postCommand.js";
@@ -38,7 +38,7 @@ export function advanceHitSoakingObjectThenAnimateDeath(m, record = m.regs.ix, e
     mem8[BOMBER_HITS_TO_ABSORB] = mem8[BOMBER_HITS_TO_ABSORB] - 1;
     mem8[record] = 0xff;
     requestTwoSounds(m);
-    return advanceTwoTileObjectThenTryAimedSpawn(m, record, entry);
+    return flyBomberThenTryAimedShot(m, record, entry);
   }
 
   /* Arm 2 — the death countdown. First pass (0x3BA9-0x3BBD): a head at 0x61 or above (a live

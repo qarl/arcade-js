@@ -4,7 +4,7 @@
  * outside the doubled window (step 2 below). Draws a heading toward the standoff aim point ENEMY_STANDOFF_AIM_MAIN, alternates the aim's
  * side each shot via ATTACKER_SPAWN_AIM_SIDE_TOGGLE, then seats coords, the doubled velocity pair, a shape code and an
  * attribute byte into the era's fixed record+sprite bank and reloads the cooldown. LIVE-OUT: memory. The routine is a
- * pure writer — its sole caller (advanceTwoTileObjectThenTryAimedSpawn) tail-returns and reads no register it
+ * pure writer — its sole caller (flyBomberThenTryAimedShot) tail-returns and reads no register it
  * leaves, and that whole dispatch chain up to serviceEra1BomberObject is memory-only — so the search pointers,
  * the window bound and the loop count all live here as JS locals. The aimed heading passes into the velocity
  * shim as an argument, and the shim hands the doubled pair back, which this routine reads straight into the record.

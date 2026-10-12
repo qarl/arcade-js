@@ -7803,9 +7803,9 @@ loc_38c0:
 ; era-1 only: dispatch the single object at record 0xa8c0 by its head byte
 ; -- 0 ticks its arming countdown and arms the slot when it fires
 ; (armBomberSlotWhenTimerFires), 0xff runs the two-tile move
-; (advanceTwoTileObjectThenTryAimedSpawn), any other value advances a hit-
-; soaking object toward death (advanceHitSoakingObjectThenAnimateDeath);
-; returns untouched outside era 1
+; (flyBomberThenTryAimedShot), any other value advances a hit-soaking
+; object toward death (advanceHitSoakingObjectThenAnimateDeath); returns
+; untouched outside era 1
 serviceEra1BomberObject:
 3B5F: 3A 04 AD        LD      A,($AD04)           ; {hard.workRam+504} read the era number
 3B62: 3D              DEC     A                   ; is it era 1?
@@ -7823,7 +7823,7 @@ serviceEra1BomberObject:
 ; hasReachedBoundaryBandSelectedByHeading answers it has reached a
 ; boundary retire it, otherwise dress the pair by heading and run the
 ; bomber's aimed-shot attempt (fireBomberShotWhenClearOfPlayer)
-advanceTwoTileObjectThenTryAimedSpawn:
+flyBomberThenTryAimedShot:
 3B77: CD 05 3E        CALL    $3E05               ; {code.flyAlongStoredVelocity} fly the object along its stored velocity
 3B7A: FD 7E 31        LD      A,(IY+$31)          ; read the top tile's Y
 3B7D: C6 10           ADD     A,$10               ; drop sixteen -- one tile down
@@ -7852,7 +7852,7 @@ advanceHitSoakingObjectThenAnimateDeath:
 3B9E: 35              DEC     (HL)                ; spend one hit
 3B9F: DD 36 00 FF     LD      (IX+$00),$FF        ; force the record head live
 3BA3: CD 83 56        CALL    $5683               ; {code.requestTwoSounds} re-request the craft's two sounds
-3BA6: C3 77 3B        JP      $3B77               ; {code.advanceTwoTileObjectThenTryAimedSpawn} run the ordinary two-tile move
+3BA6: C3 77 3B        JP      $3B77               ; {code.flyBomberThenTryAimedShot} run the ordinary two-tile move
 
 loc_3ba9:
 3BA9: 79              LD      A,C                 ; take the record head

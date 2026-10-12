@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** advanceTwoTileObjectThenTryAimedSpawn — advance a two-tile object one step: fly it along its stored velocity, then place its
+/** flyBomberThenTryAimedShot — advance a two-tile object one step: fly it along its stored velocity, then place its
  * second tile directly under the first (same X, Y + 0x10). If it has reached a boundary,
  * retire it; otherwise dress the pair by heading and run the bomber's aimed-shot attempt. LIVE-OUT: memory. */
 //
@@ -33,7 +33,7 @@ const SECOND_TILE_X = 0x02;
 // The lower tile sits a fixed 0x10 further along Y than the upper one (`add a,0x10` at 0x3B7D).
 const TILE_DROP = 0x10;
 
-export function advanceTwoTileObjectThenTryAimedSpawn(m, record = m.regs.ix, sprite = m.regs.iy) {
+export function flyBomberThenTryAimedShot(m, record = m.regs.ix, sprite = m.regs.iy) {
   const { mem8 } = m;
 
   // STEP 1 -- MOVE (call 0x3E05). Fly the first tile one step along the velocity stored in the

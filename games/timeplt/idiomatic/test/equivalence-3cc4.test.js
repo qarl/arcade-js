@@ -100,7 +100,7 @@ const CROSS_CHECK_POINTS = 600;
 /** Derived from the frozen routine's call sites, not from the rewrite. See the header. */
 const EXCLUDED = ["a", "f", "sp"];
 /** Return address of each caller that reads the carry -> the override owning that code: `call 0x3cc4`
- *  at 0x3B88 in advanceTwoTileObjectThenTryAimedSpawn (0x3B77) and at 0x4447 in
+ *  at 0x3B88 in flyBomberThenTryAimedShot (0x3B77) and at 0x4447 in
  *  dressSpriteForHeadingOrRetireAtEdge (0x4447), each followed by `jp c`. */
 const CARRY_READERS = new Map([[0x3b8b, [0x3b77]], [0x444a, [0x4447]]]);
 const HANDOFF_FRAMES = 2500;
