@@ -30,7 +30,7 @@ import { u8, u16 } from "../../../core/int.js";
 import { fillCellRun } from "./fillCellRun.js";
 import { setSavedPenFromEra } from "./setSavedPenFromEra.js";
 import { advanceSequenceSubStep } from "./advanceSequenceSubStep.js";
-import { PEN_COLOUR, COLOUR_PLANE_LOWER_RUN_BOTTOM, COLOUR_PLANE_UPPER_RUN_BOTTOM, COLOUR_PLANE_STUB_UPPER_LEFT, COLOUR_PLANE_COLUMN_MID_BOTTOM, COLOUR_PLANE_STUB_LOWER_LEFT } from "./names.js";
+import { PEN_COLOUR, COLOUR_PLANE_LEFT_RUN_OUTER, COLOUR_PLANE_RIGHT_RUN_INNER, COLOUR_PLANE_STUB_UPPER_LEFT, COLOUR_PLANE_COLUMN_MID_LEFT, COLOUR_PLANE_STUB_LOWER_LEFT } from "./names.js";
 
 // The run shape the ROM writes after the lead byte: `ld b,0x0d` cells of the caller's C, then
 // `ld a,0x0e / ld b,0x04` — four cells of the fixed tail byte 0x0E. ROW is one tilemap row (32).
@@ -40,7 +40,7 @@ const TAIL_FILL = 0x0e;
 const ROW = 0x20;
 
 // The colour addresses used below (COLOUR_PLANE_*_RUN_BOTTOM, COLOUR_PLANE_STUB_UPPER_LEFT/_LOWER_LEFT and
-// COLOUR_PLANE_COLUMN_MID_BOTTOM in names.js) are already folded through `res 2,h` into colour RAM; each
+// COLOUR_PLANE_COLUMN_MID_LEFT in names.js) are already folded through `res 2,h` into colour RAM; each
 // cell's second value sits one row (ROW) back.
 
 export function paintRoundWonBandTailThenStepSequence(m, head = m.regs.a, body = m.regs.c, cursor = m.regs.hl) {
@@ -60,10 +60,10 @@ export function paintRoundWonBandTailThenStepSequence(m, head = m.regs.a, body =
 
   /* Step 3 — two thirteen-cell colour runs (the `call 0x1319`s at 0x4A5F and 0x4A6A). fillCellRun
    * lays one byte over thirteen cells, walking one row back per cell: base+0xA0 from the colour
-   * twin of 0xA7B1 (COLOUR_PLANE_LOWER_RUN_BOTTOM, 0xA3B1), then base+0x20 from the colour twin
-   * of 0xA5D1 (COLOUR_PLANE_UPPER_RUN_BOTTOM, 0xA1D1). Each sum wraps at eight bits (`add a,c`). */
-  fillCellRun(m, u8(0xa0 + base), COLOUR_PLANE_LOWER_RUN_BOTTOM);
-  fillCellRun(m, u8(0x20 + base), COLOUR_PLANE_UPPER_RUN_BOTTOM);
+   * twin of 0xA7B1 (COLOUR_PLANE_LEFT_RUN_OUTER, 0xA3B1), then base+0x20 from the colour twin
+   * of 0xA5D1 (COLOUR_PLANE_RIGHT_RUN_INNER, 0xA1D1). Each sum wraps at eight bits (`add a,c`). */
+  fillCellRun(m, u8(0xa0 + base), COLOUR_PLANE_LEFT_RUN_OUTER);
+  fillCellRun(m, u8(0x20 + base), COLOUR_PLANE_RIGHT_RUN_INNER);
 
   /* Step 4 — six scattered colour cells (ROM 0x4A6D-0x4A96). For each of 0xA610, 0xA612 and 0xA611,
    * folded by `res 2,h` to 0xA210/0xA212/0xA211, the ROM stores one value at the cell and a second
@@ -74,8 +74,8 @@ export function paintRoundWonBandTailThenStepSequence(m, head = m.regs.a, body =
   mem8[u16(COLOUR_PLANE_STUB_UPPER_LEFT - ROW)] = u8(0x20 + base);
   mem8[COLOUR_PLANE_STUB_LOWER_LEFT] = u8(0xe0 + base);
   mem8[u16(COLOUR_PLANE_STUB_LOWER_LEFT - ROW)] = u8(0x60 + base);
-  mem8[COLOUR_PLANE_COLUMN_MID_BOTTOM] = u8(0xa0 + base);
-  mem8[u16(COLOUR_PLANE_COLUMN_MID_BOTTOM - ROW)] = u8(0x20 + base);
+  mem8[COLOUR_PLANE_COLUMN_MID_LEFT] = u8(0xa0 + base);
+  mem8[u16(COLOUR_PLANE_COLUMN_MID_LEFT - ROW)] = u8(0x20 + base);
 
   /* Step 5 — hand-off. `call 0x339c`: setSavedPenFromEra seeds the pen glyph and colour the active
    * player's SAVED context will hand back, from a ROM record the era selects (the live pen is left

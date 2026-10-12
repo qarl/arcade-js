@@ -28,7 +28,7 @@ const CELLS = 13;
 const ROW = 0x20;
 // The two direction bits the ROM tests with `bit 0,c` and `bit 1,c`.
 const BACKWARDS = 0x01;
-const UPWARDS = 0x02;
+const TOWARD_ROW_ZERO = 0x02;
 
 export function stepThirteenScriptedGlyphCells(m, firstCell = m.regs.de, directions = m.regs.c) {
   const { mem8, mem16 } = m;
@@ -36,7 +36,7 @@ export function stepThirteenScriptedGlyphCells(m, firstCell = m.regs.de, directi
   // turns its +1 into a net -1 for the shape (`dec a` twice) and for the cursor (`dec hl` twice).
   const shapeStep = (directions & BACKWARDS) !== 0 ? -1 : 1;
   // Bit 1 alone chooses whether the run climbs the plane or descends it.
-  const rowStep = (directions & UPWARDS) !== 0 ? -ROW : ROW;
+  const rowStep = (directions & TOWARD_ROW_ZERO) !== 0 ? -ROW : ROW;
   let cell = firstCell;
   for (let i = 0; i < CELLS; i++) {
     // The cursor is re-read from its RAM cell on every pass (`ld hl,(0xa9f7)`), and the script byte

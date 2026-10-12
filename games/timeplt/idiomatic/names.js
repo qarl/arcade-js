@@ -1690,9 +1690,9 @@ export const PLAYER_ANIM_VRAM_BASE = 0xa5af;
  * up to CHAR_PLANE_COLUMN_BASE. Under MAME fillCellRun blanks from here up 13 cells to 0xa451
  * [seen]
  */
-export const CHAR_PLANE_UPPER_RUN_BOTTOM = 0xa5d1;
+export const CHAR_PLANE_RIGHT_RUN_INNER = 0xa5d1;
 export const CHAR_PLANE_STUB_UPPER_RIGHT = 0xa5f0; // warp-band flare corner at native row 15, col 0x10, one video-RAM column beside the working column 0x11; also written by unrelated painters. On glass (ROT90) it is the tile above the band's horizontal streak, right of the jet's centre column: under MAME, blanking only this cell during the round-won band changes only the tile at x112-119,y128-135 of the rotated 224x256 frame. The band paints it with the same glyph as its three mirror corners (colour twin 0xa1f0 = 0x20 + pen) [seen]
-export const CHAR_PLANE_COLUMN_MID_TOP = 0xa5f1; // column-center cell (row15,col0x11), index 13 of the 28-cell gather/restore walk. Under MAME it is the 14th cell the restore walk writes, stepped 0x01..0x0d by the band script [seen]
+export const CHAR_PLANE_COLUMN_MID_RIGHT = 0xa5f1; // column-center cell (row15,col0x11), index 13 of the 28-cell gather/restore walk. Under MAME it is the 14th cell the restore walk writes, stepped 0x01..0x0d by the band script [seen]
 export const CHAR_PLANE_STUB_LOWER_RIGHT = 0xa5f2; // warp-band flare corner at native row 15, col 0x12. On glass it is the tile below the streak, right of centre: under MAME, blanking only this cell during the round-won band changes only the tile at x112-119,y144-151. The vertical mirror of CHAR_PLANE_STUB_UPPER_RIGHT (colour twin 0xa1f2 = 0x60 + pen) [seen]
 export const CHAR_PLANE_STUB_UPPER_LEFT = 0xa610; // warp-band flare corner at native row 16, col 0x10. On glass it is the tile above the streak, left of centre: under MAME, blanking only this cell during the round-won band changes only the tile at x104-111,y128-135. The horizontal mirror of CHAR_PLANE_STUB_UPPER_RIGHT (colour twin 0xa210 = 0xa0 + pen) [seen]
 /**
@@ -1701,12 +1701,12 @@ export const CHAR_PLANE_STUB_UPPER_LEFT = 0xa610; // warp-band flare corner at n
  * advanceScriptedCharPlaneBandTo4). Under MAME the restore walk writes it 15th and the band steps
  * it with 0xa5f1 [seen]
  */
-export const CHAR_PLANE_COLUMN_MID_BOTTOM = 0xa611;
+export const CHAR_PLANE_COLUMN_MID_LEFT = 0xa611;
 export const CHAR_PLANE_STUB_LOWER_LEFT = 0xa612; // warp-band flare corner at native row 16, col 0x12. On glass it is the tile below the streak, left of centre: under MAME, blanking only this cell during the round-won band changes only the tile at x104-111,y144-151. Mirrored both ways from CHAR_PLANE_STUB_UPPER_RIGHT (colour twin 0xa212 = 0xe0 + pen) [seen]
-export const CHAR_PLANE_LOWER_RUN_TOP = 0xa631; // top cell (row17,col0x11) of the working column's lower 13-run; stepThirteenScriptedGlyphCells walks down to the run bottom [seen]
+export const CHAR_PLANE_LEFT_RUN_INNER = 0xa631; // top cell (row17,col0x11) of the working column's lower 13-run; stepThirteenScriptedGlyphCells walks down to the run bottom [seen]
 export const PLAYER1_SCORE_READOUT_ONES_CELL = 0xa6e1; // ones-digit cell (col1,row23) of player one's six-digit score readout (sixth cell from PLAYER1_SCORE_READOUT_BASE); the high-score attract screen's arm writes the digit-0 glyph 0x13 here [seen]
 export const PLAYER1_SCORE_READOUT_TENS_CELL = 0xa701; // player one's score readout, fifth (tens) digit cell (col1,row24); the attract arm seeds it with 0x13, the digit-0 glyph [seen]
-export const CHAR_PLANE_LOWER_RUN_BOTTOM = 0xa7b1; // bottom cell (row29,col0x11) of the lower run and of the 28-cell column; fillCellRun starts here [seen]
+export const CHAR_PLANE_LEFT_RUN_OUTER = 0xa7b1; // bottom cell (row29,col0x11) of the lower run and of the 28-cell column; fillCellRun starts here [seen]
 
 // ROM-image cells (below 0xA800) read as data (checksum blocks, coordinate/route tables), hardware latches,
 // and work/screen RAM cells.
@@ -1796,15 +1796,15 @@ export const PHASE0_SUBSTEP_DISPATCH_TABLE = 0x15c8; // inline 8-entry word jump
  */
 export const PHASE3_SUBSTEP_DISPATCH_TABLE = 0x0f29;
 export const COLOUR_PLANE_STUB_UPPER_LEFT = 0xa210; // 1st of three colour-RAM cells the round-won band's colouring sets: 0xa0+base here, 0x20+base one row back (paintRoundWonBandTailThenStepSequence) [seen]
-export const COLOUR_PLANE_COLUMN_MID_BOTTOM = 0xa211; // 2nd round-won band colour cell: 0xa0+base here, 0x20+base one row back [seen]
+export const COLOUR_PLANE_COLUMN_MID_LEFT = 0xa211; // 2nd round-won band colour cell: 0xa0+base here, 0x20+base one row back [seen]
 export const COLOUR_PLANE_STUB_LOWER_LEFT = 0xa212; // 3rd round-won band colour cell: 0xe0+base here, 0x60+base one row back (paintRoundWonBandTailThenStepSequence) [seen]
 /**
- * colour-plane counterpart (res 2,h fold) of CHAR_PLANE_LOWER_RUN_BOTTOM (0xa7b1); fillCellRun base
+ * colour-plane counterpart (res 2,h fold) of CHAR_PLANE_LEFT_RUN_OUTER (0xa7b1); fillCellRun base
  * for the round-won band's lower colour run. Under MAME (poke-rcnat) fillCellRun writes 0xa0+PEN_COLOUR
  * here first, then 12 more cells up by 0x20 to 0xa231 [seen]
  */
-export const COLOUR_PLANE_LOWER_RUN_BOTTOM = 0xa3b1;
-export const COLOUR_PLANE_UPPER_RUN_BOTTOM = 0xa1d1; // colour-plane counterpart of CHAR_PLANE_UPPER_RUN_BOTTOM (0xa5d1); fillCellRun base for the round-won band's upper colour run [seen]
+export const COLOUR_PLANE_LEFT_RUN_OUTER = 0xa3b1;
+export const COLOUR_PLANE_RIGHT_RUN_INNER = 0xa1d1; // colour-plane counterpart of CHAR_PLANE_RIGHT_RUN_INNER (0xa5d1); fillCellRun base for the round-won band's upper colour run [seen]
 export const ROUND_WON_ANIMATION_STEP_SEED = 0x3213; // program-image code byte (0x00, the immediate operand of ld (ix+9),0 at 0x3210) read as a value to seed ROUND_WON_ANIMATION_STEP to 0 when a won round's band animation is set up (armRoundWonBandAnimationThenStepSequence) [seen]
 /**
  * 11-entry ROM table: a digit (0-9) to its glyph, plus entry 10 = the blanking glyph 0xF1 that
@@ -2345,7 +2345,7 @@ export const ROUTINES = {
     cert: "seen",
   },
   0x460e: {
-    name: "checkTamperGlyphCopyElseRunWreckFlash",
+    name: "checkTamperGlyphCopyElseRunAwardLabelStep",
     role: "tamper-witness test run at a two-player start (called from 0x189E): a no-op when the video cell 0xA67C and work cell 0xAB43 agree; on a mismatch it jumps (0x4643, then jp 0x461B) into eight shape-table bytes that run as code and fall into 0x4623, which on whatever IX/IY the caller left decrements the counter at (IX+0), seats 0xFE/0xFD and 0x6C/0x6C into the object slot at (IY+1/+3/+0x30/+0x32), requests sound 0x580B when 0xA800 is 0xFF, and queues ring command 0x04/0x0D",
     cert: "seen",
   },

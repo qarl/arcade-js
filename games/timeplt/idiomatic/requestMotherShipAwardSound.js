@@ -7,7 +7,7 @@
  * Role in the machine: the sound for the Mother-Ship wreck's 3,000-point award. Its one call in the image is `call z,0x580b` at 0x463A, in
  * loc_43f0's flash step for the dying Mother-Ship (head 0xB4, `jr z,0x4623` at 0x45E2; mechanisms.md
  * places the request at that flash step), made only when PLAYER_STATE reads 0xFF, i.e. the player
- * is alive. checkTamperGlyphCopyElseRunWreckFlash reaches that same call only on its tamper arm, by
+ * is alive. checkTamperGlyphCopyElseRunAwardLabelStep reaches that same call only on its tamper arm, by
  * falling into 0x4623.
  *
  * The code is MOTHER_SHIP_AWARD_SOUND (0x49EE), a byte of the program ROM read as data, not an

@@ -10,7 +10,7 @@
  * 0x0B2B [seen]); raise PLAY_ACTIVE (0xAD30 [seen]) and TWO_PLAYER_GAME (0xAD31 [seen]) to all ones
  * -- the second is what later draws the 2-UP readout; load PLAYER_ONE_LIVES (0xAD10) and
  * PLAYER_TWO_LIVES (0xAD20) from STARTING_LIVES (0xA9C1, lives per game); run the tamper-witness
- * check (checkTamperGlyphCopyElseRunWreckFlash, 0x460E [seen]), a no-op on a genuine image; take two off the packed-decimal CREDIT_COUNT
+ * check (checkTamperGlyphCopyElseRunAwardLabelStep, 0x460E [seen]), a no-op on a genuine image; take two off the packed-decimal CREDIT_COUNT
  * (0xA986) and repaint the credit panel; and send the sequence machine to its last outer phase, the
  * round engine (0x172A, a tail jump). It is startOnePlayerGame's charge with 2 in place of 1
  * (names.js), though unlike it this entry does not copy the three tilemap cells.
@@ -19,7 +19,7 @@
 
 import { u8 } from "../../../core/int.js";
 import { hideCaptionSprites } from "./hideCaptionSprites.js";
-import { checkTamperGlyphCopyElseRunWreckFlash } from "./checkTamperGlyphCopyElseRunWreckFlash.js";
+import { checkTamperGlyphCopyElseRunAwardLabelStep } from "./checkTamperGlyphCopyElseRunAwardLabelStep.js";
 import { paintCreditCountPanel } from "./paintCreditCountPanel.js";
 import { seatSequencePhase3AndResetSubStep } from "./seatSequencePhase3AndResetSubStep.js";
 import { CREDIT_COUNT, PLAYER_ONE_LIVES, PLAYER_TWO_LIVES, PLAY_ACTIVE, STARTING_LIVES, TWO_PLAYER_GAME } from "./names.js";
@@ -63,7 +63,7 @@ export function startTwoPlayerGame(m) {
   // Step 3 (`call 0x460e`): the tamper-witness check, a no-op on a genuine image. Its acting arm (taken only when the witness
   // pair disagrees, which no MAME capture has shown) steps pointers the ROM leaves over in IX and IY
   // from earlier routines; this routine computes none, so it hands over none (null).
-  checkTamperGlyphCopyElseRunWreckFlash(m, null, null);
+  checkTamperGlyphCopyElseRunAwardLabelStep(m, null, null);
 
   // Step 4 (ROM 0x18B5-0x18BD): charge two credits -- `ld hl,0xa986` / `ld a,(hl)` / `sub 0x02` /
   // `daa` / `ld (hl),a`.

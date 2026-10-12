@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * checkTamperGlyphCopyElseRunWreckFlash — memory-equivalent to the frozen oracle at ROM 0x460E.
+ * checkTamperGlyphCopyElseRunAwardLabelStep — memory-equivalent to the frozen oracle at ROM 0x460E.
  * GATE: crafted-entry. Neither tape dispatches this address (it is the two-player-start path), so a
  *   real attract machine is captured for realistic RAM and the branch cells are poked identically on
  *   both sides. RAM is compared with the dead stack scratch below the seat masked out (the oracle
@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { ROUTINES as TRANSLATED } from "../../routines.js";
-import { checkTamperGlyphCopyElseRunWreckFlash as candidate } from "../checkTamperGlyphCopyElseRunWreckFlash.js";
+import { checkTamperGlyphCopyElseRunAwardLabelStep as candidate } from "../checkTamperGlyphCopyElseRunAwardLabelStep.js";
 import { loc_460e as oracle } from "../../translated/loc_460e.js";
 import { requestMotherShipAwardSound } from "../requestMotherShipAwardSound.js";
 import { postCommand } from "../postCommand.js";
@@ -118,7 +118,7 @@ function footprint(machine) {
 
 // ── the twins ───────────────────────────────────────────────────────────────────────────────
 
-/** The rewrite with one deliberate defect each; matches checkTamperGlyphCopyElseRunWreckFlash by default. */
+/** The rewrite with one deliberate defect each; matches checkTamperGlyphCopyElseRunAwardLabelStep by default. */
 function twin(o) {
   return (m) => {
     const { mem8, regs } = m;

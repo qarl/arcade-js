@@ -27,7 +27,7 @@ import { u8, u16 } from "../../../core/int.js";
 import { fillCellRun } from "./fillCellRun.js";
 import { setSavedPenFromEra } from "./setSavedPenFromEra.js";
 import { advanceSequenceSubStep } from "./advanceSequenceSubStep.js";
-import { PEN_COLOUR, ROUND_WON_ANIMATION_STEP, PLAYER_FLASH_TICK, BAND_TO2_PASS_COUNTDOWN, SPRITE_COLOUR_CYCLE_COUNTDOWN, BAND_TO4_PASS_COUNTDOWN, COLOUR_FLOOD_COUNTDOWN, BAND_SCRIPT_CURSOR, CHAR_PLANE_BASE, ROUND_WON_ANIMATION_STEP_SEED, BAND_SCRIPT_START, CHAR_PLANE_LOWER_RUN_BOTTOM, CHAR_PLANE_UPPER_RUN_BOTTOM, CHAR_PLANE_STUB_UPPER_LEFT, CHAR_PLANE_COLUMN_MID_BOTTOM, CHAR_PLANE_STUB_LOWER_LEFT } from "./names.js";
+import { PEN_COLOUR, ROUND_WON_ANIMATION_STEP, PLAYER_FLASH_TICK, BAND_TO2_PASS_COUNTDOWN, SPRITE_COLOUR_CYCLE_COUNTDOWN, BAND_TO4_PASS_COUNTDOWN, COLOUR_FLOOD_COUNTDOWN, BAND_SCRIPT_CURSOR, CHAR_PLANE_BASE, ROUND_WON_ANIMATION_STEP_SEED, BAND_SCRIPT_START, CHAR_PLANE_LEFT_RUN_OUTER, CHAR_PLANE_RIGHT_RUN_INNER, CHAR_PLANE_STUB_UPPER_LEFT, CHAR_PLANE_COLUMN_MID_LEFT, CHAR_PLANE_STUB_LOWER_LEFT } from "./names.js";
 
 // One character row in cell addresses; the ROM adds DE = 0xFFE0, which fillCellRun leaves behind.
 const ROW_STEP = -32;
@@ -71,11 +71,11 @@ export function armRoundWonBandAnimationThenStepSequence(m) {
   const base = mem8[PEN_COLOUR];
 
   // The lower run: fillCellRun (0x1319) fills thirteen colour cells upward from the one behind
-  // CHAR_PLANE_LOWER_RUN_BOTTOM (0xA7B1 -> colour cell 0xA3B1) with pen + 0xA0.
-  fillCellRun(m, u8(0xa0 + base), toColour(CHAR_PLANE_LOWER_RUN_BOTTOM));
+  // CHAR_PLANE_LEFT_RUN_OUTER (0xA7B1 -> colour cell 0xA3B1) with pen + 0xA0.
+  fillCellRun(m, u8(0xa0 + base), toColour(CHAR_PLANE_LEFT_RUN_OUTER));
 
-  // The upper run: the same from CHAR_PLANE_UPPER_RUN_BOTTOM (0xA5D1 -> 0xA1D1) with pen + 0x20.
-  fillCellRun(m, u8(0x20 + base), toColour(CHAR_PLANE_UPPER_RUN_BOTTOM));
+  // The upper run: the same from CHAR_PLANE_RIGHT_RUN_INNER (0xA5D1 -> 0xA1D1) with pen + 0x20.
+  fillCellRun(m, u8(0x20 + base), toColour(CHAR_PLANE_RIGHT_RUN_INNER));
 
   // three columns of the colour plane, each a cell and the cell one row above it
   // The warp-band flare corners at row 16, columns 0x10 and 0x12 (colour cells 0xA210 and 0xA212,
@@ -83,7 +83,7 @@ export function armRoundWonBandAnimationThenStepSequence(m) {
   // with the cell one row above it (ROM 0x4A6D-0x4A97).
   paintColumn(mem8, toColour(CHAR_PLANE_STUB_UPPER_LEFT), u8(0xa0 + base), u8(0x20 + base));
   paintColumn(mem8, toColour(CHAR_PLANE_STUB_LOWER_LEFT), u8(0xe0 + base), u8(0x60 + base));
-  paintColumn(mem8, toColour(CHAR_PLANE_COLUMN_MID_BOTTOM), u8(0xa0 + base), u8(0x20 + base));
+  paintColumn(mem8, toColour(CHAR_PLANE_COLUMN_MID_LEFT), u8(0xa0 + base), u8(0x20 + base));
 
   // Seed the pen (glyph and colour) that the active player's SAVED context block will hand back,
   // from the record the era selects (setSavedPenFromEra 0x339C); the live pen is left alone.

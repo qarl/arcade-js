@@ -62,13 +62,13 @@ export function destroySlotsAndPlayerOnContact(m, records = m.regs.de, entries =
   do {
     // The player's position (PLAYER_ENTRY 0xAA10 and PLAYER_SPRITE_Y 0xAA41) relative to this
     // slot's sprite entry, on both axes.
-    const acrossFirst = u8(mem8[PLAYER_ENTRY] - mem8[u16(entry + FIRST_COORDINATE)]);
-    const acrossSecond = u8(mem8[PLAYER_SPRITE_Y] - mem8[u16(entry + SECOND_COORDINATE)]);
+    const nativeXDelta = u8(mem8[PLAYER_ENTRY] - mem8[u16(entry + FIRST_COORDINATE)]);
+    const nativeYDelta = u8(mem8[PLAYER_SPRITE_Y] - mem8[u16(entry + SECOND_COORDINATE)]);
     // A whole slot inside both windows is a contact.
     if (
       mem8[record] === WHOLE &&
-      u8(acrossFirst + bias) < width &&
-      u8(acrossSecond + SECOND_BIAS) < SECOND_WIDTH
+      u8(nativeXDelta + bias) < width &&
+      u8(nativeYDelta + SECOND_BIAS) < SECOND_WIDTH
     ) {
       // Mark the player and the slot hit, and post the score (postChainedHitScore 0x51DE).
       mem8[PLAYER_STATE] = HIT;

@@ -42,14 +42,14 @@ import {
   BAND_TO4_PASS_COUNTDOWN,
   ROUND_WON_ANIMATION_STEP,
   CHAR_PLANE_COLUMN_BASE,
-  CHAR_PLANE_UPPER_RUN_BOTTOM,
+  CHAR_PLANE_RIGHT_RUN_INNER,
   CHAR_PLANE_STUB_UPPER_RIGHT,
-  CHAR_PLANE_COLUMN_MID_TOP,
+  CHAR_PLANE_COLUMN_MID_RIGHT,
   CHAR_PLANE_STUB_LOWER_RIGHT,
   CHAR_PLANE_STUB_UPPER_LEFT,
-  CHAR_PLANE_COLUMN_MID_BOTTOM,
+  CHAR_PLANE_COLUMN_MID_LEFT,
   CHAR_PLANE_STUB_LOWER_LEFT,
-  CHAR_PLANE_LOWER_RUN_BOTTOM,
+  CHAR_PLANE_LEFT_RUN_OUTER,
 } from "./names.js";
 
 /** The animation step handed on to when the script ends (ROM `ld a,0x04; ld (0xa9f0),a`). */
@@ -67,12 +67,12 @@ export function advanceScriptedCharPlaneBandTo4(m) {
   // then the six lead cells around the column centre: the four flare-corner stubs (0xA5F0/0xA5F2 and
   // 0xA610/0xA612) and the two column-centre cells (0xA5F1/0xA611).
   if ((mem8[BAND_TO4_PASS_COUNTDOWN] & 1) === 0) {
-    fillCellRun(m, FILL, CHAR_PLANE_LOWER_RUN_BOTTOM);
-    fillCellRun(m, FILL, CHAR_PLANE_UPPER_RUN_BOTTOM);
+    fillCellRun(m, FILL, CHAR_PLANE_LEFT_RUN_OUTER);
+    fillCellRun(m, FILL, CHAR_PLANE_RIGHT_RUN_INNER);
     mem8[CHAR_PLANE_STUB_UPPER_LEFT] = FILL;
     mem8[CHAR_PLANE_STUB_UPPER_RIGHT] = FILL;
-    mem8[CHAR_PLANE_COLUMN_MID_BOTTOM] = FILL;
-    mem8[CHAR_PLANE_COLUMN_MID_TOP] = FILL;
+    mem8[CHAR_PLANE_COLUMN_MID_LEFT] = FILL;
+    mem8[CHAR_PLANE_COLUMN_MID_RIGHT] = FILL;
     mem8[CHAR_PLANE_STUB_LOWER_LEFT] = FILL;
     mem8[CHAR_PLANE_STUB_LOWER_RIGHT] = FILL;
   } else {
@@ -96,7 +96,7 @@ export function advanceScriptedCharPlaneBandTo4(m) {
 
     stepThirteenScriptedGlyphCells(m, CHAR_PLANE_COLUMN_BASE, 0x01);
     mem16[BAND_SCRIPT_CURSOR] = u16(mem16[BAND_SCRIPT_CURSOR] + SCRIPT_STRIDE);
-    stepThirteenScriptedGlyphCells(m, CHAR_PLANE_LOWER_RUN_BOTTOM, 0x03);
+    stepThirteenScriptedGlyphCells(m, CHAR_PLANE_LEFT_RUN_OUTER, 0x03);
 
     // Two more script bytes, read walking the cursor BACK one byte each (ROM `dec hl`). Bit 0 of the
     // first lowers the two column-centre cells by one tile code (ROM `dec (hl)` on 0xA5F1 and the cell a
@@ -104,8 +104,8 @@ export function advanceScriptedCharPlaneBandTo4(m) {
     let lower = mem8[mem16[BAND_SCRIPT_CURSOR]] & 1;
     mem16[BAND_SCRIPT_CURSOR] = u16(mem16[BAND_SCRIPT_CURSOR] - 1);
     if (lower) {
-      mem8[CHAR_PLANE_COLUMN_MID_TOP] = u8(mem8[CHAR_PLANE_COLUMN_MID_TOP] - 1);
-      mem8[CHAR_PLANE_COLUMN_MID_BOTTOM] = u8(mem8[CHAR_PLANE_COLUMN_MID_BOTTOM] - 1);
+      mem8[CHAR_PLANE_COLUMN_MID_RIGHT] = u8(mem8[CHAR_PLANE_COLUMN_MID_RIGHT] - 1);
+      mem8[CHAR_PLANE_COLUMN_MID_LEFT] = u8(mem8[CHAR_PLANE_COLUMN_MID_LEFT] - 1);
     }
 
     lower = mem8[mem16[BAND_SCRIPT_CURSOR]] & 1;

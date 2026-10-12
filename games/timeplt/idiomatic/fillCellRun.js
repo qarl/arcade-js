@@ -14,7 +14,7 @@
  * video-RAM column shows on the glass as a horizontal line, and stepping a row in memory steps
  * one cell along that line. Callers (the scripted band animations advanceScriptedCharPlaneBandTo2
  * and ...To4, armRoundWonBandAnimationThenStepSequence, paintRoundWonBandTailThenStepSequence)
- * start it at a run's bottom cell — e.g. CHAR_PLANE_LOWER_RUN_BOTTOM (0xA7B1) or its colour-plane
+ * start it at a run's bottom cell — e.g. CHAR_PLANE_LEFT_RUN_OUTER (0xA7B1) or its colour-plane
  * twin — and it walks up thirteen rows.
  *
  * `fill` is the byte to lay (the ROM's A) and `start` the first cell (the ROM's HL).

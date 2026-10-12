@@ -4192,7 +4192,7 @@ startTwoPlayerGame:
 18A9: 3A C1 A9        LD      A,($A9C1)           ; {hard.workRam+1C1} take the starting-lives setting
 18AC: 32 10 AD        LD      ($AD10),A           ; {hard.workRam+510} seat it as player one's life count
 18AF: 32 20 AD        LD      ($AD20),A           ; {hard.workRam+520} and as player two's life count
-18B2: CD 0E 46        CALL    $460E               ; {code.checkTamperGlyphCopyElseRunWreckFlash} check the tamper witness -- nothing happens on a genuine image
+18B2: CD 0E 46        CALL    $460E               ; {code.checkTamperGlyphCopyElseRunAwardLabelStep} check the tamper witness -- nothing happens on a genuine image
 18B5: 21 86 A9        LD      HL,$A986            ; point at the on-screen credit count
 18B8: 7E              LD      A,(HL)              
 18B9: D6 02           SUB     $02                 ; take two credits off it
@@ -9545,7 +9545,7 @@ loc_45f9:
 ; caller left decrements the counter at (IX+0), seats 0xFE/0xFD and
 ; 0x6C/0x6C into the object slot at (IY+1/+3/+0x30/+0x32), requests sound
 ; 0x580B when 0xA800 is 0xFF, and queues ring command 0x04/0x0D
-checkTamperGlyphCopyElseRunWreckFlash:
+checkTamperGlyphCopyElseRunAwardLabelStep:
 460E: 21 7C A6        LD      HL,$A67C            ; point at the watched video cell
 4611: 7E              LD      A,(HL)              ; read it
 4612: 4F              LD      C,A                 

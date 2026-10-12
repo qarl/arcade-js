@@ -101,8 +101,8 @@ const COUNTERS = [0, 1, 2, 3];
 
 /** The oracle's T-state total, which branches only on the animation half. */
 const STRAIGHT_LINE = 145;
-const FAR_HALF_TAIL = 30;
-const NEAR_HALF_TAIL = 11;
+const ALTERNATE_POSE_TAIL = 30;
+const BASE_POSE_TAIL = 11;
 const RET_TSTATES = 10;
 
 const hex4 = (v) => "0x" + u16(v).toString(16).padStart(4, "0");
@@ -334,7 +334,7 @@ const caughtInPlay = (label) => {
 /** The oracle's own total. Its one branch costs more when it steps the shape on. */
 function oracleTStates(m) {
   const far = (m.mem8[FRAME_TICK] & ALTERNATE_POSE_BIT) !== 0;
-  return STRAIGHT_LINE + (far ? FAR_HALF_TAIL : NEAR_HALF_TAIL);
+  return STRAIGHT_LINE + (far ? ALTERNATE_POSE_TAIL : BASE_POSE_TAIL);
 }
 
 /**
@@ -454,7 +454,7 @@ test("DEGENERATE: half the twins are invisible at the captured entry", { skip },
   const survivors = TWINS.filter(([, twin]) => atEntry(twin) === null).map(([label]) => label);
   assert.deepEqual(
     survivors,
-    ["floor-not-nearest", "past-the-end", "far-half-always", "fixed-slot"],
+    ["floor-not-nearest", "past-the-end", "alternate-pose-always", "fixed-slot"],
     "the captured entry's blind spot changed shape — the four twins it cannot see are what " +
       "makes the crafted sweep the load-bearing arm, so a change here re-plans this file",
   );
@@ -602,12 +602,12 @@ function brokenPastEnd(m) {
 }
 
 /** BUG: never steps the shape on, so every direction is frozen on its near shape. */
-function brokenNearHalf(m) {
+function brokenBasePoseAlways(m) {
   deliver(m, sectorOf(headingOf(m)), 0);
 }
 
 /** BUG: always steps the shape on, so every direction is frozen on its far shape. */
-function brokenFarHalf(m) {
+function brokenAlternatePoseAlways(m) {
   deliver(m, sectorOf(headingOf(m)), ALTERNATE_POSE_SHAPE_STEP);
 }
 
@@ -633,7 +633,7 @@ const poisonShape = u8(POISON >> 8);
 const poisonMirror = u8(POISON);
 const flooredSector = (h) => Math.floor(h / STEPS_PER_SECTOR);
 const unwrappedSector = (h) => Math.floor((h + STEPS_PER_SECTOR / 2) / STEPS_PER_SECTOR);
-const isFar = (counter) => (counter & ALTERNATE_POSE_BIT) !== 0;
+const isAlternatePose = (counter) => (counter & ALTERNATE_POSE_BIT) !== 0;
 
 /**
  * Each twin with the predicate naming EXACTLY the crafted inputs it must be caught on. Every
@@ -642,13 +642,13 @@ const isFar = (counter) => (counter & ALTERNATE_POSE_BIT) !== 0;
  */
 const TWINS = [
   ["no-op", brokenNoOp, (_r, h, c) =>
-    poisonShape !== shapeAt(sectorOf(h)) + (isFar(c) ? ALTERNATE_POSE_SHAPE_STEP : 0) ||
+    poisonShape !== shapeAt(sectorOf(h)) + (isAlternatePose(c) ? ALTERNATE_POSE_SHAPE_STEP : 0) ||
     poisonMirror !== mirrorAt(sectorOf(h))],
   ["floor-not-nearest", brokenFloor, (_r, h) => pairDiffers(sectorOf(h), flooredSector(h))],
   ["past-the-end", brokenPastEnd, (_r, h) => pairDiffers(sectorOf(h), unwrappedSector(h))],
-  ["near-half-always", brokenNearHalf, (_r, _h, c) => isFar(c)],
-  ["far-half-always", brokenFarHalf, (_r, _h, c) => !isFar(c)],
-  ["wrong-counter-bit", brokenWrongBit, (_r, _h, c) => ((c & 1) !== 0) !== isFar(c)],
+  ["base-pose-always", brokenBasePoseAlways, (_r, _h, c) => isAlternatePose(c)],
+  ["alternate-pose-always", brokenAlternatePoseAlways, (_r, _h, c) => !isAlternatePose(c)],
+  ["wrong-counter-bit", brokenWrongBit, (_r, _h, c) => ((c & 1) !== 0) !== isAlternatePose(c)],
   ["swapped-tables", brokenSwapped, (_r, h) => shapeAt(sectorOf(h)) !== mirrorAt(sectorOf(h))],
   ["fixed-slot", brokenFixedSlot, (record, h) =>
     record !== entryState().regs.ix && pairDiffers(sectorOf(h), sectorOf(u8(h + HALF_TURN)))],
@@ -693,13 +693,13 @@ for (const [label, twin, pred] of TWINS) {
 test("TEETH: the near and far half twins PARTITION every real dispatch", { skip }, () => {
   const s = drivenSession();
   assert.equal(
-    caughtInPlay("near-half-always") + caughtInPlay("far-half-always"),
+    caughtInPlay("base-pose-always") + caughtInPlay("alternate-pose-always"),
     s.dispatches,
     "exactly one of the two frozen-half twins must be wrong at every dispatch; if they now " +
       "overlap or leave a gap, the animation half is not a two-way choice",
   );
   console.log(
-    `  TEETH: ${caughtInPlay("near-half-always")} + ${caughtInPlay("far-half-always")} = ` +
+    `  TEETH: ${caughtInPlay("base-pose-always")} + ${caughtInPlay("alternate-pose-always")} = ` +
       `${s.dispatches} dispatches, no overlap and no gap`,
   );
 });

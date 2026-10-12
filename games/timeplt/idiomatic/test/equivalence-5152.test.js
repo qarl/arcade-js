@@ -223,12 +223,12 @@ function sweepSlots(m, {
   let slot = regs.iy;
   let left = regs.b;
   do {
-    const acrossFirst = u8(mem8[PLAYER_FIRST] - mem8[u16(slot + FIRST_COORDINATE)]);
-    const acrossSecond = u8(mem8[PLAYER_SECOND] - mem8[u16(slot + SECOND_COORDINATE)]);
+    const nativeXDelta = u8(mem8[PLAYER_FIRST] - mem8[u16(slot + FIRST_COORDINATE)]);
+    const nativeYDelta = u8(mem8[PLAYER_SECOND] - mem8[u16(slot + SECOND_COORDINATE)]);
     if (
       mem8[record] === WHOLE &&
-      u8(acrossFirst + regs.l) < regs.h &&
-      u8(acrossSecond + SECOND_BIAS) < secondWidth
+      u8(nativeXDelta + regs.l) < regs.h &&
+      u8(nativeYDelta + SECOND_BIAS) < secondWidth
     ) {
       if (markPlayer) mem8[PLAYER_STATE] = HIT;
       if (markSlot) mem8[record] = HIT;

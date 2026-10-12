@@ -24,7 +24,7 @@ import { makeMachine, ENTRY_FRAMES, COIN_FRAME, START_FRAME, romsPresent } from 
 import { startTwoPlayerGame as candidate } from "../startTwoPlayerGame.js";
 import { loc_189e as oracle } from "../../translated/loc_189e.js";
 import { hideCaptionSprites } from "../hideCaptionSprites.js";
-import { checkTamperGlyphCopyElseRunWreckFlash } from "../checkTamperGlyphCopyElseRunWreckFlash.js";
+import { checkTamperGlyphCopyElseRunAwardLabelStep } from "../checkTamperGlyphCopyElseRunAwardLabelStep.js";
 import { paintCreditCountPanel } from "../paintCreditCountPanel.js";
 import { seatSequencePhase3AndResetSubStep } from "../seatSequencePhase3AndResetSubStep.js";
 import { PLAYER_ONE_LIVES, PLAYER_TWO_LIVES, PLAY_ACTIVE } from "../names.js";
@@ -157,7 +157,7 @@ function deductTwoBcd(value) {
   return u8(d - c);
 }
 
-/** The rewrite with one deliberate defect each; every knob matches startTwoPlayerGame by default except the start arm: a twin calls checkTamperGlyphCopyElseRunWreckFlash with the entry's IX and IY (as the oracle's register dispatch does), where startTwoPlayerGame hands it null. So on the active-arm scenario a default twin acts as the oracle does, and the rewrite's refusal there is held by the ACTIVE ARM test, not by these twins. */
+/** The rewrite with one deliberate defect each; every knob matches startTwoPlayerGame by default except the start arm: a twin calls checkTamperGlyphCopyElseRunAwardLabelStep with the entry's IX and IY (as the oracle's register dispatch does), where startTwoPlayerGame hands it null. So on the active-arm scenario a default twin acts as the oracle does, and the rewrite's refusal there is held by the ACTIVE ARM test, not by these twins. */
 function twin({ credit = "two", p2flag = ALL_BITS, p2lives = true, arm = true }) {
   return (m) => {
     const { mem8 } = m;
@@ -166,7 +166,7 @@ function twin({ credit = "two", p2flag = ALL_BITS, p2lives = true, arm = true })
     mem8[SECOND_PLAYER_FLAG] = p2flag;
     mem8[PLAYER_ONE_LIVES] = mem8[STARTING_LIVES];
     if (p2lives) mem8[PLAYER_TWO_LIVES] = mem8[STARTING_LIVES];
-    if (arm) checkTamperGlyphCopyElseRunWreckFlash(m);
+    if (arm) checkTamperGlyphCopyElseRunAwardLabelStep(m);
     mem8[CREDIT] =
       credit === "one" ? u8(mem8[CREDIT] - 1)
         : credit === "raw2" ? u8(mem8[CREDIT] - 2)
@@ -223,7 +223,7 @@ test("PATHS: every scenario but the active arm is equivalent, and the start arm 
       assert.equal(r.escaped, null, `${label} escaped at ${r.escaped && hex4(r.escaped.addr)}`);
     }
     // ★ Vacuity guard: the active arm must move MORE cells than the captured no-op entry, or the
-    // craft changed nothing and the arm would pass a rewrite that ignored checkTamperGlyphCopyElseRunWreckFlash entirely.
+    // craft changed nothing and the arm would pass a rewrite that ignored checkTamperGlyphCopyElseRunAwardLabelStep entirely.
     assert.ok(prints["active-arm"] > prints["captured"], "the start arm moved no extra cells");
     console.log(`  PATHS: ${equalScenarios().length} scenarios equivalent; active arm moves ${prints["active-arm"]} cells`);
   });

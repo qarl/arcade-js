@@ -55,7 +55,7 @@ const SCRIPT_CURSOR = 0xa9f7;
 const CELLS = 13;
 const ROW = 0x20;
 const BACKWARDS = 0x01;
-const UPWARDS = 0x02;
+const TOWARD_ROW_ZERO = 0x02;
 
 /** A script planted mid-page so a backward walk stays inside work RAM. */
 const SCRIPT_AT = 0xa700;
@@ -73,7 +73,7 @@ const SCRIPTS = [
   [9, 0, 0, 7, 3, 0, 1, 0],
   [0, 0, 0, 0, 0, 0, 0, 1],
 ];
-const WALKS = [0, BACKWARDS, UPWARDS, BACKWARDS | UPWARDS];
+const WALKS = [0, BACKWARDS, TOWARD_ROW_ZERO, BACKWARDS | TOWARD_ROW_ZERO];
 const SWEEP_SIZE = DIRECTIONS.length + SCRIPTS.length * WALKS.length;
 
 const IN0 = 0xc300;
@@ -183,7 +183,7 @@ function walk(m, cells, rowStep, o) {
   const { mem8, mem16 } = m;
   const directions = m.regs.c;
   const step = opt.shapeStep === null ? ((directions & BACKWARDS) !== 0 ? -1 : 1) : opt.shapeStep;
-  const row = (directions & UPWARDS) !== 0 ? -rowStep : rowStep;
+  const row = (directions & TOWARD_ROW_ZERO) !== 0 ? -rowStep : rowStep;
   let cell = m.regs.de;
   for (let i = 0; i < cells; i++) {
     const cursor = mem16[SCRIPT_CURSOR];
@@ -303,7 +303,7 @@ test("WHAT MOVED: the stepped cells and the final cursor match the script", { sk
     const m = craft(walkBits, A_SCRIPT);
     const before = m.clone();
     const shapeStep = (walkBits & BACKWARDS) !== 0 ? -1 : 1;
-    const rowStep = (walkBits & UPWARDS) !== 0 ? -ROW : ROW;
+    const rowStep = (walkBits & TOWARD_ROW_ZERO) !== 0 ? -ROW : ROW;
     stepThirteenScriptedGlyphCells(m);
     for (let i = 0; i < CELLS; i++) {
       const cell = (FIRST_CELL + i * rowStep) & 0xffff;

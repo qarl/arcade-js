@@ -31,7 +31,7 @@
 //                          goes back to LIVE (absorbMotherShipHitElseStepItsDeath); so it takes eight hits to kill.
 //   0xEF..0x01   DYING     with no hits left the head counts down one per step (stepMotherShipWreckCountdown): at 0xEF
 //                          it sweeps the whole field (sweepFieldOnMotherShipDeathElseStepWreck), from 0xE4 down it plays its wreck-and-flash
-//                          shapes, at 0xB4 it pays 3,000 points (flashMotherShipWreckAndPayThreeThousand), at 0x5A its sprite
+//                          shapes, at 0xB4 it pays 3,000 points (swapWreckForThreeThousandLabelAndPay), at 0x5A its sprite
 //                          codes are set to 0xFF, and at 0 it goes idle, which hands over to the round advance, and raises ROUND_TRANSITION_HOLD to 0xFF (retireMotherShipAndRaiseRoundHold).
 //
 // SPRITE ENTRY LAYOUT (mechanisms.md). An entry's +0x00 is one coordinate and +0x01 the sprite code
@@ -84,12 +84,12 @@ const HITS_TO_ABSORB = 0x04;
 const STATE = 0x00;
 
 // Scoring-ring command (4, 13): 3,000 points, posted at the flash (`ld de,0x040d` at 0x463D).
-const FLASH_SCORE_AWARD_COMMAND = 0x04;
+const LABEL_SCORE_AWARD_COMMAND = 0x04;
 const THREE_THOUSAND_POINTS_INDEX = 0x0d;
 
 // Dying-countdown landmarks (see the table in the header), and the anti-tamper witness the finished
 // wreck checks: TAMPER_GLYPH_COPY must hold glyph 0x7C followed by colour 0x10 or 0x05.
-const FLASH_STATE = 0xb4;
+const AWARD_LABEL_STATE = 0xb4;
 const WRECK_HIDE_STATE = 0x5a;
 const WITNESS_GLYPH = 0x7c;
 const WITNESS_COLOUR_A = 0x10;
@@ -248,9 +248,9 @@ export function stepMotherShipWreckCountdown(m, record, entry) {
   // rotated right three times, less one, masked to 0..7 (`and 0x07` at 0x45EC), then `rst 0x08` fetches
   // the entry. The second tile (+0x03) gets the shape and the first tile (+0x01) the shape plus one.
   const state = mem8[atRecord(STATE)];
-  if (state === FLASH_STATE) return flashMotherShipWreckAndPayThreeThousand(m, record, entry);
-  if (state > FLASH_STATE) {
-    let sh = u8(state - FLASH_STATE);
+  if (state === AWARD_LABEL_STATE) return swapWreckForThreeThousandLabelAndPay(m, record, entry);
+  if (state > AWARD_LABEL_STATE) {
+    let sh = u8(state - AWARD_LABEL_STATE);
     sh = ((sh >> 3) | (sh << 5)) & 0xff; // RRCA x3
     sh = u8(sh - 1) & 0x07;
     const shape = fetchTableByte(m, MOTHER_SHIP_WRECK_SHAPE_TABLE, sh);
@@ -272,7 +272,7 @@ export function stepMotherShipWreckCountdown(m, record, entry) {
 // (0xFE and 0xFD) with attribute 0x6C on both tiles, request the award sound only if the player is
 // alive (PLAYER_STATE 0xA800 [seen] reading 0xFF, `ld a,(0xa800)` at 0x4636), and post the 3,000-point
 // award to the scoring ring as a tail (`jp 0x0038`).
-export function flashMotherShipWreckAndPayThreeThousand(m, record, entry) {
+export function swapWreckForThreeThousandLabelAndPay(m, record, entry) {
   const { mem8 } = m;
   const atRecord = (offset) => u16(record + offset);
   const atEntry = (offset) => u16(entry + offset);
@@ -284,7 +284,7 @@ export function flashMotherShipWreckAndPayThreeThousand(m, record, entry) {
   mem8[atEntry(0x32)] = 0x6c;
 
   if (u8(mem8[PLAYER_STATE] + 1) === 0x00) requestMotherShipAwardSound(m);
-  return postCommand(m, FLASH_SCORE_AWARD_COMMAND, THREE_THOUSAND_POINTS_INDEX);
+  return postCommand(m, LABEL_SCORE_AWARD_COMMAND, THREE_THOUSAND_POINTS_INDEX);
 }
 
 // ── The end (0x4646), the step the head reaches zero: raise ROUND_TRANSITION_HOLD from the sweep's 0xFE to 0xFF

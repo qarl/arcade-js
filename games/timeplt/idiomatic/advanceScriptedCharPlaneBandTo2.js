@@ -18,8 +18,8 @@
  * advanceScriptedCharPlaneBandTo4, which this entry hands over to by writing step 2.
  *
  * THE GEOMETRY. The band is one video-RAM column (column 0x11 of the 32x32 character plane) split
- * into two thirteen-cell runs -- the upper run ending at CHAR_PLANE_UPPER_RUN_BOTTOM 0xA5D1, the
- * lower run from CHAR_PLANE_LOWER_RUN_TOP 0xA631 down to CHAR_PLANE_LOWER_RUN_BOTTOM 0xA7B1 -- with
+ * into two thirteen-cell runs -- the upper run ending at CHAR_PLANE_RIGHT_RUN_INNER 0xA5D1, the
+ * lower run from CHAR_PLANE_LEFT_RUN_INNER 0xA631 down to CHAR_PLANE_LEFT_RUN_OUTER 0xA7B1 -- with
  * two centre cells (0xA5F1 / 0xA611) between them and four "stub" corner cells in the neighbouring
  * columns (0xA5F0, 0xA5F2, 0xA610, 0xA612). Under the board's ROT90 a fixed native column is a
  * horizontal line on the glass, so the runs read as a full-width streak with flares at its centre.
@@ -38,15 +38,15 @@ import {
   BAND_SCRIPT_CURSOR,
   BAND_TO2_PASS_COUNTDOWN,
   ROUND_WON_ANIMATION_STEP,
-  CHAR_PLANE_UPPER_RUN_BOTTOM,
+  CHAR_PLANE_RIGHT_RUN_INNER,
   CHAR_PLANE_STUB_UPPER_RIGHT,
-  CHAR_PLANE_COLUMN_MID_TOP,
+  CHAR_PLANE_COLUMN_MID_RIGHT,
   CHAR_PLANE_STUB_LOWER_RIGHT,
   CHAR_PLANE_STUB_UPPER_LEFT,
-  CHAR_PLANE_COLUMN_MID_BOTTOM,
+  CHAR_PLANE_COLUMN_MID_LEFT,
   CHAR_PLANE_STUB_LOWER_LEFT,
-  CHAR_PLANE_LOWER_RUN_TOP,
-  CHAR_PLANE_LOWER_RUN_BOTTOM,
+  CHAR_PLANE_LEFT_RUN_INNER,
+  CHAR_PLANE_LEFT_RUN_OUTER,
 } from "./names.js";
 
 // The blank glyph code (the ROM's `ld a,0xf1` at 0x149D), one character row of the plane (32 cells,
@@ -68,9 +68,9 @@ export function advanceScriptedCharPlaneBandTo2(m) {
     // together with the cell one row above each (the ROM's `add hl,de` with DE = -0x20), which
     // covers the centre pair and all four stubs. Only the visible cells are touched; the saved copy
     // in the hidden first row is left as it is, so the next drawing pass can put the picture back.
-    fillCellRun(m, BLANK_TILE, CHAR_PLANE_LOWER_RUN_BOTTOM);
-    fillCellRun(m, BLANK_TILE, CHAR_PLANE_UPPER_RUN_BOTTOM);
-    for (const cell of [CHAR_PLANE_STUB_UPPER_LEFT, CHAR_PLANE_COLUMN_MID_BOTTOM, CHAR_PLANE_STUB_LOWER_LEFT]) {
+    fillCellRun(m, BLANK_TILE, CHAR_PLANE_LEFT_RUN_OUTER);
+    fillCellRun(m, BLANK_TILE, CHAR_PLANE_RIGHT_RUN_INNER);
+    for (const cell of [CHAR_PLANE_STUB_UPPER_LEFT, CHAR_PLANE_COLUMN_MID_LEFT, CHAR_PLANE_STUB_LOWER_LEFT]) {
       mem8[cell] = BLANK_TILE;
       mem8[cell - ROW] = BLANK_TILE;
     }
@@ -109,8 +109,8 @@ export function advanceScriptedCharPlaneBandTo2(m) {
     const secondBit = mem8[cursor] & 1;
     mem16[BAND_SCRIPT_CURSOR] = cursor + 1;
     if (secondBit !== 0) {
-      mem8[CHAR_PLANE_COLUMN_MID_TOP] = mem8[CHAR_PLANE_COLUMN_MID_TOP] + 1;
-      mem8[CHAR_PLANE_COLUMN_MID_BOTTOM] = mem8[CHAR_PLANE_COLUMN_MID_BOTTOM] + 1;
+      mem8[CHAR_PLANE_COLUMN_MID_RIGHT] = mem8[CHAR_PLANE_COLUMN_MID_RIGHT] + 1;
+      mem8[CHAR_PLANE_COLUMN_MID_LEFT] = mem8[CHAR_PLANE_COLUMN_MID_LEFT] + 1;
     }
 
     // The two thirteen-cell runs are stepped through the SAME thirteen script bytes (ROM 0x147E on,
@@ -119,9 +119,9 @@ export function advanceScriptedCharPlaneBandTo2(m) {
     // cursor is then wound back thirteen so the lower run reads the identical bytes, walking DOWN
     // from its top cell with mode 0 -- also outward from the centre. The two runs therefore take
     // the same script edits as mirror images of each other about the centre cells.
-    stepThirteenScriptedGlyphCells(m, CHAR_PLANE_UPPER_RUN_BOTTOM, 2);
+    stepThirteenScriptedGlyphCells(m, CHAR_PLANE_RIGHT_RUN_INNER, 2);
     mem16[BAND_SCRIPT_CURSOR] = mem16[BAND_SCRIPT_CURSOR] - 13;
-    stepThirteenScriptedGlyphCells(m, CHAR_PLANE_LOWER_RUN_TOP, 0);
+    stepThirteenScriptedGlyphCells(m, CHAR_PLANE_LEFT_RUN_INNER, 0);
     // Save the edited column back into the hidden backing row (ROM `call 0x158c`), so the next
     // blanking pass cannot lose this frame's progress.
     gatherCharColumnIntoBackingRun(m);
