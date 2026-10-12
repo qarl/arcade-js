@@ -28,7 +28,7 @@ import { armNewGameThenStepSequence } from "./armNewGameThenStepSequence.js";
 import { seatCaptionPenFromEraFoldingTamperIntoPhase } from "./seatCaptionPenFromEraFoldingTamperIntoPhase.js";
 import { blankKillMeterThenAdvancePenRunStep } from "./blankKillMeterThenAdvancePenRunStep.js";
 import { loadActivePlayerContextAndPostRoundHud } from "./loadActivePlayerContextAndPostRoundHud.js";
-import { postRoundStartCaptionsAndResetPlayfield } from "./postRoundStartCaptionsAndResetPlayfield.js";
+import { postLifeStartCaptionsAndResetPlayfield } from "./postLifeStartCaptionsAndResetPlayfield.js";
 import { flyRoundIntroFlashingEraYearThenEraseIntroCaptions } from "./flyRoundIntroFlashingEraYearThenEraseIntroCaptions.js";
 import { flyEnemyFreeLeadInThenStepSequence } from "./flyEnemyFreeLeadInThenStepSequence.js";
 import { serviceRoundThenResolvePlayerState } from "./serviceRoundThenResolvePlayerState.js";
@@ -60,7 +60,7 @@ export function dispatchSequenceSubStepArm(m) {
     case 1: seatCaptionPenFromEraFoldingTamperIntoPhase(m); break;
     case 2: blankKillMeterThenAdvancePenRunStep(m); break;
     case 3: loadActivePlayerContextAndPostRoundHud(m); break;
-    case 4: postRoundStartCaptionsAndResetPlayfield(m); break;
+    case 4: postLifeStartCaptionsAndResetPlayfield(m); break;
     case 5: flyRoundIntroFlashingEraYearThenEraseIntroCaptions(m); break;
     case 6: flyEnemyFreeLeadInThenStepSequence(m); break;
     case 7: serviceRoundThenResolvePlayerState(m); break;

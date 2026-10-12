@@ -207,12 +207,12 @@ romTest("control: the inlined 0x4108 arm's probe fires on a planted drifting mar
 });
 
 romTest("control: a routine whose only entry is cut (body intact) counts 0, while its siblings still count", async () => {
-  // postRoundStartCaptionsAndResetPlayfield is entered only as arm 4 of dispatchSequenceSubStepArm's switch
+  // postLifeStartCaptionsAndResetPlayfield is entered only as arm 4 of dispatchSequenceSubStepArm's switch
   // (asserted) or through its map entry. Unwire the entry and route arm 4 to the TRANSLATED twin the way
   // the frozen dispatch did (resume slot parked, then the ROM arm): the game runs the arm's ROM body and
   // plays on, but the idiomatic body is never entered and is left untouched -- so a nonzero count would
   // be the instrument inventing an execution.
-  const name = "postRoundStartCaptionsAndResetPlayfield";
+  const name = "postLifeStartCaptionsAndResetPlayfield";
   const file = "boss-armed.poke.json";
   assert.deepEqual(importers(name), ["dispatchSequenceSubStepArm.js"], `${name} gained another direct caller`);
   const hex = (n) => `0x${n.toString(16)}`;

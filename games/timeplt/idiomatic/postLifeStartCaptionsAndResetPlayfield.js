@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** postRoundStartCaptionsAndResetPlayfield — round-start sequence arm: verify a fixed program span, post the round-start caption
+/** postLifeStartCaptionsAndResetPlayfield — round-start sequence arm: verify a fixed program span, post the round-start caption
  * commands, repaint the kill meter, reset the playfield for the new round, and step the sequence
  * sub-index.
  * The span is XOR-folded; any total but the genuine one advances the outer sequence phase first.
@@ -41,9 +41,9 @@ const GUARD_GENUINE_FOLD = 0x6b;
 const CAPTION_COMMAND = 2;
 const DEFAULT_ARGUMENT = 2;
 const PLAYER_ARGUMENT = 9;
-const ARMED_COMMAND = 7;
+const ROUND_NUMBER_CAPTION_COMMAND = 7;
 
-export function postRoundStartCaptionsAndResetPlayfield(m) {
+export function postLifeStartCaptionsAndResetPlayfield(m) {
   const { mem8 } = m;
 
   // Anti-tamper guard. XOR-fold the 256 bytes at ROUND_START_CHECKSUM_BASE (0x4C99, [seen]). A
@@ -68,7 +68,7 @@ export function postRoundStartCaptionsAndResetPlayfield(m) {
     // argument re-posted under command 7 (drawRoundNumberCaption) -- the ROM just swaps the
     // command byte (`ld d,0x07`) and posts again.
     if (mem8[ROUND_INTRO_PENDING] === 0) postCommand(m, CAPTION_COMMAND, DEFAULT_ARGUMENT);
-    else postCommand(m, ARMED_COMMAND, argument);
+    else postCommand(m, ROUND_NUMBER_CAPTION_COMMAND, argument);
   }
 
   // Repaint the kill meter (drawKillMeter, 0x0809), reset the playfield and load the era-and-rung

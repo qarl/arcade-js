@@ -21,7 +21,7 @@
  */
 
 import { u16 } from "../../../core/int.js";
-import { requestMotherShipWarpSound } from "./requestMotherShipWarpSound.js";
+import { requestMotherShipAwardSound } from "./requestMotherShipAwardSound.js";
 import { postCommand } from "./postCommand.js";
 import { PLAYER_STATE, TAMPER_GLYPH_COPY, TAMPER_GLYPH_SOURCE_CELL } from "./names.js";
 import { NotImplemented } from "../../../boards/timeplt/io.js";
@@ -58,6 +58,6 @@ export function checkTamperGlyphCopyElseRunWreckFlash(m, counterBase = m.regs.ix
   // Step 3 -- only while the player is live (PLAYER_STATE 0xA800 [seen] = 0xFF) ask for the sound
   // whose code is the program byte at 0x49EE, then queue command 0x04 with argument 0x0D in the
   // command ring (ROM `ld de,0x040d` / `jp 0x0038`).
-  if (mem8[PLAYER_STATE] === 0xff) requestMotherShipWarpSound(m);
+  if (mem8[PLAYER_STATE] === 0xff) requestMotherShipAwardSound(m);
   return postCommand(m, 0x04, 0x0d);
 }

@@ -30,8 +30,8 @@ import { u8, u16 } from "../../../core/int.js";
 // it as (iy+0x31).
 const NATIVE_Y_OFFSET = 49;
 // The retire line tested on the +0 (native-X) byte and the one tested on the +0x31 (native-Y) byte.
-const RETIRE_COLUMN = 4;
-const RETIRE_ROW = 248;
+const NATIVE_X_RETIRE_LINE = 4;
+const NATIVE_Y_RETIRE_LINE = 248;
 
 // "Within one of the line": shift so line-1 lands on 0, then an unsigned eight-bit compare against 3
 // accepts line-1, line and line+1. The ROM spells the two instances as `add a,0x09 / cp 0x03`
@@ -44,7 +44,7 @@ export function hasReachedRetireLine(m, entry = m.regs.iy) {
   // does it read and test the column. `||` keeps that order, and the column test's result is the
   // answer when the row test fails.
   const reached =
-    atLine(mem8[u16(entry + NATIVE_Y_OFFSET)], RETIRE_ROW) ||
-    atLine(mem8[entry], RETIRE_COLUMN);
+    atLine(mem8[u16(entry + NATIVE_Y_OFFSET)], NATIVE_Y_RETIRE_LINE) ||
+    atLine(mem8[entry], NATIVE_X_RETIRE_LINE);
   return reached;
 }

@@ -59,7 +59,7 @@ import { requestEnemyLaunchSound } from "./requestEnemyLaunchSound.js";
 import { requestTwoSounds } from "./requestTwoSounds.js";
 import { requestDestructionSoundBurst } from "./requestDestructionSoundBurst.js";
 import { requestCurrentEraSound } from "./requestCurrentEraSound.js";
-import { requestMotherShipWarpSound } from "./requestMotherShipWarpSound.js";
+import { requestMotherShipAwardSound } from "./requestMotherShipAwardSound.js";
 import { ACTOR_ENTRY_SLOT2, ACTOR_RECORD_SLOT0, ACTOR_RECORD_SLOT2, BANK_LAUNCH_COOLDOWN, BANK_LAUNCH_COOLDOWN_PERIOD, BANK_LAUNCH_NEAR_HALF_WIDTH, ENEMY_STANDOFF_AIM_MAIN, ERA_INDEX, FRAME_TICK, BOMBER_HITS_TO_ABSORB, MOTHER_SHIP_AIM_SIDE_TOGGLE, MOTHER_SHIP_ENTRY, MOTHER_SHIP_STATE, PLAYER_HEADING, PLAYER_STATE, ROUND_TRANSITION_HOLD, SCRATCH_PTR_A, SCRATCH_PTR_B, TAMPER_GLYPH_COPY, WORLD_SCROLL_X, WORLD_SCROLL_Y, HEADING_EDGE_POSITION_TABLE, MOTHER_SHIP_WRECK_SHAPE_TABLE } from "./names.js";
 
 // The field sweep (sweepFieldOnMotherShipDeathElseStepWreck): fifteen sixteen-byte records from ACTOR_RECORD_SLOT0 (0xA810) up
@@ -283,7 +283,7 @@ export function flashMotherShipWreckAndPayThreeThousand(m, record, entry) {
   mem8[Y(FIRST_ATTRIBUTE)] = 0x6c;
   mem8[Y(0x32)] = 0x6c;
 
-  if (u8(mem8[PLAYER_STATE] + 1) === 0x00) requestMotherShipWarpSound(m);
+  if (u8(mem8[PLAYER_STATE] + 1) === 0x00) requestMotherShipAwardSound(m);
   return postCommand(m, FLASH_SCORE_AWARD_COMMAND, THREE_THOUSAND_POINTS_INDEX);
 }
 

@@ -1395,7 +1395,7 @@ loc_0751:
 ; ' again when it is clear. Before this, an XOR fold of the 256 program
 ; bytes at 0x4C99 must come to 0x6B, or the arm advances the sequence
 ; phase. This anti-tamper guard does nothing on a genuine image.
-postRoundStartCaptionsAndResetPlayfield:
+postLifeStartCaptionsAndResetPlayfield:
 0774: 06 00           LD      B,$00               ; two hundred fifty-six program bytes to fold -- a zero count means the full round
 0776: 21 99 4C        LD      HL,$4C99            ; point at the program run to verify
 0779: 97              SUB     A                   ; clear the running total
@@ -3464,7 +3464,7 @@ advanceScriptedCharPlaneBandTo4:
 14D6: 32 F4 A9        LD      ($A9F4),A           ; {hard.workRam+1F4} ...clears the pass countdown -- script done
 14D9: 3E 04           LD      A,$04               ; value 4...
 14DB: 32 F0 A9        LD      ($A9F0),A           ; {hard.workRam+1F0} ...into the round-won animation step -- advance to stage 4
-14DE: CD E4 56        CALL    $56E4               ; {code.requestInterRoundSoundPair} request the inter-round sound pair
+14DE: CD E4 56        CALL    $56E4               ; {code.requestDestructionOrRoundEndSoundPair} request the inter-round sound pair
 14E1: 2A F7 A9        LD      HL,($A9F7)          ; {hard.workRam+1F7} reload the cursor
 14E4: 23              INC     HL                  
 14E5: 22 F7 A9        LD      ($A9F7),HL          ; {hard.workRam+1F7} step the cursor on -- ending early
@@ -9559,7 +9559,7 @@ loc_4623:
 4632: FD 36 32 6C     LD      (IY+$32),$6C        
 4636: 3A 00 A8        LD      A,($A800)           ; {hard.workRam} is the player alive (PLAYER_STATE reads 0xFF)?
 4639: 3C              INC     A                   ; if so, sound the mother-ship warp
-463A: CC 0B 58        CALL    Z,$580B             ; {code.requestMotherShipWarpSound}
+463A: CC 0B 58        CALL    Z,$580B             ; {code.requestMotherShipAwardSound}
 463D: 11 0D 04        LD      DE,$040D            ; the scoring command -- entry 13, 3,000 points
 4640: C3 38 00        JP      $0038               ; {code.postCommand} queue it and return
 
@@ -12196,7 +12196,7 @@ requestDestructionSoundBurst:
 ; call from advanceScriptedCharPlaneBandTo4 and by falling out of the
 ; bottom of requestDestructionSoundBurst; the same shape as
 ; requestTwoSounds at 0x5683 with a different pair of program bytes
-requestInterRoundSoundPair:
+requestDestructionOrRoundEndSoundPair:
 56E4: 3A CB 27        LD      A,($27CB)           ; {hard.rom+27CB} first sound code from the program image
 56E7: CD 17 56        CALL    $5617               ; {code.enqueueSoundIfGameOrDemoSoundsOn} request it -- game or attract sound
 56EA: 3A A0 33        LD      A,($33A0)           ; {hard.rom+33A0} second sound code from the program image
@@ -12249,7 +12249,7 @@ requestBonusLifeSound:
 
 ; read the byte at 0x49EE and request it as a sound code, only while a
 ; game is being played
-requestMotherShipWarpSound:
+requestMotherShipAwardSound:
 580B: 3A EE 49        LD      A,($49EE)           ; {hard.rom+49EE} fetch the mother-ship warp sound code from the program image
 580E: C3 0C 56        JP      $560C               ; {code.enqueueSoundIfGameInProgress} request it, only while a game is in progress
 

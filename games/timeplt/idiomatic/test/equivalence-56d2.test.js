@@ -5,7 +5,7 @@
  * WHAT IT IS. Three sound codes, each fetched from a byte of the program image and offered to the
  * IN-PLAY-ONLY permission test at ROM 0x560C, and then a fall-through into ROM 0x56E4, which asks
  * for two more under a LOOSER test. ALL OF THOSE ARE ALREADY DECOMPILED, so the rewrite calls
- * enqueueSoundIfGameInProgress three times and requestInterRoundSoundPair once, and dissolving all four transfers belongs to this
+ * enqueueSoundIfGameInProgress three times and requestDestructionOrRoundEndSoundPair once, and dissolving all four transfers belongs to this
  * caller's unit. The fall-through is a plain call here, which is the same thing under
  * memory-equivalence.
  *
@@ -76,7 +76,7 @@ import { requestDestructionSoundBurst } from "../requestDestructionSoundBurst.js
 import { enqueueSoundIfGameInProgress } from "../enqueueSoundIfGameInProgress.js";
 import { enqueueSoundIfGameOrDemoSoundsOn } from "../enqueueSoundIfGameOrDemoSoundsOn.js";
 import { appendSoundCommandToQueue } from "../appendSoundCommandToQueue.js";
-import { requestInterRoundSoundPair } from "../requestInterRoundSoundPair.js";
+import { requestDestructionOrRoundEndSoundPair } from "../requestDestructionOrRoundEndSoundPair.js";
 import { PLAY_ACTIVE } from "../names.js";
 import { loc_56d2 as oracle } from "../../translated/loc_56d2.js";
 import { unitEquivalence } from "../../../../core/equivalence.js";
@@ -129,7 +129,7 @@ const read = (rel) => readFileSync(new URL(rel, import.meta.url), "utf8");
  */
 const HELPERS = [
   ["enqueueSoundIfGameInProgress", "../enqueueSoundIfGameInProgress.js", "PLAY_ACTIVE"],
-  ["requestInterRoundSoundPair", "../requestInterRoundSoundPair.js", "0x27cb"],
+  ["requestDestructionOrRoundEndSoundPair", "../requestDestructionOrRoundEndSoundPair.js", "0x27cb"],
 ];
 
 function callsRatherThanRestates(text, [name, file, ownConstant]) {
@@ -374,7 +374,7 @@ function brokenLoosePermissionThroughout(m) {
   enqueueSoundIfGameOrDemoSoundsOn(m, mem8[FIRST_CODE_CELL]);
   enqueueSoundIfGameOrDemoSoundsOn(m, mem8[SECOND_CODE_CELL]);
   enqueueSoundIfGameOrDemoSoundsOn(m, mem8[THIRD_CODE_CELL]);
-  requestInterRoundSoundPair(m);
+  requestDestructionOrRoundEndSoundPair(m);
 }
 
 /** BUG: the trailing pair goes through the STRICTER test, so it is dropped where it should land. */
@@ -397,7 +397,7 @@ function brokenDropsTheTail(m) {
 
 /** BUG: only the tail runs. */
 function brokenTailOnly(m) {
-  requestInterRoundSoundPair(m);
+  requestDestructionOrRoundEndSoundPair(m);
 }
 
 /** BUG: the three go out back to front. */
@@ -406,7 +406,7 @@ function brokenOrderReversed(m) {
   enqueueSoundIfGameInProgress(m, mem8[THIRD_CODE_CELL]);
   enqueueSoundIfGameInProgress(m, mem8[SECOND_CODE_CELL]);
   enqueueSoundIfGameInProgress(m, mem8[FIRST_CODE_CELL]);
-  requestInterRoundSoundPair(m);
+  requestDestructionOrRoundEndSoundPair(m);
 }
 
 /** BUG: the first code is fetched one byte along. */
@@ -415,7 +415,7 @@ function brokenWrongFirstCode(m) {
   enqueueSoundIfGameInProgress(m, mem8[WRONG_CODE_CELL]);
   enqueueSoundIfGameInProgress(m, mem8[SECOND_CODE_CELL]);
   enqueueSoundIfGameInProgress(m, mem8[THIRD_CODE_CELL]);
-  requestInterRoundSoundPair(m);
+  requestDestructionOrRoundEndSoundPair(m);
 }
 
 /** BUG: only two of the three are asked for. */
@@ -423,7 +423,7 @@ function brokenTwoCodesOnly(m) {
   const { mem8 } = m;
   enqueueSoundIfGameInProgress(m, mem8[FIRST_CODE_CELL]);
   enqueueSoundIfGameInProgress(m, mem8[SECOND_CODE_CELL]);
-  requestInterRoundSoundPair(m);
+  requestDestructionOrRoundEndSoundPair(m);
 }
 
 /** BUG: the same code goes out three times. */
@@ -432,7 +432,7 @@ function brokenSameCodeThrice(m) {
   enqueueSoundIfGameInProgress(m, mem8[FIRST_CODE_CELL]);
   enqueueSoundIfGameInProgress(m, mem8[FIRST_CODE_CELL]);
   enqueueSoundIfGameInProgress(m, mem8[FIRST_CODE_CELL]);
-  requestInterRoundSoundPair(m);
+  requestDestructionOrRoundEndSoundPair(m);
 }
 
 /** BUG: no permission is asked at all, so the codes go out whatever the cabinet is doing. */
@@ -441,7 +441,7 @@ function brokenBypassesPermission(m) {
   appendSoundCommandToQueue(m, mem8[FIRST_CODE_CELL]);
   appendSoundCommandToQueue(m, mem8[SECOND_CODE_CELL]);
   appendSoundCommandToQueue(m, mem8[THIRD_CODE_CELL]);
-  requestInterRoundSoundPair(m);
+  requestDestructionOrRoundEndSoundPair(m);
 }
 
 const TWINS = [

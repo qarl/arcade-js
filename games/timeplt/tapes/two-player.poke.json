@@ -12,7 +12,7 @@
     { "frame": 660, "addr": "0xa800", "val": "0xf0", "dur": 1 }
   ],
   "responded": {"cell": "0xad32", "op": "eq", "val": 1},
-  "reaches": ["postRoundStartCaptionsAndResetPlayfield", "flyRoundIntroFlashingEraYearThenEraseIntroCaptions", "flyEnemyFreeLeadInThenStepSequence", "loadActivePlayerContextAndPostRoundHud"],
+  "reaches": ["postLifeStartCaptionsAndResetPlayfield", "flyRoundIntroFlashingEraYearThenEraseIntroCaptions", "flyEnemyFreeLeadInThenStepSequence", "loadActivePlayerContextAndPostRoundHud"],
   "_reaches": "startTwoPlayerGame runs before 'responded' first holds, outside the compared window, so it is not declared; high-score.poke.json declares it. loseLifeAndHandOver is declared by mothership-era4.poke.json.",
   "idiomatic_residual_frames": 87
 }

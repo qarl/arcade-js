@@ -1628,13 +1628,13 @@ export const GAME_START_SOUND = 0x1767; // sound-command code enqueued by reques
 export const HIGH_SCORE_FILED_SOUND_CODE = 0x18fa; // program-image byte read as a sound code by requestHighScoreFiledSound (`ld a,(0x18fa)` at 0x583A), enqueued only while a game is in progress [seen]
 export const ENEMY_WAVE_SOUND = 0x273a; // sound-command code enqueued by requestEnemyWaveSound [seen]
 export const ATTACKER_SPAWN_SOUND_ERAS_1_TO_4 = 0x276b; // sound-command code read by requestAttackerSpawnSoundLateEra; requestTwoSoundsWhilePlaying (mid-era path) falls through into the same read, so the byte is not late-era-only [seen]
-export const INTER_ROUND_SOUND_1 = 0x27cb; // 1st of the inter-round sound pair (requestInterRoundSoundPair) [seen]
+export const DESTRUCTION_OR_ROUND_END_SOUND_1 = 0x27cb; // 1st of the inter-round sound pair (requestDestructionOrRoundEndSoundPair) [seen]
 export const BONUS_LIFE_SOUND = 0x2d4e; // sound-command code enqueued by requestBonusLifeSound [seen]
 export const ONE_SHOT_COUNTDOWN_SOUND = 0x2d87; // sound requested when a one-shot/countdown object's count is clamped to 0x3b (animate-out onset); not named 'death', since callers include non-combat objects [seen]
 export const PLAYER_SHOT_SOUND = 0x3270; // sound-command code enqueued by requestPlayerShotSound [seen]
 export const COIN_SOUND = 0x322e; // sound-command code enqueued unconditionally by requestCoinSound [seen]
-export const INTER_ROUND_SOUND_2 = 0x33a0; // 2nd of the inter-round sound pair (requestInterRoundSoundPair) [seen]
-export const MOTHER_SHIP_WARP_SOUND = 0x49ee; // sound-command code enqueued by requestMotherShipWarpSound [seen]
+export const DESTRUCTION_OR_ROUND_END_SOUND_2 = 0x33a0; // 2nd of the inter-round sound pair (requestDestructionOrRoundEndSoundPair) [seen]
+export const MOTHER_SHIP_AWARD_SOUND = 0x49ee; // sound-command code enqueued by requestMotherShipAwardSound [seen]
 export const ENEMY_LAUNCH_SOUND_LATE_ERA = 0x4c9f; // late-era enemy-launch sound code (requestEnemyLaunchSoundLateEra) [seen]
 export const TWO_SOUND_REQUEST_SECOND_CODE = 0x4cda; // 2nd of the two sound codes requestTwoSounds enqueues [seen]
 
@@ -2063,7 +2063,7 @@ export const LEAD_IN_EXPIRY_CHECKSUM_BASE = 0x12a7; // base of the second 256-by
 
 export const ROUTINES = {
   0x0774: {
-    name: "postRoundStartCaptionsAndResetPlayfield",
+    name: "postLifeStartCaptionsAndResetPlayfield",
     role: "round-start arm of the phase-3 sub-step table (entry 4 of 0x0F29): post the round-start captions to the command ring, repaint the kill meter (drawKillMeter), reset the playfield for the coming life (resetPlayfieldForLifeStart), then step the sequence sub-index (advanceSequenceSubStep). With PLAY_ACTIVE clear it posts caption 2 (' READY ') only. With PLAY_ACTIVE set it posts caption 9 or 10 ('PLAYER 1' or 'PLAYER 2', chosen by ACTIVE_PLAYER). That is followed by command 7 (drawRoundNumberCaption) when ROUND_INTRO_PENDING is set, or by ' READY ' again when it is clear. Before this, an XOR fold of the 256 program bytes at 0x4C99 must come to 0x6B, or the arm advances the sequence phase. This anti-tamper guard does nothing on a genuine image.",
     cert: "seen",
     why: "the name claims the arm posts the round-start captions and then resets the playfield, and the ROM could have refuted either half: command table 0x0BBC slot 2 is drawCaptionInPenColour and slot 7 drawRoundNumberCaption, and caption records 2/9/10 in the 0x0C50 table decode consistently to READY / PLAYER 1 / PLAYER 2 (the shared R/E/A/Y letters, and R/E/D against the CREDIT record 8), while the call that follows is resetPlayfieldForLifeStart; the anti-tamper fold and the sub-step tail are housekeeping and left out. Under MAME the branch selection on PLAY_ACTIVE, ACTIVE_PLAYER and ROUND_INTRO_PENDING and the callees are observed; the on-screen glyph text of the captions remains a code-level reading",
@@ -3103,7 +3103,7 @@ export const ROUTINES = {
     why: "named for the data cell it requests, ONE_SHOT_COUNTDOWN_SOUND 0x2D87 [seen], and in the family shape of the requestXSound siblings: its one caller is clampOneShotCountdownThenRequestSound, which sets a one-shot object countdown to 0x3B and then asks for this sound. The countdown, not 'death', is the name because the clamp's callers include non-combat objects",
   },
   0x56e4: {
-    name: "requestInterRoundSoundPair",
+    name: "requestDestructionOrRoundEndSoundPair",
     role: "read the byte at 0x27CB and request it as a sound code, then the byte at 0x33A0; both go through the door at 0x5617, which admits them while a game is being played or while the cell at 0xA9C6 is set. Reached as a call from advanceScriptedCharPlaneBandTo4 and by falling out of the bottom of requestDestructionSoundBurst; the same shape as requestTwoSounds at 0x5683 with a different pair of program bytes",
     cert: "seen",
   },
@@ -3128,7 +3128,7 @@ export const ROUTINES = {
     cert: "seen",
   },
   0x580b: {
-    name: "requestMotherShipWarpSound",
+    name: "requestMotherShipAwardSound",
     role: "read the byte at 0x49EE and request it as a sound code, only while a game is being played",
     cert: "seen",
   },

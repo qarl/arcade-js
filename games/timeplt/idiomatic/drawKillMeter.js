@@ -15,7 +15,7 @@
  * ROLE IN THE MACHINE. KILLS_REMAINING (0xAD02) counts down the enemies still to destroy before
  * the Mother-Ship appears (56 at the start of every round), and the bar along the bottom of the
  * screen is a direct rendering of it (names.js) -- there is no time limit in this game; the bar is
- * this meter. It is repainted by postRoundStartCaptionsAndResetPlayfield each time a life opens
+ * this meter. It is repainted by postLifeStartCaptionsAndResetPlayfield each time a life opens
  * and also by serviceRoundThenResolvePlayerState.
  *
  * GEOMETRY. The bar starts at the fixed cell KILL_METER_BAR_START_CELL (0xA79F) and each further

@@ -30,7 +30,7 @@ const SECOND_BRACKET_FROM = 6;
 const THIRD_BRACKET_FROM = 11;
 
 // The round-intro-pending flag is raised to all-ones (the ROM's `xor a; dec a` gives 0xFF).
-const ARMED = 0xff;
+const INTRO_PENDING_SET = 0xff;
 
 export function startNextRound(m) {
   const { mem8 } = m;
@@ -61,5 +61,5 @@ export function startNextRound(m) {
   mem8[MOTHER_SHIP_ARMED] = 0;
   mem8[ROUND_TRANSITION_HOLD] = 0;
   // Mark the round's intro pending: the flag stays up until the round-intro fly-in timer expires.
-  mem8[ROUND_INTRO_PENDING] = ARMED;
+  mem8[ROUND_INTRO_PENDING] = INTRO_PENDING_SET;
 }

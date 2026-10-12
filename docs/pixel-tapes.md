@@ -112,7 +112,7 @@ directly-called ones by host call-stack attribution on a read their own body mak
 
 | tape | reaches |
 |---|---|
-| boss-armed, deep-round | postRoundStartCaptionsAndResetPlayfield, flyRoundIntroFlashingEraYearThenEraseIntroCaptions, flyEnemyFreeLeadInThenStepSequence |
+| boss-armed, deep-round | postLifeStartCaptionsAndResetPlayfield, flyRoundIntroFlashingEraYearThenEraseIntroCaptions, flyEnemyFreeLeadInThenStepSequence |
 | two-player | the three above + loadActivePlayerContextAndPostRoundHud |
 | era-one | the three above + serviceEra1EnemyCraftSlot |
 | era-advance | flyRoundIntroFlashingEraYearThenEraseIntroCaptions, flyEnemyFreeLeadInThenStepSequence, serviceSlotByMarkerThenCloseSweepTurn |
@@ -142,7 +142,7 @@ directly-called ones by host call-stack attribution on a read their own body mak
   MAME. The measurement is in the tape's note. The arm is probed (a call into
   stepDriftingCountdownObjectByEraFrames with the sweep on the stack); the standing test's planted-marker
   control on era-advance proves the probe fires and its mutant silences it.
-- **Not in a window:** postRoundStartCaptionsAndResetPlayfield runs in era-advance, game-over and
+- **Not in a window:** postLifeStartCaptionsAndResetPlayfield runs in era-advance, game-over and
   high-score only before the distant state, so those tapes do not declare it.
 - **Teeth beyond the px budgets.** Each tape pins `idiomatic_residual_frames`, the idiomatic layer's
   differing-frame count at its measured correct floor (pixel_suite RESIDUAL_FRAMES, the same rule for the

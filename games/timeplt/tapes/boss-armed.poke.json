@@ -9,6 +9,6 @@
     { "frame": 620, "addr": "0xad02", "val": "0x00" }
   ],
   "responded": {"cell": "0xad0d", "op": "eq", "val": "0xff"},
-  "reaches": ["postRoundStartCaptionsAndResetPlayfield", "flyRoundIntroFlashingEraYearThenEraseIntroCaptions", "flyEnemyFreeLeadInThenStepSequence"],
+  "reaches": ["postLifeStartCaptionsAndResetPlayfield", "flyRoundIntroFlashingEraYearThenEraseIntroCaptions", "flyEnemyFreeLeadInThenStepSequence"],
   "idiomatic_residual_frames": 59
 }

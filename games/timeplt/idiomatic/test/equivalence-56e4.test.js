@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * requestInterRoundSoundPair — memory-equivalent to the frozen oracle at ROM 0x56E4.
+ * requestDestructionOrRoundEndSoundPair — memory-equivalent to the frozen oracle at ROM 0x56E4.
  *
  * WHAT IT IS. Two sound requests in a row, each with a code fetched from a byte of the program
  * image, each routed through the permission test at 0x5617 — WHICH IS ALREADY DECOMPILED, so the
@@ -42,7 +42,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMachine, COIN_FRAME, START_FRAME, ENTRY_FRAMES, romsPresent } from "./_harness.js";
-import { requestInterRoundSoundPair } from "../requestInterRoundSoundPair.js";
+import { requestDestructionOrRoundEndSoundPair } from "../requestDestructionOrRoundEndSoundPair.js";
 import { enqueueSoundIfGameOrDemoSoundsOn } from "../enqueueSoundIfGameOrDemoSoundsOn.js";
 import { appendSoundCommandToQueue } from "../appendSoundCommandToQueue.js";
 import { loc_56e4 as oracle } from "../../translated/loc_56e4.js";
@@ -137,7 +137,7 @@ function gate(candidate) {
 }
 
 function entryState() {
-  if (entry === null) gate(requestInterRoundSoundPair);
+  if (entry === null) gate(requestDestructionOrRoundEndSoundPair);
   return entry;
 }
 
@@ -212,7 +212,7 @@ function replaySession(factory, candidate) {
 let sessionCache = null;
 function sessions() {
   if (sessionCache) return sessionCache;
-  sessionCache = SESSIONS.map(([label, factory]) => ({ label, ...replaySession(factory, requestInterRoundSoundPair) }));
+  sessionCache = SESSIONS.map(([label, factory]) => ({ label, ...replaySession(factory, requestDestructionOrRoundEndSoundPair) }));
   return sessionCache;
 }
 
@@ -289,15 +289,15 @@ const TWINS = [
 
 // ── the gate ────────────────────────────────────────────────────────────────────────────
 
-test("EQUAL at the real dispatch: requestInterRoundSoundPair == oracle outside the scratch window", { skip }, () => {
-  gate(requestInterRoundSoundPair);
+test("EQUAL at the real dispatch: requestDestructionOrRoundEndSoundPair == oracle outside the scratch window", { skip }, () => {
+  gate(requestDestructionOrRoundEndSoundPair);
   assert.notEqual(entry, null, "vacuous: the session never reached the routine");
   const e = entryState();
   const sp = e.regs.sp;
   const a = e.clone();
   const b = e.clone();
   oracle(a);
-  requestInterRoundSoundPair(b);
+  requestDestructionOrRoundEndSoundPair(b);
   const all = allDiffs(a, b);
   const strays = all.filter((d) => !inScratch(d.addr, sp));
   console.log(
@@ -322,7 +322,7 @@ test("EXCLUDED, deliberately: only scratch registers move, over the whole cross"
     const a = craft(playing, demo, n);
     const b = a.clone();
     oracle(a);
-    requestInterRoundSoundPair(b);
+    requestDestructionOrRoundEndSoundPair(b);
     for (const k of REG_FIELDS) if (a.regs[k] !== b.regs[k]) moved.add(k);
   }
   console.log(`  EXCLUDED (measured): ${REG_FIELDS.filter((k) => moved.has(k)).join(", ")}`);
@@ -353,7 +353,7 @@ test("CORPUS: every dispatch of three real sessions replays identically", { skip
 
 test("CRAFTED: every permission x queue-length combination is identical", { skip }, () => {
   for (const [playing, demo, n] of cross()) {
-    const d = unitDiff(requestInterRoundSoundPair, craft(playing, demo, n));
+    const d = unitDiff(requestDestructionOrRoundEndSoundPair, craft(playing, demo, n));
     assert.equal(d, null, `permission ${playing}/${demo} length ${n}: ${show(d)}`);
   }
   console.log(`  CRAFTED: ${cross().length} entries identical`);
@@ -364,7 +364,7 @@ test("THE DROPPED CASE: with both permission cells clear, nothing is written", {
   for (const n of LENGTHS) {
     const before = craft(0, 0, n);
     const after = before.clone();
-    requestInterRoundSoundPair(after);
+    requestDestructionOrRoundEndSoundPair(after);
     const d = firstStateDiff(before.dumpState(), after.dumpState(), (o) => before.stateOffsetToAddr(o));
     assert.equal(d, null, `length ${n}: a dropped request still wrote ${show(d)}`);
     checked++;
@@ -382,7 +382,7 @@ test("THE DROPPED CASE: with both permission cells clear, nothing is written", {
 });
 
 test("WHOLE-MACHINE: a driven session is byte-identical with the rewrite wired", { skip }, () => {
-  const w = replay(requestInterRoundSoundPair);
+  const w = replay(requestDestructionOrRoundEndSoundPair);
   assert.ok(w.invocations.get(TARGET) > 0, "vacuous: the override never dispatched");
   assert.equal(w.framesCompared, WHOLE_FRAMES, "the replay ran short of the frames asked for");
   assert.equal(w.equal, true, `forked at frame ${w.frame} on ${hex4(w.addr ?? 0)}`);

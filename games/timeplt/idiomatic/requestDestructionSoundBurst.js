@@ -9,13 +9,13 @@
  *
  * ROLE IN THE MACHINE. The sound of a destruction: called by advancePlayerAnimationStrip on the
  * opening frame of the player's explosion and by loc_43f0 as the Mother-Ship's death sweep opens; the
- * codes it reads are 0x15, 0x14 and 0x13. The looser-permission tail (requestInterRoundSoundPair) also
+ * codes it reads are 0x15, 0x14 and 0x13. The looser-permission tail (requestDestructionOrRoundEndSoundPair) also
  * admits requests while the cell at 0xA9C6 is set, so a state that drops the first three can still
  * let the last two through.
  */
 
 import { enqueueSoundIfGameInProgress } from "./enqueueSoundIfGameInProgress.js";
-import { requestInterRoundSoundPair } from "./requestInterRoundSoundPair.js";
+import { requestDestructionOrRoundEndSoundPair } from "./requestDestructionOrRoundEndSoundPair.js";
 import { DESTRUCTION_SOUND_1, DESTRUCTION_SOUND_2, DESTRUCTION_SOUND_3 } from "./names.js";
 
 export function requestDestructionSoundBurst(m) {
@@ -26,5 +26,5 @@ export function requestDestructionSoundBurst(m) {
   enqueueSoundIfGameInProgress(m, mem8[DESTRUCTION_SOUND_2]);
   enqueueSoundIfGameInProgress(m, mem8[DESTRUCTION_SOUND_3]);
   // The ROM has no return here: it runs on into 0x56E4, the two-code request (bytes 0x27CB, 0x33A0).
-  requestInterRoundSoundPair(m);
+  requestDestructionOrRoundEndSoundPair(m);
 }
