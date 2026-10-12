@@ -129,17 +129,17 @@ export function flyMotherShipOneFrame(m, record, entry) {
 
   // HL = record velocity (record+0x0c/0d) + world-Y scroll + sprite Y (entry+0x31 : record+0x03);
   // split back to entry+0x31 : record+0x03
-  let vertical = u16(((mem8[atRecord(0x0c)] << 8) | mem8[atRecord(0x0d)]) + mem16[WORLD_SCROLL_Y]);
-  vertical = u16(vertical + ((mem8[atEntry(0x31)] << 8) | mem8[atRecord(0x03)]));
-  mem8[atEntry(0x31)] = vertical >> 8;
-  mem8[atRecord(0x03)] = u8(vertical);
+  let nativeYWord = u16(((mem8[atRecord(0x0c)] << 8) | mem8[atRecord(0x0d)]) + mem16[WORLD_SCROLL_Y]);
+  nativeYWord = u16(nativeYWord + ((mem8[atEntry(0x31)] << 8) | mem8[atRecord(0x03)]));
+  mem8[atEntry(0x31)] = nativeYWord >> 8;
+  mem8[atRecord(0x03)] = u8(nativeYWord);
 
   // The +0x00 coordinate: its velocity word sits at +0x0C/+0x0D of the SECOND record (ix+0x1C/+0x1D),
   // where setMotherShipVelocityFromHeading parks it; the world's part is WORLD_SCROLL_X (0xA80A) [seen].
-  let horizontal = u16(((mem8[atRecord(0x1c)] << 8) | mem8[atRecord(0x1d)]) + mem16[WORLD_SCROLL_X]);
-  horizontal = u16(horizontal + ((mem8[atEntry(0x00)] << 8) | mem8[atRecord(0x05)]));
-  mem8[atEntry(0x00)] = horizontal >> 8;
-  mem8[atRecord(0x05)] = u8(horizontal);
+  let nativeXWord = u16(((mem8[atRecord(0x1c)] << 8) | mem8[atRecord(0x1d)]) + mem16[WORLD_SCROLL_X]);
+  nativeXWord = u16(nativeXWord + ((mem8[atEntry(0x00)] << 8) | mem8[atRecord(0x05)]));
+  mem8[atEntry(0x00)] = nativeXWord >> 8;
+  mem8[atRecord(0x05)] = u8(nativeXWord);
 
   // Butt the second tile against the first: same +0x00 coordinate, +0x31 coordinate 16 further on.
   mem8[atEntry(0x33)] = u8(mem8[atEntry(0x31)] + 0x10);

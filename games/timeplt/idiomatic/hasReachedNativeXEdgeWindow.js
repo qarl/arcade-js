@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** hasReachedHorizontalEdgeWindow — answer whether the byte at the head of the sprite entry a caller points at has arrived at the
+/** hasReachedNativeXEdgeWindow — answer whether the byte at the head of the sprite entry a caller points at has arrived at the
  * wrap point. The test is a four-wide window that STRADDLES zero — the two values just short of the wrap and
  * the two from the wrap on — so it measures a wrapped distance and not a range, which is what lets a byte
  * stepping a few units at a time land inside it instead of over it. Nothing is written, and nothing here
@@ -27,7 +27,7 @@ import { u8 } from "../../../core/int.js";
 const WINDOW = 4;
 const STARTS_BELOW_WRAP = 2;
 
-export function hasReachedHorizontalEdgeWindow(m, spriteEntry = m.regs.iy) {
+export function hasReachedNativeXEdgeWindow(m, spriteEntry = m.regs.iy) {
   const { mem8 } = m;
   // Bias the byte by +2 in eight bits (the ROM's `add a,0x02`) so the four values 254..1 land on
   // 0..3, then one unsigned compare against 4 (`cp 0x04`) answers "inside the window". Because the

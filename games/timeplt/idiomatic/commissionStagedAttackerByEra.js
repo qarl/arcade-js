@@ -51,10 +51,10 @@ export function commissionStagedAttackerByEra(m, spawnerRecord = m.regs.ix, spaw
   // the sprite entry: the native-Y whole part in the entry's +0x31 byte with its fraction at record
   // +0x03, the native-X whole part in the entry's +0x00 byte with its fraction at record +0x05. The
   // locals' vertical/horizontal name the board's native axes; native Y runs across the glass.
-  const verticalWhole = mem8[spawnerEntry + 0x31];
-  const verticalFraction = mem8[spawnerRecord + 0x03];
-  const horizontalWhole = mem8[spawnerEntry + 0x00];
-  const horizontalFraction = mem8[spawnerRecord + 0x05];
+  const nativeYWhole = mem8[spawnerEntry + 0x31];
+  const nativeYFraction = mem8[spawnerRecord + 0x03];
+  const nativeXWhole = mem8[spawnerEntry + 0x00];
+  const nativeXFraction = mem8[spawnerRecord + 0x05];
 
   // STEP 2 -- FIND THE NEW SLOT. The slot finder left the free slot's record pointer in SCRATCH_PTR_A
   // (0xA991) and its sprite-entry pointer in SCRATCH_PTR_B (0xA993) (`ld ix,(0xa991)` / `ld iy,(0xa993)`).
@@ -63,10 +63,10 @@ export function commissionStagedAttackerByEra(m, spawnerRecord = m.regs.ix, spaw
 
   // STEP 3 -- START IT WHERE THE LAUNCHER IS (0x42D1-0x42E0): copy both coordinate pairs across, and
   // store the caller's facing in the new record's +0x01.
-  mem8[record + 0x03] = verticalFraction;
-  mem8[entry + 0x31] = verticalWhole;
-  mem8[record + 0x05] = horizontalFraction;
-  mem8[entry + 0x00] = horizontalWhole;
+  mem8[record + 0x03] = nativeYFraction;
+  mem8[entry + 0x31] = nativeYWhole;
+  mem8[record + 0x05] = nativeXFraction;
+  mem8[entry + 0x00] = nativeXWhole;
   mem8[record + 0x01] = facing;
 
   // STEP 4 -- FIT IT OUT BY ERA. ERA_INDEX (0xAD04) is 0-4; the ROM tests 4, then 0, then 3, and

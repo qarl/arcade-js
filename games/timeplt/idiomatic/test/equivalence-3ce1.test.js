@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * hasReachedHorizontalEdgeWindow — memory-equivalent to the frozen oracle at ROM 0x3CE1.
+ * hasReachedNativeXEdgeWindow — memory-equivalent to the frozen oracle at ROM 0x3CE1.
  *
  * ★ NO DRIVEN TAPE REACHES THIS ENTRY AT ALL. The shared tape presses only coin 1 and 1 player
  *   start; IT NEVER FIRES AND NEVER STEERS. A second tape that holds the trigger down and walks
@@ -74,7 +74,7 @@ import assert from "node:assert/strict";
 
 import { makeMachine, COIN_FRAME, START_FRAME, romsPresent } from "./_harness.js";
 import { TAPE_SESSIONS, handOffReaders, heardAs } from "./_deadAtExit.js";
-import { hasReachedHorizontalEdgeWindow } from "../hasReachedHorizontalEdgeWindow.js";
+import { hasReachedNativeXEdgeWindow } from "../hasReachedNativeXEdgeWindow.js";
 import { loc_3ce1 as oracle } from "../../translated/loc_3ce1.js";
 import {
   firstStateDiff,
@@ -190,7 +190,7 @@ function gate(candidate) {
 }
 
 function entryState() {
-  if (entry === null) gate(hasReachedHorizontalEdgeWindow);
+  if (entry === null) gate(hasReachedNativeXEdgeWindow);
   return entry;
 }
 
@@ -259,7 +259,7 @@ function replaySession(opts, candidate) {
 let sessionCache = null;
 function sessions() {
   if (sessionCache) return sessionCache;
-  sessionCache = TAPES.map(([label, opts]) => ({ label, ...replaySession(opts, hasReachedHorizontalEdgeWindow) }));
+  sessionCache = TAPES.map(([label, opts]) => ({ label, ...replaySession(opts, hasReachedNativeXEdgeWindow) }));
   return sessionCache;
 }
 
@@ -360,14 +360,14 @@ test("BLIND: RAM is a TAUTOLOGY here — a bare no-op passes it too", { skip }, 
 });
 
 test("EQUAL at the real dispatch: the returned boolean is the carry, excluded set bounded", { skip }, () => {
-  const r = gate(hasReachedHorizontalEdgeWindow);
+  const r = gate(hasReachedNativeXEdgeWindow);
   assert.notEqual(entry, null, "vacuous: the attract run never reached the routine");
   assert.equal(r.ram, null, "RAM diverged");
 
   const a = entryState().clone();
   const b = entryState().clone();
   oracle(a);
-  const answer = hasReachedHorizontalEdgeWindow(b);
+  const answer = hasReachedNativeXEdgeWindow(b);
 
   assert.equal(answer, a.regs.fC, "the returned boolean must be the oracle's carry");
   const moved = REG_FIELDS.filter((k) => a.regs[k] !== b.regs[k]);
@@ -418,7 +418,7 @@ test("DEGENERATE ENTRY: doubling the budget captures the SAME entry", { skip }, 
   let later = null;
   unitEquivalence(attractMachine, TARGET, oracle, (m) => {
     if (later === null) later = m.clone();
-    return hasReachedHorizontalEdgeWindow(m);
+    return hasReachedNativeXEdgeWindow(m);
   }, { maxFrames: 2 * ENTRY_BUDGET });
   assert.notEqual(later, null, "vacuous: the doubled budget never reached the routine");
   assert.equal(later.regs.iy, first.regs.iy, "a longer run must not change which record it came from");
@@ -437,7 +437,7 @@ test("CORPUS: every real dispatch returns the oracle's carry", { skip }, () => {
 });
 
 test("EXHAUSTIVE: all 256 values of the one cell it reads answer as the oracle does", { skip }, () => {
-  const r = sweep(hasReachedHorizontalEdgeWindow, entryState().regs.iy);
+  const r = sweep(hasReachedNativeXEdgeWindow, entryState().regs.iy);
   assert.deepEqual(r.contract, [], `the rewrite diverged on values ${r.contract.join(",")}`);
   const trues = everyValue.filter((v) => {
     const m = craft(v);
@@ -451,7 +451,7 @@ test("EXHAUSTIVE: all 256 values of the one cell it reads answer as the oracle d
 
 test("CRAFTED BASES: the same sweep at four further record bases", { skip }, () => {
   for (const base of CRAFT_BASES) {
-    const r = sweep(hasReachedHorizontalEdgeWindow, base);
+    const r = sweep(hasReachedNativeXEdgeWindow, base);
     assert.deepEqual(r.contract, [], `base ${hex4(base)} diverged on ${r.contract.join(",")}`);
   }
   console.log(`  CRAFTED BASES: ${CRAFT_BASES.length * VALUES} further comparisons identical`);
@@ -461,8 +461,8 @@ test("HONEST SIGNATURE: the explicit base agrees with the register default", { s
   for (const value of [0, 1, 2, 49, 253, 254, 255]) {
     const viaRegister = craft(value);
     const viaArgument = craft(value);
-    const a = hasReachedHorizontalEdgeWindow(viaRegister);
-    const b = hasReachedHorizontalEdgeWindow(viaArgument, viaArgument.regs.iy);
+    const a = hasReachedNativeXEdgeWindow(viaRegister);
+    const b = hasReachedNativeXEdgeWindow(viaArgument, viaArgument.regs.iy);
     assert.equal(a, b, `value ${value}: the two entry forms disagree`);
   }
   console.log("  HONEST SIGNATURE: the named parameter and the register default agree");
@@ -524,7 +524,7 @@ test("HAND-OFF: every caller that reads the carry is an override that takes the 
 });
 
 test("WHOLE-MACHINE: the attract session is byte-identical with the rewrite wired", { skip }, () => {
-  const w = replay(hasReachedHorizontalEdgeWindow);
+  const w = replay(hasReachedNativeXEdgeWindow);
   const fired = w.invocations.get(TARGET);
   assert.equal(fired, DISPATCHES.attract, "the replay's dispatch count moved");
   assert.equal(w.framesCompared, CORPUS_FRAMES, "the replay ran short of the frames asked for");

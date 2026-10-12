@@ -33,8 +33,8 @@ const SECOND_COORDINATE = 0x31;
 
 // The sector index is built as three bits, as the ROM builds it in C: bit 0 when the second
 // distance is negative, bit 1 when the first is, bit 2 when the first distance is the shorter.
-const SECOND_IS_BELOW = 0x01;
-const FIRST_IS_BELOW = 0x02;
+const SECOND_REACH_NEGATIVE = 0x01;
+const FIRST_REACH_NEGATIVE = 0x02;
 const FIRST_IS_SHORTER = 0x04;
 
 // Thirty-two rungs per eighth of a turn; bit 5 of an octant base marks a backwards-counting sector.
@@ -51,7 +51,7 @@ export function headingToward(m, point = m.regs.hl, object = m.regs.iy) {
     mem8[(point & (0xff << 8)) | u8(point - 1)] - mem8[u16(object + SECOND_COORDINATE)];
 
   // Record each sense in the sector bits and keep the magnitudes (the ROM's `neg` on a borrow).
-  let sector = (secondReach < 0 ? SECOND_IS_BELOW : 0) | (firstReach < 0 ? FIRST_IS_BELOW : 0);
+  let sector = (secondReach < 0 ? SECOND_REACH_NEGATIVE : 0) | (firstReach < 0 ? FIRST_REACH_NEGATIVE : 0);
   const firstLeg = Math.abs(firstReach);
   const secondLeg = Math.abs(secondReach);
 

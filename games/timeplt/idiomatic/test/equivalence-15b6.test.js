@@ -47,11 +47,11 @@ import { REG_FIELDS } from "../../../../core/cpu/z80.js";
 const skip = romsPresent() ? false : "ROM images are gitignored and absent";
 
 const TARGET = 0x15b6;
-const FIRST_VERTICAL = 0xaa41;
+const FIRST_SLOT_NATIVE_Y = 0xaa41;
 const SLOT_STRIDE = 2;
 const SLOT_COUNT = 24;
-const CLEARED = Array.from({ length: SLOT_COUNT }, (_, s) => FIRST_VERTICAL + s * SLOT_STRIDE);
-const LAST_VERTICAL = CLEARED[SLOT_COUNT - 1];
+const CLEARED = Array.from({ length: SLOT_COUNT }, (_, s) => FIRST_SLOT_NATIVE_Y + s * SLOT_STRIDE);
+const LAST_SLOT_NATIVE_Y = CLEARED[SLOT_COUNT - 1];
 
 const BAND_LO = 0xaa30;
 const BAND_HI = 0xaa80;
@@ -224,7 +224,7 @@ test("WRITE-SET: exactly the twenty-four expected cells are cleared, and nothing
   assert.deepEqual(cleared, CLEARED, "the write-set moved");
   assert.deepEqual(mangled, [], `cells changed to a third value: ${hexList(mangled)}`);
   assert.equal(cleared.length, SLOT_COUNT, "one cell per slot");
-  console.log(`  WRITE-SET: ${cleared.length} cells, ${hex4(cleared[0])}..${hex4(LAST_VERTICAL)}`);
+  console.log(`  WRITE-SET: ${cleared.length} cells, ${hex4(cleared[0])}..${hex4(LAST_SLOT_NATIVE_Y)}`);
 });
 
 // ── arm 4: the excluded registers, measured ──────────────────────────────────────────────────
@@ -286,7 +286,7 @@ const twinFourOnly = (m) => {
 
 /** BUG: walks one cell per slot instead of two, so it eats the neighbouring field. */
 const twinStrideOne = (m) => {
-  for (let s = 0; s < SLOT_COUNT; s++) m.mem8[FIRST_VERTICAL + s] = 0;
+  for (let s = 0; s < SLOT_COUNT; s++) m.mem8[FIRST_SLOT_NATIVE_Y + s] = 0;
 };
 
 /** BUG: stops one slot early, leaving the last sprite where it was. */
@@ -296,12 +296,12 @@ const twinOneShort = (m) => {
 
 /** BUG: runs one slot past the end, into whatever follows the table. */
 const twinOneOver = (m) => {
-  for (let s = 0; s <= SLOT_COUNT; s++) m.mem8[FIRST_VERTICAL + s * SLOT_STRIDE] = 0;
+  for (let s = 0; s <= SLOT_COUNT; s++) m.mem8[FIRST_SLOT_NATIVE_Y + s * SLOT_STRIDE] = 0;
 };
 
 /** BUG: starts one cell low, so it clears the companion field of every slot instead. */
 const twinShiftedBase = (m) => {
-  for (let s = 0; s < SLOT_COUNT; s++) m.mem8[FIRST_VERTICAL - 1 + s * SLOT_STRIDE] = 0;
+  for (let s = 0; s < SLOT_COUNT; s++) m.mem8[FIRST_SLOT_NATIVE_Y - 1 + s * SLOT_STRIDE] = 0;
 };
 
 for (const [label, twin, expected] of [
@@ -334,8 +334,8 @@ test("TEETH: the one-short twin strands exactly one sprite, all the way to the d
   assertSessionRan(r, "one-short session");
   assert.deepEqual(
     r.addrs,
-    [LAST_VERTICAL, ...STACK_SCRATCH, SEEN_BY_DISPLAY].sort((x, y) => x - y),
+    [LAST_SLOT_NATIVE_Y, ...STACK_SCRATCH, SEEN_BY_DISPLAY].sort((x, y) => x - y),
     `the stranded slot did not surface where expected: ${hexList(r.addrs)}`,
   );
-  console.log(`  TEETH/one-short session: ${hex4(LAST_VERTICAL)} stranded, ${hex4(SEEN_BY_DISPLAY)} follows`);
+  console.log(`  TEETH/one-short session: ${hex4(LAST_SLOT_NATIVE_Y)} stranded, ${hex4(SEEN_BY_DISPLAY)} follows`);
 });

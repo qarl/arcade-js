@@ -2723,7 +2723,7 @@ export const ROUTINES = {
   },
   0x3cc4: {
     name: "hasReachedBoundaryBandSelectedByHeading",
-    role: "answer, in the carry flag, whether an object has reached a boundary: the heading in the object's record chooses which of two adjacent and disjoint three-wide bands is tested on the sprite entry's byte at +0x31, and when that band test fails a second, four-wide window test on the same sprite entry's head byte (hasReachedHorizontalEdgeWindow) decides -- so carry is the OR of the two tests",
+    role: "answer, in the carry flag, whether an object has reached a boundary: the heading in the object's record chooses which of two adjacent and disjoint three-wide bands is tested on the sprite entry's byte at +0x31, and when that band test fails a second, four-wide window test on the same sprite entry's head byte (hasReachedNativeXEdgeWindow) decides -- so carry is the OR of the two tests",
     cert: "seen",
   },
   0x3dda: {
@@ -3343,7 +3343,7 @@ export const ROUTINES = {
     cert: "seen",
   },
   0x3ce1: {
-    name: "hasReachedHorizontalEdgeWindow",
+    name: "hasReachedNativeXEdgeWindow",
     role: "answer whether the byte at the head of a sprite entry has reached its wrap point, testing a four-wide window that straddles zero -- so it measures a wrapped distance rather than bounding a range, which is what lets a byte stepping several units at a time land inside the window instead of over it",
     cert: "seen",
   },

@@ -85,7 +85,7 @@ const PAIR_CONSTANT = 0x1e;
 const SAMPLED_CELL = 0xa5fc;
 const COLOUR_PLANE_CELL = 0xa1fc;
 const SAMPLE_RECORD = 0xacbe;
-const FIRST_VERTICAL = 0xaa41;
+const FIRST_SLOT_NATIVE_Y = 0xaa41;
 const SLOT_STRIDE = 2;
 const SLOT_COUNT = 24;
 const WIPE_FIRST_CELL = 0xa404;
@@ -179,7 +179,7 @@ function craft(edit) {
   }
   if (band !== undefined) {
     for (let slot = 0; slot < SLOT_COUNT; slot++) {
-      m.mem8[FIRST_VERTICAL + slot * SLOT_STRIDE] = band(slot);
+      m.mem8[FIRST_SLOT_NATIVE_Y + slot * SLOT_STRIDE] = band(slot);
     }
   }
   if (substep !== undefined) m.mem8[SEQUENCE_SUBSTEP] = substep;
@@ -478,11 +478,11 @@ test("EFFECTS: the cross reaches all four parts of the oracle, not one of them",
     const after = before.clone();
     oracle(after);
     const bandCleared = [...Array(SLOT_COUNT)].some(
-      (_unused, slot) => before.mem8[FIRST_VERTICAL + slot * SLOT_STRIDE] !== 0,
+      (_unused, slot) => before.mem8[FIRST_SLOT_NATIVE_Y + slot * SLOT_STRIDE] !== 0,
     );
     if (bandCleared) hid++;
     for (let slot = 0; slot < SLOT_COUNT; slot++) {
-      assert.equal(after.mem8[FIRST_VERTICAL + slot * SLOT_STRIDE], 0, "a sprite was left showing");
+      assert.equal(after.mem8[FIRST_SLOT_NATIVE_Y + slot * SLOT_STRIDE], 0, "a sprite was left showing");
     }
     if (before.mem8[SAMPLE_RECORD] !== after.mem8[SAMPLE_RECORD] ||
         before.mem8[SAMPLE_RECORD + 1] !== after.mem8[SAMPLE_RECORD + 1]) copied++;

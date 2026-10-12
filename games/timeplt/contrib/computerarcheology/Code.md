@@ -8010,8 +8010,8 @@ loc_3c81:
 ; heading in the object's record chooses which of two adjacent and
 ; disjoint three-wide bands is tested on the sprite entry's byte at +0x31,
 ; and when that band test fails a second, four-wide window test on the
-; same sprite entry's head byte (hasReachedHorizontalEdgeWindow) decides
-; -- so carry is the OR of the two tests
+; same sprite entry's head byte (hasReachedNativeXEdgeWindow) decides --
+; so carry is the OR of the two tests
 hasReachedBoundaryBandSelectedByHeading:
 3CC4: DD 7E 02        LD      A,(IX+$02)          ; read the object's heading
 3CC7: C6 40           ADD     A,$40               ; rotate a quarter turn
@@ -8021,7 +8021,7 @@ hasReachedBoundaryBandSelectedByHeading:
 3CD1: C6 13           ADD     A,$13               ; bias toward the wrap
 3CD3: FE 03           CP      $03                 ; inside the three-wide band?
 3CD5: D8              RET     C                   ; inside: reached the boundary -- carry set
-3CD6: C3 E1 3C        JP      $3CE1               ; {code.hasReachedHorizontalEdgeWindow} outside: test the X edge window
+3CD6: C3 E1 3C        JP      $3CE1               ; {code.hasReachedNativeXEdgeWindow} outside: test the X edge window
 
 ; answer whether an object has drifted onto the boundary its caller frees
 ; the slot at: the vertical window this arm owns is tested here, and when
@@ -8039,7 +8039,7 @@ hasDriftedOffTheField:
 ; measures a wrapped distance rather than bounding a range, which is what
 ; lets a byte stepping several units at a time land inside the window
 ; instead of over it
-hasReachedHorizontalEdgeWindow:
+hasReachedNativeXEdgeWindow:
 3CE1: FD 7E 00        LD      A,(IY+$00)          ; read the entry's X
 3CE4: C6 02           ADD     A,$02               ; bias across the wrap
 3CE6: FE 04           CP      $04                 ; inside the four-wide window straddling zero?

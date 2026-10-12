@@ -6,7 +6,7 @@
  * WHAT IT IS: ROM 0x3CC4-0x3CD8, tag [seen] (names.js ROUTINES 0x3cc4). The heading picks which of two
  * adjacent and disjoint three-wide bands is tested on the sprite entry's byte at +0x31. When that band
  * test misses, a second, four-wide window test on the same sprite entry's head byte
- * (hasReachedHorizontalEdgeWindow) decides -- so the answer is the OR of the two tests.
+ * (hasReachedNativeXEdgeWindow) decides -- so the answer is the OR of the two tests.
  *
  * ROLE IN THE MACHINE: it has two callers, and both use it as a retire test. flyBomberThenTryAimedShot
  * (0x3B88) uses it for its two-tile object: on a yes the object is retired, otherwise it is dressed and
@@ -18,7 +18,7 @@
 
 import { u8, u16 } from "../../../core/int.js";
 import { hasDriftedOffTheField } from "./hasDriftedOffTheField.js";
-import { hasReachedHorizontalEdgeWindow } from "./hasReachedHorizontalEdgeWindow.js";
+import { hasReachedNativeXEdgeWindow } from "./hasReachedNativeXEdgeWindow.js";
 
 /* The object's heading, a byte of a 256-step circle, at +0x02 of its record (`ld a,(ix+0x02)`). */
 const HEADING_IN_RECORD = 2;
@@ -52,6 +52,6 @@ export function hasReachedBoundaryBandSelectedByHeading(m, object = m.regs.ix, s
    * So the side the object is coming from picks its own line.
    */
   const biased = u8(mem8[u16(spriteEntry + COORDINATE)] + STARTS_BELOW_WRAP);
-  if (biased >= BAND) return hasReachedHorizontalEdgeWindow(m, spriteEntry);
+  if (biased >= BAND) return hasReachedNativeXEdgeWindow(m, spriteEntry);
   return true;
 }
