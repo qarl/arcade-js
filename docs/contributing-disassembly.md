@@ -216,6 +216,11 @@ it). Then:
   matching label line. `token_for` emits a cross-ref ONLY when the target actually gets a label; a derail/jump
   into a routine *interior* (no label there) renders as a raw `$XXXX` instead. This gate catches the whole
   buried-entry / interior-ref class.
+- **Label-placement gate (fail-closed).** Before writing anything, `gen_ca_contrib.py` checks that every
+  `NAME:` label sits at the address `names.js` ROUTINES gives NAME, and every `loc_XXXX:` sits at XXXX.
+  A `FORCE_DATA` entry's `name_src` must equal the span's start: the name labels the data block itself (so
+  the derails into it link there), and the instruction resuming after the span keeps its own label. On
+  timeplt a derail name once moved from its `$459B` data block onto the ordinary countdown at `$45B3`.
 
 **Completeness limit — say it honestly.** Round-trip proves every *byte* is present and correct; the scans
 catch the *obvious* mis-decoded tables (ramp and pointer). What no static method can see is data that decodes

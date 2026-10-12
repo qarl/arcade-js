@@ -3989,7 +3989,7 @@ paintReadoutsThenSampleWitnessOrDerail:
 176A: CD DA 19        CALL    $19DA               ; {code.checkTheCopyrightLineColoursOrDerail} verify the copyright line's colours -- derail if wrong
 176D: 3A 7C A6        LD      A,($A67C)           ; read a caption cell
 1770: FE 7C           CP      $7C                 ; is its glyph the expected one?
-1772: C2 9B 45        JP      NZ,$459B            ; wrong glyph: derail into the Mother-Ship wreck countdown's misaligned entry
+1772: C2 9B 45        JP      NZ,$459B            ; {code.derailIntoMotherShipWreckCountdown} wrong glyph: derail into the Mother-Ship wreck countdown's misaligned entry
 1775: 11 13 01        LD      DE,$0113            ; command 1, argument 0x13
 1778: FF              RST     $38                 ; queue it
 1779: CD DC 4B        CALL    $4BDC               ; {code.paintFiveLabelledNumericReadouts} paint the five labelled numeric readouts
@@ -9453,7 +9453,7 @@ loc_4540:
 loc_4554:
 4554: 79              LD      A,C                 ; recall the state value
 4555: FE F0           CP      $F0                 ; is the head 0xEF -- the step after the killing hit?
-4557: C2 B3 45        JP      NZ,$45B3            ; {code.derailIntoMotherShipWreckCountdown} not the sweep step: step the wreck countdown
+4557: C2 B3 45        JP      NZ,$45B3            ; {code.loc_45b3} not the sweep step: step the wreck countdown
 455A: AF              XOR     A                   ; clear BOMBER_HITS_TO_ABSORB
 455B: 32 DC A8        LD      ($A8DC),A           ; {hard.workRam+DC}
 455E: CD 34 56        CALL    $5634               ; {code.enqueueTransitionSoundStops} queue the transition sound stops
@@ -9493,14 +9493,6 @@ loc_4594:
 4597: 36 00           LD      (HL),$00            ; clear it
 4599: 18 DE           JR      $4579               ; {code.loc_4579} move on
 
-; reached only via the "wrong-glyph" derail ($1772) and the witness-copy
-; derail ($4660); the bytes run as register churn, undefined NOPs, stack-
-; misaligning POPs and a carry-gated call into the life-loss handover. The
-; Mother-Ship wreck countdown proper starts at $45B3.
-; ---- $459B-$45B2: misaligned anti-tamper entry ----
-459B: 16 A7 13 96 ED DC F1 8C 68 3B 0D ED F1 9B 13 13
-45AB: 13 13 F1 88 DC ED 11 B9
-
 ; a tamper derail's misaligned entry into the Mother-Ship's wreck
 ; countdown, whose aligned step (entered at 0x45B3 from $43F0) does this:
 ; drift the ship with the world, place the pair's second sprite or blank
@@ -9513,7 +9505,17 @@ loc_4594:
 ; resets to idle, then derails or returns on the TAMPER_GLYPH_COPY gate
 ; and the 0xAB44 gate after it; reached through a misaligned prologue (two
 ; POP AF, DEC SP) whose stray carry can fold in a life-loss
+;
+; reached only via the "wrong-glyph" derail ($1772) and the witness-copy
+; derail ($4660); the bytes run as register churn, undefined NOPs, stack-
+; misaligning POPs and a carry-gated call into the life-loss handover. The
+; Mother-Ship wreck countdown proper starts at $45B3.
 derailIntoMotherShipWreckCountdown:
+; ---- $459B-$45B2: misaligned anti-tamper entry ----
+459B: 16 A7 13 96 ED DC F1 8C 68 3B 0D ED F1 9B 13 13
+45AB: 13 13 F1 88 DC ED 11 B9
+
+loc_45b3:
 45B3: CD 60 2B        CALL    $2B60               ; {code.driftWithWorldScroll} drift the object along with the world scroll
 45B6: FD 7E 31        LD      A,(IY+$31)          ; take its Y
 45B9: 47              LD      B,A                 
@@ -9620,7 +9622,7 @@ loc_4646:
 465F: C8              RET     Z                   ; yes: end here
 
 loc_4660:
-4660: C3 9B 45        JP      $459B               ; derail through the misaligned entry at 0x459B
+4660: C3 9B 45        JP      $459B               ; {code.derailIntoMotherShipWreckCountdown} derail through the misaligned entry at 0x459B
 
 loc_4663:
 4663: 3A C6 AC        LD      A,($ACC6)           ; {hard.workRam+4C6} is a round transition holding?

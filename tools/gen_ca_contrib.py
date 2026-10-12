@@ -191,10 +191,11 @@ GAME_CONVENTIONS = {
 # Reached spans that are actually anti-tamper obfuscation: a deliberately misaligned
 # "wrong-glyph" derail entry whose bytes execute as harmless NOPs / stray-stack POPs.
 # Decoding them as code yields off-convention DEFBs (undefined opcodes) that choke the
-# deploy tool, so we render them as CA data blocks and move the routine name+role to the
-# real entry. Tuple: (start, end, block-label, lead-comment, name_src) -- name_src is a
-# names.js routine addr whose name+role is shown at END+1 (the real entry) instead of at
-# start, or None. See scratchpad/CA-topher-459b-followup.md.
+# deploy tool, so we render them as CA data blocks. Tuple: (start, end, block-label, lead-comment,
+# name_src) -- name_src is the names.js routine addr whose name+role LABELS THE DATA BLOCK, or None.
+# It must equal start: a name sits at the address names.js gives it and never moves to another one
+# (the instruction resuming at END+1 keeps its own label -- its names.js name, else loc_<addr>). The
+# derails that jump to start then link to the block. See scratchpad/CA-topher-459b-followup.md.
 FORCE_DATA = {
     "timeplt": [
         (0x459b, 0x45b2, "misaligned anti-tamper entry",
@@ -810,19 +811,27 @@ def gen_code(meta, raw_lines, routines, wr_lo, wr_hi, rom_hi, notes, rom=None):
     labels = set(dk_loc_labels)
 
     # Anti-tamper obfuscation spans -> data blocks. `eff` is `routines` with the covered
-    # bytes removed (they are data, not named routines) and each block's name+role moved
-    # to the real entry (END+1); references into a block then render as a raw $addr.
+    # bytes removed (they are data, not named routines), except a block's own name_src entry,
+    # which labels the block at its start address (references to the block's start then link
+    # to it); references into a block's interior render as a raw $addr.
     force = FORCE_DATA.get(meta["_game"], [])
     force_start = {f[0]: f for f in force}
     force_addrs = set()
+    force_named = set()
     eff = dict(routines)
     for (s, e, _lbl, _cmt, src) in force:
-        if src is not None and src in routines:
-            eff[e + 1] = routines[src]
+        if src is not None:
+            assert src == s, (f"force-data 0x{s:04x}: name_src 0x{src:04x} must be the span's own start "
+                              "(a name labels the address names.js gives it, never another)")
+            assert src in routines, f"force-data 0x{s:04x}: name_src 0x{src:04x} is not a names.js routine"
         for a in range(s, e + 1):
+            if a == src:
+                force_named.add(a)
+                continue
             eff.pop(a, None)
             force_addrs.add(a)
-    labels = labels - force_addrs
+    labels = labels - force_addrs - force_named
+    labels |= force_named   # a named data block gets a label line -> the derails into it resolve
     # Buried real entries to re-decode from the ROM (see FORCE_CODE). dk_line_addrs are the
     # addresses dk.asm has a line for -- where a synthetic re-decode resyncs with its stream.
     force_code = set(FORCE_CODE.get(meta["_game"], []))
@@ -951,8 +960,16 @@ def gen_code(meta, raw_lines, routines, wr_lo, wr_hi, rom_hi, notes, rom=None):
                     j += 1
             assert len(data) == need, f"force-data 0x{s:04x}: got {len(data)} != {need}"
             sep()
+            if s in force_named:   # the block's own names.js routine: role header + name label at s
+                rn = eff[s]
+                if _role_header(rn):
+                    for w in textwrap.wrap(clean_role(rn[1]), ROLE_WRAP):
+                        body.append("; " + w)
+                    body.append(";")
             for w in textwrap.wrap(cmt, ROLE_WRAP):
                 body.append("; " + w)
+            if s in force_named:
+                body.append(eff[s][0] + ":")
             emit_data(body, s, e, data, lbl)
             # The span ended INSIDE an UNREACHED block whose header it consumed: the block's tail
             # (e+1..block end) has lost its header, so emit it here from the ROM -- as its own
@@ -1081,6 +1098,34 @@ def gen_code(meta, raw_lines, routines, wr_lo, wr_hi, rom_hi, notes, rom=None):
     return "\n".join(out) + "\n"
 
 
+def check_label_placement(code, routines):
+    """[(label, at, expected)] for every label line in `code` NOT at its names.js address."""
+    by_name = {}
+    for a, rn in routines.items():
+        by_name.setdefault(rn[0], set()).add(a)
+    lines = code.split("\n")
+    bad = []
+    for k, ln in enumerate(lines):
+        m = re.match(r"^([A-Za-z_][A-Za-z0-9_]*):\s*$", ln)
+        if not m:
+            continue
+        name = m.group(1)
+        at = None
+        for nxt in lines[k + 1:]:
+            am = re.match(r"^([0-9A-Fa-f]{4}): ", nxt)
+            if am:
+                at = int(am.group(1), 16)
+                break
+            if re.match(r"^[A-Za-z_][A-Za-z0-9_]*:\s*$", nxt) or nxt.startswith("```"):
+                break   # another label, or the end of the listing, before any addressed line
+        lm = re.fullmatch(r"loc_([0-9a-f]{4,})", name)
+        want = {int(lm.group(1), 16)} if lm else by_name.get(name, set())
+        if at is None or at not in want:
+            bad.append((name, "nothing" if at is None else "0x%04x" % at,
+                        ", ".join("0x%04x" % a for a in sorted(want)) or "no ROUTINES entry"))
+    return bad
+
+
 # --------------------------------------------------------------------- driver
 def main():
     args = sys.argv[1:]
@@ -1138,6 +1183,21 @@ def main():
     ramuse = gen_ramuse(meta, cells, wr_lo, wr_hi)
     notes = build_notes(gdir)
     code = gen_code(meta, raw_lines, routines, wr_lo, wr_hi, rom_hi, notes, rom)
+
+    # Label placement (fail-closed, before anything is written): every `NAME:` label line must sit at
+    # the address names.js ROUTINES gives NAME, and every `loc_XXXX:` at XXXX -- "sits at" = the first
+    # addressed line (instruction or data row) after the label. A label that lands anywhere else names
+    # the wrong code (timeplt 0x459B's derail name once landed on the ordinary countdown at 0x45B3,
+    # so a normal-play jump linked to the derail and the real derails linked to nothing).
+    misplaced = check_label_placement(code, routines)
+    if misplaced:
+        print(f"\n*** {len(misplaced)} label(s) sit at the WRONG address (names.js ROUTINES disagrees):",
+              file=sys.stderr)
+        for name, at, want in misplaced[:20]:
+            print(f"      {name}: at {at} -- names.js gives {want}", file=sys.stderr)
+        print("    A name labels only the address names.js assigns it; any other address gets its own "
+              "name or loc_<addr>. Nothing written.", file=sys.stderr)
+        sys.exit(1)
 
     with open(os.path.join(out_dir, "RAMUse.md"), "w") as fh:
         fh.write(ramuse)
