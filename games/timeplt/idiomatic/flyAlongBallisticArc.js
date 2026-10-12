@@ -6,8 +6,8 @@
  * number in the record grows by a fixed amount every frame and is what gets added, so the object
  * accelerates. Both axes also take the frame's shared displacement, so the object moves with the
  * world on top of its own motion. The two whole parts are then tested against fixed limits — a
- * narrow wrapped window on the first axis, a floor on the second — and either one puts the slot
- * out of play.
+ * narrow wrapped window on the first axis, an upper limit (0xF8) on the second — and either one
+ * puts the slot out of play.
  *
  * ROM 0x4017-0x406B (frozen lift translated/loc_4017.js). Grounding: [seen] (names.js ROUTINES 0x4017).
  *

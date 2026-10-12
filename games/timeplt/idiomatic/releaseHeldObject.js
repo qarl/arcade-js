@@ -27,8 +27,8 @@ export function releaseHeldObject(m, slot = m.regs.ix) {
   mem8[slot + RELEASE_DELAY] = remaining;
   if (remaining !== 0) return;
 
-  // Expired: step the state byte from held to live (inc (ix+0x00)), and mark the same cell with
-  // 128 (ld (ix+0x0e),0x80); names.js records other routines re-arming this cell as a cooldown.
+  // Expired: step the state byte from held to live (inc (ix+0x00)), and set the countdown byte to
+  // 128 (ld (ix+0x0e),0x80); names.js records other routines re-arming the countdown as a cooldown.
   mem8[slot] = mem8[slot] + 1;
   mem8[slot + RELEASE_DELAY] = RELEASED_FROM_HOLD_MARK;
 }

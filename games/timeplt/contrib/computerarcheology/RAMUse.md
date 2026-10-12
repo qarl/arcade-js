@@ -37,15 +37,15 @@ whose role is only partly pinned, carry a terse caveat.
 | a8b0 | craftRecordSlot6 | Slot 6's record head (the last ordinary craft slot), with two extra duties. |
 | a8b4 | motherShipAimSideToggle | The Mother-Ship's aimed-shot aim-side toggle: incremented each launch, bit 0 picks the +0x18 / -0x18 side of the aim. |
 | a8c0 | eraObjectRecordSlot0 | Era-object bank slot 0's record head -- base of the three-slot per-era special-object bank (array 12-14). |
-| a8c6 | attackerSpawnSlotCount | Per-era-and-rung count of enemy slots the attacker / craft-bank spawner fields, 0 to 3: byte +6 of the era/rung settings row ERA_RUNG_SETTINGS_POINTER_TABLE (0x1B04) selects, rising with the rung. |
+| a8c6 | attackerSpawnSlotCount | Per-era-and-rung count of era-object-bank slots the launchers may fill, 0 to 3: byte +6 of the era/rung settings row ERA_RUNG_SETTINGS_POINTER_TABLE (0x1B04) selects, rising with the rung. |
 | a8d0 | eraObjectRecordSlot1 | Era-object bank slot 1's record head (second of the grouped three). |
 | a8d4 | attackerSpawnAimSideToggle | Aim-side toggle for the era bomber's shot (fireBomberShotWhenClearOfPlayer): incremented each shot fired, bit 0 picks a +0x18 or -0x18 offset off the aim heading. |
-| a8d6 | attackerSpawnWindowHalf | Half-width of the proximity window deciding WHETHER the era attacker bank spawns or the era-1 bomber fires its shot (doubled into a window). |
+| a8d6 | attackerSpawnWindowHalf | Half-width of the proximity window deciding WHETHER a craft launches an era weapon or the era-1 bomber fires its shot (doubled into a window). |
 | a8dc | bomberHitsToAbsorb | How many more hits the big two-slot object can absorb before it dies. |
 | a8e0 | eraObjectRecordSlot2 | Era-object bank slot 2's record head; also doubles as the bomber shot's "bank B" record seat (fireBomberShotWhenClearOfPlayer). |
-| a8e6 | attackerSpawnAimWindowHalf | Half-width of the final launch-position window for the era-0 attacker spawn, tested on the X axis only; in era 4 it seeds the spawned record's countdown byte instead (a third read, at 0x3F9E, sits behind a branch never taken). |
+| a8e6 | attackerSpawnAimWindowHalf | Half-width of the final launch-position window for the era-0 era-weapon launch, tested on the X axis only; in era 4 it seeds the launched record's countdown byte instead (a third read, at 0x3F9E, sits behind a branch never taken). |
 | a8f0 | parachutistRecord | The parachutist's record head (array slot 15); its +7 is PARACHUTIST_RUNG 0xa8f7. |
-| a8f4 | attackerSpawnCooldown | Live shared cooldown for the era attacker-bank spawn arms, wound down every vblank and also by launchAttackerIntoFreeSlot. |
+| a8f4 | attackerSpawnCooldown | Live shared cooldown for the era-weapon launch and the era-1 bomber's shot, wound down every vblank and also by launchAttackerIntoFreeSlot. |
 | a8f6 | attackerSpawnCooldownPeriod | Reload period (interval constant) for ATTACKER_SPAWN_COOLDOWN; never decremented. |
 | a8f7 | parachutistRung | How many rescue awards this life has already been paid, which is the rung the next one takes. |
 | a900 | sceneryRecordSlot0 | Scenery record base, scenery slot 0 (array slot 16); the record cursor runSceneryForEra starts from (paired with SCENERY_ENTRY_SLOT0). |
@@ -141,7 +141,7 @@ whose role is only partly pinned, carry a terse caveat.
 | aa36 | sceneryEntrySlot3 | Scenery sprite-entry X seat, scenery slot 3 (array slot 19); base of publishSpriteShadow's 10-byte bank-0 tail run (slots 19-23). |
 | aa3f | scenerySpriteCodeSlot7 | scenery slot 7's sprite code byte (sprite entry 23 +1, the last of the stride-two era fill from SCENERY_SPRITE_CODE_SLOT0, published each frame by the 0xAA36 ldi run); also set to 0xff before the image-signature fold (foldImageBlockIntoSignatureThenAdvanceSequence) |
 | aa40 | playerSpriteAttribute | The player's sprite attribute byte (colour + flip bits), and the base of the second bank's 32-byte attribute/Y run publishSpriteShadow copies to hardware. |
-| aa41 | playerSpriteY | The player's sprite Y (vertical) byte, and the base of the Y band hideAllSprites zeroes (hideCaptionSprites zeroes only its first four entries) to park every sprite off-screen. |
+| aa41 | playerSpriteY | The player's sprite native-Y byte (the display's horizontal under ROT90), and the base of the native-Y band hideAllSprites zeroes (hideCaptionSprites zeroes only its first four entries) to park every sprite off-screen. |
 | aa43 | actorSpriteYSlot0 | Actor slot 0's sprite Y (array slot 1; = ACTOR_ENTRY_SLOT0 +0x31, one step of the PLAYER_SPRITE_Y band). |
 | aa55 | motherShipSpriteY | The Mother-Ship's sprite Y (array slot 10; = MOTHER_SHIP_ENTRY +0x31); read as a scalar in the contact/collision windows. |
 | aa59 | eraObjectSpriteYSlot0 | Era-object bank slot 0's sprite Y (array slot 12; = ERA_OBJECT_ENTRY_SLOT0 +0x31); read as a scalar by the two era-1 bomber collision tests (markEra1BomberAndShotHitByShots 0x4F7E, destroyPlayerAndBomberOnContact 0x507E). |
@@ -194,7 +194,7 @@ whose role is only partly pinned, carry a terse caveat.
 | ad0a | startRung | Active context +0xA: the difficulty rung the round opens on (copied into ERA_RUNG 0xacc0 at reset); mirrors PLAYER_ONE/TWO_START_RUNG. |
 | ad0b | penGlyph | The active caption/pen glyph (active context +0x0B, companion of PEN_COLOUR at +0x0C). |
 | ad0c | penColour | The live caption/pen colour attribute (active context +0x0C; the saved per-player copies are at 0xAD1C/0xAD2C). |
-| ad0d | motherShipArmed | Raised while this round's Mother-Ship has been armed. |
+| ad0d | motherShipArmed | Raised from the Mother-Ship's arming until the round or life turns over. |
 | ad0e | roundIntroPending | Active context +0xE: the round-intro-pending flag -- set when a round starts (0xFF from startNextRound; the game's first round loads the saved copy's 1), cleared when the round's first life-start hold expires (flyLifeStartHoldThenEraseLifeStartCaptions zeroes it at every expiry), so it reads zero for the rest of a live round; while it is set the life-start arm posts the stage-number caption instead of READY and the fly-in flashes the era year; mirrors PLAYER_ONE/TWO_ROUND_INTRO_PENDING. |
 | ad10 | playerOneLives | Player one's lives, in their saved sixteen-byte context block at 0xAD10. |
 | ad11 | playerOneRoundNumber | Player one's copy of ROUND_NUMBER (0xAD01), the unwrapped round ordinal. |

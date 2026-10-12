@@ -14,7 +14,7 @@
  * them with dressSpriteForCoarseHeading.
  *
  * The body below runs, for a live slot, in the ROM's call order at 0x29BF-0x29D4: steer, fly,
- * retire test, shot attempt, dress the sprite, attacker launch.
+ * retire test, shot attempt, dress the sprite, era-weapon launch.
  *
  * PARAMETERS. `record` is the slot's 16-byte object record (lifecycle byte at +0); `entry` is its
  * two-byte sprite entry.
@@ -58,7 +58,8 @@ export function serviceEra3EnemyCraftSlot(m, record = m.regs.ix, entry = m.regs.
   if (hasReachedRetireLine(m, entry)) return retireSlotAndSubPixel(m, record, entry);
   // Still in play: one gated shot when aimed near the player (0x3ED6); point the sprite
   // along the heading rounded to sixteen sectors (dressSpriteForCoarseHeading, 0x2AFC); then the
-  // attacker launch into a free slot on this object's turn (launchAttackerIntoFreeSlot, 0x4243).
+  // era-weapon launch into a free era-object slot on this object's turn
+  // (launchAttackerIntoFreeSlot, 0x4243).
   fireCraftShotWhenAimedNearPlayer(m, record, entry);
   dressSpriteForCoarseHeading(m, record, entry);
   return launchAttackerIntoFreeSlot(m, record, entry);

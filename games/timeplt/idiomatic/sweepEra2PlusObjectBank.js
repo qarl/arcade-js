@@ -31,9 +31,10 @@ export function sweepEra2PlusObjectBank(m) {
   // must stand aside rather than double-service the same records.
   if (mem8[ERA_INDEX] < FIRST_SWEPT_ERA) return;
 
-  // Slot-count gate. ATTACKER_SPAWN_SLOT_COUNT (0xA8C6, [seen]) is the era bank's size, stocked
-  // per era/rung from the settings row at every life start and every rung bump; it also bounds the sweep loop. Zero means
-  // this era fields no bank objects, so there is nothing to sweep (the ROM's `and a / ret z`).
+  // Slot-count gate. ATTACKER_SPAWN_SLOT_COUNT (0xA8C6, [seen]) is the era-object bank's size,
+  // stocked per era/rung from the settings row at every life start and every rung bump; it also
+  // bounds the sweep loop. Zero means this era fields no bank objects, so there is nothing to sweep
+  // (the ROM's `and a / ret z`).
   const count = mem8[ATTACKER_SPAWN_SLOT_COUNT];
   if (count === 0) return;
 

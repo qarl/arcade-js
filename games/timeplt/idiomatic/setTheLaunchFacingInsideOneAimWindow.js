@@ -16,7 +16,7 @@
 // by heading. The launcher turns the 0/1 handed to it into a mirroring of the new object's sprite.
 //
 // The player's pinned coordinates 0x84 and 0x78 are immediates in the ROM (`ld a,0x84` at 0x42A2,
-// `ld a,0x78` at 0x42AA). ATTACKER_SPAWN_AIM_WINDOW_HALF (0xA8E6) [seen] is one of the two aim-window
+// `ld a,0x78` at 0x42AA). ATTACKER_SPAWN_AIM_WINDOW_HALF (0xA8E6) [seen] is one of the four window
 // half-widths that applyEraRungSettings scatters, so its width is a setting rather than a constant of
 // this code.
 //

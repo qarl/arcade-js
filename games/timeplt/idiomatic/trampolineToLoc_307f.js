@@ -8,8 +8,10 @@
  * Role in the machine: the landing point of the divert arm of seedSceneryEntriesThenRunScenery. When
  * that routine's tamper-witness guard (TAMPER_WITNESS 0xAD39 not holding its planted glyph and colour)
  * fails, it jumps here instead of seating scenery, and this entry passes straight on to loc_307f --
- * the bytes of caption record 2 ("READY") at 0x307F decoded as code, which read as the tail of an
- * unrelated sprite-entry fill ([code] in names.js; mechanisms.md). The jump adds nothing of its own.
+ * the bytes of caption record 2 ("READY") at 0x307F decoded as code, which store E through the
+ * guard's pointer and hand the slot to the straight placer at 0x3074 while the counter (B) holds
+ * ([code] in names.js; mechanisms.md).
+ * The jump adds nothing of its own.
  *
  * What each argument carries (the Z80 register it rides in, as loc_307f reads it):
  *   pointer    (HL) -- the address the divert's guard was walking; loc_307f stores `coordinate` there;

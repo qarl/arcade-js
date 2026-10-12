@@ -8,10 +8,10 @@
  * ROLE IN THE MACHINE. The main CPU asks for sounds by appending a sound code to a queue in work
  * RAM, which the frame service feeds to the audio board. enqueueSoundIfGameInProgress (0x560C) is
  * the gate that lets a code into that queue only while PLAY_ACTIVE is set, dropping it otherwise.
- * Two routines lead here: commissionStagedAttackerByEra tail-exits into it when it commissions a
- * late-era attacker, and requestTwoSoundsWhilePlaying runs straight on into it (no call) as the second of its pair of
- * requests (names.js notes that only era 4 reaches the code directly, era 3 folding into the
- * mid-era path).
+ * Two routines lead here: commissionStagedAttackerByEra tail-exits into it when it commissions an
+ * era weapon in era 4, and requestTwoSoundsWhilePlaying runs straight on into it (no call) as the
+ * second of its pair of requests. Only era 4 reaches the code directly (0x436C jp 0x5674); eras 2
+ * and 3 take the mid-era path (0x4349 and 0x43AB jp 0x566E).
  *
  * The code is not an immediate: the ROM reads it from ATTACKER_SPAWN_SOUND_ERAS_2_TO_4 (0x276B), a
  * byte of the program image that names.js records as this routine's sound-command code.

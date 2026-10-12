@@ -2,7 +2,7 @@
 /** spawnEnemyCraftWhenBandUnderTwo — gate a spawning tick on the packed-decimal life-tick byte the caller points at, count the
  * busy heads across the enemy-craft band, and only when fewer than two are busy run the free-slot
  * search: the cleared run when the owed-kills cell is zero, else the owed run seated for as many
- * turns as the round asks. LIVE-OUT: memory. The count and the two cursors go to the search as
+ * turns as the era-and-rung row asks. LIVE-OUT: memory. The count and the two cursors go to the search as
  * arguments, and the sole caller (driveEnemyWaveForLifePhase) tail-returns this result. */
 //
 // ROM 0x379F-0x37D5; lift: translated/loc_379f.js. Grounding tag in names.js ROUTINES: [seen].

@@ -14,7 +14,7 @@
  * Role in the machine: Time Pilot's frame-by-frame behaviour is a two-level state machine. The outer
  * level, SEQUENCE_PHASE (0xA9AB), is the machine's mode -- 0 boot wipe, 1 attract, 2 credit / push
  * start, 3 round engine -- and the frame service picks one handler per mode. This file is the handler
- * for phase 3. The inner level, SEQUENCE_SUBSTEP (0xA9AC), says where in the round's life the machine
+ * for phase 3. The inner level, SEQUENCE_SUBSTEP (0xA9AC), says where in the game or demo the machine
  * is: each arm does its step for this frame and, when its step is finished, advances the sub-step so
  * the next frame runs the next arm. Phase 3 is used by both real play and the attract demo.
  *

@@ -28,8 +28,8 @@ const SAMPLED_CELL = LINE_WIPE_SAMPLED_CELL;
 const SAMPLE_RECORD = LINE_WIPE_SAMPLE_RECORD;
 
 export function parkSpritesAndArmLineWipeThenAdvanceSequence(m) {
-  // `call 0x15b6`: zero the vertical byte of all 24 sprite entries in the sprite shadow, which puts
-  // every sprite above the first drawn line — out of sight from the next frame's publish.
+  // `call 0x15b6`: zero the native-Y byte of all 24 sprite entries in the sprite shadow, which puts
+  // every sprite off the visible picture — out of sight from the next frame's publish.
   hideAllSprites(m);
   // `call 0x1afc`: copy the glyph at 0xA5FC and that cell's colour into the two bytes at 0xACBE.
   // The cell is only read; nothing on screen changes here.

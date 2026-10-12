@@ -3,8 +3,9 @@
  *
  * WHAT IT IS: the last of the seven small per-slot entries of the enemy-craft band. Time Pilot keeps
  * its enemy craft in a band of seven object records at 0xA850 (stride 0x10), each paired in lockstep
- * with a sprite entry at 0xAA1A (stride 0x02); slot 5 is the Mother-Ship. This entry services slot 6:
- * record CRAFT_RECORD_SLOT6 (0xA8B0) with sprite entry CRAFT_ENTRY_SLOT6 (0xAA26).
+ * with a sprite entry at 0xAA1A (stride 0x02); once armed, the Mother-Ship
+ * holds slots 5 and 6. This entry services slot 6: record CRAFT_RECORD_SLOT6 (0xA8B0) with sprite
+ * entry CRAFT_ENTRY_SLOT6 (0xAA26).
  *
  * ROLE IN THE MACHINE: stepSevenCraftSlots (0x28A1) runs slots 0-4, then the Mother-Ship slot, then
  * this one (mechanisms.md). Slot 6 has a second duty: once the Mother-Ship is armed it occupies TWO

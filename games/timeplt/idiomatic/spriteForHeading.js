@@ -9,10 +9,11 @@
  * ROM 0x2A57-0x2A76 (frozen lift translated/loc_2a57.js). Grounding: [seen].
  *
  * Role in the machine: a dresser shared by two object classes (so it is not the player's own —
- * the player has a finer, 32-sector dresser that stores rather than returns). Its callers store
- * the two bytes it returns into an object's sprite entry: the shape into the entry's +0x01 tile
- * code and the mirror byte into its +0x30 attribute (the entry's +0x00 and +0x31 are the two
- * screen coordinates, written elsewhere by the movers).
+ * the player has a finer, 32-sector dresser that stores rather than returns). Its two callers store
+ * the pair into an object's sprite entry, the shape into the entry's +0x01 tile code and the mirror
+ * byte into its +0x30 attribute: refreshSpriteFromHeading (0x2A3C) stores them as returned, and
+ * refreshSecondEraSpriteFromHeading (0x2A47) first adds 0x10 to the shape and 0x35 to the attribute
+ * (the entry's +0x00 and +0x31 are the two screen coordinates, written elsewhere by the movers).
  *
  * `object` is the object's sixteen-byte record (the Z80 held it in IX); its byte +2 is the heading
  * the object is currently flying on.

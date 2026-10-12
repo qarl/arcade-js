@@ -5,10 +5,11 @@
  * ROM 0x43B7-0x43E7. Grounding: [seen] (names.js ROUTINES 0x43b7).
  *
  * WHAT IT IS. Every era of Time Pilot ends with a Mother-Ship: once the player has destroyed the
- * era's kill quota (KILLS_REMAINING 0xAD02, the manual's 56), the big ship appears; it absorbs
- * seven hits and the eighth destroys it. This routine decides, pass by pass, whether the
- * Mother-Ship is already on the field (in which case its own state machine runs) or whether it is
- * time to bring it on.
+ * era's kill quota (KILLS_REMAINING 0xAD02, the manual's 56), the big ship appears; a fresh one
+ * absorbs seven hits and the eighth destroys it, and one that idled and relaunched after two or
+ * more hits needs six more (the launch floor at 0x4694). This routine decides, pass by pass,
+ * whether the Mother-Ship is already armed (in which case its own state machine runs) or whether
+ * it is time to arm it.
  *
  * ROLE IN THE MACHINE. Called once per dispatch of the round engine's service list
  * (serviceRoundThenResolvePlayerState, phase-3 sub-step 7). It does nothing at all while
@@ -40,7 +41,7 @@ const HELD = 0xff;
 // FRAME_TICK & 7 == 5 is this routine's one frame in eight.
 const PHASE_MASK = 0x07;
 const PHASE_DUE = 0x05;
-// The Mother-Ship takes seven hits.
+// The hit counter a newly armed Mother-Ship starts with: seven hits absorbed, the eighth kills.
 const HITS_WHEN_ARMED = 0x07;
 
 export function armMotherShipOrStep(m) {
@@ -51,7 +52,7 @@ export function armMotherShipOrStep(m) {
   // `inc a / ret z`, so only 0xFF stops it; the 0xFE the field sweep writes does not.
   if (mem8[ROUND_TRANSITION_HOLD] === HELD) return;
 
-  // Already armed: the Mother-Ship is on the field (or on its way), so its own deep state
+  // Already armed: the Mother-Ship is waiting to launch, on the field or wrecked, so its own state
   // machine runs every pass. This is a tail transfer to ROM 0x43F0.
   if (mem8[MOTHER_SHIP_ARMED] !== 0) return loc_43f0(m);
 

@@ -12,7 +12,7 @@
  * loads the table address into HL and jumps to 0x599D (loc_599d), which reads the heading from
  * (IX+2) and falls into 0x59A0 — so the caller's HL is overwritten, which is what "any pointer the
  * caller was holding is discarded" means. The callers (commissionStagedAttackerByEra for an era-3
- * attacker, and loc_43f0) bank the returned pair into the object's record.
+ * era weapon, and loc_43f0) bank the returned pair into the object's record.
  *
  * The table is SLOWEST_VELOCITY_TABLE (0x59D7), the ROM table of 256 16-bit velocity words that names.js lists
  * among its readers. loc_5994 is this entry byte-for-byte with the other table immediate; names.js

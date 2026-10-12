@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * sweepShotsOverFiveCraftThenMotherShip — the player's shot sweeps for the stretch of a round in which the
- * Mother-Ship is on the field: sweep the six player shots against FIVE ordinary craft instead of the usual
- * seven, then run the same six shots against the Mother-Ship itself.
+ * sweepShotsOverFiveCraftThenMotherShip — the player's shot sweeps while the Mother-Ship
+ * is armed, from its arming until the round or life turns over: sweep the six player shots against FIVE
+ * ordinary craft instead of the usual seven, then run the same six shots against the Mother-Ship itself.
  *
  * ROM 0x4FBF-0x5031. Grounding: [seen] (names.js ROUTINES 0x4FBF). The second sweep is the code the ROM falls
  * into at 0x4FE0 (markMotherShipAndShotHitByShots); it is not called.
@@ -10,9 +10,9 @@
  * ROLE IN THE MACHINE. dispatchShotSweepByMotherShipArmed sends the pass's shot sweep here while
  * MOTHER_SHIP_ARMED is set, and to a seven-craft sweep otherwise. The Mother-Ship's record is the one at
  * MOTHER_SHIP_STATE (0xA8A0) [seen] and the one a stride on — the last two of the seven ordinary craft slots
- * from CRAFT_RECORD_SLOT0 (0xA850) [seen] (0xA850 plus five strides of 0x10 is 0xA8A0). So while it is out,
- * only the first five craft slots hold craft; choosing the shorter run is the whole of what this entry adds
- * to the first sweep (names.js "why").
+ * from CRAFT_RECORD_SLOT0 (0xA850) [seen] (0xA850 plus five strides of 0x10 is 0xA8A0). So while it is
+ * armed, only the first five craft slots hold craft; choosing the shorter run is the whole of what this
+ * entry adds to the first sweep (names.js "why").
  *
  * SWEEP 1 — the craft. destroyTargetsHitByShots (ROM 0x5211) is handed the shot array (PLAYER_SHOT_ARRAY
  * 0xAA80 [seen]), the craft sprite entries (CRAFT_ENTRY_SLOT0 0xAA1A [seen]) and records, five targets, six

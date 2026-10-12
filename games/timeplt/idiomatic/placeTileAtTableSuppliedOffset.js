@@ -6,16 +6,20 @@
  * cursors then step onto the entry just written. LIVE-OUT: the two bytes and the stepped cursors.
  *
  * ROM 0x3074-0x307E (frozen lift translated/loc_3074.js). names.js has no ROUTINES entry for
- * 0x3074, so this entry carries no grounding tag of its own; its only caller is loc_307f
- * (0x307F) [code], the tail of a per-slot sprite-entry fill, which hands each slot here while
- * its counter (B) still holds — "the straight placer" in that entry's role text. loc_307f runs
- * only on a patched image (grounding-debt.txt 0x307F), and 0x306A, the only other way in, follows
- * an unconditional `jp 0x309B` with nothing transferring to it, so no genuine run executes this.
+ * 0x3074, so this entry carries no grounding tag of its own. Its one transfer in is the `djnz` at 0x3081
+ * in loc_307f (0x307F) [code], caption record 2 (word 2 of CAPTION_RECORD_TABLE 0x0C50) run as
+ * code, which hands the slot here while its counter (B) still holds — "the straight placer at
+ * 0x3074" in that entry's role text. loc_307f runs only on a patched image (grounding-debt.txt
+ * 0x307F). The only other way in is falling through from 0x306A, which follows an unconditional
+ * `jp 0x309B` with nothing transferring to it, so no genuine run executes this.
  *
  * Parameters, all supplied by loc_307f: `entry` is the sprite entry the object occupies now,
- * `offsetPointer` points at the table byte that sets the offset, `coordinate` is the coordinate that
- * offset is added to, and `otherCoordinate` is stored unchanged; `record` is the record cursor, stepped on
- * with the entry cursor at the end.
+ * `offsetPointer` points at the byte that sets the offset, `coordinate` is the value that byte is
+ * added to, and `otherCoordinate` is stored unchanged; `record` is the record cursor, stepped on
+ * with the entry cursor at the end. The table and coordinate reading is the shape of the unreached
+ * 0x306A entry, which loads B and C from the entry's +0x31 and +0x00 and points HL at 0x086E. On
+ * the path through loc_307f the pointer is the TAMPER_WITNESS cell the guard failed on (0xAD39 or
+ * 0xAD3A), `coordinate` is the era (C) and `otherCoordinate` is loc_307f's counter (B).
  */
 
 import { advanceToNextSlot } from "./advanceToNextSlot.js";

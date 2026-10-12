@@ -36,8 +36,8 @@ export function armBomberSlotWhenTimerFires(m, record = m.regs.ix, entry = m.reg
   const countdown = u16(record + 0x0e);
   mem8[countdown] = u8(mem8[countdown] - 1);
   if (mem8[countdown] !== 0) return;
-  // The delay has run out, but no bomber launches while this round's Mother-Ship has been armed
-  // (MOTHER_SHIP_ARMED 0xAD0D, all-ones or zero).
+  // The delay has run out, but no bomber launches while MOTHER_SHIP_ARMED (0xAD0D, 0xFF when set)
+  // is set, from the Mother-Ship's arming until the round or life turns over.
   if (mem8[MOTHER_SHIP_ARMED] !== 0) return;
 
   // The launch is keyed to where the player is pointing: PLAYER_HEADING (0xA802) is a full byte,

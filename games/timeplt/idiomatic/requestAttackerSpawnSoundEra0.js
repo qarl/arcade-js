@@ -10,7 +10,7 @@
  * the gate that lets a code into that queue only while PLAY_ACTIVE is set, dropping it otherwise —
  * so the attract demo, which runs the same round engine with PLAY_ACTIVE clear, stays silent here.
  * commissionStagedAttackerByEra takes this exit on its era-0 branch, after it has set up the new
- * attacker's sprite and record.
+ * era weapon's sprite and record.
  *
  * The code is not an immediate: the ROM reads it from ATTACKER_SPAWN_SOUND_ERA0 (0x16DE), a byte
  * of the program image that names.js records as this routine's sound-command code.

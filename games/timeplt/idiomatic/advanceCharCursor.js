@@ -6,7 +6,7 @@
  *
  * What it is: the one-cell "move right" of every text and digit drawer. The character plane is a
  * tilemap laid out in rows of thirty-two cells, so the cell that follows the current one ON SCREEN
- * is thirty-two addresses further DOWN the plane, not one address up. The monitor is mounted
+ * is thirty-two addresses lower (one native row back), not one address on. The monitor is mounted
  * rotated (MAME's ROT90, clockwise): a decreasing native row maps to an increasing display column,
  * which is why subtracting a row's worth of cells reads as moving along a line of text.
  *

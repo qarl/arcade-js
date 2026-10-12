@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** markObjectsTouchingPlayer — mark every object in a run that has come within reach of one fixed reference
- * position, and only while a guard byte reads all-ones.
+/** markObjectsTouchingPlayer — mark every live object in a run that has come within reach of one
+ * fixed reference position, and only while a guard byte reads all-ones.
  *
  * Reach is a box, and the caller owns its shape: each axis is measured as the reference minus the
  * object, shifted by an offset and compared against a width, both taken from registers, and the

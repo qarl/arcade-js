@@ -13,13 +13,14 @@
 //
 // ROM 0x42B7-0x43B6 (lift: translated/loc_42b7.js). Grounding tag in names.js ROUTINES: [seen].
 //
-// ROLE IN THE MACHINE. The era weapon bank (ERA_OBJECT_RECORD_SLOT0-2, 0xA8C0-0xA8E0) holds a
-// different kind of enemy weapon in each era (mechanisms.md, "Enemy weapons and special craft, era by
-// era"). An enemy that is allowed to launch one first has a free slot found for it:
+// ROLE IN THE MACHINE. The era-object bank (ERA_OBJECT_RECORD_SLOT0-2, 0xA8C0-0xA8E0) holds a
+// different kind of object in each era: an era weapon in eras 0, 2, 3 and 4, the bomber and its
+// shot in era 1 (mechanisms.md, "Enemy weapons and special craft, era by era"). A craft that is
+// allowed to launch an era weapon first has a free slot found for it:
 // launchAttackerIntoFreeSlot (0x4243) walks the bank and parks the free slot's record pointer in
 // SCRATCH_PTR_A (0xA991) and its sprite-entry pointer in SCRATCH_PTR_B (0xA993), then either comes here
 // directly or goes through setTheLaunchFacingInsideOneAimWindow (0x429C), which transfers here in turn.
-// This routine turns that empty slot into a live weapon: it starts it at the launcher's position and
+// This routine turns that empty slot into a live era weapon: it starts it at the launcher's position and
 // gives it the heading, velocity, look and timers its era calls for.
 //
 // PARAMETERS. `spawnerRecord` / `spawnerEntry` are the LAUNCHING object's record and sprite entry (the
@@ -100,7 +101,7 @@ export function commissionStagedAttackerByEra(m, spawnerRecord = m.regs.ix, spaw
   // (0xA8E6) -- that cell's documented second use -- then carry on into the aimed path below.
   if (era === 4) mem8[record + 0x04] = mem8[ATTACKER_SPAWN_AIM_WINDOW_HALF];
 
-  // ERA 3 (0x436F-0x43AB): a weapon launched a fixed step off the facing, toward the side the facing
+  // ERA 3 (0x436F-0x43AB): an era weapon launched a fixed step off the facing, toward the side the facing
   // lies in, with its velocity fixed at launch.
   if (era === 3) {
     const backHalf = (facing + 0x40) & 0x80; // which half of the circle the facing lies in

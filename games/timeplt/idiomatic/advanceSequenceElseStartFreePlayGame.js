@@ -36,7 +36,8 @@ export function advanceSequenceElseStartFreePlayGame(m) {
   // ... and only when a start button is held in IN0_MIRROR (0xA9AE), the per-frame complemented
   // copy of the IN0 port.
   if ((mem8[IN0_MIRROR] & START_BUTTONS) === 0) return;
-  // Clear the picture's sprites (hideAllSprites 0x15B6 parks them above the first visible line),
+  // Clear the picture's sprites (hideAllSprites 0x15B6 zeroes their native-Y bytes, parking them
+  // off the visible picture),
   // then start a one- or two-player game by the held button (startGameOnFreePlay 0x1690, which
   // the ROM reaches by falling through after the call).
   hideAllSprites(m);

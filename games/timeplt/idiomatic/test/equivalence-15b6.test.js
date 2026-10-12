@@ -96,7 +96,7 @@ function entryState() {
   return entry;
 }
 
-/** Slots holding a non-zero vertical position at the captured entry — the only ones it can see. */
+/** Slots holding a non-zero native-Y position at the captured entry — the only ones it can see. */
 function liveSlotsAtEntry() {
   const live = [];
   for (let s = 0; s < SLOT_COUNT; s++) if (entryState().mem8[CLEARED[s]] !== 0) live.push(s);

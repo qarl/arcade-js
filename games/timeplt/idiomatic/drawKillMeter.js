@@ -19,7 +19,7 @@
  * and also by serviceRoundThenResolvePlayerState.
  *
  * GEOMETRY. The bar starts at the fixed cell KILL_METER_BAR_START_CELL (0xA79F) and each further
- * cell is 32 addresses LOWER -- one row up in the native tilemap, which under the board's ROT90 is
+ * cell is 32 addresses LOWER -- one native row back (toward row zero), which under the board's ROT90 is
  * one cell along a line on the glass.
  */
 
@@ -50,7 +50,7 @@ export function drawKillMeter(m) {
   const endGlyph = fetchTableByte(m, u16(row + 2), owed & (END_GLYPHS - 1));
 
   // The bar: count / 4 cells, kept to five bits (ROM `rrca / rrca / and 0x1f`), laid from the fixed
-  // start cell one row up at a time, first-pair glyph, second-pair glyph, first again, and so on.
+  // start cell one native row back at a time, first-pair glyph, second-pair glyph, first again, and so on.
   // A count below four lays no bar cells at all (the ROM's `jr z,0x0838`).
   let cursor = KILL_METER_BAR_START_CELL;
   const cells = Math.floor(owed / KILLS_PER_CELL) & LONGEST_BAR;

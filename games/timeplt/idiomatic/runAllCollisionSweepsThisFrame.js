@@ -9,7 +9,8 @@
  * later in their own frames.
  *
  * ROLE IN THE MACHINE. Six stages, in ROM order:
- *   1. the player's shots against the three-slot era weapon bank (stagePlayerShotSweepAgainstTargetsAndRun);
+ *   1. the player's shots against the three-slot era-object bank
+ *      (stagePlayerShotSweepAgainstTargetsAndRun);
  *   2. the player against the four enemy-shot slots (destroyPlayerAndObjectsTouchingIt, unscored);
  *   3. the player against the craft band (destroySlotsAndPlayerOnContact, scored);
  *   4. only while the Mother-Ship is armed: the player against the Mother-Ship (destroyPlayerAndMotherShipOnContactByEra);
@@ -40,7 +41,7 @@ import { ACTOR_ENTRY_SLOT0, ACTOR_RECORD_SLOT0, ERA_OBJECT_ENTRY_SLOT0, ERA_OBJE
 
 export function runAllCollisionSweepsThisFrame(m) {
   const { mem8 } = m;
-  // Stage 1 (`call 0x4f5d`): the player's six shots against the three era-weapon slots. It stages
+  // Stage 1 (`call 0x4f5d`): the player's six shots against the three era-object slots. It stages
   // its own runs, so it takes and leaves nothing this routine threads.
   stagePlayerShotSweepAgainstTargetsAndRun(m);
 
@@ -63,7 +64,7 @@ export function runAllCollisionSweepsThisFrame(m) {
 
     // Stage 5, armed (ROM 0x4EA3-0x4EB0, `call 0x5121`): the stage-3 cursor stopped at the Mother-Ship
     // records, so the cursor is reseated at ERA_OBJECT_RECORD_SLOT0 0xA8C0 / ERA_OBJECT_ENTRY_SLOT0
-    // 0xAA28 [seen]; B = 3 era-weapon slots, L = 6, H = 0x0D.
+    // 0xAA28 [seen]; B = 3 era-object slots, L = 6, H = 0x0D.
     const afterTargets = destroyEraObjectsAndPlayerOnContact(m, ERA_OBJECT_RECORD_SLOT0, ERA_OBJECT_ENTRY_SLOT0, 3, 6, 13);
     // Stage 6 (ROM 0x4EB3-0x4EB9, tail `jp 0x51b3`): one object (B = 1, L = 8, H = 0x11) at the
     // cursor stage 5 left -- the parachutist slot, PARACHUTIST_RECORD 0xA8F0 [seen]. A touch stores
@@ -76,7 +77,7 @@ export function runAllCollisionSweepsThisFrame(m) {
   // Mother-Ship records included; there is no stage 4.
   const afterSlots = destroySlotsAndPlayerOnContact(m, afterPlayer.occupancy, afterPlayer.entry, 7, 7, 15);
 
-  // Stage 5, unarmed (ROM 0x4E85-0x4E8B): seven craft on from 0xA850 is already 0xA8C0, the era-weapon
+  // Stage 5, unarmed (ROM 0x4E85-0x4E8B): seven craft on from 0xA850 is already 0xA8C0, the era-object
   // bank, so no reseat is needed; B = 3, L = 6, H = 0x0D as on the armed path.
   const afterTargets = destroyEraObjectsAndPlayerOnContact(m, afterSlots.record, afterSlots.entry, 3, 6, 13);
   // Stage 6, unarmed (ROM 0x4E8E-0x4E94, tail `jp 0x51b3`): the same parachutist mark as the armed path.

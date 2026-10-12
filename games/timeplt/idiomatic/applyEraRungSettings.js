@@ -4,11 +4,11 @@
  *
  * WHAT IT IS. The difficulty loader. Time Pilot's play is shaped by the era (ERA_INDEX 0xAD04, the
  * manual's ROUND, 0-4) and by an escalation rung inside that era (ERA_RUNG 0xACC0) that climbs as the
- * round goes on. Each (era, rung) pair owns a ten-byte tuning row in ROM; this routine copies the
+ * life goes on. Each (era, rung) pair owns a ten-byte tuning row in ROM; this routine copies the
  * selected row into the work-RAM cells the spawners and launchers read.
  *
  * ROLE. Load a ten-byte row and scatter it over twelve fixed cells: two slot counts (bank launch
- * and attacker spawn), four half-width windows, two cooldown periods and their live countdowns, the
+ * and era-weapon launch), four half-width windows, two cooldown periods and their live countdowns, the
  * craft spawn slot count and the script-pick threshold (names.js). Eight
  * bytes go to one cell each and two go to two cells each -- a cooldown PERIOD and the live
  * COUNTDOWN that the vblank service runs down and other code reloads from that period -- so applying a row also

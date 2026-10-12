@@ -121,8 +121,9 @@ export function resetPlayfieldForLifeStart(m) {
   //   +3 BANK_LAUNCH_COOLDOWN_PERIOD and the live BANK_LAUNCH_COOLDOWN, both from one byte
   //   +4 CRAFT_SPAWN_SLOT_COUNT          slots a craft spawn pass walks
   //   +5 SCRIPT_PICK_THRESHOLD      random-vs-ordered movement-script choice
-  //   +6 ATTACKER_SPAWN_SLOT_COUNT  the era bank's size
-  //   +7 ATTACKER_SPAWN_WINDOW_HALF +8 ATTACKER_SPAWN_AIM_WINDOW_HALF -- the attacker spawn windows
+  //   +6 ATTACKER_SPAWN_SLOT_COUNT  the era-object bank's size
+  //   +7 ATTACKER_SPAWN_WINDOW_HALF +8 ATTACKER_SPAWN_AIM_WINDOW_HALF -- the era-weapon launch windows
+  //      (+7 also gates the era-1 bomber's shot; +8 also seeds the era-4 countdown)
   //   +9 the live ATTACKER_SPAWN_COOLDOWN and its ATTACKER_SPAWN_COOLDOWN_PERIOD, both from one byte
   mem8[BANK_LAUNCH_SLOT_COUNT] = mem8[src];
   mem8[BANK_LAUNCH_HEADING_HALF_WIDTH] = mem8[src + 1];

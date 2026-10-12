@@ -59,7 +59,8 @@ export function serviceEra2EnemyCraftSlot(m, record = m.regs.ix, entry = m.regs.
     if (hasReachedRetireLine(m, entry)) return retireSlotAndSubPixel(m, record, entry);
     // Still in play: one gated shot when aimed near the player (0x3ED6); dress the sprite to
     // face its heading, resolved to thirty-two sectors (dressSpriteForFineHeading, 0x2A97); then the
-    // attacker launch into a free slot on this object's turn (launchAttackerIntoFreeSlot, 0x4243).
+    // era-weapon launch into a free era-object slot on this object's turn
+    // (launchAttackerIntoFreeSlot, 0x4243).
     fireCraftShotWhenAimedNearPlayer(m, record, entry);
     dressSpriteForFineHeading(m, entry, record);
     launchAttackerIntoFreeSlot(m, record, entry);

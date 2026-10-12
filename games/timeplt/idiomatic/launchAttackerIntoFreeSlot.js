@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * launchAttackerIntoFreeSlot — let one enemy craft launch an attacker into the era-object bank.
+ * launchAttackerIntoFreeSlot — let one enemy craft launch an era weapon into the era-object bank.
  *
  * ROM 0x4243-0x429B. Grounding: [seen] (names.js ROUTINES 0x4243).
  *
- * WHAT IT IS. Some enemy craft release a second object (an attacker) into the three-slot era-object
- * bank (records from ERA_OBJECT_RECORD_SLOT0 0xA8C0, sprite entries from ERA_OBJECT_ENTRY_SLOT0
+ * WHAT IT IS. Some enemy craft release a second object (an era weapon) into the three-slot
+ * era-object bank (records from ERA_OBJECT_RECORD_SLOT0 0xA8C0, sprite entries from ERA_OBJECT_ENTRY_SLOT0
  * 0xAA28). This is the gate in front of that launch. It runs for the craft whose slot the caller is
  * servicing, but acts only on that craft's own turn of an eight-frame round, only once a shared spawn
  * cooldown has run out, only when a bank slot is free, and not when the craft is close to the

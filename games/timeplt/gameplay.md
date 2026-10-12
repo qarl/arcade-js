@@ -104,7 +104,7 @@ Straight from the Centuri operator's manual's illustrated SCORING chart (page 7)
 
 | Target | Points |
 |--------|--------|
-| Any common enemy craft — biplane / monoplane / helicopter / jet / UFO | **100** — **⚠ OVERTURNED (code + MAME): hits inside the chain window pay 100, 200 … 800 and then wrap to 100 (mechanisms.md §2).** |
+| Any common enemy craft — biplane / monoplane / helicopter / jet / UFO | **100** — **⚠ OVERTURNED (code + MAME): hits inside the chain window pay 100, 200 … 800 and then wrap to 100 (mechanisms.md §6, The chain; §7, What pays, and how much).** |
 | Any bomb, bullet, missile or alien weapon shot down | **100** — **⚠ OVERTURNED in part (code + MAME): craft bullets cannot be shot in eras 0–3 (only in 2001); bombs and missiles pay the chained score, not a flat 100.** |
 | **Middle-size bomber** (1940 only) | **1,500** |
 | **Enemy formation** (all of it) | **2,000** |

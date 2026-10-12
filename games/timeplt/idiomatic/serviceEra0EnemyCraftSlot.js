@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** serviceEra0EnemyCraftSlot — the era-0 per-object update, branched on the object's status byte: an empty slot is
  * left alone, a held object is released, a dying one is stepped, and an active craft is steered,
- * flown and refreshed then allowed to spawn, or retired on the pass it reaches the line. LIVE-OUT: memory. */
+ * flown and refreshed, then given a shot attempt and an era-weapon launch attempt, or retired on
+ * the pass it reaches the line. LIVE-OUT: memory. */
 
 /*
  * ROM 0x2927-0x294B, grounding [seen] (names.js ROUTINES 0x2927).
@@ -60,7 +61,8 @@ export function serviceEra0EnemyCraftSlot(m, record = m.regs.ix, entry = m.regs.
   // aimed near the player (fireCraftShotWhenAimedNearPlayer, 0x3ED6); then store the shape and
   // attribute that draw the craft pointing along its heading into its sprite entry
   // (refreshSpriteFromHeading, 0x2A3C); then, on this object's turn and once the shared spawn
-  // cooldown has expired, launch an attacker into a free slot (launchAttackerIntoFreeSlot, 0x4243).
+  // cooldown has expired, launch an era weapon into a free era-object slot
+  // (launchAttackerIntoFreeSlot, 0x4243).
   fireCraftShotWhenAimedNearPlayer(m, record, entry);
   refreshSpriteFromHeading(m, entry, record);
   return launchAttackerIntoFreeSlot(m, record, entry);

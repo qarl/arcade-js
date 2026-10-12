@@ -3,8 +3,8 @@
  * flag is set, and queue the fixed transition sound stops. Then decrement the lives count at the
  * head of the live 16-byte context block and copy that block into whichever of two save slots the
  * active-player selector points at. If lives reached zero, hand off to the game-over banner and
- * stop. Otherwise, when the other player's slot still shows lives, flip the selector, then stamp a
- * constant into one cell and a program-image byte into another.
+ * stop. Otherwise flip the selector if the other player's slot still shows lives, and either way
+ * stamp a constant into one cell and a program-image byte into another.
  *
  * ROM 0x11ED-0x123A (lift: translated/loc_11ed.js). Grounding: [seen] (names.js ROUTINES 0x11ED).
  *

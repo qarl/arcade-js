@@ -24,8 +24,9 @@ const skip = romsPresent() ? false : "ROM images are gitignored; none assembled"
 // computes flags the rewrite skips, and its ex-de-hl parks the velocity-table pointer in DE; a is
 // dead scratch, and hl is the velocity high-byte scratch the rewrite folds into JS locals (live-out
 // is fields 0x10-0x1b only). ix is the oracle's `ld ix,0xac64` field base, and it too is dead: the
-// only caller (reaimAndAnimate at 0x31b4) tail-calls this routine, so its ret unwinds to the
-// per-frame dispatcher loc_1199, whose next routine 0x1edf reloads ix (`ld ix,0xa800`) before any
+// only caller (reaimEnemyCraftByFlightScriptOnPhaseTick at 0x31b4) tail-calls this routine, so its
+// ret unwinds to the round engine's service list serviceRoundThenResolvePlayerState (0x1199), whose
+// next routine 0x1edf reloads ix (`ld ix,0xa800`) before any
 // read -- so the rewrite folding the base into a JS constant leaves ix unwritten with no observer.
 // All excluded regs are checked as a ceiling, never asserted equal; memory + the other registers
 // keep teeth (see the TEETH twins below, which a wrong memory write still trips).

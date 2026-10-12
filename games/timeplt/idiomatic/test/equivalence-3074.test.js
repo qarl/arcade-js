@@ -5,12 +5,12 @@
  * ★ WHAT REACHES THIS ADDRESS, AND WHY NO REAL CAPTURE IS POSSIBLE HERE. Decoding the image from
  *   EVERY byte offset — which over-generates and cannot under-generate — finds exactly one
  *   transfer to 0x3074 in the whole 24KB, a `djnz` at 0x3081, and 0x307F..0x3089 is a CAPTION
- *   RECORD rather than instructions: a destination, a colour, then glyph codes. So that transfer
- *   is a decode of data and not a real entry. The genuine way in is a fall-through from 0x306A,
- *   four instructions that load the two coordinate registers off the sprite entry and point HL at
- *   a table — and 0x306A has no transcribed routine, which is why 0x3074 stands alone at all.
- *   Both tapes therefore dispatch it zero times, asserted in arm 1, and the crafted entries below
- *   REPRODUCE that prologue so the state they present is the one the fall-through would.
+ *   RECORD (a destination, a colour, then glyph codes) that the ROM also runs as code: the one
+ *   transfer into it is `3114 jp 0x307f`, taken only when the scenery seed's TAMPER_WITNESS guard
+ *   fails. 0x306A, four instructions that load the two coordinate registers off the sprite entry
+ *   and point HL at a table, follows `3067 jp 0x309b` and nothing transfers to it.
+ *   Both tapes therefore dispatch it zero times, asserted in arm 1. The crafted entries below model
+ *   the shape of that unreached 0x306A prologue: B and C from the entry's +0x31 and +0x00, HL at 0x086E.
  *
  * GATE: crafted entries from a real end-of-session machine, over painted sprite bands.
  *
@@ -32,7 +32,7 @@
  *      changes. Neither tape reaches this address unaided (arm 1), so both sessions are driven by the
  *      one real way in: the tamper witness 0xAD39 is poked off its sentinel, the scenery seed's guard
  *      fails, and 0x3114 -> 0x307F -> here runs. An exit control (SP nudged by a word at the same
- *      exit) and an entry control (the carried coordinate C nudged on the way in) are both heard.
+ *      exit) and an entry control (C, the era on the 0x3114 path, nudged on the way in) are both heard.
  *   7. TEETH — seven twins, each with its exact catch count over the cross.
  *
  * HOLE: DEAD AT EXIT rests on the poked sessions' few dispatches (pinned below), each arriving with

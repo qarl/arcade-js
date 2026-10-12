@@ -13,7 +13,7 @@
 0021	take thirty-two off the cursor's address: one native row back, the next cell along the line
 0024	no borrow -- the cursor's high byte stands
 0025	borrow into the cursor's high byte
-0029	add thirty-two to the cursor's address: one cell back along the column
+0029	add thirty-two to the cursor's address: one native row on, the previous cell along the line
 002C	no carry -- the cursor's high byte stands
 002D	carry into the cursor's high byte
 0030	take the inline word table the caller left behind -- its return address points straight at it
@@ -354,7 +354,7 @@
 081F	read that end glyph from the row
 0820	set the end glyph aside
 0821	bring the count back
-0822	point at the fixed end of the meter line
+0822	point at the meter bar's fixed start cell
 0825	step of minus thirty-two -- one cell back per bar cell laid
 0828	divide the count by four -- one bar cell per four kills
 082A	keep count/4 in five bits -- the remainder bits the rotates carried round to the top drop out
@@ -436,7 +436,7 @@
 0B2E	step two slots at a time
 0B31	four caption sprites to hide
 0B33	the value that hides them: zero
-0B34	push this sprite above the top line by zeroing its Y byte
+0B34	push this sprite off the visible picture by zeroing its native-Y byte
 0B39	read the frame counter
 0B3C	test its low bit, which flips every frame
 0B3E	even frame: queue the other version of the line
@@ -884,7 +884,7 @@
 1190	read the paired X byte
 1193	add half a screen in X
 1195	store it -- second image placed
-1199	re-aim and animate the enemy craft for this phase tick
+1199	step one enemy craft's flight script and re-aim it on its life tick, or lay out the aim points
 119C	update the player ship for this frame
 119F	fire and advance the player's shots
 11A2	drive the enemy wave for the current life phase
@@ -1320,7 +1320,7 @@
 15B6	point at the sprite Y-position band
 15B9	twenty-four sprite slots
 15BB	zero -- the value that parks a slot
-15BC	park this slot above the top line, hiding it
+15BC	park this slot off the visible picture by zeroing its native-Y byte, hiding it
 15BE	skip two cells to the next slot's Y byte
 15BF	over all twenty-four slots
 15C2	take the inner sequence sub-step
@@ -1739,10 +1739,10 @@
 1ABF	-- into its paired reload cell too
 1AC4	the craft spawn slot count
 1AC9	a script-pick threshold
-1ACE	an attacker-spawn slot cap
-1AD3	the attacker-spawn spread half-window
-1AD8	the attacker-spawn aim half-window
-1ADD	the attacker-spawn cooldown
+1ACE	the era-object bank's slot count
+1AD3	the era-weapon launch's near-approach half-window
+1AD8	the era-weapon launch's aim half-window
+1ADD	the era-weapon launch cooldown
 1AE0	-- into its paired reload cell too
 1AE4	point at the first object record
 1AE8	record numbers start at one
@@ -2131,7 +2131,7 @@
 293F	yes -- retire the slot
 2942	try to fire a craft shot when aimed near the player
 2945	refresh the sprite from the heading
-2948	try to launch an attacker into a free slot
+2948	try to launch an era weapon into a free era-object slot
 294C	read this slot's status byte
 2950	empty slot -- nothing to do
 2952	a live craft -- fly it
@@ -2156,7 +2156,7 @@
 29A3	yes -- retire the slot
 29A6	try to fire a craft shot when aimed near the player
 29A9	dress the sprite for its fine heading
-29AC	try to launch an attacker into a free slot
+29AC	try to launch an era weapon into a free era-object slot
 29B0	read the slot's lifecycle byte
 29B3	is the slot free?
 29B4	free: nothing to do this pass
@@ -2171,7 +2171,7 @@
 29C8	yes: take the slot out of play
 29CB	when aimed near the ship, try to fire a craft shot
 29CE	dress the sprite to face its heading
-29D1	try to launch an attacker into a free slot
+29D1	try to launch an era weapon into a free era-object slot
 29D5	read the slot's lifecycle byte
 29D8	is the slot free?
 29D9	free: nothing to do this pass
@@ -2185,7 +2185,7 @@
 29EA	yes: take the slot out of play
 29ED	advance its shape's animation cycle
 29F0	when aimed near the ship, try to fire a craft shot
-29F3	try to launch an attacker into a free slot
+29F3	try to launch an era weapon into a free era-object slot
 29F7	first reference point on the screen (0x78)
 29F9	distance from the slot's screen-position probe
 29FC	bias by half the window
@@ -2513,11 +2513,11 @@
 3064	copy the X into the next entry unchanged
 3067	step both cursors onto the entry just written
 3074	read a byte at the pointer
-3075	add the running coordinate
-3076	write one coordinate byte into the next sprite entry
-3079	and the summed one into its other field
+3075	add C -- the era, on the one path that reaches here
+3076	write B into the next sprite entry
+3079	and the sum into its other field
 307C	step both cursors onto the entry just written
-307F	store the coordinate through the pointer
+307F	caption record 2 run as code: store E through the pointer
 3080	fold it into the accumulator
 3081	count not spent: branch back into the placer above, which does not return here
 3083	fetch the two-byte entry A selects from the table at the pointer
@@ -2581,7 +2581,7 @@
 310D	...two bytes on
 310F	repeat for all eight
 3111	run the frame's scenery
-3114	hand off to the fill path at 0x307F
+3114	jump into caption record 2's bytes at 0x307F, run as code
 3117	point at the first sentinel byte
 311A	read it
 311B	is it the expected 0x68?
@@ -3241,15 +3241,15 @@
 3D20	and on tile two
 3D25	read the caller's object record head
 3D29	return unless the object is live ($FF)
-3D2A	read the attacker-spawn cooldown timer
+3D2A	read the shared era-weapon launch cooldown timer
 3D2E	return while the cooldown is still counting
-3D2F	read the era bank's slot count
+3D2F	read the era-object bank's slot count
 3D33	return if the count is zero
 3D34	is the count exactly one?
-3D36	a count of one -- require the primary attacker record free
+3D36	a count of one -- require the last enemy-shot record free
 3D39	read era-object slot 2's record head
 3D3D	free -- go look for a tile clear of the player to fire from
-3D40	read the primary attacker record's head
+3D40	read the last enemy-shot record's head
 3D44	return unless it is free
 3D45	two tiles to test -- the bomber's pair
 3D47	read the spawn-window half-width
@@ -3283,12 +3283,12 @@
 3D89	stash the aimed angle
 3D8A	take the object's Y
 3D8D	take the object's X
-3D90	read the era bank's slot count again
+3D90	read the era-object bank's slot count again
 3D93	count exactly one?
-3D95	then seat into the primary attacker record
+3D95	then seat into the last enemy-shot record
 3D98	read era-object slot 2's record head
 3D9C	free -- seat into era-object slot 2
-3D9F	point at the primary attacker record
+3D9F	point at the last enemy-shot record
 3DA3	and its sprite entry
 3DA7	seat the object's Y into the new entry
 3DAA	seat the object's X
@@ -3299,7 +3299,7 @@
 3DC1	set the enemy-shot sprite attribute
 3DC5	count the record head down one -- mark it live
 3DC8	read the cooldown reload period
-3DCB	reload the attacker-spawn cooldown
+3DCB	reload the shared era-weapon launch cooldown
 3DCF	point at era-object slot 2's record
 3DD3	and its sprite entry
 3DD7	seat and stock it the same way
@@ -3701,7 +3701,7 @@
 4252	is it still running?
 4253	cooldown spent: go hunt a free slot
 4255	still cooling down: tick it down one
-4257	point at the first record in the spawn bank
+4257	point at the first record in the era-object bank
 425A	point at its paired sprite entry
 425D	how many slots the bank holds
 4260	any at all?
@@ -3832,8 +3832,8 @@
 43BA	is it holding?
 43BB	a 0xFF hold: do nothing
 43BC	read the mother-ship armed flag
-43BF	already active?
-43C0	yes: step its live sequence
+43BF	already armed?
+43C0	yes: run its own state machine instead
 43C2	which frame of the eight-frame cycle
 43C7	only on frame five
 43C9	other frames: leave
@@ -4931,7 +4931,7 @@
 5121	read the player's state
 5125	player gone -- nothing to do
 5126	read this target's state
-5128	dead target -- skip
+5128	not live ($FF) -- skip
 512A	the player's X coordinate
 512D	minus this target's X
 5130	add the caller's slack
@@ -4973,7 +4973,7 @@
 5185	read the player's state
 5189	player gone -- nothing to do
 518A	read this object's state
-518C	dead object -- skip
+518C	not live ($FF) -- skip
 518E	the player's X coordinate
 5191	minus this object's X
 5194	add the caller's slack
@@ -4993,7 +4993,7 @@
 51B3	read the player's state
 51B7	player gone -- nothing to do
 51B8	read this object's state
-51BA	dead object -- skip
+51BA	not live ($FF) -- skip
 51BC	the player's X coordinate
 51BF	minus this object's X
 51C2	add the caller's offset
@@ -5038,7 +5038,7 @@
 5211	read this shot's state
 5215	dead shot -- on to the next shot
 5217	read this target's state
-5219	dead target -- skip
+5219	not live ($FF) -- skip
 521B	the target's X coordinate
 521E	shift the low end above zero
 5220	in the dead band a blank slot leaves near zero?

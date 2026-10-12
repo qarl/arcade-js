@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** paintLabelledNumericReadoutColumn — paint one labelled numeric readout as a single column climbing the tile plane: a
- * three-tile rank label taken from a record table by the source's lead byte (the rank), a six-digit field
- * after it, and a three-tile suffix, every cell paired with the caller's pen colour in the
- * colour plane. The column is walked upward a cell at a time and the source is read forward past
- * its lead byte, its digit bytes and its suffix bytes. LIVE-OUT: memory only — the cursor, source
- * pointer and scratch bytes the body leaves in registers are all re-seated by the sole caller
- * before its next column, so they are dead after return. */
+/** paintLabelledNumericReadoutColumn — paint one labelled numeric readout along a single column of
+ * the tile plane: a three-tile rank label taken from a record table by the source's lead byte (the
+ * rank), a six-digit field after it, and a three-tile suffix, every cell paired with the caller's pen
+ * colour in the colour plane. The column is walked one native row back (toward row zero) a cell at a
+ * time and the source is read forward past its lead byte, its digit bytes and its suffix bytes.
+ * LIVE-OUT: memory only — the cursor, source pointer and scratch bytes the body leaves in registers
+ * are all re-seated by the sole caller before its next column, so they are dead after return. */
 //
 // ROM 0x4C1F-0x4C74 (lift: translated/loc_4c1f.js). Grounding tag in names.js ROUTINES: [seen].
 //

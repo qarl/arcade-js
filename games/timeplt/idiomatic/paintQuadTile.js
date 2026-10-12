@@ -42,7 +42,7 @@ export function paintQuadTile(m, cell = m.regs.de, firstTile = m.regs.b, colour 
   mem8[quarters[2]] = firstTile + 2;
   mem8[quarters[3]] = firstTile + 3;
   // Colour: the same four cells a plane down, written in the reverse order (the ROM colours the
-  // lower row first, then steps back up a row with RST 0x20 and colours the upper one).
+  // lower row first, then steps one native row back with RST 0x20 and colours the upper one).
   for (let i = TILES - 1; i >= 0; i--) mem8[u16(quarters[i] - COLOUR_PLANE_BELOW)] = colour;
 
   // Live-out: the cursor moved two rows on, clear of this block, so the next painter in the chain

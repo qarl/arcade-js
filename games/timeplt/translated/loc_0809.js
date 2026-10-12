@@ -47,9 +47,9 @@ export function loc_0809(m) {
   regs.a = regs.e;
   m.step(0x0822, 4); // ld a,e -- back to the raw (0xAD02)
   regs.hl = 0xa79f;
-  m.step(0x0825, 10); // ld hl,0xa79f -- bottom of the column
+  m.step(0x0825, 10); // ld hl,0xa79f -- the meter's fixed start cell
   regs.de = 0xffe0;
-  m.step(0x0828, 10); // ld de,0xffe0 -- -0x20: one row up per store
+  m.step(0x0828, 10); // ld de,0xffe0 -- -0x20: one native row back per store
   regs.rrca();
   m.step(0x0829, 4); // rrca
   regs.rrca();
@@ -65,7 +65,7 @@ export function loc_0809(m) {
       mem.write8(regs.hl, regs.b);
       m.step(0x082f, 7); // ld (hl),b
       regs.addHl(regs.de);
-      m.step(0x0830, 11); // add hl,de -- up one row
+      m.step(0x0830, 11); // add hl,de -- one native row back
       regs.a = regs.dec8(regs.a);
       m.step(0x0831, 4); // dec a
       if (regs.fZ) {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** loc_307f — caption record 2 (word 2 of CAPTION_RECORD_TABLE 0x0C50) run as code: store a coordinate
- * through the pointer and fold it into the byte handed in, then hand the slot to the straight placer
- * while the counter holds. On the last slot the original indexes a word table by the fold, bumps the
+/** loc_307f — caption record 2 (word 2 of CAPTION_RECORD_TABLE 0x0C50) run as code: store E through the
+ * pointer and fold the stored byte into A, then hand the slot to the straight placer at 0x3074 while
+ * the counter (B) holds. On the last slot the original indexes a word table by the fold, bumps the
  * byte past the entry, and then pops two stack bytes it never pushed, dropping its caller's return word
  * so control unwinds a level out of step. This layer lays no return words, so that unwind has no
  * faithful transcription and the arm raises at the pop. It is never taken: the one way in (the scenery

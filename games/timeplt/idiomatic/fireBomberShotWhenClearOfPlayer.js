@@ -14,10 +14,10 @@
  * ROLE IN THE MACHINE. An era object (reached from serviceEra1BomberObject's chain) uses this to
  * fire the bomber's shot: a new object placed where one of the bomber's two tiles sits and sent off
  * on a heading aimed near the player. How often this can happen is governed by the era's
- * difficulty settings: ATTACKER_SPAWN_SLOT_COUNT 0xA8C6 [seen] (how many attacker slots the era
+ * difficulty settings: ATTACKER_SPAWN_SLOT_COUNT 0xA8C6 [seen] (how many era-object slots the era
  * fields; zero disables the arm), ATTACKER_SPAWN_WINDOW_HALF 0xA8D6 [seen] (the half-width of the
  * window test), and the shared cooldown ATTACKER_SPAWN_COOLDOWN 0xA8F4 [seen], which is reloaded
- * from ATTACKER_SPAWN_COOLDOWN_PERIOD 0xA8F6 [seen] after every spawn.
+ * from ATTACKER_SPAWN_COOLDOWN_PERIOD 0xA8F6 [seen] after every bomber shot and era-weapon launch.
  *
  * TWO DESTINATION BANKS. The shot goes into one of two fixed record + sprite-entry seats:
  * "bank A" = ACTOR_RECORD_SLOT3 0xA840 / ACTOR_ENTRY_SLOT3 0xAA18 [seen], or "bank B" =
@@ -60,7 +60,7 @@ export function fireBomberShotWhenClearOfPlayer(m, record = m.regs.ix, entry = m
   const { mem8 } = m;
 
   // Step 1 -- the gates, each an early return in the ROM: the caller's head byte, the shared
-  // cooldown still running, the era fielding no attackers, and (when bank A would be the seat)
+  // cooldown still running, the era-object bank's slot count at zero, and (when bank A would be the seat)
   // bank A already occupied.
   if (mem8[record] !== SLOT_LIVE) return;
   if (mem8[ATTACKER_SPAWN_COOLDOWN] !== 0) return;
@@ -125,6 +125,6 @@ export function fireBomberShotWhenClearOfPlayer(m, record = m.regs.ix, entry = m
   mem8[entBank + 0x30] = NEW_ATTRIBUTE;
   // The head byte was 0 (free) to get here, so the decrement makes it 0xFF: live.
   mem8[recBank] = u8(mem8[recBank] - 1);
-  // Step 6 -- restart the shared cooldown so no attacker spawns again until it runs out.
+  // Step 6 -- restart the shared cooldown so the bomber fires no shot again until it runs out.
   mem8[ATTACKER_SPAWN_COOLDOWN] = mem8[ATTACKER_SPAWN_COOLDOWN_PERIOD];
 }

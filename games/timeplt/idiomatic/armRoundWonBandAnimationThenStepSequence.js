@@ -71,7 +71,7 @@ export function armRoundWonBandAnimationThenStepSequence(m) {
   const base = mem8[PEN_COLOUR];
 
   // The left-hand run: fillCellRun (0x1319) fills thirteen colour cells, stepping back toward native
-  // row zero, from the one behind CHAR_PLANE_LEFT_RUN_OUTER (0xA7B1 -> colour cell 0xA3B1) with pen + 0xA0.
+  // row zero, starting at CHAR_PLANE_LEFT_RUN_OUTER's colour cell (0xA7B1 -> 0xA3B1) with pen + 0xA0.
   fillCellRun(m, u8(0xa0 + base), toColour(CHAR_PLANE_LEFT_RUN_OUTER));
 
   // The right-hand run: the same from CHAR_PLANE_RIGHT_RUN_INNER (0xA5D1 -> 0xA1D1) with pen + 0x20.

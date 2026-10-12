@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
  * armMotherShipOrStep against the frozen oracle: one booted machine, cloned and poked to land each of the five
- * exits — wave-hold set, a special already live, an off-phase frame, an occupied bank, and the spawn.
+ * exits — wave-hold set, a special already armed, an off-phase frame, an occupied bank, and the spawn.
  * Every arm compares the whole work-RAM dump, the stack scratch both sides push masked off; registers,
  * the flag byte and the stack pointer are excluded, and the teeth below prove each gate condition is
  * independently load-bearing.
@@ -79,7 +79,8 @@ function captureBase() {
   return base;
 }
 
-/** A booted clone poked so the routine reaches the spawn: hold clear, no live special, on phase, bank empty. */
+/** A booted clone poked so the routine reaches the spawn: hold clear, no armed special, on phase,
+ * bank empty. */
 function spawnReady() {
   const m = captureBase().clone();
   m.mem8[WAVE_HOLD] = 0x00;
@@ -156,7 +157,7 @@ test("NON-VACUOUS: the two writing arms move memory, the three ret arms move non
   console.log(`  NON-VACUOUS: footprints ${ARM_NAMES.map((a) => `${a}=${fp[a]}`).join(" ")}`);
 });
 
-test("REAL TAIL: the live-special arm runs the true stepper and still agrees", { skip }, () => {
+test("REAL TAIL: the armed-special arm runs the true stepper and still agrees", { skip }, () => {
   const m = spawnReady(); // no stub: the real registry dispatches the stepper end to end
   m.mem8[SPECIAL_ACTIVE] = A_LIVE;
   const d = unitDiff(armMotherShipOrStep, m);
@@ -199,7 +200,7 @@ function brokenIgnoresHold(m) {
   if ((mem8[SPAWN_GATE] | mem8[RECORD] | mem8[RECORD + RECORD_STRIDE]) !== 0) return;
   return spawn(m);
 }
-/** BUG: spawns instead of deferring to the stepper when a special is live. */
+/** BUG: spawns instead of deferring to the stepper when a special is armed. */
 function brokenIgnoresActive(m) {
   const { mem8 } = m;
   if (mem8[WAVE_HOLD] === HELD) return;

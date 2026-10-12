@@ -225,7 +225,7 @@ function clobbersARegisterOutsideTheCeiling(m) {
   m.regs.h_ = (m.regs.h_ + 1) & 0xff;
 }
 
-/** BUG: never stores the coordinate through the pointer, so the fold and the table byte are off. */
+/** BUG: never stores E through the pointer, so the fold and the table byte are off. */
 function brokenSkipStore(m) {
   const { regs } = m;
   regs.and(m.mem.read8(regs.hl));
