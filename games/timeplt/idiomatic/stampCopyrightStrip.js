@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** stampCopyrightStrip — park the four pieces of one fixed caption strip in the display list.
  * Four consecutive object entries are filled entirely from constants: a shared position on one
- * axis and a shared control byte, shapes counting up from the first, and positions on the other
+ * axis and a shared attribute byte, shapes counting up from the first, and positions on the other
  * axis stepping one piece-width apart so the pieces butt together into a single strip. Each
  * entry is split across two halves a fixed distance apart, which is why every piece takes two
  * writes on each side. Nothing is read and nothing branches, so the same sixteen bytes land on

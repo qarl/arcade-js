@@ -57,7 +57,7 @@ function stepPackedDecimalDown(value) {
 
 export function startOnePlayerGame(m) {
   const { mem8 } = m;
-  // Step 1 (`call 0x0b2b`): park the four copyright-caption sprites above the visible picture.
+  // Step 1 (`call 0x0b2b`): park the four copyright-caption sprites off the visible picture by zeroing their native-Y bytes.
   hideCaptionSprites(m);
 
   // Step 2 (ROM 0x3219-0x3229): the player context. Not a two-player game, no lives for player two,

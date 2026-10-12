@@ -39,9 +39,9 @@ const TAIL_RUN = 4;
 const TAIL_FILL = 0x0e;
 const ROW = 0x20;
 
-// The colour addresses used below (CAPTION_COLOUR_*_RUN_BOTTOM and COLOUR_PLANE_STUB_UPPER_LEFT-2 in
-// names.js) are already folded through `res 2,h` into colour RAM; each cell's second value sits one
-// row (ROW) back.
+// The colour addresses used below (COLOUR_PLANE_*_RUN_BOTTOM, COLOUR_PLANE_STUB_UPPER_LEFT/_LOWER_LEFT and
+// COLOUR_PLANE_COLUMN_MID_BOTTOM in names.js) are already folded through `res 2,h` into colour RAM; each
+// cell's second value sits one row (ROW) back.
 
 export function paintRoundWonBandTailThenStepSequence(m, head = m.regs.a, body = m.regs.c, cursor = m.regs.hl) {
   const { mem8 } = m;

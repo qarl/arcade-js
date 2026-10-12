@@ -59,7 +59,7 @@ export function stepRoundWonBandAnimation(m) {
       return;
     default:
       /* Any later step (5, written by the flood): the animation is over — hand back to the sequence
-       * machine (0x1355-0x1366). Arm SEQUENCE_DELAY (0xA9EB) at 90 for the round-intro hold; hide every sprite by
+       * machine (0x1355-0x1366). Arm SEQUENCE_DELAY (0xA9EB) at 90 for the life-start hold (the new round's first life); hide every sprite by
        * parking the vertical shadow band (hideAllSprites, 0x15B6); load the active player's saved
        * context and post the round HUD (0x4C75); then reload the inner sequence index SEQUENCE_SUBSTEP
        * (0xA9AC) from the ROM byte at 0x2750, which holds 3. */

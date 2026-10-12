@@ -9,7 +9,7 @@ loc_0167  caption record 9 ("PLAYER 1") run as code only on armWholePlaneWipeThe
 loc_08fa  the bytes of VELOCITY_TABLE_08FA run as code only on a checksum mismatch in buildCopyrightScreenThenVerifyImage / armPenRouteInColour5ThenAdvanceStep; not a routine, the module raises; the address already carries its data name
 loc_0f8d  the era pen table run as code only when advanceSequenceUnlessImageTampered's image fold misses 0x67; not a routine, the module raises; no effect to name
 loc_1f2e  the direction table run as code only through advancePlayerAnimationStrip's copyright-glyph tamper divert; not a routine, the module raises; the address is live DATA read by the heading snap
-loc_1f99  direction-table bytes run as code only downstream of the 0x1F2E tamper derail (a fold arm never taken); not a routine, the module raises; no effect to name
+loc_1f99  bytes inside PLAYER_ANIM_STRIP_1 (0x1F94+), the target of the direction table's never-taken jr nz at 0x1F37, run as code only downstream of the 0x1F2E tamper derail; not a routine, the module raises; no effect to name
 loc_2251  DEMO_AUTOPILOT_SCRIPT_SECOND's bytes run as code only when the tile-image readback fails; not a routine, the module raises; the address already carries its data name
 loc_307f  caption record 2 ("READY") run as code, entered only through trampolineToLoc_307f on a failed TAMPER_WITNESS check; its last-slot arm unwinds the stack and is never taken; cert code, not a routine of its own
 loc_315b  a bare jp into the per-era scenery row table 0x3176, taken only on a failed caption-witness check; the module raises; no effect of its own to name

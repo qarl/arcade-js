@@ -14,7 +14,7 @@
  *
  * The aim point read is ENEMY_STANDOFF_AIM_MAIN (0xAC7F), one of SIX two-byte points packed at
  * 0xAC74-0xAC7F that layOutEnemyAimPointsFromPlayerHeading rewrites as a block on passes whose life-tick
- * units digit is 7 -- so it is
+ * units digit is 7 and whose tens digit is neither 0 nor 3 -- so it is
  * ONE point, not THE point, and neither the only one nor fixed. The sibling at 0x41B8 has the same
  * shape but aims at other points of that block.
  *

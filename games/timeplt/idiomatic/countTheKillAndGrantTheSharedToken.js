@@ -18,8 +18,8 @@
  * is set to how many qualifying kills it takes and WAVE_CLAIM_TIMER (0xA812) [seen] opens a time window. Each
  * qualifying kill ticks the countdown; the kill that zeroes it writes its record's slot ordinal, with the top
  * bit set, into CLAIM_TOKEN (0xA821) [seen]. driveObjectAppearanceByPhaseBand later honours and consumes the
- * token (names.js CLAIM_TOKEN). The guards: the record's cooldown byte has its top bit set, and the window is
- * still open. The countdown is spent whenever those two pass, so every qualifying kill ticks it, not only the
+ * token (names.js CLAIM_TOKEN). The guards: the record's +0x0E byte has its top bit set (0x80 is the mark its hold delay leaves
+ * when it releases the object, ROM 0x2B5B), and the window is still open. The countdown is spent whenever those two pass, so every qualifying kill ticks it, not only the
  * winner.
  *
  * LIVE-OUT: memory.
@@ -29,10 +29,10 @@ import { u8 } from "../../../core/int.js";
 import { requestTwoSounds } from "./requestTwoSounds.js";
 import { CLAIM_TOKEN, KILLS_REMAINING, WAVE_CLAIM_TIMER, WAVE_KILL_COUNTDOWN } from "./names.js";
 
-/** Record offsets (ROM `ld a,(ix+0x0e)` / `ld a,(ix+0x0f)`): the cooldown byte and the slot ordinal. */
+/** Record offsets (ROM `ld a,(ix+0x0e)` / `ld a,(ix+0x0f)`): the release-delay byte and the slot ordinal. */
 const RELEASE_DELAY = 0x0e;
 const ORDINAL = 0x0f;
-/** Top bit of the cooldown byte: this object may claim (ROM `bit 7,a; ret z`). */
+/** Top bit of the +0x0E byte, the released-from-hold mark (ROM 0x2B5B): this object may claim (ROM `bit 7,a; ret z`). */
 const RELEASED_FROM_HOLD_MARK = 0x80;
 /** Added to the ordinal to mark the token as held (ROM `add a,0x80`). */
 const HOLDER_MARK = 0x80;

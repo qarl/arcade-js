@@ -32,7 +32,7 @@
 //   0xEF..0x01   DYING     with no hits left the head counts down one per step (stepMotherShipWreckCountdown): at 0xEF
 //                          it sweeps the whole field (sweepFieldOnMotherShipDeathElseStepWreck), from 0xE4 down it plays its wreck-and-flash
 //                          shapes, at 0xB4 it pays 3,000 points (flashMotherShipWreckAndPayThreeThousand), at 0x5A its sprite
-//                          codes are set to 0xFF, and at 0 it goes idle and hands over to the round advance (retireMotherShipAndRaiseRoundHold).
+//                          codes are set to 0xFF, and at 0 it goes idle, which hands over to the round advance, and raises ROUND_TRANSITION_HOLD to 0xFF (retireMotherShipAndRaiseRoundHold).
 //
 // SPRITE ENTRY LAYOUT (mechanisms.md). An entry's +0x00 is one coordinate and +0x01 the sprite code
 // (shape); 0x30 bytes on, +0x30 is the attribute (colour and flip) and +0x31 the other coordinate. The
@@ -287,8 +287,10 @@ export function flashMotherShipWreckAndPayThreeThousand(m, record, entry) {
   return postCommand(m, FLASH_SCORE_AWARD_COMMAND, THREE_THOUSAND_POINTS_INDEX);
 }
 
-// ── The end (0x4646), the step the head reaches zero: release ROUND_TRANSITION_HOLD to 0xFF, which hands
-// over to the round advance, and go back to idle. Then the anti-tamper check: TAMPER_GLYPH_COPY
+// ── The end (0x4646), the step the head reaches zero: raise ROUND_TRANSITION_HOLD from the sweep's 0xFE to 0xFF
+// (still nonzero, so every zero-test reader stays held; 0xFF alone makes armMotherShipOrStep 0x43B7 stop
+// stepping/re-arming the ship), and return the record head to idle (0x464B) -- the zeroed head at 0xA8A0 is
+// what lets advanceRoundWhenFieldCleared's fifteen-record scan pass. Then the anti-tamper check: TAMPER_GLYPH_COPY
 // (0xAB43) [seen] holds a glyph copied from the screen (during attract, and again at every credited one-player start), and the next byte its colour.
 // A genuine image reads 0x7C with colour 0x10 or 0x05 (`cp 0x7c`, `cp 0x10`, `cp 0x05`, 0x4653-0x465D)
 // and simply returns. Anything else is a patched caption, and the ROM jumps into

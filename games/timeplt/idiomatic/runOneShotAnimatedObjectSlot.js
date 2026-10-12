@@ -38,7 +38,7 @@ const SHAPE_ATTR = 0x0e;
 export function runOneShotAnimatedObjectSlot(m, object = m.regs.ix, sprite = m.regs.iy) {
   const { mem8 } = m;
 
-  // Step 1 -- rearm. A counter of 60 or more is forced to 59 (0x3B) and the matching sound requested
+  // Step 1 -- clamp. A counter of 60 or more is forced to 59 (0x3B) and the matching sound requested
   // (clampOneShotCountdownThenRequestSound, 0x409D [seen]). After the decrement below it reads 58,
   // under the mark, so this fires only on the first pass: it does not self-retrigger.
   if (mem8[object + COUNTER] >= CLAMP_AT) clampOneShotCountdownThenRequestSound(m, object);

@@ -274,7 +274,7 @@ const brokenNoSounds = (m) => claimer(m, { sounds: false });
 const brokenNoKillCount = (m) => claimer(m, { kills: false });
 /** BUG: lets the kill count wrap past zero instead of stopping there. */
 const brokenKillWraps = (m) => claimer(m, { floor: false });
-/** BUG: reads the wrong bit of the cooldown byte. */
+/** BUG: reads the wrong bit of the +0x0E release-delay byte. */
 const brokenWrongBit = (m) => claimer(m, { bit: 0x40 });
 /** BUG: drops the arming guard, so a disarmed machine still spends the countdown. */
 const brokenNoArmingGuard = (m) => claimer(m, { armedGuard: false });

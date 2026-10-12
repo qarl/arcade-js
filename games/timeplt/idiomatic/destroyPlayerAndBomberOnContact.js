@@ -2,9 +2,9 @@
 /**
  * destroyPlayerAndBomberOnContact — ROM 0x507E [seen]
  *
- * WHAT IT IS. The collision test between the player's own ship and the object (in era 1 the flying bomber) held in
+ * WHAT IT IS. The collision test between the player's own ship and the flying bomber held in
  * era-object slot 0 (record ERA_OBJECT_RECORD_SLOT0 0xA8C0, sprite entry ERA_OBJECT_ENTRY_SLOT0
- * 0xAA28): flying into it destroys both.
+ * 0xAA28): flying into it destroys both. Its only caller, splitCollisionWorkByFrameParity, runs in era 1 alone.
  *
  * ROLE. Both must still be live, and both coordinates must fall inside a wrapped window around the
  * meeting point, the window along one axis being wider than the other. When all four tests pass,

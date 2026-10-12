@@ -9,7 +9,7 @@
  * round-resolution service runs. This arm is that stretch. It runs once per pass of the vertical-blank service and counts the
  * shared sequence delay down; when the delay expires it steps the sequence on into the round engine.
  *
- * ROLE IN THE MACHINE. Entry 6 of the phase-3 sub-step table, between the round-intro caption hold
+ * ROLE IN THE MACHINE. Entry 6 of the phase-3 sub-step table, between the life-start caption hold
  * (arm 5, flyLifeStartHoldThenEraseLifeStartCaptions) and the round engine (arm 7,
  * serviceRoundThenResolvePlayerState, whose service list is a strict superset of this one's). It also
  * runs in the attract demo.

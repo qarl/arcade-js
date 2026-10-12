@@ -106,7 +106,7 @@ export function armNewGameThenStepSequence(m) {
 
   // Zero the frame counter FRAME_TICK [seen], the packed-decimal frame counter and the demo-script
   // round-robin index, then reseed the random register (ROM 0x4B67: a fixed seventeen-byte run copied from
-  // program space, itself image-checked).
+  // program space at 0x4B84; the image check that follows at 0x4B72 sums the bytes at 0x086D, 0x086E and 0x0870, not this run).
   mem8[FRAME_TICK] = 0x00;
   mem8[BCD_FRAME_COUNTER] = 0x00;
   mem8[SCRIPT_CYCLE_COUNTER] = 0x00;

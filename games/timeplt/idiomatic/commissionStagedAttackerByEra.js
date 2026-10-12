@@ -2,11 +2,11 @@
 /** commissionStagedAttackerByEra — commission the object the slot-finder staged, whose record and paired-entry pointers
  * wait in two fixed cells. Copies the spawner's two coordinate pairs and the caller's facing byte
  * across into the new slot, then fits it out one of four ways chosen by the current era: era zero
- * an unaimed throw with a fixed shape, flip bits from a mirror flag and a seeded velocity word; eras one and two a heading toward a
+ * an unaimed throw with a fixed shape, flip bits from a mirror flag and a seeded velocity word; era two (era one never launches through here) a heading toward a
  * point standing off the player's ship along its heading, skewed a quarter turn to one side or the other, picked by a stored bit; era three a velocity vector for a heading
  * offset a fixed step either side of the facing; era four a straight aim at that same point, with
  * one extra byte seeded. Every way counts the new slot's head byte down from free (0x00) to live (0xFF), re-arms the spawn
- * cooldown, and hands off to a sound request (eras one and two share era three's). The staged record/entry pointers ride
+ * cooldown, and hands off to a sound request (era two shares era three's). The staged record/entry pointers ride
  * in JS locals and are handed to each callee as arguments, so the spawner's own index registers are
  * never moved and stand at the spawner throughout. LIVE-OUT: memory; the two index registers, left
  * at the spawner; and whatever the sound request leaves. */
@@ -69,7 +69,7 @@ export function commissionStagedAttackerByEra(m, spawnerRecord = m.regs.ix, spaw
   mem8[record + 0x01] = facing;
 
   // STEP 4 -- FIT IT OUT BY ERA. ERA_INDEX (0xAD04) is 0-4; the ROM tests 4, then 0, then 3, and
-  // eras 1-2 take what is left.
+  // eras 1-2 take what is left -- in play only era 2, since era 1's service never calls launchAttackerIntoFreeSlot.
   const era = mem8[ERA_INDEX];
 
   // The shared ending of every arm: count the new record's head byte down one (`dec (ix+0x00)`), re-arm
@@ -120,12 +120,12 @@ export function commissionStagedAttackerByEra(m, spawnerRecord = m.regs.ix, spaw
     return tailOff(requestTwoSoundsWhilePlaying);
   }
 
-  // ERAS 1, 2 AND 4: AIM AT THE STAND-OFF POINT (0x431B-0x4349, 0x434C-0x436C). headingToward (0x33B8)
+  // ERAS 2 AND 4: AIM AT THE STAND-OFF POINT (0x431B-0x4349, 0x434C-0x436C). headingToward (0x33B8)
   // gives the heading from the new object to ENEMY_STANDOFF_AIM_MAIN (0xAC7F), a point that stands off
   // the player's ship; it is stored as the record's +0x01.
   const aim = headingToward(m, ENEMY_STANDOFF_AIM_MAIN, entry);
   mem8[record + 0x01] = aim;
-  // Era 4 flies straight at it. Eras 1-2 fly skewed off it: 0x40 or 0xC0 is added (a quarter turn
+  // Era 4 flies straight at it. Era 2 flies skewed off it: 0x40 or 0xC0 is added (a quarter turn
   // either side -- the two choices half a turn apart), chosen by bit 0 of the record's +0x0F byte.
   if (era >= 3) {
     mem8[record + 0x02] = aim;
@@ -135,7 +135,7 @@ export function commissionStagedAttackerByEra(m, spawnerRecord = m.regs.ix, spaw
     mem8[record + 0x02] = (skew + mem8[record + 0x01]);
   }
   // Point the sprite along the flight heading (call 0x3FAF), clear +0x0E, and finish. Sound: era 4
-  // requestAttackerSpawnSoundLateEra (0x5674), eras 1-2 requestTwoSoundsWhilePlaying (0x566E).
+  // requestAttackerSpawnSoundLateEra (0x5674), era 2 requestTwoSoundsWhilePlaying (0x566E).
   dressSpriteShapeAndAttributeForHeadingSector(m, record, entry);
   mem8[record + 0x0e] = 0x00;
   return tailOff(era >= 3 ? requestAttackerSpawnSoundLateEra : requestTwoSoundsWhilePlaying);

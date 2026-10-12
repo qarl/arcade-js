@@ -3,7 +3,7 @@
  * BANK_LAUNCH_COOLDOWN, borrowed here as the tamper-check result the attract sequence parks there. While FREE_PLAY is set it only advances the
  * sequence's inner index; otherwise it repaints the panel from its packed-decimal count, queues one caption request,
  * then the guard decides. Zero stamps the caption strip, requests the caption line in this frame's colour, and folds
- * a twenty-byte image run into the tamper total. Nonzero has no routine to run, so it RAISES rather than guessing.
+ * a twenty-byte image run into the tamper total. Nonzero jumps to 0x2E3E (ROM 2D51 `jp nz,0x2e3e`), which is a data table rather than a routine; the port raises there.
  * LIVE-OUT: memory only. */
 //
 // ROM 0x2D3F-0x2D61, ending in `jp 0x43e8` (sumImageBlockForTheTamperCheck); lift:

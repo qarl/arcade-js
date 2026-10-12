@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
  * animateFixedShapeCycle — give a sprite entry the current frame of an eight-frame shape cycle
- * from a fixed shape base, and one fixed control byte beside it.
+ * from a fixed shape base, and one fixed attribute byte beside it.
  *
  * ROM 0x3E7E-0x3E8D (loc_3e7e). Grounding: [seen] (names.js ROUTINES 0x3E7E).
  *

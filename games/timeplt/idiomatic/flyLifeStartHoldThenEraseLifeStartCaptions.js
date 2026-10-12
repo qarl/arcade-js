@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * flyLifeStartHoldThenEraseLifeStartCaptions — sequence arm 5: the round-intro hold.
+ * flyLifeStartHoldThenEraseLifeStartCaptions — sequence arm 5: the life-start hold.
  *
  * ROM 0x16AF. Grounding: [seen] (names.js ROUTINES 0x16af).
  *
- * WHAT IT IS. At the start of a round Time Pilot shows its intro captions -- "PLAYER n", "STAGE" and
- * the era's year (A.D. 1910, 1940, 1970, 1982 or 2001) -- while the ship already flies over the era's
- * scenery with no enemies about. The year caption flashes. This arm is one frame of that: it flies
- * the ship, repaints the year caption on three frame phases out of sixteen, and when the shared
- * sequence delay runs out it erases the three captions and steps the sequence on.
+ * WHAT IT IS. At the start of every life, not only a round's first, Time Pilot holds the life-start
+ * captions on screen while the ship already flies over the era's scenery with no enemies about. On a
+ * round's first life (ROUND_INTRO_PENDING set) the era's year caption (A.D. 1910, 1940, 1970, 1982 or
+ * 2001) flashes as well. This arm is one frame of that hold: it flies the ship, repaints the year
+ * caption on three frame phases out of sixteen while ROUND_INTRO_PENDING is set, and when the shared
+ * sequence delay runs out it erases captions 9 (PLAYER n), 0x0E (STAGE) and 0x1A (the year line),
+ * clears ROUND_INTRO_PENDING and steps the sequence on.
  *
  * ROLE IN THE MACHINE. Entry 5 of the phase-3 sub-step table at 0x0F29, between the life-start arm
  * (0x0774, postLifeStartCaptionsAndResetPlayfield) and the enemy-free lead-in (0x5694,
@@ -59,7 +61,7 @@ export function flyLifeStartHoldThenEraseLifeStartCaptions(m) {
   runSceneryForEra(m);
   multiplexSpriteSlots(m);
 
-  // On odd frames count SEQUENCE_DELAY (0xA9EB) down. When it expires: erase the three intro
+  // On odd frames count SEQUENCE_DELAY (0xA9EB) down. When it expires: erase the three life-start
   // captions, clear ROUND_INTRO_PENDING (0xAD0E) -- which stops the flashing below -- re-arm the delay and
   // step the sequence sub-index on to the lead-in.
   const tick = mem8[FRAME_TICK];

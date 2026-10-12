@@ -22,7 +22,7 @@ whose role is only partly pinned, carry a terse caveat.
 | a817 | bankLaunchCooldown | Live per-vblank cooldown for the bank-launch arm (fireCraftShotWhenAimedNearPlayer) and the Mother-Ship's aimed shot, and in attract the tamper self-check's checksum verdict. |
 | a820 | actorRecordSlot1 | Actor slot 1's record head. |
 | a821 | claimToken | The shared "last of the wave" token, holding one claimant at a time. |
-| a827 | bankLaunchNearHalfWidth | Near-band proximity half-width gating a bank launch, the same value on both axes. |
+| a827 | bankLaunchNearHalfWidth | Near-band proximity half-width gating a craft's bank launch and the Mother-Ship's shot, the same value on both axes. |
 | a830 | actorRecordSlot2 | Actor slot 2's record head; also the free-slot-search band base. |
 | a837 | bankLaunchHeadingHalfWidth | Half-width of the heading window for a bank launch: fireCraftShotWhenAimedNearPlayer fires only when the craft's heading lies within this of PLAYER_HEADING. |
 | a840 | actorRecordSlot3 | Actor slot 3's record head; also doubles as the bomber shot's "bank A" record seat (fireBomberShotWhenClearOfPlayer). |
@@ -32,7 +32,7 @@ whose role is only partly pinned, carry a terse caveat.
 | a870 | craftRecordSlot2 | Slot 2's record head. |
 | a880 | craftRecordSlot3 | Slot 3's record head. |
 | a890 | craftRecordSlot4 | Slot 4's record head, and the seat of the "cleared" free-slot spawn search. |
-| a8a0 | motherShipState | State byte of the Mother-Ship's record, which begins at this address and runs two slots. |
+| a8a0 | motherShipState | State byte of craft slot 5: an ordinary enemy-craft slot while the Mother-Ship is unarmed; once it is armed, the Mother-Ship's record begins here and runs two slots. |
 | a8a4 | motherShipHitsToAbsorb | Mother-Ship record +4: the hits it can still absorb. |
 | a8b0 | craftRecordSlot6 | Slot 6's record head (the last ordinary craft slot), with two extra duties. |
 | a8b4 | motherShipAimSideToggle | The Mother-Ship's aimed-shot aim-side toggle: incremented each launch, bit 0 picks the +0x18 / -0x18 side of the aim. |
@@ -40,10 +40,10 @@ whose role is only partly pinned, carry a terse caveat.
 | a8c6 | attackerSpawnSlotCount | Per-era-and-rung count of enemy slots the attacker / craft-bank spawner fields, 0 to 3: byte +6 of the era/rung settings row ERA_RUNG_SETTINGS_POINTER_TABLE (0x1B04) selects, rising with the rung. |
 | a8d0 | eraObjectRecordSlot1 | Era-object bank slot 1's record head (second of the grouped three). |
 | a8d4 | attackerSpawnAimSideToggle | Aim-side toggle for the era bomber's shot (fireBomberShotWhenClearOfPlayer): incremented each shot fired, bit 0 picks a +0x18 or -0x18 offset off the aim heading. |
-| a8d6 | attackerSpawnWindowHalf | Half-width of the proximity window deciding WHETHER the era attacker bank spawns (doubled into a window). |
+| a8d6 | attackerSpawnWindowHalf | Half-width of the proximity window deciding WHETHER the era attacker bank spawns or the era-1 bomber fires its shot (doubled into a window). |
 | a8dc | bomberHitsToAbsorb | How many more hits the big two-slot object can absorb before it dies. |
 | a8e0 | eraObjectRecordSlot2 | Era-object bank slot 2's record head; also doubles as the bomber shot's "bank B" record seat (fireBomberShotWhenClearOfPlayer). |
-| a8e6 | attackerSpawnAimWindowHalf | Half-width of the final launch-facing window for the attacker spawn. |
+| a8e6 | attackerSpawnAimWindowHalf | Half-width of the final launch-position window for the attacker spawn (and, at 0x3F9E, for a craft's shot), tested on the X axis only. |
 | a8f0 | parachutistRecord | The parachutist's record head (array slot 15); its +7 is PARACHUTIST_RUNG 0xa8f7. |
 | a8f4 | attackerSpawnCooldown | Live shared cooldown for the era attacker-bank spawn arms, wound down every vblank and also by launchAttackerIntoFreeSlot. |
 | a8f6 | attackerSpawnCooldownPeriod | Reload period (interval constant) for ATTACKER_SPAWN_COOLDOWN; never decremented. |
@@ -88,7 +88,7 @@ whose role is only partly pinned, carry a terse caveat.
 | a9c2 | uprightCabinet | cabinet type from DSW1 'Cabinet' (bit 2), seeded at 0x2E22: 1 = upright, 0 = cocktail; the frame service turns the screen round for player two only when it reads 0 |
 | a9c3 | bonusLifeSetting | selects the bonus-life mark list + the attract bonus captions |
 | a9c4 | difficultySetting | Which of the eight Difficulty DIP positions the cabinet is set to, 0-7. |
-| a9c6 | demoSoundsEnable | attract-sound gate: a queued request is dropped unless set or a game is active |
+| a9c6 | demoSoundsEnable | attract-sound gate on the 0x5617 request path: a request made there is dropped unless set or a game is active (the 0x560C path drops every request outside a game regardless) |
 | a9c7 | coinSlot1Debounce | slot-1 coin-line debounce shift register |
 | a9c8 | coinSlot1Accumulator | slot-1 coins-inserted accumulator (+0x10/coin vs COIN_SLOT_1_RATIO 0xa9c9) |
 | a9c9 | coinSlot1Ratio | What coin slot 1 charges: coins-required-minus-one in the high nibble, credits in the low. |
@@ -144,10 +144,10 @@ whose role is only partly pinned, carry a terse caveat.
 | aa41 | playerSpriteY | The player's sprite Y (vertical) byte, and the base of the Y band hideAllSprites zeroes (hideCaptionSprites zeroes only its first four entries) to park every sprite off-screen. |
 | aa43 | actorSpriteYSlot0 | Actor slot 0's sprite Y (array slot 1; = ACTOR_ENTRY_SLOT0 +0x31, one step of the PLAYER_SPRITE_Y band). |
 | aa55 | motherShipSpriteY | The Mother-Ship's sprite Y (array slot 10; = MOTHER_SHIP_ENTRY +0x31); read as a scalar in the contact/collision windows. |
-| aa59 | eraObjectSpriteYSlot0 | Era-object bank slot 0's sprite Y (array slot 12; = ERA_OBJECT_ENTRY_SLOT0 +0x31); read as a scalar in fixed-target collision. |
+| aa59 | eraObjectSpriteYSlot0 | Era-object bank slot 0's sprite Y (array slot 12; = ERA_OBJECT_ENTRY_SLOT0 +0x31); read as a scalar by the two era-1 bomber collision tests (markEra1BomberAndShotHitByShots 0x4F7E, destroyPlayerAndBomberOnContact 0x507E). |
 | aa60 | scenerySpriteAttributeSlot0 | Scenery attribute (colour+flip) band base, scenery slot 0 (= SCENERY_ENTRY_SLOT0 +0x30); base of publishSpriteShadow's 6-byte bank-1 head run. |
 | aa66 | scenerySpriteAttributeSlot3 | Scenery attribute band, scenery slot 3 (array slot 19); base of publishSpriteShadow's 10-byte bank-1 tail run. |
-| aa6f | tamperImageSignature | The folded byte-signature of a program-image block (the self-check's checksum); written by the image-fold step and read by address only at ROM 0x2730 as cp 0x76, which jumps to 0x2530 (off the genuine path) on mismatch -- an anti-tamper cell. |
+| aa6f | tamperImageSignature | Sprite entry 23's Y byte (scenery slot 7's), which also banks the folded byte-signature of a program-image block (the self-check's checksum); as a sprite byte the scenery placement writes it, hideAllSprites zeroes it and it is published every frame, and as the signature the image-fold step writes it and ROM 0x2730 reads it as cp 0x76, which jumps to 0x2530 (off the genuine path) on mismatch -- an anti-tamper cell. |
 | aa80 | playerShotArray | Base of the player's six-slot shot record array. |
 | aa81 | shotBurstPending | Countdown of shots still owed from the current fire press. |
 | aa82 | shotSpawnCooldown | Inter-shot fire-rate cooldown: shot-engine passes left before the next player shot may seed. |
@@ -195,7 +195,7 @@ whose role is only partly pinned, carry a terse caveat.
 | ad0b | penGlyph | The active caption/pen glyph (active context +0x0B, companion of PEN_COLOUR at +0x0C). |
 | ad0c | penColour | The live caption/pen colour attribute (active context +0x0C; the saved per-player copies are at 0xAD1C/0xAD2C). |
 | ad0d | motherShipArmed | Raised while this round's Mother-Ship has been armed. |
-| ad0e | roundIntroPending | Active context +0xE: the round-intro-pending flag -- set when a round starts (0xFF from startNextRound; the game's first round loads the saved copy's 1), cleared when the round-intro fly-in timer expires, so it reads zero for the rest of a live round; while it is set the life-start arm posts the stage-number caption instead of READY and the fly-in flashes the era year; mirrors PLAYER_ONE/TWO_ROUND_INTRO_PENDING. |
+| ad0e | roundIntroPending | Active context +0xE: the round-intro-pending flag -- set when a round starts (0xFF from startNextRound; the game's first round loads the saved copy's 1), cleared when the round's first life-start hold expires (flyLifeStartHoldThenEraseLifeStartCaptions zeroes it at every expiry), so it reads zero for the rest of a live round; while it is set the life-start arm posts the stage-number caption instead of READY and the fly-in flashes the era year; mirrors PLAYER_ONE/TWO_ROUND_INTRO_PENDING. |
 | ad10 | playerOneLives | Player one's lives, in their saved sixteen-byte context block at 0xAD10. |
 | ad11 | playerOneRoundNumber | Player one's copy of ROUND_NUMBER (0xAD01), the unwrapped round ordinal. |
 | ad12 | playerOneKillsRemaining | Player one's copy of KILLS_REMAINING (0xAD02): craft still to destroy this round, seeded from KILL_QUOTA (0xA9CD). |

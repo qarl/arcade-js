@@ -12,7 +12,7 @@
  * but the player's. Clearing +0 (the occupancy byte) frees every slot at once; the only caller is
  * the life-start routine resetPlayfieldForLifeStart, so this runs once per life, not per frame.
  *
- * Why stamp a number: the +0x0F byte is an IDENTITY other code selects by. When a timer expires,
+ * Why stamp a number: the +0x0F byte is an IDENTITY other code selects by. When a kill empties the wave's kill countdown (0xA811),
  * countTheKillAndGrantTheSharedToken writes a record's own stamp (plus a top bit) into a shared
  * cell, and the code at 0x2C31 retires an object whose state byte is below 0x0A outright unless that cell's top bit is set and its low seven bits match
  * its stamp. Under MAME the twenty-three stamps read 1 through 23 on every dispatch.

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** fireBomberShotWhenClearOfPlayer — fire one aimed bomber shot, but only when its seat is free, the cooldown at
- * ATTACKER_SPAWN_COOLDOWN is clear, the era count is live, and some object in the caller's two-slot bank sits
+ * ATTACKER_SPAWN_COOLDOWN is clear, the era count is live, and one of the bomber's two sprite tiles sits
  * outside the doubled window (step 2 below). Draws a heading toward the standoff aim point ENEMY_STANDOFF_AIM_MAIN, alternates the aim's
  * side each shot via ATTACKER_SPAWN_AIM_SIDE_TOGGLE, then seats coords, the doubled velocity pair, a shape code and an
  * attribute byte into the era's fixed record+sprite bank and reloads the cooldown. LIVE-OUT: memory. The routine is a
@@ -12,7 +12,7 @@
  * ROM 0x3D25-0x3DD9. Grounding: [seen] (names.js ROUTINES 0x3d25).
  *
  * ROLE IN THE MACHINE. An era object (reached from serviceEra1BomberObject's chain) uses this to
- * fire the bomber's shot: a new object placed where one of the caller's two objects sits and sent off
+ * fire the bomber's shot: a new object placed where one of the bomber's two tiles sits and sent off
  * on a heading aimed near the player. How often this can happen is governed by the era's
  * difficulty settings: ATTACKER_SPAWN_SLOT_COUNT 0xA8C6 [seen] (how many attacker slots the era
  * fields; zero disables the arm), ATTACKER_SPAWN_WINDOW_HALF 0xA8D6 [seen] (the half-width of the
@@ -35,7 +35,7 @@ import { ACTOR_ENTRY_SLOT3, ACTOR_RECORD_SLOT3, ATTACKER_SPAWN_AIM_SIDE_TOGGLE, 
 
 // The caller's record head must read 0xFF (live) for the routine to go on (ROM `inc a / ret nz` at 0x3D28).
 const SLOT_LIVE = 0xff;
-// The caller's bank: two objects, records sixteen bytes apart, sprite entries two bytes apart.
+// The bomber's two tiles: sprite entries two bytes apart; the record pointer steps sixteen bytes alongside.
 const SEARCH_SLOTS = 2;
 const RECORD_STRIDE = 0x10;
 const ENTRY_STRIDE = 2;
@@ -67,13 +67,13 @@ export function fireBomberShotWhenClearOfPlayer(m, record = m.regs.ix, entry = m
   if (mem8[ATTACKER_SPAWN_SLOT_COUNT] === 0) return;
   if (!useSecondBank(m) && mem8[ACTOR_RECORD_SLOT3] !== 0) return;
 
-  // scan the caller's two-slot bank for an object outside the doubled window; the record pointer walks
+  // scan the bomber's two sprite tiles for one outside the doubled window; the record pointer walks
   // in lockstep with the entry pointer but its landing slot is discarded — the seat below is fixed.
   // Step 2 -- the window test, per axis: take the player's coordinate minus the object's, add the
   // half-width, and compare against twice the half-width, all in wrapping 8-bit arithmetic. The
   // ROM's `jp nc,0x3d6f` takes the launch path when the biased difference is at or past the full
   // width on EITHER axis -- that is, when the object's offset from the player's spot on that axis
-  // falls outside -half .. half-1. The first object that does so is the one used.
+  // falls outside -half .. half-1. The first tile that does so is the one used.
   const half = mem8[ATTACKER_SPAWN_WINDOW_HALF];
   const full = u8(2 * half);
   let count = SEARCH_SLOTS;
@@ -86,7 +86,7 @@ export function fireBomberShotWhenClearOfPlayer(m, record = m.regs.ix, entry = m
     entry = u16(entry + ENTRY_STRIDE);
     count = u8(count - 1);
   } while (count !== 0);
-  // Neither object qualified: nothing is fired and nothing is written.
+  // Neither tile qualified: nothing is fired and nothing is written.
   if (!hit) return;
 
   // Step 3 -- the launch sound (program byte 0x07A2, queued only while a game is being played),

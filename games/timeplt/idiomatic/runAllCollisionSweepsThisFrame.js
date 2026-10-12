@@ -18,7 +18,8 @@
  * Stages 2, 3, 5 and 6 share ONE cursor pair (a record cursor, 16-byte stride, and a sprite-entry
  * cursor, 2-byte stride -- the ROM's DE and IY), each sweep handing it on one past its last slot, so
  * together they walk the object array in address order: 0xA810 + 4 x 16 = 0xA850 (the craft band),
- * + 7 x 16 = 0xA8C0 (the era weapons), + 3 x 16 = 0xA8F0 (the parachutist). The pair now travels
+ * + 7 x 16 = 0xA8C0 (the era weapons), + 3 x 16 = 0xA8F0 (the parachutist), when the Mother-Ship is unarmed. While it is armed, stage 3 walks only
+ * the first five craft and stage 5 reseats the pair at 0xA8C0 / 0xAA28 (ROM 0x4EA5). The pair now travels
  * through each callee's returned tuple rather than through registers. Every player sweep refuses
  * outright unless PLAYER_STATE reads 0xFF, and a refusing sweep hands the cursor back unmoved --
  * harmless, since then every later sweep refuses too.

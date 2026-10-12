@@ -1858,7 +1858,7 @@
 20C8	step to the paired attribute table
 20CA	write the attribute byte beside it
 210E	point at the script-pointer cell
-2112	read the demo selector
+2112	read player one's era -- it picks the demo script
 2116	selector 0: take the first script
 211A	selector 3: take the first script too
 211E	selector 1: take the second script
@@ -2305,8 +2305,8 @@
 2BC1	already at zero?
 2BC2	yes: leave it -- floor, do not wrap
 2BC4	else take one kill off the quota
-2BC5	read this record's cooldown byte
-2BC8	is its top claim bit set?
+2BC5	read this record's release-delay byte
+2BC8	is its released-from-hold bit set?
 2BCA	no: not a claimant, done
 2BCB	read the shared arming cell
 2BCF	not set: done
@@ -3362,7 +3362,7 @@
 3E82	take it modulo eight -- one of eight frames
 3E84	offset to the shape-code base ($40)
 3E86	write the shape into the sprite entry
-3E89	set the fixed control byte beside it
+3E89	set the fixed attribute byte beside it
 3E8E	read the era index
 3E91	the last era (4)?
 3E93	yes -- run the countdown
@@ -3383,7 +3383,7 @@
 3EB7	point at the shape table
 3EBA	fetch the shape byte for this count
 3EBB	write it into the sprite entry
-3EBE	set the control byte beside it
+3EBE	set the attribute byte beside it
 3ECB	force the slot's head byte to $3B
 3ECF	request the two sounds
 3ED6	read the free-running frame tick
@@ -3776,7 +3776,7 @@
 4316	era three?
 4318	era 3: the doubled-velocity offset path
 431B	era 4: the straight-aim path
-431E	point at the main standoff aim point -- eras 1-2
+431E	point at the main standoff aim point -- era 2
 4321	work out the heading toward it
 4324	store it as the aim heading
 4327	take the new slot's phase byte
@@ -3830,7 +3830,7 @@
 43B4	then take the aim path
 43B7	read the round-transition hold flag
 43BA	is it holding?
-43BB	held between rounds: do nothing
+43BB	a 0xFF hold: do nothing
 43BC	read the mother-ship armed flag
 43BF	already active?
 43C0	yes: step its live sequence
@@ -4291,7 +4291,7 @@
 4A39	the fill value
 4A3B	lay one character cell
 4A3D	fill all thirteen
-4A41	then one 0x00 cell -- the run continues in the shared band painter
+4A41	then one 0x00 cell
 4A43	lay the lead byte over one cell
 4A45	a thirteen-cell run
 4A47	fill each with the body byte

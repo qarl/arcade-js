@@ -3,7 +3,7 @@
  * animateFixedShapeCycle — memory-equivalent to the frozen oracle at ROM 0x3E7E.
  *
  * WHAT IT IS. Two bytes written into a sprite entry: a shape code taken from a free-running cell,
- * halved and reduced to one of eight consecutive codes, and a fixed control byte. It reads nothing
+ * halved and reduced to one of eight consecutive codes, and a fixed attribute byte. It reads nothing
  * of the object it is given, so the same tick gives every entry the same shape.
  *
  * ★ NO UNDIVERTED TAPE REACHES THIS ENTRY, and the UNREACHED arm asserts it: the shared

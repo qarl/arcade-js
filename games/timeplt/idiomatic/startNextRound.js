@@ -60,6 +60,6 @@ export function startNextRound(m) {
   // raised, so the new round's waves can run.
   mem8[MOTHER_SHIP_ARMED] = 0;
   mem8[ROUND_TRANSITION_HOLD] = 0;
-  // Mark the round's intro pending: the flag stays up until the round-intro fly-in timer expires.
+  // Mark the round's intro pending: the flag stays up until the round's first life-start hold expires.
   mem8[ROUND_INTRO_PENDING] = INTRO_PENDING_SET;
 }

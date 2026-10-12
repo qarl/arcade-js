@@ -9,8 +9,8 @@
  *
  * Role in the machine: the per-slot object services use a record's head byte as a countdown/state
  * code. Two of them -- runOneShotAnimatedObjectSlot and stepDriftingCountdownObjectByEraFrames -- call
- * this entry when that byte sits at or above their reset mark, pulling it back to 0x3B (59) so the
- * object runs its countdown again from the top, and asking for the sound tied to that state
+ * this entry when that byte sits at or above their reset mark, pulling it down to 0x3B (59) so the
+ * object's countdown starts from there, and asking for the sound tied to that state
  * (ONE_SHOT_COUNTDOWN_SOUND, 0x2D87 [seen], requested by requestOneShotCountdownSound).
  *
  * `object` is the object's record base -- the index register the calling slot sweep has seated on
