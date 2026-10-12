@@ -28,7 +28,7 @@ import { u8, u16 } from "../../../core/int.js";
 
 // Offset of the entry's native-Y coordinate byte (the display's horizontal) from the entry's first byte; the ROM reads
 // it as (iy+0x31).
-const SCREEN_ROW_CELL = 49;
+const NATIVE_Y_OFFSET = 49;
 // The retire line tested on the +0 (native-X) byte and the one tested on the +0x31 (native-Y) byte.
 const RETIRE_COLUMN = 4;
 const RETIRE_ROW = 248;
@@ -44,7 +44,7 @@ export function hasReachedRetireLine(m, entry = m.regs.iy) {
   // does it read and test the column. `||` keeps that order, and the column test's result is the
   // answer when the row test fails.
   const reached =
-    atLine(mem8[u16(entry + SCREEN_ROW_CELL)], RETIRE_ROW) ||
+    atLine(mem8[u16(entry + NATIVE_Y_OFFSET)], RETIRE_ROW) ||
     atLine(mem8[entry], RETIRE_COLUMN);
   return reached;
 }

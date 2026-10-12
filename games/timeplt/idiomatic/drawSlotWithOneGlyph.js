@@ -25,7 +25,7 @@
 import { u16 } from "../../../core/int.js";
 import { retreatCharCursor } from "./retreatCharCursor.js";
 
-const COLOUR_PLANE_BIT = 0x400;
+const CHARACTER_PLANE_BIT = 0x400;
 const BLANK = 0xf1;
 
 export function drawSlotWithOneGlyph(m, cell = m.regs.de, glyph = m.regs.b, colour = m.regs.c) {
@@ -38,12 +38,12 @@ export function drawSlotWithOneGlyph(m, cell = m.regs.de, glyph = m.regs.b, colo
 
   // Colour both cells: drop into the colour plane at the lower cell, write it, step up one and write
   // the other (ROM `res 2,h / ld (hl),c / inc hl / ld (hl),c`).
-  const colourOfNeighbour = neighbour & ~COLOUR_PLANE_BIT;
+  const colourOfNeighbour = neighbour & ~CHARACTER_PLANE_BIT;
   mem8[colourOfNeighbour] = colour;
   const colourOfCell = u16(colourOfNeighbour + 1);
   mem8[colourOfCell] = colour;
 
   // Back to the glyph plane by SETTING the bit (ROM `set 2,h`), then step the cursor one row on to
   // the next slot (ROM `rst 0x28`, retreatCharCursor, +0x20), which is also the value returned.
-  return retreatCharCursor(m, colourOfCell | COLOUR_PLANE_BIT);
+  return retreatCharCursor(m, colourOfCell | CHARACTER_PLANE_BIT);
 }

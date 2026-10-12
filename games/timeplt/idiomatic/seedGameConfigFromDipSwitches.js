@@ -29,7 +29,7 @@ import { COINAGE_SETTINGS, HIGH_SCORE_HI, KILL_QUOTA, DEFAULT_HIGH_SCORE_HI, DEF
 // The two lives bits give 0..3; adding 3 makes 3, 4, 5 or 6. A sum of 6 (both switches set) is not
 // stored as 6 but replaced by the all-ones byte 0xFF (ROM `cp 0x06 / jr nz / ld a,0xff`).
 const LIVES_BASE = 3;
-const FOLDS_TO = 0x06;
+const LIVES_SUM_REPLACED_BY_ALL_ONES = 0x06;
 const ALL_ONES = 0xff;
 
 export function seedGameConfigFromDipSwitches(m) {
@@ -52,8 +52,8 @@ export function seedGameConfigFromDipSwitches(m) {
   // each lost life takes one off and the game ends at zero.
   const bank1 = u8(~mem8[DSW1_PORT]);
   const lives = (bank1 & 0x03) + LIVES_BASE;
-  const whole = lives === FOLDS_TO ? ALL_ONES : lives;
+  const startingLives = lives === LIVES_SUM_REPLACED_BY_ALL_ONES ? ALL_ONES : lives;
   // Jump (0x52CF `jp 0x2E19`) into unpackTheFirstThreeSwitchSettings [seen] with the lives count and
   // the whole complemented bank; it and its continuation store the remaining bits.
-  return unpackTheFirstThreeSwitchSettings(m, whole, bank1);
+  return unpackTheFirstThreeSwitchSettings(m, startingLives, bank1);
 }

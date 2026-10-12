@@ -16,7 +16,7 @@
  *   bit 3    -> BONUS_LIFE_SETTING (0xA9C3) [seen]  (here)
  *   bits 4-6 -> DIFFICULTY_SETTING, bit 7 -> DEMO_SOUNDS_ENABLE (the continuation)
  *
- * PARAMETERS. `whole` is the lives count the caller worked out (3, 4, 5, or 0xFF for the setting that
+ * PARAMETERS. `livesCount` is the lives count the caller worked out (3, 4, 5, or 0xFF for the setting that
  * would compute 6). `packed` is the whole complemented switch byte.
  *
  * Nothing is read from memory. Control tail-transfers into the continuation and never comes back.
@@ -38,11 +38,11 @@ const SINGLE_BIT_CELLS = [
 const LAST_BIT_SPENT = SINGLE_BIT_CELLS[SINGLE_BIT_CELLS.length - 1].bit;
 const BITS_IN_A_BYTE = 8;
 
-export function unpackTheFirstThreeSwitchSettings(m, whole = m.regs.a, packed = m.regs.c) {
+export function unpackTheFirstThreeSwitchSettings(m, livesCount = m.regs.a, packed = m.regs.c) {
   const { mem8 } = m;
   // Lives per game (0x2E19 `ld (0xa9c1),a`), stored exactly as the caller computed it; startOnePlayerGame /
   // startTwoPlayerGame [seen] later copy it into the players' lives cells.
-  mem8[STARTING_LIVES] = whole;
+  mem8[STARTING_LIVES] = livesCount;
   // Bit 2 = cabinet type, bit 3 = which bonus-life score list (and attract captions) applies.
   for (const { cell, bit } of SINGLE_BIT_CELLS) mem8[cell] = (packed >> bit) & 1;
   // Hand the byte on rotated right three places (the ROM's three `rrca`s, a rotate so no bit is

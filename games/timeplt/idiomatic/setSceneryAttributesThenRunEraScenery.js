@@ -29,8 +29,8 @@ import { runSceneryForEra } from "./runSceneryForEra.js";
 import { SCENERY_ENTRY_SLOT0, SCENERY_SPRITE_ATTRIBUTE_SLOT0, TAMPER_GLYPH_KONAMI, ERA4_SCENERY_SEED_TABLE } from "./names.js";
 
 // The attribute loop: eight attribute cells, every second byte, starting at 0xAA60 (`ld b,0x08` / `ld de,0x0002`).
-const CLEAR_COUNT = 8;
-const CLEAR_STRIDE = 2;
+const ATTRIBUTE_COUNT = 8;
+const ATTRIBUTE_STRIDE = 2;
 // `cp 0x04` on the era: eras 0-3 take the seed path at 0x3117.
 const ERA_FLOOR = 0x04;
 // The guard values a genuine image holds: 0x3B at 0xACC7, then 0x05 or 0x10 at 0xACC8.
@@ -40,7 +40,7 @@ const SUBGUARD_B = 0x10;
 // The era-four seed: eight two-byte records from 0x315E.
 const SEAT_COUNT = 8;
 const SEAT_SHADOW = 0x31; // byte0 of each packed pair lands at the entry cell +0x31
-const CLEAR_SPENT = 0; // the attribute loop runs its count down to nothing
+const ATTRIBUTE_COUNT_SPENT = 0; // the attribute loop runs its count down to nothing
 
 export function setSceneryAttributesThenRunEraScenery(m, fillByte = m.regs.a, era = m.regs.c, entryCursor = m.regs.iy, recordCursor = m.regs.ix) {
   const { mem8 } = m;
@@ -49,16 +49,16 @@ export function setSceneryAttributesThenRunEraScenery(m, fillByte = m.regs.a, er
    * SCENERY_SPRITE_ATTRIBUTE_SLOT0 (0xAA60), the scenery sprite entries' attribute (colour + flip)
    * band, so all eight attribute bytes take the caller's byte. */
   // set eight scenery attribute bytes, stride two, to the caller's byte
-  let clearAddr = SCENERY_SPRITE_ATTRIBUTE_SLOT0;
-  for (let n = CLEAR_COUNT; n !== 0; n--) {
-    mem8[clearAddr] = fillByte;
-    clearAddr = u16(clearAddr + CLEAR_STRIDE);
+  let attributeAddr = SCENERY_SPRITE_ATTRIBUTE_SLOT0;
+  for (let n = ATTRIBUTE_COUNT; n !== 0; n--) {
+    mem8[attributeAddr] = fillByte;
+    attributeAddr = u16(attributeAddr + ATTRIBUTE_STRIDE);
   }
 
   /* Step 2 (0x30DE-0x30E2): eras 0-3 go on to seedSceneryEntriesThenRunScenery (0x3117, a tail
    * jump), which seats four objects from its own packed table and runs the scenery. The stride and
    * spent count are handed over so its own guard-fail divert sees what the ROM leaves in E and B. */
-  if (era < ERA_FLOOR) return seedSceneryEntriesThenRunScenery(m, era, entryCursor, CLEAR_STRIDE, CLEAR_SPENT, recordCursor);
+  if (era < ERA_FLOOR) return seedSceneryEntriesThenRunScenery(m, era, entryCursor, ATTRIBUTE_STRIDE, ATTRIBUTE_COUNT_SPENT, recordCursor);
 
   /* Step 3 (0x30E3-0x30F7): era four checks the tamper guard pair first; a wrong value tails into
    * loc_315b and never returns here. */

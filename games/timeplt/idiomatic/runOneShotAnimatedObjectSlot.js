@@ -32,7 +32,7 @@ const REARM_AT = 0x3c;
 const SHAPE_FLOOR = 0x1c;
 const SPRITE_SHAPE = 1;
 const SPRITE_ATTR = 0x30;
-const SPRITE_TAIL = 0x31;
+const SECOND_AXIS_OFFSET = 0x31;
 const SHAPE_ATTR = 0x0e;
 
 export function runOneShotAnimatedObjectSlot(m, object = m.regs.ix, sprite = m.regs.iy) {
@@ -49,7 +49,7 @@ export function runOneShotAnimatedObjectSlot(m, object = m.regs.ix, sprite = m.r
   mem8[object + COUNTER] = (mem8[object + COUNTER] - 1);
   if (mem8[object + COUNTER] === 0) {
     mem8[sprite] = 0;
-    mem8[sprite + SPRITE_TAIL] = 0;
+    mem8[sprite + SECOND_AXIS_OFFSET] = 0;
     return;
   }
 

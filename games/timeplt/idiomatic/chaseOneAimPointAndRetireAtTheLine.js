@@ -31,7 +31,7 @@ import { hasReachedRetireLine } from "./hasReachedRetireLine.js";
 import { retireSlot } from "./retireSlot.js";
 
 // Record offsets: +0x0F the object's re-aim phase, +0x01 the heading it aims at.
-const TURN_PHASE = 15;
+const REAIM_PHASE = 15;
 const AIM_HEADING = 1;
 // FRAME_TICK's low four bits: the 16-frame wheel the re-aim phase is compared against.
 const PHASE_WHEEL = 15;
@@ -46,7 +46,7 @@ export function chaseOneAimPointAndRetireAtTheLine(m, object = m.regs.ix, sprite
   // Rationed re-aim (ROM 0x4118-0x412B): only on this object's frame of the sixteen, point its
   // aim heading (+1) at the standoff point. headingToward (0x33B8) returns the 256-step heading
   // from the sprite's position to that point.
-  if ((mem8[FRAME_TICK] & PHASE_WHEEL) === mem8[u16(object + TURN_PHASE)]) {
+  if ((mem8[FRAME_TICK] & PHASE_WHEEL) === mem8[u16(object + REAIM_PHASE)]) {
     mem8[u16(object + AIM_HEADING)] = headingToward(m, ENEMY_STANDOFF_AIM_MAIN, sprite);
   }
 

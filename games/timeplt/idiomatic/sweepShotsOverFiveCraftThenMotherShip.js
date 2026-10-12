@@ -44,7 +44,7 @@ const STATE = 0;
 const SHOT_FIRST_AXIS = 6;
 const SHOT_SECOND_AXIS = 4;
 const LIVE = 255;
-const DESTROYED = 240;
+const JUST_HIT = 240;
 
 /** Sweep 2's hit box. First axis: eras 0 and 4 get L = 8 / H = 0x11 (ROM 0x502B arm), the others
  *  L = 6 / H = 0x0D. Second axis: always E = 0x17 / D = 0x1F. */
@@ -85,8 +85,8 @@ export function sweepShotsOverFiveCraftThenMotherShip(m) {
       within(mem8[MOTHER_SHIP_ENTRY], mem8[shot + SHOT_FIRST_AXIS], reach, span) &&
       within(mem8[MOTHER_SHIP_SPRITE_Y], mem8[shot + SHOT_SECOND_AXIS],
         SECOND_AXIS_REACH, SECOND_AXIS_SPAN)) {
-      mem8[MOTHER_SHIP_STATE] = DESTROYED;
-      mem8[shot + STATE] = DESTROYED;
+      mem8[MOTHER_SHIP_STATE] = JUST_HIT;
+      mem8[shot + STATE] = JUST_HIT;
       postChainedHitScore(m);
     }
     shot = nextRecordInPage(shot);

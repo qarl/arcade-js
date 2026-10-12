@@ -25,7 +25,7 @@
  * LIVE-OUT: memory (registers and the dead stack scratch aside).
  */
 
-import { requestRoundStartSound } from "./requestRoundStartSound.js";
+import { requestGameStartSound } from "./requestGameStartSound.js";
 import { postCommand } from "./postCommand.js";
 import { loadDifficultyRecord } from "./loadDifficultyRecord.js";
 import { seedRandomRegister } from "./seedRandomRegister.js";
@@ -44,7 +44,7 @@ export function armNewGameThenStepSequence(m) {
 
   // Ask for the round-start sound (ROM call 0x5834: the code byte at 0x1767, admitted only while a game
   // is being played).
-  requestRoundStartSound(m);
+  requestGameStartSound(m);
 
   // Seat the enemy aim anchor point (ENEMY_AIM_ANCHOR_Y 0xAC64 = 0x78, its X at 0xAC65 = 0x84, both
   // [seen]) and clear both players' saved life-tick counters (mid/high places, one 16-bit store each).
@@ -128,9 +128,9 @@ export function armNewGameThenStepSequence(m) {
   // result with 0x90. The bytes sum to 0x70 on the genuine image (their negation is 0x90, checked against the
   // ROM image), so for any phase 0-3 the result is the phase unchanged; an altered block would store a
   // different phase.
-  let sum = mem8[SEQUENCE_PHASE];
-  for (let i = 0; i < 256; i++) sum = u8(sum - mem8[SEQUENCE_PHASE_CHECKSUM_BASE + i]);
-  mem8[SEQUENCE_PHASE] = sum ^ 0x90;
+  let foldedPhase = mem8[SEQUENCE_PHASE];
+  for (let i = 0; i < 256; i++) foldedPhase = u8(foldedPhase - mem8[SEQUENCE_PHASE_CHECKSUM_BASE + i]);
+  mem8[SEQUENCE_PHASE] = foldedPhase ^ 0x90;
 
   // Set the sixteen-byte enemy aim-coordinate block 0xAC74-0xAC83 [seen] to 0x80, arm the sequence delay
   // for 0x5A frames, and step the sequence on.

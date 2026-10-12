@@ -33,14 +33,14 @@ import { CRAFT_ENTRY_SLOT6, CRAFT_RECORD_SLOT0, CRAFT_RECORD_SLOT6, KILLS_REMAIN
 const RECORD_STRIDE = 0x10;
 const BAND_SLOTS = 0x07;
 const BUSY_CEILING = 0x02;
-const OPEN_PHASE = 0x30;
+const SECOND_OPEN_TICK = 0x30;
 
-export function spawnEnemyCraftWhenBandUnderTwo(m, phaseCell = m.regs.hl) {
+export function spawnEnemyCraftWhenBandUnderTwo(m, lifeTickCell = m.regs.hl) {
   const { mem8 } = m;
 
-  // run only when the life-tick byte the caller points at reads zero or OPEN_PHASE
-  const phase = mem8[phaseCell];
-  if (phase !== 0x00 && phase !== OPEN_PHASE) return;
+  // run only when the life-tick byte the caller points at reads zero or SECOND_OPEN_TICK
+  const lifeTick = mem8[lifeTickCell];
+  if (lifeTick !== 0x00 && lifeTick !== SECOND_OPEN_TICK) return;
 
   // count busy heads across the seven-record craft band (max 7, so the count never wraps)
   let busy = 0;

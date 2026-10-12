@@ -60,7 +60,7 @@ import { requestTwoSounds } from "./requestTwoSounds.js";
 import { requestDestructionSoundBurst } from "./requestDestructionSoundBurst.js";
 import { requestCurrentEraSound } from "./requestCurrentEraSound.js";
 import { requestMotherShipWarpSound } from "./requestMotherShipWarpSound.js";
-import { ACTOR_ENTRY_SLOT2, ACTOR_RECORD_SLOT0, ACTOR_RECORD_SLOT2, BANK_LAUNCH_COOLDOWN, BANK_LAUNCH_COOLDOWN_PERIOD, BANK_LAUNCH_NEAR_HALF_WIDTH, ENEMY_STANDOFF_AIM_MAIN, ERA_INDEX, FRAME_TICK, BOMBER_HITS_TO_ABSORB, MOTHER_SHIP_AIM_SIDE_TOGGLE, MOTHER_SHIP_ENTRY, MOTHER_SHIP_STATE, PLAYER_HEADING, PLAYER_STATE, ROUND_TRANSITION_HOLD, SCRATCH_PTR_A, SCRATCH_PTR_B, TAMPER_GLYPH_COPY, WORLD_SCROLL_X, WORLD_SCROLL_Y, HEADING_EDGE_POSITION_TABLE, MOTHER_SHIP_WARP_SHAPE_TABLE } from "./names.js";
+import { ACTOR_ENTRY_SLOT2, ACTOR_RECORD_SLOT0, ACTOR_RECORD_SLOT2, BANK_LAUNCH_COOLDOWN, BANK_LAUNCH_COOLDOWN_PERIOD, BANK_LAUNCH_NEAR_HALF_WIDTH, ENEMY_STANDOFF_AIM_MAIN, ERA_INDEX, FRAME_TICK, BOMBER_HITS_TO_ABSORB, MOTHER_SHIP_AIM_SIDE_TOGGLE, MOTHER_SHIP_ENTRY, MOTHER_SHIP_STATE, PLAYER_HEADING, PLAYER_STATE, ROUND_TRANSITION_HOLD, SCRATCH_PTR_A, SCRATCH_PTR_B, TAMPER_GLYPH_COPY, WORLD_SCROLL_X, WORLD_SCROLL_Y, HEADING_EDGE_POSITION_TABLE, MOTHER_SHIP_WRECK_SHAPE_TABLE } from "./names.js";
 
 // The field sweep (sweepFieldOnMotherShipDeathElseStepWreck): fifteen sixteen-byte records from ACTOR_RECORD_SLOT0 (0xA810) up
 // to the parachutist's (0xA8F0); the dying codes it hands out start at 0x14 and step 10 per record;
@@ -69,8 +69,8 @@ const SLOT_STRIDE = 0x10;
 const SLOT_COUNT = 0x0f;
 const FIRST_SLOT_CODE = 0x14;
 const CODE_STEP = 0x0a;
-const SLOT_COMMAND = 0x04;
-const SLOT_ARGUMENT = 0x02;
+const SWEEP_SCORE_AWARD_COMMAND = 0x04;
+const TWO_HUNDRED_POINTS_INDEX = 0x02;
 // After the sweep: the head restarts at 0xE4, ROUND_TRANSITION_HOLD is set to 0xFE, and both tiles'
 // attribute bytes are seeded with 0x3D. A PHASE (head + 1) of 0xF0 -- the head at 0xEF -- is the sweep's trigger.
 const WRECK_COUNTDOWN_START = 0xe4;
@@ -84,13 +84,13 @@ const HITS_TO_ABSORB = 0x04;
 const STATE = 0x00;
 
 // Scoring-ring command (4, 13): 3,000 points, posted at the flash (`ld de,0x040d` at 0x463D).
-const WARP_COMMAND = 0x04;
-const WARP_ARGUMENT = 0x0d;
+const FLASH_SCORE_AWARD_COMMAND = 0x04;
+const THREE_THOUSAND_POINTS_INDEX = 0x0d;
 
 // Dying-countdown landmarks (see the table in the header), and the anti-tamper witness the finished
 // warp checks: TAMPER_GLYPH_COPY must hold glyph 0x7C followed by colour 0x10 or 0x05.
 const FLASH_STATE = 0xb4;
-const SPENT_HOLD = 0x5a;
+const WRECK_HIDE_STATE = 0x5a;
 const WITNESS_GLYPH = 0x7c;
 const WITNESS_COLOUR_A = 0x10;
 const WITNESS_COLOUR_B = 0x05;
@@ -197,7 +197,7 @@ export function sweepFieldOnMotherShipDeathElseStepWreck(m, phase, record, entry
     const held = mem8[slot];
     if (held === 0xff) {
       mem8[slot] = code;
-      postCommand(m, SLOT_COMMAND, SLOT_ARGUMENT); // post this slot's command pair
+      postCommand(m, SWEEP_SCORE_AWARD_COMMAND, TWO_HUNDRED_POINTS_INDEX); // post this slot's command pair
     } else if (u8(held + 2) === 0x00) {
       mem8[slot] = 0x00; // slot held 0xFE
     }
@@ -229,22 +229,22 @@ export function stepMotherShipWreckCountdown(m, record, entry) {
   // 0xED..0xEF (`cp 0x03` at 0x45BC) or +0x00 + 8 below 0x28 (`cp 0x28` at 0x45CC) -- both tiles'
   // sprite codes are set to 0xFF instead.
   const nativeY = mem8[Y(0x31)];
-  let flatten = false;
+  let hideBothTiles = false;
   if (u8(nativeY + 0x13) < 0x03) {
-    flatten = true;
+    hideBothTiles = true;
   } else {
     mem8[Y(0x33)] = u8(nativeY + 0x10);
     const nativeX = mem8[Y(0x00)];
-    if (u8(nativeX + 0x08) < 0x28) flatten = true;
+    if (u8(nativeX + 0x08) < 0x28) hideBothTiles = true;
     else mem8[Y(0x02)] = nativeX;
   }
-  if (flatten) {
+  if (hideBothTiles) {
     mem8[Y(0x01)] = 0xff;
     mem8[Y(0x03)] = 0xff;
   }
 
   // The warp shapes: at exactly 0xB4 the flash (below). Above it, the ship's two sprite codes come from
-  // MOTHER_SHIP_WARP_SHAPE_TABLE (0x461B), an eight-entry table indexed by the falling head: (head - 0xB4)
+  // MOTHER_SHIP_WRECK_SHAPE_TABLE (0x461B), an eight-entry table indexed by the falling head: (head - 0xB4)
   // rotated right three times, less one, masked to 0..7 (`and 0x07` at 0x45EC), then `rst 0x08` fetches
   // the entry. The second tile (+0x03) gets the shape and the first tile (+0x01) the shape plus one.
   const state = mem8[X(STATE)];
@@ -253,7 +253,7 @@ export function stepMotherShipWreckCountdown(m, record, entry) {
     let sh = u8(state - FLASH_STATE);
     sh = ((sh >> 3) | (sh << 5)) & 0xff; // RRCA x3
     sh = u8(sh - 1) & 0x07;
-    const shape = fetchTableByte(m, MOTHER_SHIP_WARP_SHAPE_TABLE, sh);
+    const shape = fetchTableByte(m, MOTHER_SHIP_WRECK_SHAPE_TABLE, sh);
     mem8[Y(0x03)] = shape;
     mem8[Y(0x01)] = u8(shape + 1);
   }
@@ -263,7 +263,7 @@ export function stepMotherShipWreckCountdown(m, record, entry) {
   const spent = u8(mem8[X(STATE)] - 1);
   mem8[X(STATE)] = spent;
   if (spent === 0x00) return retireMotherShipAndReleaseRoundHold(m, record);
-  if (mem8[X(STATE)] !== SPENT_HOLD) return;
+  if (mem8[X(STATE)] !== WRECK_HIDE_STATE) return;
   mem8[Y(0x01)] = 0xff;
   mem8[Y(0x03)] = 0xff;
 }
@@ -284,7 +284,7 @@ export function flashMotherShipWreckAndPayThreeThousand(m, record, entry) {
   mem8[Y(0x32)] = 0x6c;
 
   if (u8(mem8[PLAYER_STATE] + 1) === 0x00) requestMotherShipWarpSound(m);
-  return postCommand(m, WARP_COMMAND, WARP_ARGUMENT);
+  return postCommand(m, FLASH_SCORE_AWARD_COMMAND, THREE_THOUSAND_POINTS_INDEX);
 }
 
 // ── The end (0x4646), the step the head reaches zero: release ROUND_TRANSITION_HOLD to 0xFF, which hands

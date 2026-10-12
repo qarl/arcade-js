@@ -34,10 +34,10 @@ const NEAR_TABLE = NEAR_ERA_SPRITE_FRAME_TABLE;
 const FAR_TABLE = FAR_ERA_SPRITE_FRAME_TABLE;
 // Sprite-entry offsets written: +0x01 tile/shape and +0x30 attribute.
 const SPRITE_CODE = 1;
-const SPRITE_STATE = 0x30;
+const SPRITE_ATTRIBUTE = 0x30;
 // The attribute byte each table's frames are drawn with (`ld (iy+0x30),0x0d` / `ld (iy+0x30),0x02`).
-const NEAR_STATE = 0x0d;
-const FAR_STATE = 0x02;
+const NEAR_ATTRIBUTE = 0x0d;
+const FAR_ATTRIBUTE = 0x02;
 
 export function stepDriftingCountdownObjectByEraFrames(m, object = m.regs.ix, sprite = m.regs.iy) {
   const { mem8 } = m;
@@ -70,5 +70,5 @@ export function stepDriftingCountdownObjectByEraFrames(m, object = m.regs.ix, sp
   const frame = ((count - WINDOW_FLOOR) >> 2) & 0x07;
   const far = mem8[ERA_INDEX] >= FINAL_ERA;
   mem8[sprite + SPRITE_CODE] = fetchTableByte(m, far ? FAR_TABLE : NEAR_TABLE, frame);
-  mem8[sprite + SPRITE_STATE] = far ? FAR_STATE : NEAR_STATE;
+  mem8[sprite + SPRITE_ATTRIBUTE] = far ? FAR_ATTRIBUTE : NEAR_ATTRIBUTE;
 }

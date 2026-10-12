@@ -27,7 +27,7 @@
 // BANK_LAUNCH_HEADING_HALF_WIDTH of the player's heading, and the heading toward the aim point is within 16
 // of the craft's own. The shot then starts at the craft and flies along that aim heading.
 //
-// PARAMETERS. `ixEntry` is the launching craft's record (the ROM's IX), `iyEntry` its sprite entry
+// PARAMETERS. `craftRecord` is the launching craft's record (the ROM's IX), `iyEntry` its sprite entry
 // (IY). Every cell named below is tagged [seen] in names.js.
 //
 // THE WINDOW TEST used throughout below: for a half-width h, `(target - value) + h` taken as a byte is
@@ -53,12 +53,12 @@ const COORD_Y = 0x31;
 const VELOCITY = 0x0a;
 const RECORD_STRIDE = 0x10;
 
-export function fireCraftShotWhenAimedNearPlayer(m, ixEntry = m.regs.ix, iyEntry = m.regs.iy) {
+export function fireCraftShotWhenAimedNearPlayer(m, craftRecord = m.regs.ix, iyEntry = m.regs.iy) {
   const { mem8, mem16 } = m;
 
   // GATE 1 -- THIS CRAFT'S TURN (0x3ED6-0x3EE0). FRAME_TICK's low three bits count 0-7, plus 5; only
   // the craft whose +0x0F phase key matches may try on this pass, so each craft gets one FRAME_TICK value in eight.
-  if (((mem8[FRAME_TICK] & 0x07) + 0x05) !== mem8[u16(ixEntry + PHASE_KEY)]) return; // wrong bank phase this frame
+  if (((mem8[FRAME_TICK] & 0x07) + 0x05) !== mem8[u16(craftRecord + PHASE_KEY)]) return; // wrong bank phase this frame
   // GATE 2 -- COOLDOWN (0xA817). Non-zero means a recent launch is still cooling down (a vblank timer
   // winds it to zero); it is re-armed at the end of a successful launch.
   if (mem8[BANK_LAUNCH_COOLDOWN] !== 0) return; // still cooling down
@@ -102,7 +102,7 @@ export function fireCraftShotWhenAimedNearPlayer(m, ixEntry = m.regs.ix, iyEntry
   // BANK_LAUNCH_HEADING_HALF_WIDTH (0xA837) of PLAYER_HEADING (0xA802).
   const halfHeading = mem8[BANK_LAUNCH_HEADING_HALF_WIDTH];
   const fullHeading = u8(halfHeading + halfHeading);
-  const headingGap = u8(u8(mem8[PLAYER_HEADING] - mem8[u16(ixEntry + HEADING)]) + halfHeading);
+  const headingGap = u8(u8(mem8[PLAYER_HEADING] - mem8[u16(craftRecord + HEADING)]) + halfHeading);
   if (headingGap >= fullHeading) return;
 
   // (ROM 0x3F2D diverts to an extra window at 0x3F9E when the entry cursor's high byte is 0x02; the
@@ -112,7 +112,7 @@ export function fireCraftShotWhenAimedNearPlayer(m, ixEntry = m.regs.ix, iyEntry
   // ENEMY_STANDOFF_AIM_MAIN (0xAC7F), a point standing off the player's ship. The craft fires only if
   // that heading is within 16 steps (out of 256) of its own: the window test with h = 0x10.
   const heading = headingToward(m, ENEMY_STANDOFF_AIM_MAIN, iyEntry);
-  const aim = u8(u8(heading - mem8[u16(ixEntry + HEADING)]) + 0x10);
+  const aim = u8(u8(heading - mem8[u16(craftRecord + HEADING)]) + 0x10);
   if (aim >= 0x20) return; // aim not aligned to the object's own heading
 
   // LAUNCH. Request the launch sound (call 0x3F93; play-gated, so the attract demo stays silent).

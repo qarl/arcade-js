@@ -29,7 +29,7 @@ const COUNTDOWN = 0;
 const STEP = 7;
 const STEPS = 4;
 const COMMAND = 4;
-const PAST_THE_LAST_STEP = 15;
+const CAPPED_AWARD_ARGUMENT = 15;
 
 export function postNextParachutistBonus(m, record = m.regs.ix) {
   const { mem8 } = m;
@@ -44,7 +44,7 @@ export function postNextParachutistBonus(m, record = m.regs.ix) {
   /* Pick the argument. Rungs 0-3 index PARACHUTIST_BONUS_ARG_TABLE (0x484F, laid inline right
    * after this routine) through offsetAddress — the `rst 0x18` HL += A step — and `ld e,(hl)`.
    * From rung 4 on, `jp nc,0x4849` skips the table and posts the fixed top argument instead. */
-  let argument = PAST_THE_LAST_STEP;
+  let argument = CAPPED_AWARD_ARGUMENT;
   if (step < STEPS) {
     argument = mem8[offsetAddress(m, PARACHUTIST_BONUS_ARG_TABLE, step)];
   }

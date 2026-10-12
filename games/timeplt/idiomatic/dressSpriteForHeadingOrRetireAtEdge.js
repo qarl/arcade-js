@@ -79,12 +79,12 @@ export function dressSpriteForHeadingOrRetireAtEdge(m, record = m.regs.ix, entry
    * holds each flutter pose for four frames (bit 2 flips every fourth tick) no matter which way it
    * is heading. */
   if (era === FLUTTER_ERA) {
-    const seed = mem8[record + HITS_TO_ABSORB];
-    if (seed !== HITS_WHEN_ARMED) {
+    const hitsToAbsorb = mem8[record + HITS_TO_ABSORB];
+    if (hitsToAbsorb !== HITS_WHEN_ARMED) {
       const counter = u8(mem8[record + WIND_DOWN] + 1);
       mem8[record + WIND_DOWN] = counter;
       if (counter & CLOSED_OUT) return restartAnimationCounterThenDressFlutterSprite(m, counter, record, entry);
-      if (u8(seed + 2) < counter) mem8[record + WIND_DOWN] = CLOSED_OUT;
+      if (u8(hitsToAbsorb + 2) < counter) mem8[record + WIND_DOWN] = CLOSED_OUT;
       mem8[entry + COLOUR_LO] = FLUTTER_CODE;
       mem8[entry + COLOUR_HI] = FLUTTER_CODE;
       return dressSpriteFlutterShapesByFrameTickBit(m, entry);
@@ -101,8 +101,8 @@ export function dressSpriteForHeadingOrRetireAtEdge(m, record = m.regs.ix, entry
    * shapes. The colour is one byte per era from ERA_SPRITE_COLOUR_TABLE (0x4531). offsetAddress is
    * the ROM's `rst 0x18` (HL += A). */
   const index = u8(u8(era * 16) + (mem8[FRAME_TICK] & 0x02));
-  const quadrant = (u8(HITS_WHEN_ARMED - mem8[record + HITS_TO_ABSORB]) >> 1) & 0x03;
-  const shapePtr = offsetAddress(m, MOTHER_SHIP_SHAPE_PAIR_TABLE, u8(quadrant * 4 + index));
+  const damageStage = (u8(HITS_WHEN_ARMED - mem8[record + HITS_TO_ABSORB]) >> 1) & 0x03;
+  const shapePtr = offsetAddress(m, MOTHER_SHIP_SHAPE_PAIR_TABLE, u8(damageStage * 4 + index));
   const shapeLo = mem8[shapePtr];
   const shapeHi = mem8[u16(shapePtr + 1)];
   const colourPtr = offsetAddress(m, ERA_SPRITE_COLOUR_TABLE, era);

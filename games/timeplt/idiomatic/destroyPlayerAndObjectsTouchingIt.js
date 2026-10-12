@@ -30,7 +30,7 @@ const LIVE = 0xff;
 const DESTROYED = 0xf0;
 const COUNT_ZERO_MEANS = 256;
 
-export function destroyPlayerAndObjectsTouchingIt(m, occupancy = m.regs.de, entry = m.regs.iy, slack = m.regs.l, reach = m.regs.h, targets = m.regs.b) {
+export function destroyPlayerAndObjectsTouchingIt(m, occupancy = m.regs.de, entry = m.regs.iy, reach = m.regs.l, span = m.regs.h, targets = m.regs.b) {
   const { mem8 } = m;
   // Spent mover: neither cursor is written (declared live-out unchanged); the tuple echoes the
   // un-advanced inputs so a threading caller carries the seated cursor pair forward.
@@ -41,9 +41,9 @@ export function destroyPlayerAndObjectsTouchingIt(m, occupancy = m.regs.de, entr
   let left = targets === 0 ? COUNT_ZERO_MEANS : targets;
   while (left-- > 0) {
     if (mem8[occupancyAt] === LIVE) {
-      const across = u8(mem8[PLAYER_ENTRY] - mem8[entryAt + ENTRY_FIRST_AXIS] + slack);
-      const along = u8(mem8[PLAYER_SPRITE_Y] - mem8[entryAt + ENTRY_SECOND_AXIS] + slack);
-      if (across < reach && along < reach) {
+      const across = u8(mem8[PLAYER_ENTRY] - mem8[entryAt + ENTRY_FIRST_AXIS] + reach);
+      const along = u8(mem8[PLAYER_SPRITE_Y] - mem8[entryAt + ENTRY_SECOND_AXIS] + reach);
+      if (across < span && along < span) {
         mem8[PLAYER_STATE] = DESTROYED;
         mem8[occupancyAt] = DESTROYED;
       }

@@ -43,7 +43,7 @@ const SECOND_AXIS_WINDOW = 0x1f;
 
 // State bytes: 0xFF live; 0xF0 hit (the shot is culled; the bomber counts it as one hit).
 const LIVE = 0xff;
-const DESTROYED = 0xf0;
+const HIT_MARK = 0xf0;
 
 export function markEra1BomberAndShotHitByShots(m) {
   const { mem8 } = m;
@@ -61,8 +61,8 @@ export function markEra1BomberAndShotHitByShots(m) {
       if (across < FIRST_AXIS_WINDOW && along < SECOND_AXIS_WINDOW) {
         // A hit: mark the target and this shot 0xF0, and post the score through
         // postChainedHitScore (0x51DE), which steps the award up while hits keep chaining.
-        mem8[ERA_OBJECT_RECORD_SLOT0] = DESTROYED;
-        mem8[slot + OCCUPANCY] = DESTROYED;
+        mem8[ERA_OBJECT_RECORD_SLOT0] = HIT_MARK;
+        mem8[slot + OCCUPANCY] = HIT_MARK;
         postChainedHitScore(m);
       }
     }

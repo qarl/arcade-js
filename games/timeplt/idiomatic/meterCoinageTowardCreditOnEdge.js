@@ -30,7 +30,7 @@ const STEP = 0x10;
 // The debounce looks at the last three samples of the coin line (`and 0x07 / cp 0x01` at 0x491C):
 // 0b001 is "absent, absent, now present" -- a clean leading edge -- so a coin that holds the line for
 // several frames is counted once, on the frame it arrives.
-const PHASE_MASK = 0x07;
+const LAST_THREE_SAMPLES_MASK = 0x07;
 const READY = 0x01;
 
 export function meterCoinageTowardCreditOnEdge(m) {
@@ -41,7 +41,7 @@ export function meterCoinageTowardCreditOnEdge(m) {
   // debounce history at 0xA9CA, so the history holds one sample per call, newest in bit 0.
   const coinBit = (mem8[IN0_MIRROR] >> 1) & 1; // two rrca land IN0 bit 1 in carry
   mem8[COIN_SLOT_2_DEBOUNCE] = (mem8[COIN_SLOT_2_DEBOUNCE] << 1) | coinBit; // coin-line sample shifted in as the low bit
-  if ((mem8[COIN_SLOT_2_DEBOUNCE] & PHASE_MASK) !== READY) return;
+  if ((mem8[COIN_SLOT_2_DEBOUNCE] & LAST_THREE_SAMPLES_MASK) !== READY) return;
 
   // A coin has been accepted: ask for the coin sound (requestCoinSound, 0x57F1) and owe the slot's mechanical
   // counter one more pulse in COIN_COUNTER_PULSES_OWED_SLOT_2 (0xA982, `inc (hl)` at 0x4928), the slot-2 twin of COIN_COUNTER_PULSES_OWED.

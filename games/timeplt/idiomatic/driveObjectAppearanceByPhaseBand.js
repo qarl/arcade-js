@@ -48,7 +48,7 @@ const ATTRIBUTE = 0x30; // (iy+0x30): sprite attribute / tint
 const TINT_ONLY_FROM = 42; // cp 0x2a
 const SHAPE_RUN_FROM = 10; // cp 0x0a
 const PHASES_PER_STEP = 2; // sub 0x0a / rrca / and 0x0f: halve the phase above 10
-const KEPT_TINT_BITS = 0xc0; // and 0xc0: the attribute's top two bits survive
+const MIRROR_BITS = 0xc0; // and 0xc0: the attribute's top two bits survive
 const CYCLED_TINT_BITS = 0x0f; // and 0x0f on FRAME_TICK: sixteen cycling tints
 const REQUEST_PRESENT = 0x80; // bit 7,a on CLAIM_TOKEN
 const REQUEST_NUMBER = 0x7f; // res 7,a: the claimant's slot ordinal
@@ -70,8 +70,8 @@ export function driveObjectAppearanceByPhaseBand(m, object = m.regs.ix, sprite =
    * The attribute's top two bits are kept and FRAME_TICK's (0xA980 [seen], one step per frame)
    * low nibble goes under them, so the tint steps through sixteen values, one per frame. */
   if (phase >= TINT_ONLY_FROM) {
-    const tint = mem8[sprite + ATTRIBUTE] & KEPT_TINT_BITS;
-    mem8[sprite + ATTRIBUTE] = tint + (mem8[FRAME_TICK] & CYCLED_TINT_BITS);
+    const flipBits = mem8[sprite + ATTRIBUTE] & MIRROR_BITS;
+    mem8[sprite + ATTRIBUTE] = flipBits + (mem8[FRAME_TICK] & CYCLED_TINT_BITS);
     return;
   }
 

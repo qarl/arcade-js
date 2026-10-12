@@ -50,7 +50,7 @@ const RAISE_STEP_CEILING = 8;
 const TOP_BIT = 0x80;
 
 /** The eight sprites the raise reaches: the three of the first run and the five of the third. */
-const RAISED_SPRITES = [0, 2, 4, 38, 40, 42, 44, 46];
+const RAISED_SPRITE_OFFSETS = [0, 2, 4, 38, 40, 42, 44, 46];
 
 /** Gather one bank: walk its three runs in order into consecutive hardware bytes, sending even
  * bytes (the first half of each two-byte sprite) through one transform and odd bytes through the
@@ -74,7 +74,7 @@ function raiseEightSprites(m) {
   if (mem8[SEQUENCE_PHASE] !== RAISE_PHASE) return;
   const step = mem8[SEQUENCE_SUBSTEP];
   if (step < mem8[SPRITE_RAISE_STEP_FLOOR] || step >= RAISE_STEP_CEILING) return;
-  for (const sprite of RAISED_SPRITES) {
+  for (const sprite of RAISED_SPRITE_OFFSETS) {
     const second = mem8[BANK_1.at + sprite + 1];
     if ((second & TOP_BIT) !== 0) continue;
     mem8[BANK_1.at + sprite + 1] = u8(second + TOP_BIT);

@@ -66,7 +66,7 @@ const EXTRA_CUE_LEVEL = 0x02;
 const GENUINE_GLYPH = 0xa5;
 const GENUINE_COLOUR_A = 0x05;
 const GENUINE_COLOUR_B = 0x10;
-const COLOUR_BIAS = 0xc1; // added to the level to pick the strip's colour attribute
+const ATTRIBUTE_BIAS = 0xc1; // added to the level to form the strip's whole tile attribute: colour +1, and 0xC0 sets both flip bits
 // The character plane is 32 cells to a row; after a row of five tiles, adding 0x1B (27) more lands
 // on the first cell of the row below (`ld a,0x1b` / `rst 0x18`).
 const ROW_ADVANCE = 0x1b; // step from the last tile of a row to the first of the next
@@ -93,15 +93,15 @@ const FRAME_ARMS = [
 
 export function advancePlayerAnimationStrip(m, record = m.regs.ix, entry = m.regs.iy) {
   const { mem8 } = m;
-  const X = (d) => u16(record + d);
-  const Y = (d) => u16(entry + d);
+  const atRecord = (d) => u16(record + d);
+  const atEntry = (d) => u16(entry + d);
 
   // STEP 1 -- OPENING FRAME (0x2010-0x203F). A fresh kill leaves the state at 0xF0, above the cap, so
   // this runs exactly once per explosion: the clamp to 0xB4 makes every later pass skip it.
-  if (mem8[X(PHASE)] >= FIRST_FRAME) {
+  if (mem8[atRecord(PHASE)] >= FIRST_FRAME) {
     // opening frame: clamp the phase, blank the ship's sprite, post the opening-frame sound commands
-    mem8[X(PHASE)] = FIRST_FRAME;
-    mem8[Y(SPRITE_CODE)] = EMPTY_SPRITE_CODE;
+    mem8[atRecord(PHASE)] = FIRST_FRAME;
+    mem8[atEntry(SPRITE_CODE)] = EMPTY_SPRITE_CODE;
     if (mem8[ERA_INDEX] >= EXTRA_CUE_LEVEL) requestSoundSixStopWhilePlaying(m);
     requestDestructionSoundBurst(m);
 
@@ -117,7 +117,7 @@ export function advancePlayerAnimationStrip(m, record = m.regs.ix, entry = m.reg
 
   // STEP 2 -- COUNT DOWN (`dec (ix+0x00)` at 0x2040). Every pass, the opening one included.
   // step the phase down; a strip draws only when it lands on one of seven keyframes
-  const phaseAddr = X(PHASE);
+  const phaseAddr = atRecord(PHASE);
   mem8[phaseAddr] = u8(mem8[phaseAddr] - 1);
   const phase = mem8[phaseAddr];
   let base = null;
@@ -129,20 +129,20 @@ export function advancePlayerAnimationStrip(m, record = m.regs.ix, entry = m.reg
   // STEP 3 -- PAINT THE KEYFRAME (0x2089-0x20AE).
   // blit the shape strip tile-by-tile into video memory, mirroring each tile's colour attribute
   // into the colour plane VRAM_TO_COLOUR below; ROW_COUNT rows of COL_COUNT tiles, ROW_ADVANCE
-  // between rows. The colour byte is the same for every tile: the level biased by COLOUR_BIAS.
+  // between rows. The colour byte is the same for every tile: the level biased by ATTRIBUTE_BIAS.
   // ("Level" here is ERA_INDEX, 0xAD04 [seen].) The destination is PLAYER_ANIM_VRAM_BASE (0xA5AF), the
   // block over the ship's pinned screen position. The row and column counts are not immediates: the
   // ROM reads them as bytes of its own image at 0x337A (rows, outer loop) and 0x4902 (tiles per row,
   // inner loop), which mechanisms.md gives as 6 rows by 5 cells.
   let src = base;
   let dst = PLAYER_ANIM_VRAM_BASE;
-  const colour = u8(mem8[ERA_INDEX] + COLOUR_BIAS);
+  const attribute = u8(mem8[ERA_INDEX] + ATTRIBUTE_BIAS);
   let rows = mem8[PLAYER_ANIM_ROW_COUNT];
   do {
     let cols = mem8[PLAYER_ANIM_COL_COUNT];
     do {
       mem8[dst] = mem8[src];
-      mem8[dst & ~VRAM_TO_COLOUR] = colour;
+      mem8[dst & ~VRAM_TO_COLOUR] = attribute;
       dst = u16(dst + 1);
       src = u16(src + 1);
       cols = u8(cols - 1);

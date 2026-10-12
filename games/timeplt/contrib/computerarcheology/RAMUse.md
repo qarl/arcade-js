@@ -139,7 +139,7 @@ whose role is only partly pinned, carry a terse caveat.
 | aa30 | sceneryEntrySlot0 | Scenery sprite-entry X seat, scenery slot 0 (array slot 16); base of publishSpriteShadow's 6-byte bank-0 head run (slots 16-18). |
 | aa31 | scenerySpriteCodeSlot0 | Scenery sprite code/shape byte, scenery slot 0 (= SCENERY_ENTRY_SLOT0 +1); base of the era-keyed 8-slot code fill (stride 2). |
 | aa36 | sceneryEntrySlot3 | Scenery sprite-entry X seat, scenery slot 3 (array slot 19); base of publishSpriteShadow's 10-byte bank-0 tail run (slots 19-23). |
-| aa3f | tamperFoldFlag | work-RAM flag set 0xff before the image-signature fold, no routine reads it back by address (foldImageBlockIntoSignatureThenAdvanceSequence) |
+| aa3f | scenerySpriteCodeSlot7 | work-RAM flag set 0xff before the image-signature fold, no routine reads it back by address (foldImageBlockIntoSignatureThenAdvanceSequence) |
 | aa40 | playerSpriteAttribute | The player's sprite attribute byte (colour + flip bits), and the base of the second bank's 32-byte attribute/Y run publishSpriteShadow copies to hardware. |
 | aa41 | playerSpriteY | The player's sprite Y (vertical) byte, and the base of the Y band hideAllSprites zeroes (hideCaptionSprites zeroes only its first four entries) to park every sprite off-screen. |
 | aa43 | actorSpriteYSlot0 | Actor slot 0's sprite Y (array slot 1; = ACTOR_ENTRY_SLOT0 +0x31, one step of the PLAYER_SPRITE_Y band). |

@@ -25,11 +25,11 @@ import { ROUND_WON_ANIMATION_STEP, PLAYER_SPRITE_ATTRIBUTE, SPRITE_COLOUR_CYCLE_
 // Bits 6-7 of the attribute byte carry the sprite's mirroring and are kept (ROM `and 0xc0`).
 const MIRROR_BITS = 0xc0;
 // The one bit of the count that picks the colour (ROM `and 0x04`).
-const ALTERNATING_BIT = 0x04;
+const COLOUR_PICK_BIT = 0x04;
 // The two colour codes: 0x3F while that bit is clear (or the count is zero), 0x37 while it is set.
 // (The ROM also has 0x36/0x3E arms, which no value of the masked bit reaches.)
-const FIRST_COLOUR = 63;
-const SECOND_COLOUR = 55;
+const BIT_CLEAR_COLOUR = 63;
+const BIT_SET_COLOUR = 55;
 
 // The step the animation hands off to when the count runs out (ROM `ld a,0x03 / ld (0xa9f0),a`).
 const NEXT_STEP = 3;
@@ -43,7 +43,7 @@ export function cyclePlayerSpriteColourThenAdvanceStepAtZero(m) {
 
   /* Pick the colour from bit 2 of the count and merge it under the kept mirroring bits (the ROM
    * adds rather than ORs, which is the same here because the colour codes never reach bit 6). */
-  const colour = (remaining & ALTERNATING_BIT) === 0 ? FIRST_COLOUR : SECOND_COLOUR;
+  const colour = (remaining & COLOUR_PICK_BIT) === 0 ? BIT_CLEAR_COLOUR : BIT_SET_COLOUR;
   mem8[PLAYER_SPRITE_ATTRIBUTE] = (mem8[PLAYER_SPRITE_ATTRIBUTE] & MIRROR_BITS) + colour;
   // Step the count every call, wrapping 0 -> 0xFF on the call that found it at zero.
   mem8[SPRITE_COLOUR_CYCLE_COUNTDOWN] = u8(remaining - 1);

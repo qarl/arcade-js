@@ -86,7 +86,7 @@ const BLANK = 0xf1;
 // with when the entry finishes (`ld (0xa9eb),a` at 0x1977), for the arm that follows.
 const EVERY_OTHER_FRAME = 0x01;
 const EVERY_EIGHTH_FRAME = 0x07;
-const ENTRY_CLOCK_RELOAD = 60;
+const SEQUENCE_DELAY_ON_FINISH = 60;
 
 // IN0_MIRROR (0xA9AE) [seen] start buttons: bit 3 one-player, bit 4 two-player (`and 0x18 / cp 0x08`).
 const START_BUTTONS = 0x18;
@@ -195,7 +195,7 @@ function entryClockRanOut(m) {
 // Finish: reload SEQUENCE_DELAY for the next arm, queue the seven transition sound-stop codes
 // (enqueueTransitionSoundStops, 0x5634 [seen]), and step the sequence sub-step (`jp 0x0f1a`).
 function finishEntry(m) {
-  m.mem8[SEQUENCE_DELAY] = ENTRY_CLOCK_RELOAD;
+  m.mem8[SEQUENCE_DELAY] = SEQUENCE_DELAY_ON_FINISH;
   enqueueTransitionSoundStops(m);
   advanceSequenceSubStep(m);
 }

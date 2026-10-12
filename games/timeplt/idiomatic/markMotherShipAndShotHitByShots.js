@@ -34,7 +34,7 @@ const SLOT_SECOND_AXIS = 4;
 
 // The slot alphabet: 0xFF live, 0xF0 just hit.
 const LIVE = 255;
-const DESTROYED = 240;
+const HIT_MARK = 240;
 
 // The hit box. `within` accepts a difference (Mother-Ship - shot) from -reach to span - reach - 1:
 // first axis -8..+8 in eras 0 and 4 (ROM 0x4FE0: ld a,(0xad04) / jr z,0x502b / cp 0x04),
@@ -70,8 +70,8 @@ export function markMotherShipAndShotHitByShots(m) {
     ) {
       // Mark both hit and post the score (postChainedHitScore 0x51DE steps the award up while
       // consecutive hits keep landing inside the chain window).
-      mem8[MOTHER_SHIP_STATE] = DESTROYED;
-      mem8[u16(slot + STATE)] = DESTROYED;
+      mem8[MOTHER_SHIP_STATE] = HIT_MARK;
+      mem8[u16(slot + STATE)] = HIT_MARK;
       postChainedHitScore(m);
     }
     // Next record: add 16 to the low byte of the cursor only (ROM 0x5022-0x5026: ld a,iyl / add a,0x10 / ld iyl,a).

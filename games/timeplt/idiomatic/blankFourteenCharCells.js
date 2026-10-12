@@ -30,7 +30,7 @@ const BLANK = 0xf1;
 // The single colour every cell of the run is given (`ld (hl),0x16`).
 const COLOUR = 0x16;
 // Distance from a character-plane cell to its colour-plane twin: clearing this bit crosses to it.
-const COLOUR_PLANE_BIT = 0x400;
+const CHARACTER_PLANE_BIT = 0x400;
 
 export function blankFourteenCharCells(m) {
   const { mem8 } = m;
@@ -42,7 +42,7 @@ export function blankFourteenCharCells(m) {
    * it, which is the same pair of addresses. The cursor then steps one row back with `add hl,de`. */
   for (let i = 0; i < CELLS; i++) {
     mem8[cell] = BLANK;
-    mem8[cell & ~COLOUR_PLANE_BIT] = COLOUR;
+    mem8[cell & ~CHARACTER_PLANE_BIT] = COLOUR;
     cell = u16(cell + ONE_ROW_BACK);
   }
 }

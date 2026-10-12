@@ -11,7 +11,7 @@
 import { u8 } from "../../../core/int.js";
 import { CHAR_PLANE_BASE, PEN_COLOUR, PEN_COLUMN_CELL, PEN_GLYPH, PEN_ROW_CELL } from "./names.js";
 
-const COLOUR_PLANE_BIT = 0x400;
+const CHARACTER_PLANE_BIT = 0x400;
 const CELLS_PER_ROW = 32;
 const ROWS_BEFORE_FOLD = 32;
 
@@ -20,7 +20,7 @@ export function plotPenCell(m) {
   const rowStart = (mem8[PEN_ROW_CELL] & (ROWS_BEFORE_FOLD - 1)) * CELLS_PER_ROW;
   const cell = (CHAR_PLANE_BASE + (rowStart & ~0xff)) | u8(rowStart + mem8[PEN_COLUMN_CELL]);
   mem8[cell] = mem8[PEN_GLYPH];
-  mem8[cell & ~COLOUR_PLANE_BIT] = mem8[PEN_COLOUR];
+  mem8[cell & ~CHARACTER_PLANE_BIT] = mem8[PEN_COLOUR];
   // The plane address and the colour are live-outs: the ROM's callers read HL back and the colour
   // stays in A, so both are returned and left in those registers.
   return [m.regs.hl = cell, m.regs.a = mem8[PEN_COLOUR]];

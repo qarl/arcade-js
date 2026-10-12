@@ -27,8 +27,8 @@ const HEADING = 2;
 const SECTORS = 32;
 const STEPS_PER_SECTOR = 256 / SECTORS;
 const ENTRY_WIDTH = 2;
-const FAR_HALF_BIT = 2;
-const SHAPES_PER_HALF = 8;
+const ALTERNATE_POSE_BIT = 2;
+const ALTERNATE_POSE_SHAPE_STEP = 8;
 const SHAPE_IN_ENTRY = 1;
 const BESIDE_IT_IN_ENTRY = 48;
 
@@ -44,7 +44,7 @@ export function dressSpriteForFineHeading(m, entry = m.regs.iy, object = m.regs.
   // Shape: the entry's first byte, plus 8 on frames with FRAME_TICK bit 1 set (ROM `and 0x02 / jr nz`
   // to `ld a,0x08`, then `add a,b`), so it holds one shape for two frames and the other for two.
   // It goes into sprite entry +1 (`ld (iy+0x01),a`); the entry's second byte goes into +0x30.
-  const farHalf = (mem8[FRAME_TICK] & FAR_HALF_BIT) !== 0;
-  mem8[entry + SHAPE_IN_ENTRY] = mem8[selected] + (farHalf ? SHAPES_PER_HALF : 0);
+  const alternatePose = (mem8[FRAME_TICK] & ALTERNATE_POSE_BIT) !== 0;
+  mem8[entry + SHAPE_IN_ENTRY] = mem8[selected] + (alternatePose ? ALTERNATE_POSE_SHAPE_STEP : 0);
   mem8[entry + BESIDE_IT_IN_ENTRY] = mem8[u16(selected + 1)];
 }

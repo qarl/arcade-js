@@ -40,7 +40,7 @@ const SHAPES = 8;
 // Each shape is held for two counts of FRAME_TICK (the ROM's `rrca` discards bit 0).
 const COUNTS_PER_SHAPE = 2;
 // The constant stored at +0x30 (`ld (iy+0x30),0x0a`).
-const TINT = 10;
+const ATTRIBUTE_VALUE = 10;
 
 export function animateFixedShapeCycleFromShape50(m, sprite = m.regs.iy) {
   const { mem8 } = m;
@@ -50,5 +50,5 @@ export function animateFixedShapeCycleFromShape50(m, sprite = m.regs.iy) {
   // Store the shape: base plus frame (`add a,0x50 / ld (iy+0x01),a`).
   mem8[sprite + SHAPE] = FIRST_SHAPE + step;
   // Pin the byte beside it to its one constant.
-  mem8[sprite + ATTRIBUTE] = TINT;
+  mem8[sprite + ATTRIBUTE] = ATTRIBUTE_VALUE;
 }

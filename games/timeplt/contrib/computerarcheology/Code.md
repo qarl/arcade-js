@@ -5530,7 +5530,7 @@ loc_2766:
 ; aim-coordinate block 0xAC74-0xAC83 with 0x80 (0xA9EB=0x5A); both arms
 ; tail-advance the sequence sub-step
 armNewGameThenStepSequence:
-27B1: CD 34 58        CALL    $5834               ; {code.requestRoundStartSound} ask for the round-start jingle
+27B1: CD 34 58        CALL    $5834               ; {code.requestGameStartSound} ask for the round-start jingle
 27B4: 3E 78           LD      A,$78               
 27B6: 32 64 AC        LD      ($AC64),A           ; {hard.workRam+464} seed the enemy aim anchor
 27B9: 3E 84           LD      A,$84               
@@ -12271,7 +12271,7 @@ requestEnemyWaveSound:
 
 ; read the byte at 0x1767 and request it as a sound code, only while a
 ; game is being played
-requestRoundStartSound:
+requestGameStartSound:
 5834: 3A 67 17        LD      A,($1767)           ; {hard.rom+1767} fetch the round-start sound code from the program image
 5837: C3 0C 56        JP      $560C               ; {code.enqueueSoundIfGameInProgress} request it, only while a game is in progress
 

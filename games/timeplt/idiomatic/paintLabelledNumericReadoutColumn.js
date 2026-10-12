@@ -29,11 +29,11 @@ import { HIGH_SCORE_RANK_LABEL_TABLE } from "./names.js";
 // Each rank-label record in HIGH_SCORE_RANK_LABEL_TABLE (ROM 0x4CB4) is three tile codes; the lead byte
 // times 3 (`add a,a` / `add a,(hl)`) indexes it.
 const RECORD_STRIDE = 3;
-const COLOUR_PLANE_CELL = 0x04 << 8; // clearing bit 2 of the cursor's high byte pairs the tile cell with its colour cell
+const CHARACTER_PLANE_BIT = 0x04 << 8; // clearing bit 2 of the cursor's high byte pairs the tile cell with its colour cell
 // Gaps along the column, in cell steps of 0x20: after the label the cursor moves on 0x80 (four
 // cells: `ld hl,0xff80` / `add hl,de`) to where the digits start, and after the digits a further 0x60
 // (three cells: `ld hl,0xffa0` / `add hl,de`) to where the suffix starts.
-const PICTOGRAM_TO_FIELD = 0x80;
+const LABEL_TO_FIELD = 0x80;
 const FIELD_TO_SUFFIX = 0x60;
 
 /** stamp one tile into a tile-plane cell and pair its colour-plane cell with the pen. */
@@ -42,7 +42,7 @@ const FIELD_TO_SUFFIX = 0x60;
 function stamp(m, tile, cell, pen) {
   const { mem8 } = m;
   mem8[cell] = tile;
-  mem8[cell & ~COLOUR_PLANE_CELL] = pen;
+  mem8[cell & ~CHARACTER_PLANE_BIT] = pen;
 }
 
 export function paintLabelledNumericReadoutColumn(m, source = m.regs.hl, cursor = m.regs.de, pen = m.regs.c) {
@@ -66,7 +66,7 @@ export function paintLabelledNumericReadoutColumn(m, source = m.regs.hl, cursor 
   // through the three packed bytes, blanking leading zeros except in the last two digits.
   // the printer takes the source pointer, the cursor and the pen as arguments and hands the pointer
   // and cursor back.
-  const { source: fieldPtr, cursor: fieldCursor } = paintSixDigitFieldSuppressingLeadingZeros(m, u16(source + 3), u16(cursor - PICTOGRAM_TO_FIELD), pen);
+  const { source: fieldPtr, cursor: fieldCursor } = paintSixDigitFieldSuppressingLeadingZeros(m, u16(source + 3), u16(cursor - LABEL_TO_FIELD), pen);
   cursor = u16(fieldCursor - FIELD_TO_SUFFIX);
   const suffix = u16(fieldPtr + 3);
 

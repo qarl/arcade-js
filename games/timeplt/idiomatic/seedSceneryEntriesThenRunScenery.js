@@ -20,7 +20,7 @@
  * sprite entry keeps its native-Y and native-X, so each pair is a starting position.
  *
  * PARAMETERS (all from the caller, and read only by the divert arm): `era` (the ROM's C),
- * `entryCursor` (IY), `clearStride` (E), `clearCount` (B, the caller's clear loop's spent count) and
+ * `entryCursor` (IY), `attributeStride` (E), `attributeCountLeft` (B, the caller's clear loop's spent count) and
  * `recordCursor` (IX, which the placed tile's closing step advances with the entry cursor).
  * On the seat arm every register the body touches is dead-after-return scratch -- the scenery run
  * reseats both cursors before reading either -- so it lives here as JS locals. The divert arm is
@@ -48,12 +48,12 @@ const NATIVE_Y = 0x31; // native Y lands at entry +0x31
 const NEXT_SLOT_NATIVE_Y = 0x33; // the next slot's native Y
 const NEXT_SLOT_Y_STEP = 0x10; // next slot's Y = this slot's Y plus this
 
-export function seedSceneryEntriesThenRunScenery(m, era = m.regs.c, entryCursor = m.regs.iy, clearStride = m.regs.e, clearCount = m.regs.b, recordCursor = m.regs.ix) {
+export function seedSceneryEntriesThenRunScenery(m, era = m.regs.c, entryCursor = m.regs.iy, attributeStride = m.regs.e, attributeCountLeft = m.regs.b, recordCursor = m.regs.ix) {
   const { mem8 } = m;
 
   // The sentinel pointer and the byte under it both ride on into the divert, with the caller's inputs.
   const divert = (guard, sentinel) =>
-    trampolineToLoc_307f(m, guard, clearStride, sentinel, clearCount, entryCursor, era, recordCursor);
+    trampolineToLoc_307f(m, guard, attributeStride, sentinel, attributeCountLeft, entryCursor, era, recordCursor);
   // Step 1 -- the witness check. First cell must read 0x68 (`cp 0x68` / `jp nz,0x3114`) ...
   let guard = TAMPER_WITNESS;
   let sentinel = mem8[guard];

@@ -30,7 +30,7 @@ import { CRAFT_ENTRY_SLOT0, CRAFT_RECORD_SLOT0, MOTHER_SHIP_ARMED, CRAFT_SPAWN_S
 
 // One record per sixteen bytes; five slots while the Mother-Ship holds the other two.
 const SLOT_STRIDE = 0x10;
-const DEFAULT_COUNT = 5;
+const ARMED_SLOT_COUNT = 5;
 // Loaded into WAVE_CLAIM_TIMER 0xA812 [seen] when the pass ends.
 const CLAIM_WINDOW_FRAMES = 0xe4;
 
@@ -39,7 +39,7 @@ export function spawnEnemyWaveIntoFreeSlots(m) {
   // Step 1 -- how many slots to walk: the craft spawn slot count CRAFT_SPAWN_SLOT_COUNT 0xACC1 [seen],
   // or five while the Mother-Ship is armed.
   const configuredCount = mem8[CRAFT_SPAWN_SLOT_COUNT];
-  const count = mem8[MOTHER_SHIP_ARMED] === 0 ? configuredCount : DEFAULT_COUNT;
+  const count = mem8[MOTHER_SHIP_ARMED] === 0 ? configuredCount : ARMED_SLOT_COUNT;
 
   // Step 2 -- walk the band from its first slot, record and sprite entry in lockstep.
   let slot = CRAFT_RECORD_SLOT0;

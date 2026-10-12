@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** requestRoundStartSound — request one particular sound, and only while a game is in progress. Its code is
+/** requestGameStartSound — request one particular sound, and only while a game is in progress. Its code is
  * fetched from a byte of the program image. LIVE-OUT: memory.
  *
  * ROM 0x5834-0x5839 (`ld a,(0x1767)` then `jp 0x560c`). Grounding: [seen].
@@ -12,12 +12,12 @@
  * LIVE-OUT: memory only -- the sound queue, and only during real play. */
 
 import { enqueueSoundIfGameInProgress } from "./enqueueSoundIfGameInProgress.js";
-import { ROUND_START_SOUND } from "./names.js";
+import { GAME_START_SOUND } from "./names.js";
 
-export function requestRoundStartSound(m) {
-  // The code is read from the program byte at 0x1767 (ROUND_START_SOUND) rather than written
+export function requestGameStartSound(m) {
+  // The code is read from the program byte at 0x1767 (GAME_START_SOUND) rather than written
   // into the instruction, then the ROM tail-jumps to the play-only door at 0x560C
   // (enqueueSoundIfGameInProgress). That door queues the code only while a game is being
   // played; in the attract demo (play flag clear) the request is dropped and not deferred.
-  enqueueSoundIfGameInProgress(m, m.mem8[ROUND_START_SOUND]);
+  enqueueSoundIfGameInProgress(m, m.mem8[GAME_START_SOUND]);
 }

@@ -34,12 +34,12 @@ export function initColdStartRamThenSeedConfig(m) {
   //   seedRandomRegister   (0x4B67) -- copy a fixed run of program space into the random register
   //   loadDefaultHighScores (0x4BA5) -- copy forty program bytes into the five-entry high-score table
   //   emptyBothDeferredCellLists (0x526A) -- park both deferred character-cell list cursors on empty
-  const seed = seedRandomRegister(m);
-  mem8[WATCHDOG_RESET] = seed;
+  const kickValue = seedRandomRegister(m);
+  mem8[WATCHDOG_RESET] = kickValue;
   loadDefaultHighScores(m);
-  mem8[WATCHDOG_RESET] = seed;
+  mem8[WATCHDOG_RESET] = kickValue;
   emptyBothDeferredCellLists(m);
-  mem8[WATCHDOG_RESET] = seed;
+  mem8[WATCHDOG_RESET] = kickValue;
 
   // Tail jump (`jp 0x52aa`, nothing pushed) into the DIP-switch seed and the rest of the cold start;
   // control never returns here, so its result is this routine's result.

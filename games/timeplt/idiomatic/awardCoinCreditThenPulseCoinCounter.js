@@ -29,7 +29,7 @@ const CREDIT_CAP = 0x99;
 // Only the low nibble of C -- one decimal digit, 0-9 -- is added (`and 0x0f` at 0x4975).
 const DIGIT_MASK = 0x0f;
 
-export function awardCoinCreditThenPulseCoinCounter(m, coins = m.regs.c) {
+export function awardCoinCreditThenPulseCoinCounter(m, credits = m.regs.c) {
   const { mem8 } = m;
   // FREE PLAY SKIPS THE ARITHMETIC. FREE_PLAY (0xA9C0, [seen]) is raised to all-ones by the coinage
   // unpack when a coin switch is set to free play; then a coin never has to buy a credit, so the
@@ -40,7 +40,7 @@ export function awardCoinCreditThenPulseCoinCounter(m, coins = m.regs.c) {
     // In the ROM this is `add a,(hl)` + `daa` on CREDIT_COUNT (0xA986, tagged [seen] in
     // names.js); bcdAddByte performs the same decimal-adjusted add and reports the
     // carry the `jr nc` at 0x497D tests.
-    const { value, carry } = bcdAddByte(mem8[CREDIT_COUNT], coins & DIGIT_MASK);
+    const { value, carry } = bcdAddByte(mem8[CREDIT_COUNT], credits & DIGIT_MASK);
     mem8[CREDIT_COUNT] = carry ? CREDIT_CAP : value;
     // Repaint the two-digit credit readout so the player sees the new total at once (call 0x4AFB).
     paintCreditCountPanel(m);

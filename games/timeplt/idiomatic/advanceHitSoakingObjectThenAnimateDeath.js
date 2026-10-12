@@ -67,8 +67,8 @@ export function advanceHitSoakingObjectThenAnimateDeath(m, record = m.regs.ix, e
    * (rst 0x38) — command 4 is the score-award handler (awardScoreToPlayer), so the kill is scored
    * here — switch both tiles to the final shapes 0xFA/0xFB with attribute 0x6C, and step the count
    * once more so this arm runs only once. */
-  const level = mem8[record];
-  if (level === 0x40) {
+  const countdown = mem8[record];
+  if (countdown === 0x40) {
     postCommand(m, 0x04, 0x0b);
     mem8[entry + 0x03] = 0xfa;
     mem8[entry + 0x01] = 0xfb;
@@ -80,13 +80,13 @@ export function advanceHitSoakingObjectThenAnimateDeath(m, record = m.regs.ix, e
   /* Below 0x40 the shapes set above simply hold until the count reaches zero. Above it, the shape
    * changes only on counts that are a multiple of eight above 0x40 (0x60 on the first death
    * pass, then 0x58, 0x50, 0x48). */
-  if (level < 0x40) return;
-  if (((level - 0x40) & 0x07) !== 0) return;
+  if (countdown < 0x40) return;
+  if (((countdown - 0x40) & 0x07) !== 0) return;
 
   /* Reseat the shape (0x3BE1-0x3BF0): (count - 0x40) / 8 - 1 indexes DEATH_ANIMATION_SHAPE_TABLE
    * (0x3C09) through fetchTableByte (rst 0x08); the second tile (+0x03) takes that shape and the
    * first (+0x01) the next shape code after it. */
-  const shape = fetchTableByte(m, DEATH_ANIMATION_SHAPE_TABLE, ((level - 0x40) >> 3) - 1);
+  const shape = fetchTableByte(m, DEATH_ANIMATION_SHAPE_TABLE, ((countdown - 0x40) >> 3) - 1);
   mem8[entry + 0x03] = shape;
   mem8[entry + 0x01] = shape + 1;
 }

@@ -43,8 +43,8 @@ const SHOW_AWARD_FROM = 0x3c;
 // Sprite-entry offsets: the shape byte at +1 and the attribute byte at +0x30, which the in-flight
 // arm fills with a fixed 0x75 (`ld (iy+0x30),0x75`).
 const SHAPE_OFFSET = 0x01;
-const CONTROL_OFFSET = 0x30;
-const CONTROL_BYTE = 0x75;
+const ATTRIBUTE_OFFSET = 0x30;
+const FLIGHT_ATTRIBUTE = 0x75;
 
 export function runParachutistSlot(m) {
   const { mem8 } = m;
@@ -80,5 +80,5 @@ export function runParachutistSlot(m) {
   flyAlongStoredVelocity(m, PARACHUTIST_RECORD, PARACHUTIST_ENTRY);
   if (hasReachedRetireLine(m, PARACHUTIST_ENTRY)) return retireSlotIntoCooldown(m, PARACHUTIST_RECORD, PARACHUTIST_ENTRY);
   mem8[PARACHUTIST_ENTRY + SHAPE_OFFSET] = fetchTableByte(m, PARACHUTIST_FLIGHT_SHAPE_TABLE, (mem8[FRAME_TICK] >> 4) & 7);
-  mem8[PARACHUTIST_ENTRY + CONTROL_OFFSET] = CONTROL_BYTE;
+  mem8[PARACHUTIST_ENTRY + ATTRIBUTE_OFFSET] = FLIGHT_ATTRIBUTE;
 }

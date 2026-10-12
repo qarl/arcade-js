@@ -12,7 +12,7 @@
  * and foldBlockIntoTotal's "why", which puts that read three frames after this one). So a modified
  * image sends the game off its genuine path a few frames later.
  *
- * The flag cell, TAMPER_FOLD_FLAG (0xAA3F), is written here and no routine reads it back by address
+ * The flag cell, SCENERY_SPRITE_CODE_SLOT7 (0xAA3F), is written here and no routine reads it back by address
  * (names.js). A second pointer is walked in step with the block and contributes nothing to the total.
  *
  * LIVE-OUT: memory-only.
@@ -21,7 +21,7 @@
 import { advanceSequenceSubStep } from "./advanceSequenceSubStep.js";
 import { foldBlockIntoTotal } from "./foldBlockIntoTotal.js";
 import { trampolineToSelectFoldBlock } from "./trampolineToSelectFoldBlock.js";
-import { TAMPER_IMAGE_SIGNATURE, TAMPER_SIGNATURE_SEED_BYTE, TAMPER_FOLD_FLAG, guardBlockOrBlankDisplay_ADDR } from "./names.js";
+import { TAMPER_IMAGE_SIGNATURE, TAMPER_SIGNATURE_SEED_BYTE, SCENERY_SPRITE_CODE_SLOT7, guardBlockOrBlankDisplay_ADDR } from "./names.js";
 
 /* The flag value: every bit set (the ROM's `ld a,0xff`). */
 const ALL_BITS = 255;
@@ -29,7 +29,7 @@ const ALL_BITS = 255;
 export function foldImageBlockIntoSignatureThenAdvanceSequence(m) {
   const { mem8 } = m;
   /* Step 1: raise the flag cell 0xAA3F to 0xFF (`ld (0xaa3f),a`). */
-  mem8[TAMPER_FOLD_FLAG] = ALL_BITS;
+  mem8[SCENERY_SPRITE_CODE_SLOT7] = ALL_BITS;
 
   /*
    * Step 2: find the block. The ROM calls 0x4BD9, a bare jump to selectFoldBlock (0x08AE), which hands

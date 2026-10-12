@@ -31,13 +31,13 @@ import { driveObjectAppearanceByPhaseBand } from "./driveObjectAppearanceByPhase
 // The state byte is the record's first byte (`ld a,(ix+0x00)`), and 0x20 (thirty-two) is the split
 // point (`cp 0x20`, then `jp nc` at 0x2C2B -- "not below 0x20" takes the counting path).
 const STATE = 0;
-const COUNTDOWN_FROM = 32;
+const COUNT_DOWN_FLOOR = 32;
 
 export function moveObjectByStateByteThenRunAppearance(m, object = m.regs.ix, sprite = m.regs.iy) {
   // CHOOSE THE MOVE. From 0x20 up (jp nc,0x2BB4): count the state byte down one and fly on at the
   // slowest velocity-table speed. Below 0x20 (jp 0x2B60): leave the state byte alone and only add the
   // frame's world-scroll displacement, so the wreck simply drifts with the world.
-  if (m.mem8[object + STATE] >= COUNTDOWN_FROM) decrementObjectStateThenFlyAtSlowestSpeed(m, object, sprite);
+  if (m.mem8[object + STATE] >= COUNT_DOWN_FLOOR) decrementObjectStateThenFlyAtSlowestSpeed(m, object, sprite);
   else driftWithWorldScroll(m, object, sprite);
 
   // THEN THE APPEARANCE, ON BOTH PATHS. The ROM pushes 0x2C31 as a continuation before either jump, so

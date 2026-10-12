@@ -63,11 +63,11 @@ export function spawnAtEdgeAhead(m, record = m.regs.ix, entry = m.regs.iy) {
   // four bits. The ROM does this as `add a,0x08`, three `rrca`s and `and 0x1e`, which yields the
   // sector already doubled into a byte offset into the two-byte pair table.
   const sector = u8(mem8[PLAYER_HEADING] + STEPS_PER_SECTOR / 2) >> 4;
-  const entryAddr = u16(EDGE_SPAWN_COORD_TABLE + sector * PAIR_WIDTH);
+  const pairAddr = u16(EDGE_SPAWN_COORD_TABLE + sector * PAIR_WIDTH);
   // Read the pair: the first byte through the table-fetch restart at 0x0008 (fetchTableByte), the
   // second from the byte after it (`inc hl / ld a,(hl)`), and seat them in the sprite entry.
   mem8[u16(entry + SECOND_COORDINATE)] = fetchTableByte(m, EDGE_SPAWN_COORD_TABLE, sector * PAIR_WIDTH);
-  mem8[u16(entry + FIRST_COORDINATE)] = mem8[u16(entryAddr + 1)];
+  mem8[u16(entry + FIRST_COORDINATE)] = mem8[u16(pairAddr + 1)];
 
   // Reset the record's working bytes, then arm the slot. The state byte is written last (ROM
   // 0x4888), so nothing that tests "is this slot live" can see it before it is fully set up.

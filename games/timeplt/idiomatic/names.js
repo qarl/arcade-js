@@ -1624,7 +1624,7 @@ export const DESTRUCTION_SOUND_2 = 0x0855; // 2nd of the three destruction sound
 export const DESTRUCTION_SOUND_1 = 0x0c5b;
 export const DESTRUCTION_SOUND_3 = 0x1675; // 3rd of the three destruction sound codes (requestDestructionSoundBurst) [seen]
 export const ATTACKER_SPAWN_SOUND_ERA0 = 0x16de; // sound-command code, requestAttackerSpawnSoundEra0 (era-0 branch) [seen]
-export const ROUND_START_SOUND = 0x1767; // sound-command code enqueued by requestRoundStartSound [seen]
+export const GAME_START_SOUND = 0x1767; // sound-command code enqueued by requestGameStartSound [seen]
 export const HIGH_SCORE_FILED_SOUND_CODE = 0x18fa; // program-image byte read as a sound code by requestHighScoreFiledSound (`ld a,(0x18fa)` at 0x583A), enqueued only while a game is in progress [seen]
 export const ENEMY_WAVE_SOUND = 0x273a; // sound-command code enqueued by requestEnemyWaveSound [seen]
 export const ATTACKER_SPAWN_SOUND_ERAS_1_TO_4 = 0x276b; // sound-command code read by requestAttackerSpawnSoundLateEra; requestTwoSoundsWhilePlaying (mid-era path) falls through into the same read, so the byte is not late-era-only [seen]
@@ -1777,7 +1777,7 @@ export const TAMPER_CHECKSUM_SPAN_BASE = 0x5b50; // base of a 256-byte checksum-
 export const SHOT_SLOT_FILL_BYTE = 0x5c01; // ROM byte (0) zero-filling each shot slot's bytes 0/4 + high half of the stride word (freeAllShotSlots) [seen]
 export const COPYRIGHT_SAMPLE_COLOUR_CELL = 0xa23c; // colour-plane cell sampled into TAMPER_GLYPH_KONAMI+1 (holdCopyrightThenEraseTheCoinInvitation); pairs with the glyph cell at +0x400 [seen]
 export const COPYRIGHT_SAMPLE_GLYPH_CELL = 0xa63c; // video/glyph-plane cell sampled into TAMPER_GLYPH_KONAMI (holdCopyrightThenEraseTheCoinInvitation) [seen]
-export const TAMPER_FOLD_FLAG = 0xaa3f; // work-RAM flag set 0xff before the image-signature fold, no routine reads it back by address [seen] (foldImageBlockIntoSignatureThenAdvanceSequence)
+export const SCENERY_SPRITE_CODE_SLOT7 = 0xaa3f; // work-RAM flag set 0xff before the image-signature fold, no routine reads it back by address [seen] (foldImageBlockIntoSignatureThenAdvanceSequence)
 export const WAVE_SPAWN_BUSY_FLAG = 0xacc2; // work-RAM busy flag =0xff around the inline wave-build loop, =0 after; no routine reads it back by address, so it locks nothing [seen] (driveEnemyWaveForLifePhase)
 
 // Dispatch tables and caption colour cells.
@@ -1839,7 +1839,7 @@ export const SPRITE_SHAPE_BY_SECTOR_TABLE = 0x2a77; // 16-entry ROM table: sprit
 export const SPRITE_MIRROR_BY_SECTOR_TABLE = 0x2a87; // 16-entry ROM table parallel to the shape table: sprite mirror/flip attribute by heading sector (spriteForHeading) [seen]
 export const WIPE_SUBSTEP_SEED = 0x1749; // ROM byte (=0x06, a code operand reused as data) seeding SEQUENCE_SUBSTEP for the whole-plane wipe (startTheWholePlaneWipeAndFoldAnImageBlockIntoThePhase) [seen]
 export const SEQUENCE_PHASE_TAMPER_SPAN_BASE = 0x5648; // base of a 256-byte ROM block sub-folded into SEQUENCE_PHASE then XOR 0x4e -- anti-tamper (corrupts the phase on a modified image) [seen]
-export const MOTHER_SHIP_WARP_SHAPE_TABLE = 0x461b; // 8-entry ROM shape-pair table for the Mother-Ship's wreck countdown, indexed by the falling head (loc_43f0/derailIntoMotherShipWreckCountdown) [seen]
+export const MOTHER_SHIP_WRECK_SHAPE_TABLE = 0x461b; // 8-entry ROM shape-pair table for the Mother-Ship's wreck countdown, indexed by the falling head (loc_43f0/derailIntoMotherShipWreckCountdown) [seen]
 /**
  * ROM rst 0x30 word table of per-era velocity arms for the Mother-Ship's aimed shot (0x598E for
  * eras 0-1, 0x5994 for eras 2-4), whose returned velocity words 0x4795 files into the shot record
@@ -3143,7 +3143,7 @@ export const ROUTINES = {
     cert: "seen",
   },
   0x5834: {
-    name: "requestRoundStartSound",
+    name: "requestGameStartSound",
     role: "read the byte at 0x1767 and request it as a sound code, only while a game is being played",
     cert: "seen",
   },
@@ -3151,7 +3151,7 @@ export const ROUTINES = {
     name: "requestHighScoreFiledSound",
     role: "read the byte at 0x18FA and request it as a sound code, only while a game is being played",
     cert: "seen",
-    why: "named by its trigger, like requestRoundStartSound and requestBonusLifeSound: its only caller, fileScoreAfterGameOverHoldElsePassTurn, calls it only on the path where fileScoreIntoHighScoreTable DID file the finished score, just before the pen is blanked and initials entry begins; the path that files nothing never reaches it. The name claims the request only -- whether the in-game permission is still open at that moment is not MAME-checked. Two blind derivations converged on the reading (filed-path sound); one worded it HighScoreEntry, this wording is the more exact of the two",
+    why: "named by its trigger, like requestGameStartSound and requestBonusLifeSound: its only caller, fileScoreAfterGameOverHoldElsePassTurn, calls it only on the path where fileScoreIntoHighScoreTable DID file the finished score, just before the pen is blanked and initials entry begins; the path that files nothing never reaches it. The name claims the request only -- whether the in-game permission is still open at that moment is not MAME-checked. Two blind derivations converged on the reading (filed-path sound); one worded it HighScoreEntry, this wording is the more exact of the two",
   },
   0x5840: {
     name: "flyAtSlowestSpeed",

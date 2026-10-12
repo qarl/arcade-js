@@ -42,9 +42,9 @@ export function advancePenRunAnimationStep(m) {
   // Step 2 — the anti-tamper checksum (ROM 0x1738-0x1742). The ROM zeroes A, then `sub (hl)` over each
   // of the 34 bytes, i.e. A = 0 - sum(bytes) modulo 256. That is 0x00 for the genuine routine at
   // 0x1748; the verdict is stored into 0xA817 whatever it is — nothing here branches on it.
-  let sum = 0;
-  for (let i = 0; i < GUARDED_LEN; i++) sum = (sum - mem8[holdCopyrightThenEraseTheCoinInvitation_ADDR + i]) & 0xff;
-  mem8[BANK_LAUNCH_COOLDOWN] = sum;
+  let negatedSum = 0;
+  for (let i = 0; i < GUARDED_LEN; i++) negatedSum = (negatedSum - mem8[holdCopyrightThenEraseTheCoinInvitation_ADDR + i]) & 0xff;
+  mem8[BANK_LAUNCH_COOLDOWN] = negatedSum;
 
   // Step 3 — hand on. The ROM tail-jumps to 0x0F1A (advanceSequenceSubStep), so the next frame the
   // sequence machine dispatches the following arm.
