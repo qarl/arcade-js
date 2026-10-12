@@ -8534,14 +8534,15 @@ dressSpriteShapeAndAttributeForHeadingSector:
 3FDA: F4 B4 B4 B4 B4 34 34 34 34 74 74 74 74 F4 F4 F4
 
 ; era-0-only entry to the three-slot ballistic-object bank, run from the
-; round engine's service list (serviceRoundThenResolvePlayerState):
-; returns at once unless ERA_INDEX 0xad04 is 0, else seats the cursors on
-; the bank's first slot (record 0xa8c0, sprite entry 0xaa28, three slots).
-; In the ROM it then runs straight into the 0x3FF9 loop head, which routes
-; every slot by its marker byte; this port routes the first slot itself --
-; step an empty slot via advanceSlotThenSweepObjectBankByHead, fly a
-; ballistic (0xFF) slot then step it, else hand any other marker to
-; sweepObjectSlotBankServicingFirstSlot
+; round engine's service list (serviceRoundThenResolvePlayerState, `call
+; 0x3fea` at 0x11C9): returns at once unless ERA_INDEX 0xad04 is 0, else
+; seats the cursors on the bank's first slot (`ld ix,0xa8c0`, `ld
+; iy,0xaa28`, `ld b,0x03` for three slots). It then runs straight on into
+; the loop head at 0x3FF9, which routes every slot by its marker byte: an
+; empty slot (0x00) to the stride step at 0x400B (`jp z,0x400b` at
+; 0x3FFD), a ballistic slot (0xFF) to one frame of flight (`call 0x4017`
+; at 0x4003) and then the stride step, any other marker to the shape-cycle
+; service at 0x4008 (`jr nz,0x4008` at 0x4001)
 serviceEra0BallisticObjectBank:
 3FEA: 3A 04 AD        LD      A,($AD04)           ; {hard.workRam+504} read the era index
 3FED: A7              AND     A                   
@@ -8574,15 +8575,15 @@ sweepObjectSlotBankByHead:
 sweepObjectSlotBankServicingFirstSlot:
 4008: CD 6C 40        CALL    $406C               ; {code.runOneShotAnimatedObjectSlot} service this slot's shape-cycle
 
-; the advance step of the object-bank sweep loop, reached in the ROM only
-; from inside the loop (`jp z,0x400b` at 0x3FFD, `jr 0x400b` at 0x4006):
+; the advance step of the object-bank sweep loop, reached only from inside
+; the loop (`jp z,0x400b` at 0x3FFD for an empty slot, `jr 0x400b` at
+; 0x4006 after a ballistic slot's flight, and by running on from 0x4008):
 ; stride one slot forward (record +0x10, sprite entry +2) and return when
 ; the count runs out, else loop back (`djnz 0x3ff9` at 0x4014) to the
 ; marker test, which routes each slot in turn: step over an empty slot,
-; fly a ballistic (0xFF) slot a step, service any other marker; this
-; port's function instead walks only to the first slot bearing any other
-; marker and hands that slot and the rest of the bank to
-; sweepObjectSlotBankServicingFirstSlot
+; fly a ballistic (0xFF) slot a step, service any other marker (`call
+; 0x406c` at 0x4008, which runs on into 0x400B); after the last slot the
+; `djnz` falls through to `ret` at 0x4016
 advanceSlotThenSweepObjectBankByHead:
 400B: 11 10 00        LD      DE,$0010            ; the record stride -- sixteen bytes per slot
 400E: DD 19           ADD     IX,DE               ; step the record cursor to the next slot
@@ -10203,8 +10204,14 @@ loc_49f5:
 49F8: 35              DEC     (HL)                ; take one coin off it so the next pulse can start
 49F9: C9              RET                         
 
-; reached only via the "wrong-glyph" derail ($19E6); the bytes run as
-; harmless NOPs and stray-stack POPs. The real routine is at $4A0F.
+; Caption record 4 of the caption table at $0C50 ("AND TRY THIS GAME"):
+; destination cell $A6EE, colour byte $14, seventeen glyphs and the $B9
+; terminator at $4A0E. It is also the landing of the copyright-line colour
+; check's derail ($19E6). Run as code, the bytes misalign the stack (`dec
+; sp`), pop two words into AF and make two calls gated on the carry each
+; popped flag byte brings (`call c,$BFD7` at $4A01, `call c,$FDC4` at
+; $4A05), targets outside the program ROM; with both carries clear they
+; run on into the real routine at $4A0F.
 ; ---- $49FA-$4A0E: misaligned anti-tamper entry ----
 49FA: EE A6 14 A5 3B 87 F1 DC D7 BF F1 DC C4 FD ED F1
 4A0A: 7D A5 38 34 B9

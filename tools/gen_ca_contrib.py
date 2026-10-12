@@ -204,8 +204,12 @@ FORCE_DATA = {
          "the life-loss handover. The Mother-Ship wreck countdown proper starts at $45B3.",
          0x459b),
         (0x49fa, 0x4a0e, "misaligned anti-tamper entry",
-         'reached only via the "wrong-glyph" derail ($19E6); the bytes run as harmless NOPs and '
-         "stray-stack POPs. The real routine is at $4A0F.",
+         'Caption record 4 of the caption table at $0C50 ("AND TRY THIS GAME"): destination cell $A6EE, '
+         "colour byte $14, seventeen glyphs and the $B9 terminator at $4A0E. It is also the landing of the "
+         "copyright-line colour check's derail ($19E6). Run as code, the bytes misalign the stack "
+         "(`dec sp`), pop two words into AF and make two calls gated on the carry each popped flag byte "
+         "brings (`call c,$BFD7` at $4A01, `call c,$FDC4` at $4A05), targets outside the program ROM; "
+         "with both carries clear they run on into the real routine at $4A0F.",
          None),
         # Velocity tables: 256 little-endian words each (512 bytes), indexed by a heading byte (2*h, plus a
         # quarter-turn offset for the second axis -- the reader at $58BC keeps every fetch inside base..base+$1FF).

@@ -2,7 +2,7 @@
 /** holdCopyrightThenEraseTheCoinInvitation — hold one sequence step for as long as its delay cell counts, restamping the
  * copyright caption and flashing its line on every frame of the wait, then leave the step.
  *
- * ROM 0x1748-0x1769 (lift: translated/loc_1748.js). Grounding: [seen] (names.js ROUTINES 0x1748).
+ * ROM 0x1748-0x1768 (lift: translated/loc_1748.js). Grounding: [seen] (names.js ROUTINES 0x1748).
  *
  * ROLE IN THE MACHINE. Step 4 of sequence phase 1, the attract cycle
  * (dispatchSequencePhase1SubStepArm, inner index 4; mechanisms.md "Step 4"). The screen invites a coin; this step holds it, then

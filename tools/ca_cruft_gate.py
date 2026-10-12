@@ -60,6 +60,13 @@ PATTERNS = [
         r"|\bwhy\s+the\s+name\b|\bthe\s+name\s+is\s+historical\b"
         r"|'[a-z]+(?:\s+[a-z]+)*'\s+(?:and\s+not|rather\s+than)\s+'"
         r"|'[a-z]+(?:\s+[a-z]+)+'\s+is\s+(?:only\s+)?(?:one|two|three|four|five|six|seven|half|part)\b", re.I)),
+    # The port talking about ITSELF -- how our code is split or routed ("this port routes the first slot
+    # itself", "this port's function instead walks ..."), never a fact about the ROM. Hardware ports stay
+    # legal: "I/O port", "port 0x00", "the input port's inverted copy", "the switch port's low bits", PORT_A.
+    ("port self-reference (this port / our port / port's function)", re.compile(
+        r"\b(?:this|our)\s+port\b(?!\s*(?:0x|\$|\d|bits?\b|lines?\b|pins?\b|address))"
+        r"|\bport's\s+(?:function|routine|module|file|code|version|layer|split|own\s+(?:routine|function|code|module))\b"
+        r"|\bthe\s+port\s+(?:routes|splits|calls|walks|hands|models|lifts|instead)\b", re.I)),
     # How OUR JavaScript runtime reacts to a transfer it has no routine for -- on the Z80 the bytes just run.
     ("port runtime (raises / throws / faults)", re.compile(
         r"\b(?:raises|throws)\s+rather\s+than\b|\bthrow\s*/\s*halt\b|\bhalt-into-data\b|\bcarries\s+no\s+routine\b"
@@ -83,6 +90,16 @@ CLEAN_SAMPLES = [
     "0734\tsilence audio and halt the interrupt and starfield",
     "2c0c\tthe live bonus is what paces the throws",
     "0c50\tcaption record 4 reads AND TRY THIS GAME",
+    # Hardware ports are game facts: the port self-reference pattern must leave them alone.
+    "010f\tinvert it -- the ports read active-low",
+    "48e7\tread the input port's inverted copy",
+    "0e00\tstore the byte worked out from the switch port's low two bits",
+    "0100\twrite the sound command to the I/O port",
+    "0102\tout (0x00),a -- port 0x00 is the watchdog",
+    "0104\tlatch it into the sound port",
+    "0106\tPORT_A and PORT_B are the AY-3-8910's two I/O registers",
+    "0108\tthis port bit reads active-low",
+    "010a\tread this port 0x01 twice to debounce it",
 ]
 
 
@@ -139,6 +156,11 @@ def selftest():
         "9999\tthrow/halt-into-data if it does not sum to zero",
         "9999\ton a wrong guard transfer into a data table and fault",
         "9999\trun as code it always faults",
+        "9999\tthe loop head routes every slot; this port routes the first slot itself",
+        "9999\tthis port's function instead walks only to the first slot bearing any other marker",
+        "9999\tin our port the two branch points are their own routines",
+        "9999\tthe port's routine splits the loop here",
+        "9999\tthe port instead calls the advance step directly",
     ]
     ok = True
     for line in injections:

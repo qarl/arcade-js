@@ -18,6 +18,12 @@
  * 0xAA28 with three slots) and of the servicing sweep itself (sweepObjectSlotBankServicingFirstSlot,
  * ROM 0x4008).
  *
+ * ROM VS THIS PORT. In the ROM 0x400B is not a routine of its own: it is the stride step inside the
+ * loop, reached from `jp z,0x400b` at 0x3FFD, `jr 0x400b` at 0x4006 and the run-on from 0x4008, and
+ * its `djnz 0x3ff9` at 0x4014 returns to the marker test, which routes every later slot itself. This
+ * port's function instead walks only to the first slot bearing a marker other than 0x00/0xFF and
+ * hands that slot and the rest of the bank to sweepObjectSlotBankServicingFirstSlot.
+ *
  * PARAMETERS. `record` is the current slot's record address, `sprite` its sprite-entry address and
  * `count` the slots left in the walk, counting this one -- the three cursors the caller carried.
  *
