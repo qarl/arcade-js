@@ -46,14 +46,14 @@ const SHAPE = 1;
 const ATTRIBUTE = 0x30;
 const SHAPE_BIAS = 16;
 const ATTRIBUTE_BIAS = 53;
-const FAR_HALF_BIT = 2;
+const ALTERNATE_POSE_BIT = 2;
 
 const SCRATCH_BYTES = 4;
 const EXCLUDED = ["a", "f", "d", "e", "h", "l", "sp"];
 
 const HEADINGS = Array.from({ length: 256 }, (_unused, i) => i);
-const HALVES = [0x00, FAR_HALF_BIT];
-const SWEEP_SIZE = HEADINGS.length * HALVES.length;
+const POSES = [0x00, ALTERNATE_POSE_BIT];
+const SWEEP_SIZE = HEADINGS.length * POSES.length;
 
 const skip = romsPresent() ? false : "ROM images are absent from this checkout";
 const hex4 = (v) => "0x" + (v & 0xffff).toString(16).padStart(4, "0");
@@ -118,13 +118,13 @@ function entryState() {
 function craft(heading, half) {
   const m = entryState().clone();
   m.mem8[(m.regs.ix + HEADING) & 0xffff] = heading;
-  m.mem8[FRAME_TICK] = (m.mem8[FRAME_TICK] & ~FAR_HALF_BIT) | half;
+  m.mem8[FRAME_TICK] = (m.mem8[FRAME_TICK] & ~ALTERNATE_POSE_BIT) | half;
   return m;
 }
 
 function sweepCaught(candidate) {
   let caught = 0;
-  for (const half of HALVES) {
+  for (const half of POSES) {
     for (const heading of HEADINGS) if (unitDiff(candidate, craft(heading, half))) caught++;
   }
   return caught;

@@ -28,7 +28,7 @@ const ENTRY_BANK = 0xaa1a;
 const CONFIGURED_COUNT = 0xacc1;
 const MOTHER_SHIP_ARMED = 0xad0d;
 const SLOT_STRIDE = 0x10;
-const DEFAULT_COUNT = 5;
+const ARMED_SLOT_COUNT = 5;
 const SHAPE_TABLE = 0x3a3b;
 const ORDINAL_TABLE = 0x38d2;
 const STATUS_CELL = 0xa812;
@@ -37,7 +37,7 @@ const STATUS_VALUE = 0xe4;
 // Every write lands at or below here; the stack seats far above it, so masking the scratch window
 // can never hide a game-data divergence. Asserted against the measured floor in CAPTURED.
 const DATA_TOP = 0xadff;
-const OCCUPANCY_PATTERNS = 1 << DEFAULT_COUNT;
+const OCCUPANCY_PATTERNS = 1 << ARMED_SLOT_COUNT;
 const CAP_LIMIT = 150;
 
 const skip = romsPresent() ? false : "ROM images are gitignored; none assembled";
@@ -107,7 +107,7 @@ function base() {
 /** A captured state with the five slot heads set free or busy by the mask. */
 function craftOccupancy(mask) {
   const m = base().clone();
-  for (let i = 0; i < DEFAULT_COUNT; i++) {
+  for (let i = 0; i < ARMED_SLOT_COUNT; i++) {
     m.mem8[SLOT_BANK + i * SLOT_STRIDE] = (mask >> i) & 1 ? 0xff : 0;
   }
   return m;
@@ -138,7 +138,7 @@ function twin({ status = true, shapeTable = SHAPE_TABLE, ordinalTable = ORDINAL_
   return (m) => {
     const { regs, mem8 } = m;
     const configured = mem8[CONFIGURED_COUNT];
-    const count = mem8[MOTHER_SHIP_ARMED] === 0 ? configured : DEFAULT_COUNT;
+    const count = mem8[MOTHER_SHIP_ARMED] === 0 ? configured : ARMED_SLOT_COUNT;
     let slot = SLOT_BANK, entry = ENTRY_BANK, remaining = count;
     do {
       if (isFree(mem8[slot])) {

@@ -83,8 +83,8 @@ const HALF_TURN = STEPS_PER_TURN / 2;
 
 const SHAPE_BY_SECTOR = 0x2a77;
 const MIRROR_BY_SECTOR = 0x2a87;
-const FAR_HALF_BIT = 2;
-const SHAPES_PER_HALF = 8;
+const ALTERNATE_POSE_BIT = 2;
+const ALTERNATE_POSE_SHAPE_STEP = 8;
 
 /** Bytes the oracle's call bracket leaves below the stack pointer it was entered at. */
 const SCRATCH_BYTES = 2;
@@ -276,7 +276,7 @@ function drivenSession() {
     dispatches++;
     records.add(mm.regs.ix);
     const heading = mm.mem8[u16(mm.regs.ix + HEADING)];
-    inputs.add(`${mm.regs.ix}/${heading}/${mm.mem8[FRAME_TICK] & FAR_HALF_BIT}`);
+    inputs.add(`${mm.regs.ix}/${heading}/${mm.mem8[FRAME_TICK] & ALTERNATE_POSE_BIT}`);
     const top = mm.regs.sp;
     if (top < lowSp) lowSp = top;
     if (top > highSp) highSp = top;
@@ -333,7 +333,7 @@ const caughtInPlay = (label) => {
 
 /** The oracle's own total. Its one branch costs more when it steps the shape on. */
 function oracleTStates(m) {
-  const far = (m.mem8[FRAME_TICK] & FAR_HALF_BIT) !== 0;
+  const far = (m.mem8[FRAME_TICK] & ALTERNATE_POSE_BIT) !== 0;
   return STRAIGHT_LINE + (far ? FAR_HALF_TAIL : NEAR_HALF_TAIL);
 }
 
@@ -529,14 +529,14 @@ test("COUNTER: exactly one bit of the counter decides the animation half", { ski
       a.mem8[u16(a.regs.ix + HEADING)] = sector * STEPS_PER_SECTOR;
       a.mem8[FRAME_TICK] = counter;
       oracle(a);
-      const far = a.regs.b === shapeAt(sector) + SHAPES_PER_HALF;
+      const far = a.regs.b === shapeAt(sector) + ALTERNATE_POSE_SHAPE_STEP;
       assert.ok(far || a.regs.b === shapeAt(sector), `counter ${counter}: neither half was chosen`);
       if (far && sector === 0) stepped.push(counter);
     }
   }
   assert.deepEqual(
     stepped,
-    [...Array(STEPS_PER_TURN).keys()].filter((c) => (c & FAR_HALF_BIT) !== 0),
+    [...Array(STEPS_PER_TURN).keys()].filter((c) => (c & ALTERNATE_POSE_BIT) !== 0),
     "the counter values that step the shape on are no longer exactly the ones with that bit set",
   );
   console.log(`  COUNTER: ${stepped.length} of ${STEPS_PER_TURN} values step the shape on`);
@@ -581,7 +581,7 @@ test("SUBSTITUTION: the rewrite wired in leaves only the scratch, and it HEALS",
 // agreeing with the wrong theory of why it failed.
 
 const headingOf = (m) => m.mem8[u16(m.regs.ix + HEADING)];
-const farHalf = (m) => ((m.mem8[FRAME_TICK] & FAR_HALF_BIT) !== 0 ? SHAPES_PER_HALF : 0);
+const alternatePoseStep = (m) => ((m.mem8[FRAME_TICK] & ALTERNATE_POSE_BIT) !== 0 ? ALTERNATE_POSE_SHAPE_STEP : 0);
 
 function deliver(m, sector, step) {
   m.regs.b = m.mem8[SHAPE_BY_SECTOR + sector] + step;
@@ -593,12 +593,12 @@ function brokenNoOp() {}
 
 /** BUG: truncates the heading to a sector instead of rounding it to the nearest. */
 function brokenFloor(m) {
-  deliver(m, Math.floor(headingOf(m) / STEPS_PER_SECTOR), farHalf(m));
+  deliver(m, Math.floor(headingOf(m) / STEPS_PER_SECTOR), alternatePoseStep(m));
 }
 
 /** BUG: rounds up without wrapping, so the last few headings read past the tables. */
 function brokenPastEnd(m) {
-  deliver(m, Math.floor((headingOf(m) + STEPS_PER_SECTOR / 2) / STEPS_PER_SECTOR), farHalf(m));
+  deliver(m, Math.floor((headingOf(m) + STEPS_PER_SECTOR / 2) / STEPS_PER_SECTOR), alternatePoseStep(m));
 }
 
 /** BUG: never steps the shape on, so every direction is frozen on its near shape. */
@@ -608,32 +608,32 @@ function brokenNearHalf(m) {
 
 /** BUG: always steps the shape on, so every direction is frozen on its far shape. */
 function brokenFarHalf(m) {
-  deliver(m, sectorOf(headingOf(m)), SHAPES_PER_HALF);
+  deliver(m, sectorOf(headingOf(m)), ALTERNATE_POSE_SHAPE_STEP);
 }
 
 /** BUG: reads the wrong bit of the counter, so the animation runs at twice the rate. */
 function brokenWrongBit(m) {
-  deliver(m, sectorOf(headingOf(m)), m.mem8[FRAME_TICK] & 1 ? SHAPES_PER_HALF : 0);
+  deliver(m, sectorOf(headingOf(m)), m.mem8[FRAME_TICK] & 1 ? ALTERNATE_POSE_SHAPE_STEP : 0);
 }
 
 /** BUG: hands back the two table entries the other way round. */
 function brokenSwapped(m) {
   const sector = sectorOf(headingOf(m));
-  m.regs.b = m.mem8[MIRROR_BY_SECTOR + sector] + farHalf(m);
+  m.regs.b = m.mem8[MIRROR_BY_SECTOR + sector] + alternatePoseStep(m);
   m.regs.c = m.mem8[SHAPE_BY_SECTOR + sector];
 }
 
 /** BUG: hard-codes the record the first captured dispatch happened to arrive on. */
 function brokenFixedSlot(m) {
   const heading = m.mem8[u16(entryState().regs.ix + HEADING)];
-  deliver(m, sectorOf(heading), farHalf(m));
+  deliver(m, sectorOf(heading), alternatePoseStep(m));
 }
 
 const poisonShape = u8(POISON >> 8);
 const poisonMirror = u8(POISON);
 const flooredSector = (h) => Math.floor(h / STEPS_PER_SECTOR);
 const unwrappedSector = (h) => Math.floor((h + STEPS_PER_SECTOR / 2) / STEPS_PER_SECTOR);
-const isFar = (counter) => (counter & FAR_HALF_BIT) !== 0;
+const isFar = (counter) => (counter & ALTERNATE_POSE_BIT) !== 0;
 
 /**
  * Each twin with the predicate naming EXACTLY the crafted inputs it must be caught on. Every
@@ -642,7 +642,7 @@ const isFar = (counter) => (counter & FAR_HALF_BIT) !== 0;
  */
 const TWINS = [
   ["no-op", brokenNoOp, (_r, h, c) =>
-    poisonShape !== shapeAt(sectorOf(h)) + (isFar(c) ? SHAPES_PER_HALF : 0) ||
+    poisonShape !== shapeAt(sectorOf(h)) + (isFar(c) ? ALTERNATE_POSE_SHAPE_STEP : 0) ||
     poisonMirror !== mirrorAt(sectorOf(h))],
   ["floor-not-nearest", brokenFloor, (_r, h) => pairDiffers(sectorOf(h), flooredSector(h))],
   ["past-the-end", brokenPastEnd, (_r, h) => pairDiffers(sectorOf(h), unwrappedSector(h))],

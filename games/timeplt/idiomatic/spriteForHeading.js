@@ -32,9 +32,9 @@ const SECTORS = 16;
 const STEPS_PER_SECTOR = 256 / SECTORS;
 // Bit 1 of the frame counter (`bit 1,a` at 0x2A6F): it flips every second frame, so the
 // alternate shape shows for two frames, then the base shape for two.
-const FAR_HALF_BIT = 2;
+const ALTERNATE_POSE_BIT = 2;
 // The alternate shape bank sits eight codes past the base one (`add a,0x08` at 0x2A73).
-const SHAPES_PER_HALF = 8;
+const ALTERNATE_POSE_SHAPE_STEP = 8;
 
 export function spriteForHeading(m, object = m.regs.ix) {
   const { regs, mem8 } = m;
@@ -46,11 +46,11 @@ export function spriteForHeading(m, object = m.regs.ix) {
   const sector = Math.floor(u8(heading + STEPS_PER_SECTOR / 2) / STEPS_PER_SECTOR);
   // Which half of the two-frame flicker this is: FRAME_TICK advances once per vblank, so its
   // bit 1 alternates the shape bank every two frames — the object's animation.
-  const farHalf = (mem8[FRAME_TICK] & FAR_HALF_BIT) !== 0;
+  const alternatePose = (mem8[FRAME_TICK] & ALTERNATE_POSE_BIT) !== 0;
   // The two ROM tables are parallel, sixteen bytes apart (0x2A77 then 0x2A87): the first gives
   // the shape for the sector, the second the attribute byte whose flip bits mirror that shape
   // so a handful of drawn shapes cover all sixteen directions.
-  const shape = mem8[SPRITE_SHAPE_BY_SECTOR_TABLE + sector] + (farHalf ? SHAPES_PER_HALF : 0);
+  const shape = mem8[SPRITE_SHAPE_BY_SECTOR_TABLE + sector] + (alternatePose ? ALTERNATE_POSE_SHAPE_STEP : 0);
   const mirror = mem8[SPRITE_MIRROR_BY_SECTOR_TABLE + sector];
   // Hand the pair back (and leave it in B and C, where the ROM's callers read it).
   return [regs.b = shape, regs.c = mirror];

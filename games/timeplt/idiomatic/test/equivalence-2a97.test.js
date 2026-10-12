@@ -52,8 +52,8 @@ const SECTORS = 32;
 const STEPS_PER_SECTOR = 256 / SECTORS;
 const ENTRY_WIDTH = 2;
 const SHAPE_TABLE = 0x2abc;
-const FAR_HALF_BIT = 2;
-const SHAPES_PER_HALF = 8;
+const ALTERNATE_POSE_BIT = 2;
+const ALTERNATE_POSE_SHAPE_STEP = 8;
 const SHAPE_IN_ENTRY = 1;
 const BESIDE_IT_IN_ENTRY = 48;
 
@@ -157,7 +157,7 @@ function craft(heading, counter) {
   return m;
 }
 
-const COUNTERS = [0, FAR_HALF_BIT, 0xff, 0x55];
+const COUNTERS = [0, ALTERNATE_POSE_BIT, 0xff, 0x55];
 const SWEEP_SIZE = 256 * COUNTERS.length;
 
 function sweepCaught(candidate) {
@@ -233,12 +233,12 @@ test("THE SWEEP DISCRIMINATES: several shapes, and the counter bit moves them", 
   assert.ok(beside.size > 1, "every heading gave the same second byte");
 
   const near = craft(0, 0);
-  const far = craft(0, FAR_HALF_BIT);
+  const far = craft(0, ALTERNATE_POSE_BIT);
   oracle(near);
   oracle(far);
   assert.equal(
     u8(far.mem8[entry + SHAPE_IN_ENTRY] - near.mem8[entry + SHAPE_IN_ENTRY]),
-    SHAPES_PER_HALF,
+    ALTERNATE_POSE_SHAPE_STEP,
     "the counter bit no longer moves the shape by the amount this file records",
   );
   assert.equal(
@@ -248,7 +248,7 @@ test("THE SWEEP DISCRIMINATES: several shapes, and the counter bit moves them", 
   );
   console.log(
     `  DISCRIMINATES: ${shapes.size} shapes and ${beside.size} second bytes over the headings; ` +
-      `the counter bit moves the shape by ${SHAPES_PER_HALF}`,
+      `the counter bit moves the shape by ${ALTERNATE_POSE_SHAPE_STEP}`,
   );
 });
 
@@ -264,8 +264,8 @@ function point(m, o) {
   regs.hl = o.table ?? SHAPE_TABLE;
   regs.a = sector * (o.width ?? ENTRY_WIDTH);
   const selected = offsetAddress(m);
-  const farHalf = (mem8[FRAME_TICK] & (o.bit ?? FAR_HALF_BIT)) !== 0;
-  mem8[entry + SHAPE_IN_ENTRY] = mem8[selected] + (farHalf ? (o.step ?? SHAPES_PER_HALF) : 0);
+  const alternatePose = (mem8[FRAME_TICK] & (o.bit ?? ALTERNATE_POSE_BIT)) !== 0;
+  mem8[entry + SHAPE_IN_ENTRY] = mem8[selected] + (alternatePose ? (o.step ?? ALTERNATE_POSE_SHAPE_STEP) : 0);
   mem8[entry + BESIDE_IT_IN_ENTRY] = mem8[u16(selected + 1)];
 }
 

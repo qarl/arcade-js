@@ -38,8 +38,10 @@ import { CRAFT_ENTRY_SLOT0, CRAFT_RECORD_SLOT0, ERA_INDEX, KILLS_REMAINING, LIFE
 
 // Era 4 (2001) has its own spawner.
 const FINAL_ERA = 4;
-// Slots walked (and the "full wave" threshold) once the kill quota is spent.
-const DEFAULT_COUNT = 5;
+// Slots walked once the kill quota is spent (0x3709 ld b,0x05).
+const QUOTA_SPENT_SLOT_COUNT = 5;
+// A wave tally at or above this stands as the kill countdown (0x3782 cp 0x05).
+const FULL_WAVE_TALLY = 5;
 // One object record is sixteen bytes.
 const RECORD_STRIDE = 16;
 // Value seeded into each new craft's record +0x09 flight-script position.
@@ -85,7 +87,7 @@ export function driveEnemyWaveForLifePhase(m) {
   // How many slots to walk: the craft spawn slot count (CRAFT_SPAWN_SLOT_COUNT 0xACC1) while kills remain
   // before the Mother-Ship, else five. WAVE_KILL_COUNTDOWN (0xA811) is zeroed and used as the
   // filled-slot tally during the build.
-  const count = mem8[KILLS_REMAINING] !== 0 ? mem8[CRAFT_SPAWN_SLOT_COUNT] : DEFAULT_COUNT;
+  const count = mem8[KILLS_REMAINING] !== 0 ? mem8[CRAFT_SPAWN_SLOT_COUNT] : QUOTA_SPENT_SLOT_COUNT;
   mem8[WAVE_KILL_COUNTDOWN] = 0;
   let record = CRAFT_RECORD_SLOT0;
   let entry = CRAFT_ENTRY_SLOT0;
@@ -137,7 +139,7 @@ export function driveEnemyWaveForLifePhase(m) {
   // requested. Otherwise the countdown becomes the craft spawn slot count, and the sound is still
   // requested when the fill reached that count.
   const filled = mem8[WAVE_KILL_COUNTDOWN];
-  if (filled >= DEFAULT_COUNT) return requestEnemyWaveSound(m);
+  if (filled >= FULL_WAVE_TALLY) return requestEnemyWaveSound(m);
   const owed = mem8[CRAFT_SPAWN_SLOT_COUNT];
   mem8[WAVE_KILL_COUNTDOWN] = owed;
   if (filled >= owed) return requestEnemyWaveSound(m);

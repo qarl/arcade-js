@@ -41,7 +41,7 @@ const HITS_WHEN_ARMED = 0x07;
 // still to absorb, +6 this routine's wind-down counter.
 const HEADING = 2;
 const HITS_TO_ABSORB = 4;
-const WIND_DOWN = 6;
+const DAMAGE_FLASH_COUNTER = 6;
 
 // Sprite-entry offsets: +1 / +3 the two shape bytes (bank 0), +0x30 / +0x32 their colour/flip
 // bytes (bank 1).
@@ -53,7 +53,7 @@ const COLOUR_HI = 0x32;
 // The one attribute code both flutter sprites wear (`ld (iy+0x30),0x70` at 0x44BF).
 const FLUTTER_CODE = 0x70;
 // Bit 7 of the wind-down counter marks it closed out (`bit 7,c` at 0x44B1; `ld (ix+0x06),0x80`).
-const CLOSED_OUT = 0x80;
+const ALTERNATE_COLOUR_PHASE = 0x80;
 // Heading + 0x40 below 0x80 selects the half of the compass centred on heading 0 (0x447F-0x4483).
 const HEADING_BIAS = 0x40;
 const HALF = 0x80;
@@ -81,10 +81,10 @@ export function dressSpriteForHeadingOrRetireAtEdge(m, record = m.regs.ix, entry
   if (era === FLUTTER_ERA) {
     const hitsToAbsorb = mem8[record + HITS_TO_ABSORB];
     if (hitsToAbsorb !== HITS_WHEN_ARMED) {
-      const counter = u8(mem8[record + WIND_DOWN] + 1);
-      mem8[record + WIND_DOWN] = counter;
-      if (counter & CLOSED_OUT) return restartAnimationCounterThenDressFlutterSprite(m, counter, record, entry);
-      if (u8(hitsToAbsorb + 2) < counter) mem8[record + WIND_DOWN] = CLOSED_OUT;
+      const counter = u8(mem8[record + DAMAGE_FLASH_COUNTER] + 1);
+      mem8[record + DAMAGE_FLASH_COUNTER] = counter;
+      if (counter & ALTERNATE_COLOUR_PHASE) return restartAnimationCounterThenDressFlutterSprite(m, counter, record, entry);
+      if (u8(hitsToAbsorb + 2) < counter) mem8[record + DAMAGE_FLASH_COUNTER] = ALTERNATE_COLOUR_PHASE;
       mem8[entry + COLOUR_LO] = FLUTTER_CODE;
       mem8[entry + COLOUR_HI] = FLUTTER_CODE;
       return dressSpriteFlutterShapesByFrameTickBit(m, entry);
