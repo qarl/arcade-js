@@ -101,7 +101,11 @@ export const COIN_SLOT_2_DEBOUNCE = 0xa9ca; // slot-2 coin-line debounce shift r
 export const COIN_SLOT_2_ACCUMULATOR = 0xa9cb; // slot-2 accumulator (+0x10/coin vs COIN_SLOT_2_RATIO 0xa9cc) [seen]
 
 // ── DSW1 gameplay config, unpacked bit-by-bit at boot (the coinage half is COINAGE_SETTINGS above).
-export const STARTING_LIVES = 0xa9c1; // lives per game (3/4/5/0xff), loaded into PLAYER_ONE/TWO_LIVES at start [seen]
+/**
+ * lives per game (3/4/5/0xff), loaded into PLAYER_ONE_LIVES at start, and into PLAYER_TWO_LIVES as
+ * well in a two-player game [seen]
+ */
+export const STARTING_LIVES = 0xa9c1;
 export const UPRIGHT_CABINET = 0xa9c2; // cabinet type from DSW1 'Cabinet' (bit 2), seeded at 0x2E22: 1 = upright (MAME default), 0 = cocktail; the frame service turns the screen round for player two only when it reads 0 [seen]
 export const BONUS_LIFE_SETTING = 0xa9c3; // selects the bonus-life mark list + the attract bonus captions [seen]
 export const DEMO_SOUNDS_ENABLE = 0xa9c6; // attract-sound gate on the 0x5617 request path: a request made there is dropped unless set or a game is active (the 0x560C path drops every request outside a game regardless) [seen]
@@ -650,7 +654,7 @@ export const KILL_QUOTA = 0xa9cd;
 export const BOMBER_HITS_TO_ABSORB = 0xa8dc;
 
 /**
- * Which round is being played, counting on without wrapping. [seen]
+ * Which round is being played, counting across loops (one byte, so it wraps after 255). [seen]
  *
  * ★ NOT the same thing as ERA_INDEX, and the difference is the whole reason this cell exists. The
  * era is this count less one, wrapped to five (round 1 is era 0); this one keeps going, which is what lets the game get harder
@@ -719,7 +723,11 @@ export const PLAYER2_SCORE_HI = 0xad38; // player 2 score, high packed-BCD byte 
 // boot and promoted when a game beats it. The high-score TABLE is five records of eight bytes at
 // 0xAB08..0xAB2F: per record +0 rank, +1..+3 score lo/mid/hi, +4..+6 initials, +7 a 0xF1 pad. A new
 // score inserts top-first and the records below it slide down (lddr) from SLIDE_SRC toward TABLE_END.
-export const HIGH_SCORE_HI = 0xa98d; // MSB of the single displayed high score (0xA98B/8C/8D): seeded 01 from ROM 0x08C9 at boot (pc 0x52AD), promoted by the lddr at 0x0CD5 when a score beats it [seen]
+/**
+ * MSB of the single displayed high score (0xA98B-0xA98D): seeded 01 from ROM 0x08C9 by the store at 0x52AD
+ * at boot, promoted by the lddr at 0x0CD5 when a score beats it [seen]
+ */
+export const HIGH_SCORE_HI = 0xa98d;
 export const HIGH_SCORE_TABLE_BASE = 0xab08; // base of the five 8-byte high-score records (+0 rank, +1..+3 score lo/mid/hi, +4..+6 initials, +7 0xF1 pad) [seen]
 export const HIGH_SCORE_REC0_SCORE_HI = 0xab0b; // record 0 score high byte (rank +0, score lo/mid/hi +1..+3): the insertion compare's starting point [seen]
 export const HIGH_SCORE_REC1_BASE = 0xab10; // record 1 base (rank byte) [seen]
@@ -1322,13 +1330,19 @@ export const ERA_OBJECT_SPRITE_Y_SLOT0 = 0xaa59;
  * state and its tile-image tamper tripwire, and the two deferred-paint list heads.
  */
 
-/** Active context +3: the once-per-mark bonus-life award latch (bit 0); mirrors the saved PLAYER_ONE/TWO_BONUS_LIFE_LATCH. [seen] */
+/**
+ * Active context +3: the once-per-mark bonus-life award latch (bit 0); mirrors the saved
+ * PLAYER_ONE_BONUS_LIFE_LATCH or PLAYER_TWO_BONUS_LIFE_LATCH. [seen]
+ */
 export const BONUS_LIFE_LATCH = 0xad03;
 
-/** Active context +0xA: the difficulty rung the round opens on (copied into ERA_RUNG 0xacc0 at reset); mirrors PLAYER_ONE/TWO_START_RUNG. [seen] */
+/**
+ * Active context +0xA: the difficulty rung the round opens on (copied into ERA_RUNG 0xacc0 at reset);
+ * mirrors PLAYER_ONE_START_RUNG or PLAYER_TWO_START_RUNG. [seen]
+ */
 export const START_RUNG = 0xad0a;
 
-/** Active context +0xE: the round-intro-pending flag -- set when a round starts (0xFF from startNextRound; the game's first round loads the saved copy's 1), cleared when the round's first life-start hold expires (flyLifeStartHoldThenEraseLifeStartCaptions zeroes it at every expiry), so it reads zero for the rest of a live round; while it is set the life-start arm posts the stage-number caption instead of READY and the fly-in flashes the era year; mirrors PLAYER_ONE/TWO_ROUND_INTRO_PENDING. [seen] */
+/** Active context +0xE: the round-intro-pending flag -- set when a round starts (0xFF from startNextRound; the game's first round loads the saved copy's 1), cleared when the round's first life-start hold expires (flyLifeStartHoldThenEraseLifeStartCaptions zeroes it at every expiry), so it reads zero for the rest of a live round; while it is set the life-start arm posts the stage-number caption instead of READY and the fly-in flashes the era year; mirrors PLAYER_ONE_ROUND_INTRO_PENDING or PLAYER_TWO_ROUND_INTRO_PENDING. [seen] */
 export const ROUND_INTRO_PENDING = 0xad0e;
 
 /**
@@ -1614,7 +1628,7 @@ export const ATTACKER_SPAWN_COOLDOWN_PERIOD = 0xa8f6;
  * Data cells: 0x0d27/0x0b31/0x15c6/0x07d1/0x16d3/0x4a35 are ROM-image data, 0xa501 is screen RAM.
  */
 export const ROUND_TRANSITION_HOLD_SEED = 0x07d1; // ROM constant reloaded into ROUND_TRANSITION_HOLD when the field clears in attract; a code byte (high operand byte of jp 0x0069 at 0x07CF) reused as data [seen]
-export const SOLO_SCORE_LABEL_INDEX = 0x0b31; // caption index of the sole-player score label (the 2P path uses literals 0x06/0x07); a code byte (ld b,0x04 at 0x0B31) reused as data [seen]
+export const SOLO_SCORE_LABEL_INDEX = 0x0b31; // caption index of the one-player score label, 6 ("1-UP"; the 2P path uses literals 0x06/0x07); a code byte (ld b,0x04 at 0x0B31) reused as data [seen]
 /**
  * 3-byte packed-BCD score increments, indexed by award id (awardScoreToPlayer; id 0 exits at 0x0c9c
  * before the table is touched) [seen] (MAME read-tap: after ld hl,0x0d27 at 0x0c9f, the BCD adds at
@@ -2107,7 +2121,7 @@ export const ROUTINES = {
   },
   0x18c3: {
     name: "stepHighScoreInitialsEntry",
-    role: "one frame of the high-score initials-entry screen (arm 10 of the phase-3 sub-step table): on even FRAME_TICK frames roll the facing panel's back/forward/two commit controls into their press histories (INITIALS_BACK/FORWARD/COMMIT/ALT_COMMIT_PRESS_HISTORY); a fresh commit locks the shown letter's glyph (INITIALS_LETTER_GLYPH_TABLE indexed by INITIALS_LETTER_INDEX) into the filed record's initials cell (SCRATCH_PTR_A) and the on-screen cursor cell (SCRATCH_PTR_B), colours it from INITIALS_LOCKED_LETTER_COLOUR, steps both on and counts down INITIALS_SLOTS_LEFT (seeded to 3), finishing on the last slot; a fresh forward/back steps the letter index round 0..26 and redraws the cursor; a saturated forward or back history is emptied through rearmHeldControlRepeat so a held forward or back control repeats; on odd frames flash the cursor colour (INITIALS_CURSOR_FLASH_TIMER bit 4); every eighth frame tick SEQUENCE_DELAY, and when it runs out blank the cursor cell (0xF1) and finish. Finishing re-arms SEQUENCE_DELAY=60, queues the transition sound stops and steps the sequence sub-step. Otherwise, with both players out of lives, a held start button with credit (or free play) hides all sprites and starts the next game",
+    role: "one frame of the high-score initials-entry screen (arm 10 of the phase-3 sub-step table): on even FRAME_TICK frames roll the facing panel's back/forward/two commit controls into their press histories (INITIALS_BACK_PRESS_HISTORY, INITIALS_FORWARD_PRESS_HISTORY, INITIALS_COMMIT_PRESS_HISTORY and INITIALS_ALT_COMMIT_PRESS_HISTORY); a fresh commit locks the shown letter's glyph (INITIALS_LETTER_GLYPH_TABLE indexed by INITIALS_LETTER_INDEX) into the filed record's initials cell (SCRATCH_PTR_A) and the on-screen cursor cell (SCRATCH_PTR_B), colours it from INITIALS_LOCKED_LETTER_COLOUR, steps both on and counts down INITIALS_SLOTS_LEFT (seeded to 3), finishing on the last slot; a fresh forward/back steps the letter index round 0..26 and redraws the cursor; a saturated forward or back history is emptied through rearmHeldControlRepeat so a held forward or back control repeats; on odd frames flash the cursor colour (INITIALS_CURSOR_FLASH_TIMER bit 4); every eighth frame tick SEQUENCE_DELAY, and when it runs out blank the cursor cell (0xF1) and finish. Finishing re-arms SEQUENCE_DELAY=60, queues the transition sound stops and steps the sequence sub-step. Otherwise, with both players out of lives, a held start button with credit (or free play) hides all sprites and starts the next game",
     cert: "seen",
     why: "the dominant live-outs are glyph writes through SCRATCH_PTR_A/B, which fileScoreIntoHighScoreTable parks at the filed record's initials cells and the initials-glyph VRAM row, and the press histories, letter index and slot count it steps are seeded by erasePenRouteThenOpenInitialsEntry (arm 9) -- three slots, zeroed press histories, letter 0; the entry ends by stepping the sub-step after the third commit or on timeout. 'step' matches the sibling sequence arms (stepCopyrightScreenAwaitingStart); the start-next-game poll at the tail is a secondary shared poll and stays out of the name",
   },
@@ -2190,22 +2204,22 @@ export const ROUTINES = {
   },
   0x083e: {
     name: "buildCopyrightScreenThenVerifyImage",
-    role: "title/attract copyright-screen layout arm (table-dispatched, no static call site): request the flashing copyright line, stamp the copyright caption strip, post caption commands (command 1, arguments 0,1,3..7,20,21) to the command ring, then XOR-fold the 24-byte program block at 0x176A and step the sequence sub-step when the fold matches 0xC9, else transfer to the checksum-failure landing",
+    role: "title/attract copyright-screen layout arm (entry 3 of the phase-1 sub-step table at 0x1659): request the flashing copyright line, stamp the copyright caption strip, post caption commands (command 1, arguments 0,1,3..7,20,21) to the command ring, then XOR-fold the 24-byte program block at 0x176A and step the sequence sub-step when the fold matches 0xC9, else transfer to the checksum-failure landing",
     cert: "seen",
   },
   0x176a: {
     name: "paintReadoutsThenSampleWitnessOrDerail",
-    role: "one arm of the copyright/attract sequence machine (table-dispatched tail, no static call site): check the copyright line's colours (deferring to the guard, which derails on its own if any cell is wrong), then unless caption cell TAMPER_GLYPH_SOURCE_CELL (0xa67c) still holds glyph 0x7c derail into the Mother-Ship's wreck countdown (derailIntoMotherShipWreckCountdown) through its misaligned anti-tamper entry -- the wrong-glyph derail; on a clean image queue one caption command (1, 0x13), repaint the five labelled numeric readouts, copy one cell's glyph and colour into the tamper readback pair (0xadfb/0xadfc), and step the sequence sub-step. Live-out memory only",
+    role: "one arm of the copyright/attract sequence machine (entry 5 of the phase-1 sub-step table at 0x1659): check the copyright line's colours (deferring to the guard, which derails on its own if any cell is wrong), then unless caption cell TAMPER_GLYPH_SOURCE_CELL (0xa67c) still holds glyph 0x7c derail into the Mother-Ship's wreck countdown (derailIntoMotherShipWreckCountdown) through its misaligned anti-tamper entry -- the wrong-glyph derail; on a clean image queue one caption command (1, 0x13), repaint the five labelled numeric readouts, copy one cell's glyph and colour into the tamper readback pair (0xadfb/0xadfc), and step the sequence sub-step. Live-out memory only",
     cert: "seen",
   },
   0x178c: {
     name: "holdCopyrightThenVerifyGlyphAndSeatWitnessOrDerail",
-    role: "phase-1 attract sub-step arm (computed dispatch off the phase-1 table, no static call site): each frame restamp the copyright strip and flash its line, then count one frame off SEQUENCE_DELAY and return while it still runs; on the frame it expires verify the copyright line's colours (guard derails on its own), build a caption-cell pointer from a program byte -- the parachutist routine's first opcode (0x47b3) read as data -- and check the glyph there is 0x3b, DERAILING into the anti-tamper trap loc_15ca (data run as code) on a mismatch, else seat one caption cell's glyph and colour into the tamper-witness pair (TAMPER_GLYPH_COPY 0xab43) and step the sequence sub-step. Live-out memory only",
+    role: "phase-1 attract sub-step arm (entry 6 of the phase-1 sub-step table at 0x1659): each frame restamp the copyright strip and flash its line, then count one frame off SEQUENCE_DELAY and return while it still runs; on the frame it expires verify the copyright line's colours (guard derails on its own), build a caption-cell pointer from a program byte -- the parachutist routine's first opcode (0x47b3) read as data -- and check the glyph there is 0x3b, DERAILING into the anti-tamper trap loc_15ca (data run as code) on a mismatch, else seat one caption cell's glyph and colour into the tamper-witness pair (TAMPER_GLYPH_COPY 0xab43) and step the sequence sub-step. Live-out memory only",
     cert: "seen",
   },
   0x2730: {
     name: "verifyImageSignatureThenStartAttractDemoOrDerail",
-    role: "phase-1 attract sub-step arm (computed dispatch off the phase-1 table at inner sub-step 12, no static call site): read the folded program-image signature banked at TAMPER_IMAGE_SIGNATURE and compare it against 0x76 -- on a tampered image derail into loc_2530, a velocity table run as code (unreachable on a genuine image; where control ends from there is not established), else start the attract-mode autopilot demo -- park the caption sprites, seed the demo autopilot heading script, clear TWO_PLAYER_GAME / PLAYER_TWO_LIVES / PLAY_ACTIVE / SEQUENCE_SUBSTEP, stock player one with one life, and wind the outer sequence on to its last phase (3). Live-out memory only",
+    role: "phase-1 attract sub-step arm (entry 12 of the phase-1 sub-step table at 0x1659): read the folded program-image signature banked at TAMPER_IMAGE_SIGNATURE and compare it against 0x76 -- on a tampered image derail into loc_2530, a velocity table run as code, else start the attract-mode autopilot demo -- park the caption sprites, seed the demo autopilot heading script, clear TWO_PLAYER_GAME, PLAYER_TWO_LIVES, PLAY_ACTIVE and SEQUENCE_SUBSTEP, stock player one with one life, and wind the outer sequence on to its last phase (3). Live-out memory only",
     cert: "seen",
   },
   0x1323: {
@@ -2502,8 +2516,8 @@ export const ROUTINES = {
   0x10fd: {
     name: "spinRemainingSpriteMultiplexSlots",
     role: "subroutine entry into the five-slot sprite split pass (slots 19-23), joined inside slot 19 with the caller's held byte and test: when the test is set and the held byte plus SCANLINE_COUNTER carries, trade slot 19 from the held byte; without the carry, rejoin the pass at slot 19 (0x10F8) and re-read all five slots from memory instead; after a trade or a clear test, trade slots 20-23 wherever their top bit is set",
-    cert: "code",
-    why: "nothing enters 0x10FD as a subroutine except through an anti-tamper derail, so the role rests on the code alone: entered here, the held byte and the flag stand in for sprite 19's load and test. The bytes are shared -- 0x10FD is also the `jr z` inside sprite 19's block of multiplexSpriteSlots, so every closing pass runs 0x10FD onward, and that observation grounds multiplexSpriteSlots, not this entry. The one CALL to it in the image (CALL NZ at 0x15D9) sits inside caption record 5 (0x0C50 record table entry 5 = 0x15D6: destination 0xA660, colour 0x14, glyphs `c4 fd 10 ed 77 68 d7 34`, terminator 0xB9). Those bytes run as code only when holdCopyrightThenVerifyGlyphAndSeatWitnessOrDerail finds the glyph at 0xA63C is not 0x3B and takes the `jp nz,0x15CA` at 0x17A6 into caption record 8, whose decode runs straight on into record 5. Accounted for in grounding-debt.txt as anti-tamper",
+    cert: "seen",
+    why: "the bytes are shared -- 0x10FD is also the `jr z` inside sprite 19's block of multiplexSpriteSlots -- so the role is observed on the genuine image through them: MAME read and write taps over attract, driven play, the two-player tape and the poked states fetch every instruction from 0x10FD through the `ret` at 0x1198 on the closing pass, arriving with A holding sprite 19's Y byte loaded at 0x10F8 and Z its bit-7 test, exactly the held byte and test this entry takes. Both arms of slot 19 run: the `jr nc,0x10F8` at 0x1104 rejoins the pass until the raster comes, and on the carry 0x110D writes 0xB437 with bit 7 clear while 0x1115 moves 0xB036 half a range; slots 20-23 trade the same way (0x112D/0x1135 through 0x118D/0x1195), and no write from these bytes lands anywhere else. What is never observed is the entry CALLed as itself, so a held byte other than sprite 19's own Y byte never reaches it under MAME. The one CALL to it in the image (CALL NZ at 0x15D9) sits inside caption record 5 (0x0C50 record table entry 5 = 0x15D6: destination 0xA660, colour 0x14, glyphs `c4 fd 10 ed 77 68 d7 34`, terminator 0xB9). Those bytes run as code only when holdCopyrightThenVerifyGlyphAndSeatWitnessOrDerail finds the glyph at 0xA63C is not 0x3B and takes the `jp nz,0x15CA` at 0x17A6 into caption record 8, whose decode runs straight on into record 5. The taps fetch that `jp nz` but no instruction from 0x15CA to 0x15E0, and read 0x15D9 only as a glyph for the caption painter (0x0BFF) and as data in the image folds at 0x281B and 0x588D",
   },
   0x11ed: {
     name: "loseLifeAndHandOver",
@@ -3194,11 +3208,13 @@ export const ROUTINES = {
     name: "velocityForHeadingAtSlowestSpeed",
     role: "hand back the perpendicular component pair for an object's heading from the velocity samples at 0x59D7, the ladder's bottom rung; choosing that table is all it does, an incoming pointer is discarded, and nothing is written. Two readers: armBomberSlotWhenTimerFires stores the pair straight into the slot it arms, and it is the era-0 word of the arm table at 0x46C4 that setMotherShipVelocityFromHeading dispatches",
     cert: "seen",
+    why: "the mirror of flyAtSlowestSpeed (0x5840): the shims in front of velocityForHeading (0x596E) fix the same six velocity tables, in the same order, as the flyAlongHeading shims, so they are named by the same rank. This shim fixes 0x59D7, peak 206, the bottom rung of the six-rung ROM ladder 206/231/256/281/306/331, so it is slowest however the ladder is counted -- over the live velocityForHeading shims (206/256/306/331) or over all six (the 231 and 281 rungs' shims at 0x5948 and 0x595F are never entered: no absolute word or relative branch reaches them). 'Slowest' is a rank over the tables, not over delivered speed, the same caveat flyAtSlowestSpeed records: loc_598e reads this same table through the doubling body and hands back up to 412",
   },
   0x596b: {
     name: "velocityForHeadingAtFastestSpeed",
     role: "hand back the perpendicular component pair an object's heading calls for, at the pace the velocity samples based at 0x08FA set; choosing that table is all this entry does, an incoming pointer is discarded, and the pair is the whole product -- no memory is written",
     cert: "seen",
+    why: "the mirror of flyAtFastestSpeed (0x58A4), which fixes the same table for flyAlongHeading: 0x08FA, peak 331, the top rung of the six-rung ROM ladder 206/231/256/281/306/331, so it is fastest however the ladder is counted (the 231 and 281 shims at 0x5948 and 0x595F are never entered). Bytes 21 FA 08 and no jump: it falls straight into velocityForHeading at 0x596E. Its transfers are the jp at 0x1F52 in scrollWorldAtTheEraPace (era 3 on) and the era-4 word of the arm table at 0x46C4. 'Fastest' is a rank over the tables, not over delivered speed, the same caveat flyAtFastestSpeed records: loc_5994 reads the 231 table through the doubling body and hands back up to 462",
   },
   0x596e: {
     name: "velocityForHeading",
@@ -3370,6 +3386,7 @@ export const ROUTINES = {
     name: "velocityForHeadingAtSecondFastestSpeed",
     role: "hand back the perpendicular component pair an object's heading calls for, at the pace the velocity samples based at 0x2E3E set; choosing that table is all this entry does",
     cert: "seen",
+    why: "the mirror of flyAtSecondFastestSpeed (0x5860), which fixes the same table for flyAlongHeading: 0x2E3E, peak 306, is second-fastest however the ladder is counted -- over the live velocityForHeading shims (206/256/306/331) or over the six ROM rungs 206/231/256/281/306/331 (the 231 and 281 shims at 0x5948 and 0x595F are never entered: no absolute word or relative branch reaches them) -- so the rank does not depend on which tables are counted. Bytes 21 3E 2E C3 6E 59; its transfers are the jp c at 0x1F4F in scrollWorldAtTheEraPace (eras 1 and 2) and the era-3 word of the arm table at 0x46C4. 'SecondFastest' is a rank over tables, not over delivered speed, the same caveat flyAtSecondFastestSpeed records: the doubling shims loc_598e and loc_5994 hand back up to 412 and 462",
   },
   0x01b5: {
     name: "armLineWipeFromFifthLine",
@@ -3674,7 +3691,7 @@ export const ROUTINES = {
     name: "startNextRound",
     role: "start the next round: step the round number, roll the era on and wrap it after the fifth, set the round's difficulty byte from one of three sources by round bracket, refill the kill quota, and clear two flags while setting a third, the round-intro-pending flag",
     cert: "seen",
-    why: "a routine that starts a round must re-arm the quota that ends one, and must advance the era on the schedule the era cell independently follows -- both are checkable against other code and both hold. It reloads KILLS_REMAINING from KILL_QUOTA, which is written once at boot with 56 and is not era-keyed; its era roll wraps at five, which is what ERA_INDEX's own entry records from a separate derivation; and its round brackets at 6 and 11 are the escalation mechanisms.md derives independently as banded by rounds completed rather than by era. Both callers gate it on a round being over. NOT REACHED by three MAME sweeps -- none completed a round -- and a write tap corroborates from the other side: across a run covering boot, attract, the demo and a driven game, not one of this routine's stores fired, every write to those cells coming from the per-player context copy instead",
+    why: "a routine that starts a round must re-arm the quota that ends one, and must advance the era on the schedule the era cell independently follows -- both are checkable against other code and both hold. It reloads KILLS_REMAINING from KILL_QUOTA, which is written once at boot with 56 and is not era-keyed; its era roll wraps at five, which is what ERA_INDEX's own entry records from a separate derivation; and its round brackets at 6 and 11 are the escalation mechanisms.md derives independently as banded by rounds completed rather than by era. Both callers gate it on a round being over. Under MAME it runs once the Mother-Ship's death sequence releases the round, stepping the round number from 1 to 2 and ERA_INDEX from 0 to 1",
   },
   0x3252: {
     name: "guardBlockOrDerailSequence",
@@ -3920,13 +3937,13 @@ export const ROUTINES = {
     name: "loc_598e",
     role: "hand back the doubled component pair an object's OWN heading calls for, at the pace the sample table at 0x59D7 (SLOWEST_VELOCITY_TABLE) sets; the heading comes off the record and any pointer the caller was holding is discarded, so choosing that table is all this entry adds",
     cert: "seen",
-    why: "kept hex, and the family is the reason: several siblings are kept hex -- 0x58AA, 0x58B6, 0x599D, 0x59C5, 0x59CB and 0x59D1 among them -- each a short entry into a velocity body, differing from the next only in the table immediate, the body entered, or where the heading comes from. An English name here would have to say what the pace MEANS, which class of object moves at it, and nothing reachable from a shim decides that; naming one member and leaving those siblings hex would claim a distinction the bodies do not carry",
+    why: "kept hex because a rank name taken from its table would be false as a speed claim: the entry is ld hl,0x59D7 then jp 0x599D, which takes the heading off the record and runs into the 0x59A0 body, and that body doubles both components (sla e/rl d at 0x59AD, sla c/rl b at 0x59C0). The delivered peak is therefore twice the table's, 206 -> 412, above the 331 top rung of the table ladder 206/231/256/281/306/331, so naming it for the bottom-rung table it loads would invert its place among the speeds. The same holds for the doubled siblings kept hex with it: 0x59C5, 0x59CB and 0x59D1 load 0x59D7, 0x5C00 and 0x5E00 and jump straight to 0x59A0; 0x58AA and 0x58B6 load 0x59D7 and 0x5E00 for the 0x58FE flier, which adds the looked-up velocity twice (add hl,de twice at 0x5920-0x5921, add hl,bc twice at 0x5932-0x5933); and 0x599D fixes no table at all, only taking the heading off the record before 0x59A0",
   },
   0x5994: {
     name: "loc_5994",
     role: "hand back the doubled component pair an object's OWN heading calls for, at the pace the sample table at 0x5C00 (VELOCITY_TABLE_5C00) sets; the heading comes off the record and any pointer the caller was holding is discarded, so choosing that table is all this entry adds -- it is loc_598e with the other table immediate",
     cert: "seen",
-    why: "kept hex for the same reason as loc_598e, which it is byte-for-byte apart from the table address: the same siblings are hex, and the only fact an English name could add here is what the pace means, which no shim settles",
+    why: "kept hex for the same reason as loc_598e, which it is byte-for-byte apart from the table immediate (ld hl,0x5C00 then jp 0x599D): the 0x59A0 body doubles both components (sla e/rl d at 0x59AD, sla c/rl b at 0x59C0), so the delivered peak is twice the table's, 231 -> 462, above the 331 top rung, and a rank name taken from the table would be false as a speed claim",
   },
   0x0000: {
     name: "trampolineToProbeExpansionThenSettleControlLatch",
@@ -3990,7 +4007,7 @@ export const ROUTINES = {
   },
   0x2e19: {
     name: "unpackTheFirstThreeSwitchSettings",
-    role: "open the settings block: store, whole, the byte the caller has already worked out from the switch port's low two bits, then peel the next two switch bits into a cell each, one bit per cell and nothing else in it, and hand the byte on rotated so the last bit spent sits lowest -- twice over, in both registers that carry it -- to the continuation that peels the rest. Nothing is read from memory and control never comes back. ★ 'Switch settings' is established at the CALLER and at the three cells' readers, not inside a routine that reads no memory at all: the caller at 0x52C0-0x52CF is `ld a,(0xc200) / cpl / ld c,a / and 0x03 / add a,0x03 / cp 0x06 / jr nz,+2 / ld a,0xff / jp 0x2e19`, so C arrives as the complemented DSW port and A as 3, 4, 5 or the folded 0xFF",
+    role: "open the settings block: store, whole, the byte the caller has already worked out from the switch port's low two bits, then peel the next two switch bits into a cell each, one bit per cell and nothing else in it, and hand the byte on rotated so the last bit spent sits lowest -- twice over, in both registers that carry it -- to the continuation that peels the rest. Nothing is read from memory and control never comes back. The caller at 0x52C0-0x52CF is `ld a,(0xc200) / cpl / ld c,a / and 0x03 / add a,0x03 / cp 0x06 / jr nz,+2 / ld a,0xff / jp 0x2e19`, so C arrives as the complemented DSW port and A as 3, 4, 5 or the folded 0xFF",
     cert: "seen",
     why: "'first three' is a boundary rather than a guess, because the byte is fully accounted for across this entry and its continuation: here the port's low two bits (already folded into a count by the caller) go whole into 0xA9C1, bit 2 into 0xA9C2 and bit 3 into 0xA9C3, and 0x49A8 then takes bits 4-6 into 0xA9C4 -- DIFFICULTY_SETTING, whose own entry calls a cell three bits wide that the boot-time DIP unpack fills -- and bit 7 into 0xA9C6, which enqueueSoundIfGameOrDemoSoundsOn reads as its second sound permission. All three destinations are READ AS SETTINGS elsewhere in the image, which is what makes 'settings' a claim: 0xA9C1 is the cell startOnePlayerGame's role already calls the settings cell carrying the starting count; 0xA9C3 is read at 0x4DE3, where `and 0x01` picks between the bonus-mark tables at 0x4E1B and 0x4E30, exactly as the extra-life entry records; and 0xA9C2 -- the weakest leg -- is read at 0x00FD, where a zero forces 0xA987 and that byte is then written to 0xC302, an LS259 line, which is the cabinet switch. A scan of the whole 24 KB for the little-endian word 0x2E19, at every alignment, finds one occurrence, the operand of the `jp 0x2e19` at 0x52CF; that is an operand scan, so an indexed or computed arrival would be invisible to it and no exclusivity is claimed. ★ 'Switch settings' was chosen over 'DIP' to match the existing 'the settings byte at 0xA9C3', and over 'cabinet settings' because one of these bits IS the cabinet position and that phrase would read as a category and one of its members at once",
   },

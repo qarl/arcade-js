@@ -30,7 +30,7 @@ const WINDOW_RELOAD = 30;
 
 export function postChainedHitScore(m) {
   const { mem8 } = m;
-  /* Is a chain still running? `ld a,(0xa99d) / and a / jr z` at 0x51E2: an empty window means
+  /* Is a chain still running? `ld a,(0xa99d) / and a / jr z` at 0x51DF: an empty window means
    * the previous hit is too long ago, so this one starts the ladder again at its first rung
    * (`ld de,0x0401`, argument 1). CHAIN_STEP is not touched on this path. */
   if (mem8[CHAIN_WINDOW] === 0) {

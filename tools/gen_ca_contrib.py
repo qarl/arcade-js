@@ -180,7 +180,7 @@ GAME_DESC = {
 # before the first gloss that relies on them.
 ARCH_EXTRA_ENTRIES = {
     "timeplt": (" and from the extra entry points the static trace could not follow to "
-                "(restart vectors, table- and ring-dispatched handlers, runs observed executing)"),
+                "(restart vectors, table- and ring-dispatched handlers and the code they reach)"),
 }
 
 GAME_CONVENTIONS = {
@@ -348,6 +348,49 @@ FORCE_DATA = {
          "Ten bytes that read as `ld b,(iy+$31)` / `ld c,(iy+$00)` / `ld h,$08` / `ld l,$6E` and run on "
          "into the placer at $3074. Nothing in the program jumps or calls into them, and the instruction "
          "before them ($3067) is a `jp`, so they never run.",
+         None),
+        # Unreached code stubs, shown as data: no jump, call or relative branch targets an address in them,
+        # and each follows a `jp`, a `jr` or data. ($585A/$595F are also named in the $2530 note.)
+        (0x2a2a, 0x2a3b, "orphan code (never run)",
+         "Eighteen bytes that read as `ld a,(ix+$04)` / `dec a` / `jp z,$2B93` / `ld (ix+$04),a` / "
+         "`ld (ix+$00),$FF` / `call $2BBA` / `ret`. Nothing in the program jumps or calls into them, and "
+         "the instruction before them ($2A28) is a `jr`, so they never run.",
+         None),
+        (0x5846, 0x584b, "velocity stub (never run)",
+         "Six bytes that read as `ld hl,$5C00` / `jp $58BC`, the shape of the table-choosing entries around "
+         "them. Nothing in the program jumps or calls into them, and the instruction before them ($5843) is "
+         "a `jp`, so they never run. Caption record 6 of the caption table at $0C50 follows at $584C.",
+         None),
+        (0x585a, 0x585f, "velocity stub (never run)",
+         "Six bytes that read as `ld hl,$2530` / `jp $58BC`. Nothing in the program jumps or calls into "
+         "them, and the instruction before them ($5857) is a `jp`, so they never run.",
+         None),
+        (0x58b0, 0x58b5, "velocity stub (never run)",
+         "Six bytes that read as `ld hl,$5C00` / `jp $58FE`. Nothing in the program jumps or calls into "
+         "them, and the instruction before them ($58AD) is a `jp`, so they never run.",
+         None),
+        (0x5948, 0x594d, "velocity stub (never run)",
+         "Six bytes that read as `ld hl,$5C00` / `jp $596E`. Nothing in the program jumps or calls into "
+         "them, and the instruction before them ($5945) is a `jp`, so they never run.",
+         None),
+        (0x595f, 0x5964, "velocity stub (never run)",
+         "Six bytes that read as `ld hl,$2530` / `jp $596E`. Nothing in the program jumps or calls into "
+         "them, and the bytes before them are caption record 28 of the caption table at $0C50, so they "
+         "never run.",
+         None),
+        (0x599a, 0x599c, "velocity stub (never run)",
+         "Three bytes that read as `ld hl,$5E00` and run on into the lookup at $599D. Nothing in the "
+         "program jumps or calls into them, and the instruction before them ($5997) is a `jp`, so they "
+         "never run.",
+         None),
+        # The last two velocity tables, same shape (256 words, base..base+$1FF), with $5FFF the last ROM byte.
+        (0x5c00, 0x5dff, "velocity table (231 peak)",
+         "256 velocity words (peak 231) indexed by heading, the same shape as the other velocity tables. "
+         "The entries at $5994 and $59CB load it (`ld hl,$5C00`).",
+         None),
+        (0x5e00, 0x5fff, "velocity table (256 peak)",
+         "256 velocity words (peak 256) indexed by heading; the world scrolls at this pace in era 0. The "
+         "entries at $5854, $58B6, $594E and $59D1 load it (`ld hl,$5E00`).",
          None),
         (0x3176, 0x319d, "era scenery-row table",
          "Five 8-byte rows, one per era. The routine at $30A5 picks the row at $3176 plus eight times the "

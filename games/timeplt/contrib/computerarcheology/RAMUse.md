@@ -60,7 +60,7 @@ whose role is only partly pinned, carry a terse caveat.
 | a987 | screenUnflipped | Whether the picture is the right way up for whoever is playing: 1 upright, 0 turned round. |
 | a988 | blankLinesLeft | Lines of the character plane still to blank in the wipe now running. |
 | a989 | blankLineCursor | Where the next line of that wipe starts — a 16-bit cell address in the character plane. |
-| a98d | highScoreHi | MSB of the single displayed high score (0xA98B/8C/8D): seeded 01 from ROM 0x08C9 at boot (pc 0x52AD), promoted by the lddr at 0x0CD5 when a score beats it |
+| a98d | highScoreHi | MSB of the single displayed high score (0xA98B-0xA98D): seeded 01 from ROM 0x08C9 by the store at 0x52AD at boot, promoted by the lddr at 0x0CD5 when a score beats it |
 | a98e | fireButtonEdgeShift | Fire-button edge-detect shift register. |
 | a990 | initialsLockedLetterColour | colour a committed initial is painted in: the first entry cell's colour-plane byte, captured when the entry opens and written onto each letter's colour cell as it locks, replacing the cursor's flash colour |
 | a991 | scratchPtrA | General 16-bit scratch pointer (first of the pair, 0xA991-A992); dereferenced as a live working cursor, role varies by caller. |
@@ -84,7 +84,7 @@ whose role is only partly pinned, carry a terse caveat.
 | a9b2 | commandWriteCursor | write index into the 64-cell COMMAND_RING, stepped two cells per posted pair (reader: COMMAND_READ_CURSOR) |
 | a9b3 | commandReadCursor | The command ring's CONSUMER cursor: which cell the foreground loop reads next. |
 | a9c0 | freePlay | Set while the cabinet is on free play, so a coin never has to buy a credit. |
-| a9c1 | startingLives | lives per game (3/4/5/0xff), loaded into PLAYER_ONE/TWO_LIVES at start |
+| a9c1 | startingLives | lives per game (3/4/5/0xff), loaded into PLAYER_ONE_LIVES at start, and into PLAYER_TWO_LIVES as well in a two-player game |
 | a9c2 | uprightCabinet | cabinet type from DSW1 'Cabinet' (bit 2), seeded at 0x2E22: 1 = upright, 0 = cocktail; the frame service turns the screen round for player two only when it reads 0 |
 | a9c3 | bonusLifeSetting | selects the bonus-life mark list + the attract bonus captions |
 | a9c4 | difficultySetting | Which of the eight Difficulty DIP positions the cabinet is set to, 0-7. |
@@ -184,18 +184,18 @@ whose role is only partly pinned, carry a terse caveat.
 | acc6 | roundTransitionHold | Nonzero while a round / Mother-Ship transition is underway. |
 | acc7 | tamperGlyphKonami | Anti-tamper caption witness -- the glyph sampled from the "(c) KONAMI 1982" caption cell 0xA63C ('N'); checked by the scenery/era arm as cp 0x3b, derailing into the trap at 0x315b on mismatch. |
 | ad00 | livesRemaining | Lives the ACTIVE player has left, in the live context block. |
-| ad01 | roundNumber | Which round is being played, counting on without wrapping. |
+| ad01 | roundNumber | Which round is being played, counting across loops (one byte, so it wraps after 255). |
 | ad02 | killsRemaining | Enemies still to destroy before the Mother-Ship appears -- the manual's 56. |
-| ad03 | bonusLifeLatch | Active context +3: the once-per-mark bonus-life award latch (bit 0); mirrors the saved PLAYER_ONE/TWO_BONUS_LIFE_LATCH. |
+| ad03 | bonusLifeLatch | Active context +3: the once-per-mark bonus-life award latch (bit 0); mirrors the saved PLAYER_ONE_BONUS_LIFE_LATCH or PLAYER_TWO_BONUS_LIFE_LATCH. |
 | ad04 | eraIndex | Which era (the manual's ROUND) is being played, 0-4. |
 | ad05 | lifeTicksLow | Low place of a three-place base-sixty counter, stepped once per dispatch of the round engine's per-frame service block. |
 | ad06 | lifeTicksMid | Middle place of that counter, stepped once per wrap of LIFE_TICKS_LOW. |
 | ad07 | lifeTicksHigh | High place of that counter, stepped once per wrap of LIFE_TICKS_MID. |
-| ad0a | startRung | Active context +0xA: the difficulty rung the round opens on (copied into ERA_RUNG 0xacc0 at reset); mirrors PLAYER_ONE/TWO_START_RUNG. |
+| ad0a | startRung | Active context +0xA: the difficulty rung the round opens on (copied into ERA_RUNG 0xacc0 at reset); mirrors PLAYER_ONE_START_RUNG or PLAYER_TWO_START_RUNG. |
 | ad0b | penGlyph | The active caption/pen glyph (active context +0x0B, companion of PEN_COLOUR at +0x0C). |
 | ad0c | penColour | The live caption/pen colour attribute (active context +0x0C; the saved per-player copies are at 0xAD1C/0xAD2C). |
 | ad0d | motherShipArmed | Raised from the Mother-Ship's arming until the round or life turns over. |
-| ad0e | roundIntroPending | Active context +0xE: the round-intro-pending flag -- set when a round starts (0xFF from startNextRound; the game's first round loads the saved copy's 1), cleared when the round's first life-start hold expires (flyLifeStartHoldThenEraseLifeStartCaptions zeroes it at every expiry), so it reads zero for the rest of a live round; while it is set the life-start arm posts the stage-number caption instead of READY and the fly-in flashes the era year; mirrors PLAYER_ONE/TWO_ROUND_INTRO_PENDING. |
+| ad0e | roundIntroPending | Active context +0xE: the round-intro-pending flag -- set when a round starts (0xFF from startNextRound; the game's first round loads the saved copy's 1), cleared when the round's first life-start hold expires (flyLifeStartHoldThenEraseLifeStartCaptions zeroes it at every expiry), so it reads zero for the rest of a live round; while it is set the life-start arm posts the stage-number caption instead of READY and the fly-in flashes the era year; mirrors PLAYER_ONE_ROUND_INTRO_PENDING or PLAYER_TWO_ROUND_INTRO_PENDING. |
 | ad10 | playerOneLives | Player one's lives, in their saved sixteen-byte context block at 0xAD10. |
 | ad11 | playerOneRoundNumber | Player one's copy of ROUND_NUMBER (0xAD01), the unwrapped round ordinal. |
 | ad12 | playerOneKillsRemaining | Player one's copy of KILLS_REMAINING (0xAD02): craft still to destroy this round, seeded from KILL_QUOTA (0xA9CD). |

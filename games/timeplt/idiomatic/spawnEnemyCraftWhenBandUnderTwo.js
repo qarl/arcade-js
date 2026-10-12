@@ -29,7 +29,7 @@ import { spawnEnemyIntoFreeSlotElseStepSearch } from "./spawnEnemyIntoFreeSlotEl
 import { CRAFT_ENTRY_SLOT6, CRAFT_RECORD_SLOT0, CRAFT_RECORD_SLOT6, KILLS_REMAINING, CRAFT_SPAWN_SLOT_COUNT } from "./names.js";
 
 // Band geometry (`ld hl,0xa850 / ld de,0x0010 / ld bc,0x0700` at 0x37A6-0x37AC), the busy ceiling
-// (`ld a,c / cp 0x02` at 0x37B8-0x37B9), and the second gate value (`cp 0x30` at 0x37A3).
+// (`ld a,c / cp 0x02` at 0x37B7-0x37B9), and the second gate value (`cp 0x30` at 0x37A3).
 const RECORD_STRIDE = 0x10;
 const BAND_SLOTS = 0x07;
 const BUSY_CEILING = 0x02;

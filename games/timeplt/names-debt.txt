@@ -19,8 +19,8 @@ loc_0bdc  a lone ret filling slots 8, 9 and 12-15 of the 0x0BBC command handler 
 # Recorded keep-hex decisions in names.js (binding per runbook "Recorded keep-hex decisions are binding"):
 loc_10f8  names.js why: no absolute entry point -- reached only by relative branches interior to multiplexSpriteSlots (0x1098-0x1198); a range fragment, not its own routine
 loc_3793  names.js why: no absolute entry point (the only transfer is a relative jr z at 0x37C8 interior to 0x37BD); stages one arm of 0x37BD's decision, a stretch of that routine's job
-loc_598e  names.js why: the doubled-velocity table-shim family is kept hex -- an English name would have to say what the pace means, which no shim decides
-loc_5994  names.js why: byte-for-byte loc_598e apart from the table immediate; same recorded family decision
+loc_598e  names.js keep-hex decision; the reason: ld hl,0x59D7 then jp 0x599D, whose body (into 0x59A0) doubles both components (sla e/rl d, sla c/rl b), so peak 206 comes back as 412; a rank name off the table would be false as a speed claim
+loc_5994  names.js keep-hex decision; the reason: byte-for-byte loc_598e apart from the table immediate (ld hl,0x5C00); the same doubling body turns peak 231 into 462, above the 331 top rung, so a rank name would be false as a speed claim
 loc_58b6  named in loc_598e's recorded keep-hex family decision (a two-instruction table shim of the doubled-velocity family)
 loc_599d  named in loc_598e's recorded keep-hex family decision (forwards the caller's table; the shim adds only where the heading comes from)
 loc_59c5  named in loc_598e's recorded keep-hex family decision (table shim into doubledVelocityForHeading)
@@ -30,9 +30,9 @@ loc_59d1  named in loc_598e's recorded keep-hex family decision (table shim into
 # Velocity-table shims left hex (runbook: promote only on convergence; a wrong name is worse than none).
 # flyAtSlowestSpeed / flyAtSecondFastestSpeed / flyAtFastestSpeed name flyAlongHeading shims by a rank that holds however
 # the ladder is counted (live shims 206/256/306/331, or all six ROM rungs 206/231/256/281/306/331); loc_5854's rank
-# depends on whether the dead rungs 0x5846/0x585A are counted. The pair-returning / doubled shims fall under
-# loc_598e's recorded reasoning.
+# depends on whether the dead rungs 0x5846/0x585A are counted. The pair-returning velocityForHeadingAt* shims
+# mirror that ladder (loc_594e mirrors loc_5854); the doubled shims fall under loc_598e's recorded reasoning.
 loc_5854  flyAlongHeading shim on OPENING_ERA_VELOCITY_TABLE (0x5E00, peak 256): its rank is second-slowest over the live shims but third-slowest over the six ROM rungs (the 231/281 shims at 0x5846/0x585A are never entered), so a rank name is count-dependent; the era-pace word both derivers offered misleads -- its sole caller is serviceEra1EnemyCraftSlot, an era-1 craft flying the ship's era-0 pace
 loc_58aa  flyAlongHeadingAtDoubleVelocity shim on 0x59D7: the exact twin of loc_58b6, which loc_598e's recorded keep-hex names; both derivers kept it hex
-loc_594e  velocityForHeading table shim on 0x5E00, reached only by ROM table/jump (0x46C4 arm table, scrollWorldAtTheEraPace's era arm); same family reasoning; both derivers kept it hex
+loc_594e  velocityForHeading table shim on OPENING_ERA_VELOCITY_TABLE (0x5E00, peak 256), reached only by ROM table/jump (0x46C4 arm table, scrollWorldAtTheEraPace's era arm): the twin of loc_5854, and its rank is count-dependent the same way -- second-slowest over the live shims (206/256/306/331) but third-slowest over all six ROM tables (the 231/281 shims at 0x5948/0x595F are never entered); both derivers kept it hex
 loc_43f0  no absolute entry point (a whole-image word scan finds no 0x43F0; the only transfer is the relative jr nz at 0x43C0 in armMotherShipOrStep, across 0x43E8); a range fragment, same rule as loc_10f8/loc_3793

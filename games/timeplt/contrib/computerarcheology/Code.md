@@ -27,7 +27,7 @@
 ; probeExpansionThenSettleControlLatch ($07B1). What follows is the code
 ; reached from the reset and interrupt entry points and from the extra entry
 ; points the static trace could not follow to (restart vectors, table- and
-; ring-dispatched handlers, runs observed executing), shown as instructions;
+; ring-dispatched handlers and the code they reach), shown as instructions;
 ; spans never reached appear as data (the "---- data ----" blocks).
 ;
 ; Axes: X and Y in the comments are the board's native raster axes, before the
@@ -1553,9 +1553,9 @@ loc_0838:
 083B: 36 F1           LD      (HL),$F1            ; blank the cell past the end glyph
 083D: C9              RET                         
 
-; title/attract copyright-screen layout arm (table-dispatched, no static
-; call site): request the flashing copyright line, stamp the copyright
-; caption strip, post caption commands (command 1, arguments
+; title/attract copyright-screen layout arm (entry 3 of the phase-1 sub-
+; step table at 0x1659): request the flashing copyright line, stamp the
+; copyright caption strip, post caption commands (command 1, arguments
 ; 0,1,3..7,20,21) to the command ring, then XOR-fold the 24-byte program
 ; block at 0x176A and step the sequence sub-step when the fold matches
 ; 0xC9, else transfer to the checksum-failure landing
@@ -1736,7 +1736,7 @@ loc_0b12:
 ; standing
 hideCaptionSprites:
 0B2B: 21 41 AA        LD      HL,$AA41            ; point at the first caption sprite's position
-0B2E: 11 02 00        LD      DE,$0002            ; step two slots at a time
+0B2E: 11 02 00        LD      DE,$0002            ; step two bytes, one sprite entry, at a time
 0B31: 06 04           LD      B,$04               ; four caption sprites to hide
 0B33: AF              XOR     A                   ; the value that hides them: zero
 
@@ -4005,8 +4005,8 @@ holdCopyrightThenEraseTheCoinInvitation:
 ; ---- $1769-$1769: data ----
 1769: 31
 
-; one arm of the copyright/attract sequence machine (table-dispatched
-; tail, no static call site): check the copyright line's colours
+; one arm of the copyright/attract sequence machine (entry 5 of the
+; phase-1 sub-step table at 0x1659): check the copyright line's colours
 ; (deferring to the guard, which derails on its own if any cell is wrong),
 ; then unless caption cell TAMPER_GLYPH_SOURCE_CELL (0xa67c) still holds
 ; glyph 0x7c derail into the Mother-Ship's wreck countdown
@@ -4033,16 +4033,16 @@ paintReadoutsThenSampleWitnessOrDerail:
 1788: 12              LD      (DE),A              ; save the colour beside it
 1789: C3 1A 0F        JP      $0F1A               ; {code.advanceSequenceSubStep} step the sequence sub-index
 
-; phase-1 attract sub-step arm (computed dispatch off the phase-1 table,
-; no static call site): each frame restamp the copyright strip and flash
-; its line, then count one frame off SEQUENCE_DELAY and return while it
-; still runs; on the frame it expires verify the copyright line's colours
-; (guard derails on its own), build a caption-cell pointer from a program
-; byte -- the parachutist routine's first opcode (0x47b3) read as data --
-; and check the glyph there is 0x3b, DERAILING into the anti-tamper trap
-; $15CA (data run as code) on a mismatch, else seat one caption cell's
-; glyph and colour into the tamper-witness pair (TAMPER_GLYPH_COPY 0xab43)
-; and step the sequence sub-step.
+; phase-1 attract sub-step arm (entry 6 of the phase-1 sub-step table at
+; 0x1659): each frame restamp the copyright strip and flash its line, then
+; count one frame off SEQUENCE_DELAY and return while it still runs; on
+; the frame it expires verify the copyright line's colours (guard derails
+; on its own), build a caption-cell pointer from a program byte -- the
+; parachutist routine's first opcode (0x47b3) read as data -- and check
+; the glyph there is 0x3b, DERAILING into the anti-tamper trap $15CA (data
+; run as code) on a mismatch, else seat one caption cell's glyph and
+; colour into the tamper-witness pair (TAMPER_GLYPH_COPY 0xab43) and step
+; the sequence sub-step.
 holdCopyrightThenVerifyGlyphAndSeatWitnessOrDerail:
 178C: CD 06 0B        CALL    $0B06               ; {code.stampCopyrightStrip} re-stamp the copyright caption strip
 178F: CD 39 0B        CALL    $0B39               ; {code.flashCopyrightLine} flash the copyright line
@@ -4238,21 +4238,23 @@ startTwoPlayerGame:
 ; one frame of the high-score initials-entry screen (arm 10 of the phase-3
 ; sub-step table): on even FRAME_TICK frames roll the facing panel's
 ; back/forward/two commit controls into their press histories
-; (INITIALS_BACK/FORWARD/COMMIT/ALT_COMMIT_PRESS_HISTORY); a fresh commit
-; locks the shown letter's glyph (INITIALS_LETTER_GLYPH_TABLE ($12C7)
-; indexed by INITIALS_LETTER_INDEX) into the filed record's initials cell
-; (SCRATCH_PTR_A) and the on-screen cursor cell (SCRATCH_PTR_B), colours
-; it from INITIALS_LOCKED_LETTER_COLOUR, steps both on and counts down
-; INITIALS_SLOTS_LEFT (seeded to 3), finishing on the last slot; a fresh
-; forward/back steps the letter index round 0..26 and redraws the cursor;
-; a saturated forward or back history is emptied through
-; rearmHeldControlRepeat so a held forward or back control repeats; on odd
-; frames flash the cursor colour (INITIALS_CURSOR_FLASH_TIMER bit 4);
-; every eighth frame tick SEQUENCE_DELAY, and when it runs out blank the
-; cursor cell (0xF1) and finish. Finishing re-arms SEQUENCE_DELAY=60,
-; queues the transition sound stops and steps the sequence sub-step.
-; Otherwise, with both players out of lives, a held start button with
-; credit (or free play) hides all sprites and starts the next game
+; (INITIALS_BACK_PRESS_HISTORY, INITIALS_FORWARD_PRESS_HISTORY,
+; INITIALS_COMMIT_PRESS_HISTORY and INITIALS_ALT_COMMIT_PRESS_HISTORY); a
+; fresh commit locks the shown letter's glyph (INITIALS_LETTER_GLYPH_TABLE
+; ($12C7) indexed by INITIALS_LETTER_INDEX) into the filed record's
+; initials cell (SCRATCH_PTR_A) and the on-screen cursor cell
+; (SCRATCH_PTR_B), colours it from INITIALS_LOCKED_LETTER_COLOUR, steps
+; both on and counts down INITIALS_SLOTS_LEFT (seeded to 3), finishing on
+; the last slot; a fresh forward/back steps the letter index round 0..26
+; and redraws the cursor; a saturated forward or back history is emptied
+; through rearmHeldControlRepeat so a held forward or back control
+; repeats; on odd frames flash the cursor colour
+; (INITIALS_CURSOR_FLASH_TIMER bit 4); every eighth frame tick
+; SEQUENCE_DELAY, and when it runs out blank the cursor cell (0xF1) and
+; finish. Finishing re-arms SEQUENCE_DELAY=60, queues the transition sound
+; stops and steps the sequence sub-step. Otherwise, with both players out
+; of lives, a held start button with credit (or free play) hides all
+; sprites and starts the next game
 stepHighScoreInitialsEntry:
 18C3: 3A 80 A9        LD      A,($A980)           ; {hard.workRam+180} read the frame counter
 18C6: E6 01           AND     $01                 ; keep its low bit -- run this scan every other frame
@@ -5478,16 +5480,14 @@ loc_2516:
 2710: FB 00 FF 00 01 01 FB 00 08 01 0A 01 0C 01 0E 01
 2720: 10 01 13 01 14 01 15 01 16 01 17 01 18 01 19 01
 
-; phase-1 attract sub-step arm (computed dispatch off the phase-1 table at
-; inner sub-step 12, no static call site): read the folded program-image
-; signature banked at TAMPER_IMAGE_SIGNATURE and compare it against 0x76
-; -- on a tampered image derail into $2530, a velocity table run as code
-; (unreachable on a genuine image; where control ends from there is not
-; established), else start the attract-mode autopilot demo -- park the
-; caption sprites, seed the demo autopilot heading script, clear
-; TWO_PLAYER_GAME / PLAYER_TWO_LIVES / PLAY_ACTIVE / SEQUENCE_SUBSTEP,
-; stock player one with one life, and wind the outer sequence on to its
-; last phase (3).
+; phase-1 attract sub-step arm (entry 12 of the phase-1 sub-step table at
+; 0x1659): read the folded program-image signature banked at
+; TAMPER_IMAGE_SIGNATURE and compare it against 0x76 -- on a tampered
+; image derail into $2530, a velocity table run as code, else start the
+; attract-mode autopilot demo -- park the caption sprites, seed the demo
+; autopilot heading script, clear TWO_PLAYER_GAME, PLAYER_TWO_LIVES,
+; PLAY_ACTIVE and SEQUENCE_SUBSTEP, stock player one with one life, and
+; wind the outer sequence on to its last phase (3).
 verifyImageSignatureThenStartAttractDemoOrDerail:
 2730: 3A 6F AA        LD      A,($AA6F)           ; {hard.workRam+26F}
 2733: FE 76           CP      $76                 
@@ -5942,7 +5942,11 @@ loc_2a1c:
 2A25: 32 04 AD        LD      ($AD04),A           ; {hard.workRam+504} reseat the era index to four
 2A28: 18 E6           JR      $2A10               ; {code.loc_2a10} go fly the step
 
-; ---- $2A2A-$2A3B: data ----
+; Eighteen bytes that read as `ld a,(ix+$04)` / `dec a` / `jp z,$2B93` /
+; `ld (ix+$04),a` / `ld (ix+$00),$FF` / `call $2BBA` / `ret`. Nothing in
+; the program jumps or calls into them, and the instruction before them
+; ($2A28) is a `jr`, so they never run.
+; ---- $2A2A-$2A3B: orphan code (never run) ----
 2A2A: DD 7E 04 3D CA 93 2B DD 77 04 DD 36 00 FF CD BA
 2A3A: 2B C9
 
@@ -6553,12 +6557,10 @@ driftAtHalfWorldScroll:
 ; switch bits into a cell each, one bit per cell and nothing else in it,
 ; and hand the byte on rotated so the last bit spent sits lowest -- twice
 ; over, in both registers that carry it -- to the continuation that peels
-; the rest. Nothing is read from memory and control never comes back.
-; 'Switch settings' is established at the CALLER and at the three cells'
-; readers, not inside a routine that reads no memory at all: the caller at
-; 0x52C0-0x52CF is `ld a,(0xc200) / cpl / ld c,a / and 0x03 / add a,0x03 /
-; cp 0x06 / jr nz,+2 / ld a,0xff / jp 0x2e19`, so C arrives as the
-; complemented DSW port and A as 3, 4, 5 or the folded 0xFF
+; the rest. Nothing is read from memory and control never comes back. The
+; caller at 0x52C0-0x52CF is `ld a,(0xc200) / cpl / ld c,a / and 0x03 /
+; add a,0x03 / cp 0x06 / jr nz,+2 / ld a,0xff / jp 0x2e19`, so C arrives
+; as the complemented DSW port and A as 3, 4, 5 or the folded 0xFF
 unpackTheFirstThreeSwitchSettings:
 2E19: 32 C1 A9        LD      ($A9C1),A           ; {hard.workRam+1C1} store the starting-lives setting the caller worked out
 2E1C: 79              LD      A,C                 ; take the packed switch byte
@@ -6671,7 +6673,7 @@ placeAbuttingTile:
 
 loc_3074:
 3074: 7E              LD      A,(HL)              ; read a byte at the pointer
-3075: 81              ADD     A,C                 ; add C -- the era, on the one path that reaches here
+3075: 81              ADD     A,C                 ; add C -- the era; only a tampered image runs this, from caption record 2 at 0x307F
 3076: FD 70 33        LD      (IY+$33),B          ; write B into the next sprite entry
 3079: FD 77 02        LD      (IY+$02),A          ; and the sum into its other field
 307C: C3 9B 30        JP      $309B               ; {code.advanceToNextSlot} step both cursors onto the entry just written
@@ -10471,7 +10473,7 @@ seedRandomRegister:
 4B79: DD 7D           LD      A,IXL               ; start the check total with the first word's low byte
 4B7B: DD 84           ADD     A,IXH               ; add the first word's high byte
 4B7D: 85              ADD     A,L                 ; add the second word's low byte
-4B7E: C6 44           ADD     A,$44               ; add the fixed bias -- a sound program image brings the total to zero
+4B7E: C6 44           ADD     A,$44               ; add the fixed bias -- an untampered program image brings the total to zero
 4B80: C2 00 60        JP      NZ,$6000            ; any other total: this is not the image the constant was picked for, so jump outside the image -- never taken on a good board
 4B83: C9              RET                         
 
@@ -12327,8 +12329,16 @@ flyAtSlowestSpeed:
 5840: 21 D7 59        LD      HL,$59D7            ; point at the slowest velocity table
 5843: C3 BC 58        JP      $58BC               ; {code.flyAlongHeading} fly the object one step along its heading using that table
 
-; ---- $5846-$5853: data ----
-5846: 21 00 5C C3 BC 58 60 A7 14 96 10 0D 88 B9
+; Six bytes that read as `ld hl,$5C00` / `jp $58BC`, the shape of the
+; table-choosing entries around them. Nothing in the program jumps or
+; calls into them, and the instruction before them ($5843) is a `jp`, so
+; they never run. Caption record 6 of the caption table at $0C50 follows
+; at $584C.
+; ---- $5846-$584B: velocity stub (never run) ----
+5846: 21 00 5C C3 BC 58
+
+; ---- $584C-$5853: data ----
+584C: 60 A7 14 96 10 0D 88 B9
 
 ; fly one object a single step at the pace the velocity samples based at
 ; 0x5E00 set, choosing that table and deciding nothing else
@@ -12336,7 +12346,10 @@ loc_5854:
 5854: 21 00 5E        LD      HL,$5E00            ; point at a velocity table
 5857: C3 BC 58        JP      $58BC               ; {code.flyAlongHeading} fly the object one step along its heading using that table
 
-; ---- $585A-$585F: data ----
+; Six bytes that read as `ld hl,$2530` / `jp $58BC`. Nothing in the
+; program jumps or calls into them, and the instruction before them
+; ($5857) is a `jp`, so they never run.
+; ---- $585A-$585F: velocity stub (never run) ----
 585A: 21 30 25 C3 BC 58
 
 ; fly one object a single step at the pace of the velocity samples at
@@ -12415,7 +12428,10 @@ loc_58aa:
 58AA: 21 D7 59        LD      HL,$59D7            ; point at the slowest velocity table
 58AD: C3 FE 58        JP      $58FE               ; {code.flyAlongHeadingAtDoubleVelocity} fly the object one step at double velocity using that table
 
-; ---- $58B0-$58B5: data ----
+; Six bytes that read as `ld hl,$5C00` / `jp $58FE`. Nothing in the
+; program jumps or calls into them, and the instruction before them
+; ($58AD) is a `jp`, so they never run.
+; ---- $58B0-$58B5: velocity stub (never run) ----
 58B0: 21 00 5C C3 FE 58
 
 ; fly one object a step at twice the velocity one fixed table of samples
@@ -12532,7 +12548,10 @@ velocityForHeadingAtSlowestSpeed:
 5942: 21 D7 59        LD      HL,$59D7            ; point at the slowest velocity table
 5945: C3 6E 59        JP      $596E               ; {code.velocityForHeading} look up the velocity vector for the heading using that table
 
-; ---- $5948-$594D: data ----
+; Six bytes that read as `ld hl,$5C00` / `jp $596E`. Nothing in the
+; program jumps or calls into them, and the instruction before them
+; ($5945) is a `jp`, so they never run.
+; ---- $5948-$594D: velocity stub (never run) ----
 5948: 21 00 5C C3 6E 59
 
 ; hand back the perpendicular component pair an object's heading calls
@@ -12542,9 +12561,14 @@ loc_594e:
 594E: 21 00 5E        LD      HL,$5E00            ; point at a velocity table
 5951: C3 6E 59        JP      $596E               ; {code.velocityForHeading} look up the velocity vector for the heading using that table
 
-; ---- $5954-$5964: data ----
-5954: 73 A6 14 7E 29 F8 96 5D 02 13 B9 21 30 25 C3 6E
-5964: 59
+; ---- $5954-$595E: data ----
+5954: 73 A6 14 7E 29 F8 96 5D 02 13 B9
+
+; Six bytes that read as `ld hl,$2530` / `jp $596E`. Nothing in the
+; program jumps or calls into them, and the bytes before them are caption
+; record 28 of the caption table at $0C50, so they never run.
+; ---- $595F-$5964: velocity stub (never run) ----
+595F: 21 30 25 C3 6E 59
 
 ; hand back the perpendicular component pair an object's heading calls
 ; for, at the pace the velocity samples based at 0x2E3E set; choosing that
@@ -12609,7 +12633,10 @@ loc_5994:
 5994: 21 00 5C        LD      HL,$5C00            ; point at a velocity table
 5997: C3 9D 59        JP      $599D               ; {code.loc_599d} read that table's doubled velocity for this object's heading
 
-; ---- $599A-$599C: data ----
+; Three bytes that read as `ld hl,$5E00` and run on into the lookup at
+; $599D. Nothing in the program jumps or calls into them, and the
+; instruction before them ($5997) is a `jp`, so they never run.
+; ---- $599A-$599C: velocity stub (never run) ----
 599A: 21 00 5E
 
 ; take the heading out of an object's own record and continue into the
@@ -12744,7 +12771,10 @@ loc_5bf4:
 5BFA: 32 AB A9        LD      ($A9AB),A           ; {hard.workRam+1AB} write the sequence phase back
 5BFD: C3 1A 0F        JP      $0F1A               ; {code.advanceSequenceSubStep} step the sequence sub-index
 
-; ---- $5C00-$5FFF: data ----
+; 256 velocity words (peak 231) indexed by heading, the same shape as the
+; other velocity tables. The entries at $5994 and $59CB load it (`ld
+; hl,$5C00`).
+; ---- $5C00-$5DFF: velocity table (231 peak) ----
 5C00: E7 00 E6 00 E5 00 E4 00 E3 00 E2 00 E1 00 E0 00
 5C10: DE 00 DC 00 DA 00 D8 00 D6 00 D3 00 D1 00 CF 00
 5C20: CC 00 C9 00 C6 00 C4 00 C1 00 BE 00 BC 00 B9 00
@@ -12777,6 +12807,11 @@ loc_5bf4:
 5DD0: B9 00 BC 00 BE 00 C1 00 C4 00 C6 00 C9 00 CC 00
 5DE0: CF 00 D1 00 D3 00 CF 00 D8 00 DA 00 DC 00 DE 00
 5DF0: E0 00 E1 00 E2 00 E3 00 E4 00 E5 00 E6 00 E7 00
+
+; 256 velocity words (peak 256) indexed by heading; the world scrolls at
+; this pace in era 0. The entries at $5854, $58B6, $594E and $59D1 load it
+; (`ld hl,$5E00`).
+; ---- $5E00-$5FFF: velocity table (256 peak) ----
 5E00: 00 01 FF 00 FE 00 FD 00 FC 00 FB 00 FA 00 F8 00
 5E10: F6 00 F4 00 F2 00 F0 00 ED 00 EA 00 E8 00 E5 00
 5E20: E2 00 DF 00 DC 00 D9 00 D6 00 D3 00 D0 00 CD 00

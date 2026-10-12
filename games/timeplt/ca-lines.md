@@ -433,7 +433,7 @@
 0B23	next shape number
 0B25	step the leading edge back by sixteen for the next piece
 0B2B	point at the first caption sprite's position
-0B2E	step two slots at a time
+0B2E	step two bytes, one sprite entry, at a time
 0B31	four caption sprites to hide
 0B33	the value that hides them: zero
 0B34	push this sprite off the visible picture by zeroing its native-Y byte
@@ -2514,7 +2514,7 @@
 3064	copy the X into the next entry unchanged
 3067	step both cursors onto the entry just written
 3074	read a byte at the pointer
-3075	add C -- the era, on the one path that reaches here
+3075	add C -- the era; only a tampered image runs this, from caption record 2 at 0x307F
 3076	write B into the next sprite entry
 3079	and the sum into its other field
 307C	step both cursors onto the entry just written
@@ -4408,7 +4408,7 @@
 4B79	start the check total with the first word's low byte
 4B7B	add the first word's high byte
 4B7D	add the second word's low byte
-4B7E	add the fixed bias -- a sound program image brings the total to zero
+4B7E	add the fixed bias -- an untampered program image brings the total to zero
 4B80	any other total: this is not the image the constant was picked for, so jump outside the image -- never taken on a good board
 4BA5	point at the default high-score block in program space
 4BA8	point at the five-entry high-score table

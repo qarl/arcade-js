@@ -9,13 +9,13 @@
  * Role in the machine: Time Pilot's five eras (the manual's rounds) are played in a loop. When a
  * round is over — its callers both gate on that — this moves the active player's context block
  * (0xAD00 on) on to the next one. Two counters are kept because they mean different things:
- * ROUND_NUMBER counts on without wrapping, which is what lets the game get harder on the second
- * lap, while ERA_INDEX wraps to pick which of the five eras is drawn. The escalation comes from
- * START_RUNG, which the playfield reset later copies into ERA_RUNG.
+ * ROUND_NUMBER keeps counting across loops (one byte, it wraps only after 255), which lets the game
+ * get harder on the second lap, while ERA_INDEX wraps to pick which of the five eras is drawn. The
+ * escalation comes from START_RUNG, which the playfield reset later copies into ERA_RUNG.
  *
- * Not reached by the MAME sweeps (none completed a round); every write seen to these cells in
- * those runs came from the per-player context copy instead. The claims below are code-level, read
- * from the routine and the cells' own entries in names.js.
+ * Under MAME it runs once the Mother-Ship's death sequence releases the round: the round number
+ * steps from 1 to 2 and ERA_INDEX from 0 to 1. The later round brackets and the era wrap are read
+ * from the code.
  *
  * LIVE-OUT: memory only. */
 

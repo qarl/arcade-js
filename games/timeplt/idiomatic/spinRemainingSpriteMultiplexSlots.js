@@ -22,13 +22,16 @@
  * The ROM spins on the raster before each trade (and pads with a net-zero `inc hl/inc hl/dec hl/
  * dec hl` delay); that hold is not reproduced here -- the same bytes land either way.
  * The only CALL to this entry in the image, the CALL NZ at 0x15D9, sits in caption record 5
- * (0x15D6), whose bytes run as code only on the anti-tamper derail into 0x15CA at 0x17A6; the body itself is shared with
- * multiplexSpriteSlots, whose closing pass runs 0x10FD onward every time (mechanisms.md §9).
+ * (0x15D6), whose bytes run as code only on the anti-tamper derail into 0x15CA at 0x17A6; the body
+ * itself is shared with multiplexSpriteSlots, whose closing pass runs 0x10FD onward every time
+ * (mechanisms.md §9).
  *
- * ROM 0x10FD-0x1198 (frozen lift translated/loc_10fd.js). Grounding: [code], anti-tamper entry
- * (names.js ROUTINES 0x10fd, grounding-debt.txt). LIVE-OUT: memory only.
+ * ROM 0x10FD-0x1198 (frozen lift translated/loc_10fd.js). Grounding: [seen] on the shared bytes
+ * (names.js ROUTINES 0x10fd): MAME taps fetch 0x10FD through the ret at 0x1198 on every closing
+ * multiplex pass, with sprite 19's held byte and test, and see the rejoin and the slot 19-23 trades;
+ * the CALL into the entry itself is never observed. LIVE-OUT: memory only.
  * Kept as the ROUTINES override of 0x10FD: no idiomatic module calls
- * it, because its only CALL (0x15D9) runs only on a tampered image (grounding-debt.txt 0x10fd).
+ * it, because its only CALL (0x15D9) runs only on a tampered image.
  */
 
 import { loc_10f8 } from "./loc_10f8.js";

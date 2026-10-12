@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** velocityForHeadingAtFastestSpeed — hand back the perpendicular component pair an object's heading calls for, at the pace one fixed table
- * of velocity samples sets. Choosing it is all this entry does; an incoming pointer is discarded. LIVE-OUT: the pair.
+/** velocityForHeadingAtFastestSpeed — hand back the perpendicular component pair an object's heading
+ * calls for, at the fastest pace in the velocity-table ladder. Choosing that table is all this entry
+ * does; an incoming pointer is discarded. LIVE-OUT: the pair.
  *
  * ROM 0x596B-0x596D (frozen lift translated/loc_596b.js): a single `ld hl,0x08fa`, after which execution
  * FALLS THROUGH into velocityForHeading, whose code starts at the very next address, 0x596E — there is
@@ -12,22 +13,27 @@
  * perpendicular velocity components, and the table's peak value is the speed. This entry exists only
  * to hand it ONE particular table.
  *
- * Role in the machine: the table here is the one at 0x08FA (VELOCITY_TABLE_08FA in names.js), the
- * top rung of the velocity ladder, peaking at 331 (about 1.3 pixels per step in 8.8 fixed point) —
- * the pace mechanisms.md gives the fourth and fifth eras (1982, 2001). The same bytes double as the
- * anti-tamper checksum-failure landing (loc_08fa); on a genuine image they are only read as data.
- * Its siblings loc_594e (0x5E00, peak 256) and velocityForHeadingAtSecondFastestSpeed (0x2E3E, peak 306) are the same shim with
- * the other two rungs the ship uses.
+ * WHY "FASTEST": the mirror of flyAtFastestSpeed (0x58A4), which fixes the same table for
+ * flyAlongHeading. The table at 0x08FA peaks at 331, the top of the six-rung ROM ladder
+ * 206/231/256/281/306/331, so it is fastest however the ladder is counted. It is a rank over tables,
+ * not over delivered speed: loc_5994 reads the 231 table through the doubling body and hands back up
+ * to 462 (names.js "why" for 0x596b).
+ *
+ * Role in the machine: the table here is the one at 0x08FA (VELOCITY_TABLE_08FA in names.js), about
+ * 1.3 pixels per step in 8.8 fixed point — the pace mechanisms.md gives the fourth and fifth eras
+ * (1982, 2001). The same bytes double as the anti-tamper checksum-failure landing (loc_08fa); on a
+ * genuine image they are only read as data. Its siblings velocityForHeadingAtSlowestSpeed (0x59D7,
+ * peak 206), loc_594e (0x5E00, peak 256) and velocityForHeadingAtSecondFastestSpeed (0x2E3E, peak 306)
+ * are the same shim with the other live rungs.
  *
  * Whatever pointer the caller had in HL is overwritten by the table base, which is why no incoming
  * pointer survives.
  *
  * LIVE-OUT: the component pair velocityForHeading leaves (DE, BC), also returned — the pair is the
  * whole product; no memory is written.
- * Kept as the ROUTINES override of 0x596B: no idiomatic module calls
- * it. Its two ROM transfers -- scrollWorldAtTheEraPace
- * (eras 3 and 4) and setMotherShipVelocityFromHeading (era 4, a word of its arm table at 0x46C4) --
- * each hand velocityForHeading the table directly in this port.
+ * Kept as the ROUTINES override of 0x596B: no idiomatic module calls it. Its two ROM transfers --
+ * scrollWorldAtTheEraPace (eras 3 and 4) and setMotherShipVelocityFromHeading (era 4, a word of its
+ * arm table at 0x46C4) -- each hand velocityForHeading the table directly in this port.
  */
 
 import { velocityForHeading } from "./velocityForHeading.js";

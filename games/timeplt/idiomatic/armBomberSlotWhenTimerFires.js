@@ -28,7 +28,7 @@ export function armBomberSlotWhenTimerFires(m, record = m.regs.ix, entry = m.reg
   const { mem8 } = m;
 
   // Pace: FRAME_TICK (0xA980) counts vblanks; testing its low bit runs the countdown only on passes
-  // that find it even (ROM 0x3C25: and 0x01 / ret nz).
+  // that find it even (ROM 0x3C28: and 0x01 / ret nz).
   if (mem8[FRAME_TICK] & 0x01) return;
 
   // The idle bomber's arming delay lives at record +0x0E. Tick it; until it reaches zero the
