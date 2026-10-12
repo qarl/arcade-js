@@ -49,8 +49,7 @@ export function commissionStagedAttackerByEra(m, spawnerRecord = m.regs.ix, spaw
 
   // STEP 1 -- READ THE LAUNCHER'S POSITION (0x42B7-0x42C3). Each axis is split across the record and
   // the sprite entry: the native-Y whole part in the entry's +0x31 byte with its fraction at record
-  // +0x03, the native-X whole part in the entry's +0x00 byte with its fraction at record +0x05. The
-  // locals' vertical/horizontal name the board's native axes; native Y runs across the glass.
+  // +0x03, the native-X whole part in the entry's +0x00 byte with its fraction at record +0x05.
   const nativeYWhole = mem8[spawnerEntry + 0x31];
   const nativeYFraction = mem8[spawnerRecord + 0x03];
   const nativeXWhole = mem8[spawnerEntry + 0x00];

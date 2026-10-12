@@ -9,8 +9,8 @@
  * 0x2a47). Role in the machine: the heading-dressing step for the enemy craft of the SECOND era
  * (era index 1). The era dispatcher picks its arm by era index alone, and under MAME this entry
  * ran only at era 1, while a game held in the first era used refreshSpriteFromHeading (0x2A3C)
- * instead. It dresses the seven ordinary craft records 0xA850-0xA8B0 into sprite entries
- * 0xAA1A-0xAA26 (names.js).
+ * instead. It dresses the ordinary craft records 0xA850-0xA8B0 into sprite entries 0xAA1A-0xAA26
+ * (names.js); the last two, 0xA8A0 and 0xA8B0, only while MOTHER_SHIP_ARMED (0xAD0D) is clear.
  *
  * `object` is the craft's record (IX), whose heading the lookup reads; `sprite` is its sprite
  * entry (IY).

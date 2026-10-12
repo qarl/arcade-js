@@ -11,10 +11,10 @@
  * ROLE IN THE MACHINE. Part of the era-0 three-slot object bank that the round engine runs once per
  * pass of its service list (mechanisms.md, "Era 0"). The bank's slots are ERA_OBJECT_RECORD_SLOT0..2 (0xA8C0, 0xA8D0,
  * 0xA8E0) with sprite entries ERA_OBJECT_ENTRY_SLOT0..2 (0xAA28, 0xAA2A, 0xAA2C). In the ROM this
- * address is not a separate routine but a mid-loop entry point of the sweep whose head is 0x3FF9
+ * address is not a separate routine but a branch target inside the sweep whose head is 0x3FF9
  * (sweepObjectSlotBankByHead): the point reached once a slot's marker has been found to be a
- * countdown; the ROM reaches it with `jr nz,0x4008` (from 0x3FEA's first-slot test, and from the
- * loop head at 0x3FF9). In this port its callers are:
+ * countdown; the ROM reaches it only by the `jr nz,0x4008` at 0x4001 in
+ * that loop head, which 0x3FEA falls into. In this port its callers are:
  *   - serviceEra0BallisticObjectBank (0x3FEA), when the bank's first slot carries a countdown marker;
  *   - advanceSlotThenSweepObjectBankByHead, when it strides onto such a slot part-way through.
  * Because the marker was already tested by whoever arrives here, the slot the cursors point at on

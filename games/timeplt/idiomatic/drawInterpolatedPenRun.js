@@ -2,7 +2,7 @@
 /** drawInterpolatedPenRun — draw one interpolated run of pen cells, then set up the next run. From the pen's
  * current row and column (each a fraction:integer pair) take a signed per-step increment of
  * (target - current) times sixteen with only the high byte kept, then stamp the pen glyph cell by
- * cell, advancing both positions each step, until the stamped cell reaches the run's end cell.
+ * cell, advancing both positions each step, until the stamped cell reaches the one fixed end cell.
  * Then bump the run index, read the next run's row and column out of the word table, reseat the
  * pen there with the fractions cleared, and report whether the new row integer is zero.
  *
@@ -19,7 +19,7 @@
  * Cells (all [seen] unless noted, names.js): PEN_ROW_POS 0xA9E3 / PEN_COLUMN_POS 0xA9E5 are the
  * pen's 8.8 row and column; PEN_ROW_STEP 0xA9E7 / PEN_COLUMN_STEP 0xA9E9 their signed per-step
  * increments; PEN_ROUTE_LEG 0xA9E2 the leg index into PEN_ROUTE_TABLE 0x0290. The targets are the
- * words at PEN_ROW_TARGET 0x32F5 and PEN_COLUMN_TARGET 0x0B45, and the run's end is the video-cell
+ * words at PEN_ROW_TARGET 0x32F5 and PEN_COLUMN_TARGET 0x0B45, and every run ends at the video-cell
  * address held in the word at PEN_RUN_END_CELL 0x14B2.
  * LIVE-OUT: the stamped cells and the pen state; returns true when the pen reseated on row zero,
  * the condition the ROM leaves in Z (`ld a,e / and a`) for its callers' `ret nz`. */

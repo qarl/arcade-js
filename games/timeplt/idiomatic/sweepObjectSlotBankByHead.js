@@ -10,9 +10,9 @@
  * (mechanisms.md: "the loop whose head is sweepObjectSlotBankByHead"). serviceEra0BallisticObjectBank
  * (0x3FEA) seats the cursors — record 0xA8C0 (ERA_OBJECT_RECORD_SLOT0), sprite entry 0xAA28
  * (ERA_OBJECT_ENTRY_SLOT0), count 3 — and its code runs straight on into 0x3FF9; the loop's `djnz`
- * at 0x4014 jumps back here for each further slot. The ROM also enters the same loop mid-way at 0x4008
- * (sweepObjectSlotBankServicingFirstSlot) and at 0x400B (advanceSlotThenSweepObjectBankByHead); in
- * this port those entries are their own routines, and this file is the whole loop entered at its head.
+ * at 0x4014 jumps back here for each further slot. Inside the loop the ROM branches to 0x4008
+ * (sweepObjectSlotBankServicingFirstSlot) and to 0x400B (advanceSlotThenSweepObjectBankByHead); in
+ * this port those two points are their own routines, and this file is the whole loop entered at its head.
  *
  * WHAT A SLOT IS. Each slot is a 0x10-byte object record (the cursor the ROM keeps in IX) paired with
  * a two-byte sprite entry (the cursor in IY): per names.js runOneShotAnimatedObjectSlot, entry bytes
@@ -24,8 +24,9 @@
  *
  * LIVE-OUT: memory (the serviced slots and sprite entries); IX and IY are written back to where the
  * cursors stopped (one stride past the last slot), and that pair is also returned.
- * Kept as the ROUTINES override of 0x3FF9: no idiomatic module calls
- * it, because serviceEra0BallisticObjectBank enters the loop through its mid-loop entries instead.
+ * Kept as the ROUTINES override of 0x3FF9: no idiomatic module calls it, because
+ * serviceEra0BallisticObjectBank calls the routines for its two branch points instead; on a 0xFF
+ * first slot it calls flyAlongBallisticArc before the advance routine, as 0x4003 does.
  */
 
 import { u16 } from "../../../core/int.js";

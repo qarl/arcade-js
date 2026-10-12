@@ -11,13 +11,14 @@
  *   - 0xFE (held): count the hold down and release the craft when it expires (releaseHeldObject);
  *   - any value other than 0xFF: the craft is dying, so step its death sequence (stepDyingObjectState);
  *   - 0xFF (active): fly it -- turn toward its aim heading, fly one step, then either retire the slot
- *     (it has reached the retire line) or give it one gated launch attempt and redraw its sprite from
+ *     (it has reached the retire line) or give it one gated shot attempt and redraw its sprite from
  *     its heading.
  *
  * ROLE IN THE MACHINE. Index 1 of the per-era slot-service table at 0x2914 (ERA_INDEX & 7 == 1): the
  * era-1 member of the family serviceEra0/2/3/4EnemyCraftSlot, which share the same status ladder. The
  * era-1 specifics are the flight step (paced by the velocity table at 0x5E00, where era 0 uses
- * the 0x59D7 table through 0x5840) and the second era's sprite shapes and tint.
+ * the 0x59D7 table through 0x5840), the second era's sprite shapes and tint, and the absence of an
+ * era-weapon launch attempt: the shot attempt is the only thing an era-1 craft fires.
  *
  * PARAMETERS. `record` is the slot's object record, `entry` its sprite entry.
  *

@@ -10,10 +10,11 @@
  *
  * While the delay is still counting it just ticks. When it expires and the score beats no standing
  * record, two commands are queued, the sub-step is reseated from a program byte and the turn passes
- * on (or the sequence steps). When the score was filed, a sound is requested, the pen is set to the
- * blanking glyph and armed at its route start, a fixed 256-byte program run is folded into an
- * eight-bit total -- any total but the genuine one advances the outer phase -- and the sub-step
- * steps on, to sub-step 9, the start of initials entry.
+ * on (or the sequence steps). When the score was filed, a sound is requested, the pen is set to
+ * colour 0 (its glyph stays the blank 0xF1) and armed at its route start (so its next trace erases
+ * the route), a fixed 256-byte program run is folded into an eight-bit total -- any total but the
+ * genuine one advances the outer phase -- and the sub-step steps on, to sub-step 9, the start of
+ * initials entry.
  * LIVE-OUT: memory. */
 
 import { u8, u16 } from "../../../core/int.js";
@@ -33,7 +34,8 @@ import {
 // 9 is PLAYER, 11 is GAME OVER (`ld de,0x0309` / `ld e,0x0b` at 0x3316-0x331C).
 const UNFILED_COMMAND = 3;
 const UNFILED_ARGUMENTS = [0x09, 0x0b];
-// The blank glyph the pen erases with (`ld a,0xf1` at 0x332E; names.js PEN_GLYPH).
+// The blank glyph 0xF1, the only glyph the pen is ever given; the colour 0 set beside it is what
+// erases the route (`ld a,0xf1` at 0x332E; names.js PEN_GLYPH).
 const BLANKING_GLYPH = 0xf1;
 // `ld b,0x00` then djnz: 256 bytes, not zero (0x3336).
 const CHECKED_BYTES = 0x100;

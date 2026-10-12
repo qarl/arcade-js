@@ -166,14 +166,14 @@
 01FB	weigh the total against a genuine image's value
 01FD	on a tampered image, drop into the cold start, which never returns here
 0201	stamp the pen glyph at the run's start cell
-0204	the run's target row, from the program image
+0204	the target row, one fixed ROM word for every run
 0207	the pen's current row
 020C	target row minus current row
 0211	the difference times sixteen
 0214	carry the difference's sign into the top byte
 0217	keep the top byte, sign-extended -- the per-step row increment
 0218	store the row step
-021B	the run's target column
+021B	the target column, one fixed ROM word for every run
 021E	the pen's current column
 0223	target column minus current column
 0228	the difference times sixteen
@@ -189,8 +189,8 @@
 0244	advance the column by one step
 0245	store it back
 0248	stamp the pen glyph at the new cell
-024B	the run's end cell, from the program image
-0250	has the stamped cell reached the run's end?
+024B	the end cell, one fixed ROM word for every run
+0250	has the stamped cell reached the fixed end cell?
 0252	not yet -- step and stamp again
 0258	advance to the next run of the route
 0259	take the new run index
@@ -1739,7 +1739,7 @@
 1ABF	-- into its paired reload cell too
 1AC4	the craft spawn slot count
 1AC9	a script-pick threshold
-1ACE	the era-object bank's slot count
+1ACE	the era-object slot count -- also picks the bomber shot's seat
 1AD3	the era-weapon launch's near-approach half-window
 1AD8	the era-weapon launch's aim half-window
 1ADD	the era-weapon launch cooldown
@@ -2054,7 +2054,7 @@
 2840	store the stage
 2841	set player 1's era index from the stage
 2845	set player 1's round number to stage plus one
-2849	clear a game-state cell
+2849	clear the frame tick
 284C	clear the packed-decimal frame counter
 284F	clear the in-turn script round-robin index
 2852	reseed the random register
@@ -2123,7 +2123,7 @@
 2927	read this slot's status byte
 292B	empty slot -- nothing to do
 292D	a live craft -- fly it
-2930	a held object -- release it
+2930	a held object -- run its release-delay countdown
 2933	otherwise step the dying object
 2936	steer toward the aim heading
 2939	fly at the slowest speed
@@ -2135,7 +2135,7 @@
 294C	read this slot's status byte
 2950	empty slot -- nothing to do
 2952	a live craft -- fly it
-2955	a held object -- release it
+2955	a held object -- run its release-delay countdown
 2958	otherwise step the dying object
 295B	steer toward the aim heading
 295E	fly at this era's speed
@@ -2146,7 +2146,7 @@
 2984	read this slot's status byte
 2988	empty slot -- nothing to do
 298A	a live craft -- fly it
-298D	a held object -- release it
+298D	a held object -- run its release-delay countdown
 2990	otherwise step the dying object
 2993	read the frame phase counter
 2996	keep its low two bits
@@ -2535,7 +2535,7 @@
 30A0	step the entry cursor...
 30A2	...by its two-byte stride onto the next slot
 30A5	point at a fixed program run to checksum
-30A8	the value it must sum to -- a tamper tripwire
+30A8	the value the sum is compared with
 30AA	sixteen bytes to fold
 30AC	fold the run and compare -- the answer is discarded here
 30AF	read the current era
@@ -2763,7 +2763,7 @@
 3329	zero...
 332B	...clear the pen colour
 332E	0xF1...
-3330	...set the pen glyph
+3330	...set the pen glyph (the blank it always holds)
 3333	re-arm the pen route
 3336	256 bytes to fold
 3338	starting at this program run
@@ -3243,7 +3243,7 @@
 3D29	return unless the object is live ($FF)
 3D2A	read the shared era-weapon launch cooldown timer
 3D2E	return while the cooldown is still counting
-3D2F	read the era-object bank's slot count
+3D2F	read the era-object slot count, which also picks this shot's seat
 3D33	return if the count is zero
 3D34	is the count exactly one?
 3D36	a count of one -- require the last enemy-shot record free
@@ -3283,7 +3283,7 @@
 3D89	stash the aimed angle
 3D8A	take the object's Y
 3D8D	take the object's X
-3D90	read the era-object bank's slot count again
+3D90	read the era-object slot count again -- a count of 1 means the last enemy-shot record only
 3D93	count exactly one?
 3D95	then seat into the last enemy-shot record
 3D98	read era-object slot 2's record head
@@ -3560,7 +3560,7 @@
 40DB	yes: this bank is idle before then
 40DC	seat the record cursor at the first bank slot
 40E0	seat the sprite-entry cursor to match
-40E4	read the bank's slot count
+40E4	read the era-object slot count
 40E8	no slots: nothing to do
 40E9	use the count as the sweep's turn count
 40EA	read this slot's marker byte
@@ -3703,7 +3703,7 @@
 4255	still cooling down: tick it down one
 4257	point at the first record in the era-object bank
 425A	point at its paired sprite entry
-425D	how many slots the bank holds
+425D	how many era-object slots this era and rung allow
 4260	any at all?
 4261	none: leave
 4262	set the loop count to the slot total
@@ -4461,12 +4461,12 @@
 4C3E	pen colour
 4C3F	write the colour
 4C40	back to the tile cell
-4C42	move the cursor four native rows further up (0x80) to the six-digit field
+4C42	move the cursor four native rows back (0x80) to the six-digit field
 4C47	restore the source record pointer
 4C48	step the source to the digit field's high byte
 4C4B	paint the six-digit score field, leading zeros suppressed
 4C4E	save the source record pointer
-4C4F	move the cursor three native rows further up (0x60) to the suffix
+4C4F	move the cursor three native rows back (0x60) to the suffix
 4C54	restore the source pointer
 4C55	step the source to the suffix bytes
 4C58	read the first suffix tile
@@ -4654,43 +4654,43 @@
 4E58	yes: take the era-1 collision path
 4E5B	read the frame tick
 4E5E	its low bit -- frame parity
-4E60	odd frame: run the shot sweeps; even frame runs the full pass below
+4E60	odd frame: run the shot sweeps; even frame runs the even-frame pass below
 4E63	sweep the player's shots against their targets
 4E66	four objects
 4E68	point the record cursor at the object run
 4E6B	point the entry cursor at the object run
-4E6F	collision box near bound
-4E71	collision box far bound
+4E6F	box half-reach 5 on both axes
+4E71	box span 11 on both axes
 4E73	destroy the player and the objects it is touching
 4E76	read the mother-ship-armed flag
 4E79	test it
 4E7A	armed: take the mother-ship branch
 4E7C	seven slots
-4E7E	collision box near bound
-4E80	collision box far bound
+4E7E	box half-reach 7 on native X (the sweep fixes native Y at 8)
+4E80	box span 15 on native X (the sweep fixes native Y at 17)
 4E82	destroy the slots and the player on contact
 4E85	three targets
-4E87	collision box near bound
-4E89	collision box far bound
+4E87	box half-reach 6 on both axes
+4E89	box span 13 on both axes
 4E8B	destroy the era objects touching the player, and the player with them
 4E8E	one object
-4E90	collision box near bound
-4E92	collision box far bound
+4E90	box half-reach 8 on both axes
+4E92	box span 17 on both axes
 4E94	mark the objects touching the player and return
 4E97	armed branch: five slots
-4E99	collision box near bound
-4E9B	collision box far bound
+4E99	box half-reach 7 on native X (the sweep fixes native Y at 8)
+4E9B	box span 15 on native X (the sweep fixes native Y at 17)
 4E9D	destroy the slots and the player on contact
 4EA0	the mother-ship mutual-kill box
 4EA3	three targets
 4EA5	point the record cursor at the era-object run
 4EA8	point the entry cursor at the era-object run
-4EAC	collision box near bound
-4EAE	collision box far bound
+4EAC	box half-reach 6 on both axes
+4EAE	box span 13 on both axes
 4EB0	destroy the era objects touching the player, and the player with them
 4EB3	one object
-4EB5	collision box near bound
-4EB7	collision box far bound
+4EB5	box half-reach 8 on both axes
+4EB7	box span 17 on both axes
 4EB9	mark the objects touching the player and return
 4EBC	read the frame tick
 4EBF	its low bit -- frame parity
@@ -4699,46 +4699,46 @@
 4EC7	four objects
 4EC9	point the record cursor at the object run
 4ECC	point the entry cursor at the object run
-4ED0	collision box near bound
-4ED2	collision box far bound
+4ED0	box half-reach 5 on both axes
+4ED2	box span 11 on both axes
 4ED4	destroy the player and the objects it is touching
 4ED7	read the mother-ship-armed flag
 4EDA	test it
 4EDB	armed: take the mother-ship branch
 4EDD	seven slots
-4EDF	collision box near bound
-4EE1	collision box far bound
+4EDF	box half-reach 7 on native X (the sweep fixes native Y at 8)
+4EE1	box span 15 on native X (the sweep fixes native Y at 17)
 4EE3	destroy the slots and the player on contact
 4EE6	destroy the player and the bomber on contact
 4EE9	one object
 4EEB	point the record cursor at era-object slot 2
 4EEE	point the entry cursor at era-object slot 2
-4EF2	collision box near bound
-4EF4	collision box far bound
+4EF2	box half-reach 5 on both axes
+4EF4	box span 11 on both axes
 4EF6	destroy the player and the objects it is touching
 4EF9	one object
-4EFB	collision box near bound
-4EFD	collision box far bound
+4EFB	box half-reach 8 on both axes
+4EFD	box span 17 on both axes
 4EFF	mark the objects touching the player and return
 4F02	armed branch: five slots
-4F04	collision box near bound
-4F06	collision box far bound
+4F04	box half-reach 7 on native X (the sweep fixes native Y at 8)
+4F06	box span 15 on native X (the sweep fixes native Y at 17)
 4F08	destroy the slots and the player on contact
 4F0B	the mother-ship mutual-kill box
 4F0E	destroy the player and the bomber on contact
 4F11	one object
 4F13	point the record cursor at era-object slot 2
 4F16	point the entry cursor at era-object slot 2
-4F1A	collision box near bound
-4F1C	collision box far bound
+4F1A	box half-reach 5 on both axes
+4F1C	box span 11 on both axes
 4F1E	destroy the player and the objects it is touching
 4F21	one object
-4F23	collision box near bound
-4F25	collision box far bound
+4F23	box half-reach 8 on both axes
+4F25	box span 17 on both axes
 4F27	mark the objects touching the player and return
 4F2A	read the frame tick
 4F2D	its low bit -- frame parity
-4F2F	even frame: run the whole collision pass
+4F2F	even frame: run the even-frame collision pass
 4F32	odd frame: run the era-4 shot sweep
 4F35	read the mother-ship-armed flag
 4F38	test it
@@ -4752,8 +4752,8 @@
 4F4C	six shots
 4F4E	stage the record cursor the sweep reloads between passes
 4F52	stage the entry cursor the sweep reloads between passes
-4F56	collision box near bound
-4F58	collision box far bound
+4F56	box half-reach 7 on both axes
+4F58	box span 15 on both axes
 4F5A	run the sweep of shots against the seven targets
 4F5D	point the record cursor at the era-object run
 4F60	point the entry cursor at the era-object run
@@ -4764,8 +4764,8 @@
 4F6D	six shots
 4F6F	stage the record cursor the sweep reloads between passes
 4F73	stage the entry cursor the sweep reloads between passes
-4F77	collision box near bound
-4F79	collision box far bound
+4F77	box half-reach 7 on both axes
+4F79	box span 15 on both axes
 4F7B	run the sweep of six shots against the three targets
 4F7E	the target's hit window -- X slack
 4F80	X window width
@@ -4865,7 +4865,7 @@
 507B	then run the mother-ship-and-shot mutual-hit sweep
 507E	point at the player's sprite entry
 5082	read the player's state
-5086	player gone -- nothing to do
+5086	player not live ($FF) -- nothing to do
 5087	read the slot-0 object's state
 508B	target gone -- nothing to do
 508C	the slot-0 object's X coordinate
@@ -4890,7 +4890,7 @@
 50B9	era 4: use the wider-box check too
 50BB	point at the player's sprite entry
 50BF	read the player's state
-50C3	player gone -- nothing to do
+50C3	player not live ($FF) -- nothing to do
 50C4	read the mother ship's state
 50C8	mother ship gone -- nothing to do
 50C9	the mother ship's X coordinate
@@ -4910,7 +4910,7 @@
 50EB	post the chained hit score
 50EE	point at the player's sprite entry
 50F2	read the player's state
-50F6	player gone -- nothing to do
+50F6	player not live ($FF) -- nothing to do
 50F7	read the mother ship's state
 50FB	mother ship gone -- nothing to do
 50FC	the mother ship's X coordinate
@@ -4929,7 +4929,7 @@
 511B	clear the mother ship's hits-to-absorb count, four bytes into its record
 511E	post the chained hit score
 5121	read the player's state
-5125	player gone -- nothing to do
+5125	player not live ($FF) -- nothing to do
 5126	read this target's state
 5128	not live ($FF) -- skip
 512A	the player's X coordinate
@@ -4950,9 +4950,9 @@
 514B	step to the next sprite entry (two bytes on)
 514F	loop the run
 5152	read the player's state
-5156	player already hit -- nothing to do
+5156	player not live ($FF) -- nothing to do
 5157	read this slot's state
-5159	slot already hit -- skip
+5159	not live ($FF) -- skip
 515B	the player's X coordinate
 515E	minus this slot's X
 5161	add the caller's X bias
@@ -4971,7 +4971,7 @@
 517E	step to the next sprite entry (two bytes on)
 5182	loop the run
 5185	read the player's state
-5189	player gone -- nothing to do
+5189	player not live ($FF) -- nothing to do
 518A	read this object's state
 518C	not live ($FF) -- skip
 518E	the player's X coordinate
@@ -4991,7 +4991,7 @@
 51AC	step to the next sprite entry (two bytes on)
 51B0	loop the run
 51B3	read the player's state
-51B7	player gone -- nothing to do
+51B7	player not live ($FF) -- nothing to do
 51B8	read this object's state
 51BA	not live ($FF) -- skip
 51BC	the player's X coordinate

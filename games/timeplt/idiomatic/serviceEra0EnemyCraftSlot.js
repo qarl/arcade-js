@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** serviceEra0EnemyCraftSlot — the era-0 per-object update, branched on the object's status byte: an empty slot is
- * left alone, a held object is released, a dying one is stepped, and an active craft is steered,
- * flown and refreshed, then given a shot attempt and an era-weapon launch attempt, or retired on
- * the pass it reaches the line. LIVE-OUT: memory. */
+ * left alone, a held object counts its release delay down, a dying one is stepped, and an active
+ * craft is steered, flown and refreshed, then given a shot attempt and an era-weapon launch
+ * attempt, or retired on the pass it reaches the line. LIVE-OUT: memory. */
 
 /*
  * ROM 0x2927-0x294B, grounding [seen] (names.js ROUTINES 0x2927).

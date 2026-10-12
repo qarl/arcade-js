@@ -60,7 +60,7 @@ export function fireBomberShotWhenClearOfPlayer(m, record = m.regs.ix, entry = m
   const { mem8 } = m;
 
   // Step 1 -- the gates, each an early return in the ROM: the caller's head byte, the shared
-  // cooldown still running, the era-object bank's slot count at zero, and (when bank A would be the seat)
+  // cooldown still running, the era-object slot count at zero, and (when bank A would be the seat)
   // bank A already occupied.
   if (mem8[record] !== SLOT_LIVE) return;
   if (mem8[ATTACKER_SPAWN_COOLDOWN] !== 0) return;

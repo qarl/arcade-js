@@ -86,7 +86,7 @@ export function fireCraftShotWhenAimedNearPlayer(m, craftRecord = m.regs.ix, iyE
   mem16[SCRATCH_PTR_A] = record;
   mem16[SCRATCH_PTR_B] = entry;
 
-  // margin window against the player entry: vertical, and horizontal only if the vertical is close
+  // margin window against the player entry: native Y, and native X only if native Y is close
   // GATE 4 -- NOT ON TOP OF THE PLAYER (0x3F09-0x3F1C). The player's ship is pinned at a fixed screen
   // position, 0x78 on the +0x31 axis and 0x84 on the +0x00 axis. If the craft is within
   // BANK_LAUNCH_NEAR_HALF_WIDTH (0xA827) of it on the first axis AND on the second, give up.

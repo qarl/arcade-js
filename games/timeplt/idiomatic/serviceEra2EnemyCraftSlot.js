@@ -2,7 +2,8 @@
 /** serviceEra2EnemyCraftSlot — run one object slot, dispatched on its state byte (ix+0): the empty value does
  * nothing; the active value flies it — steered toward its aim unless FRAME_TICK's low two bits read 3, moved at the
  * slow speed, retired once it reaches a retire line, else its sprite is dressed and two launch
- * attempts run; the held value releases it; any other value steps its dying state. LIVE-OUT: memory. */
+ * attempts run; the held value counts its release delay down; any other value steps its dying
+ * state. LIVE-OUT: memory. */
 
 /*
  * ROM 0x2984-0x29AF, grounding [seen] (names.js ROUTINES 0x2984).

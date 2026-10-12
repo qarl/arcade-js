@@ -37,7 +37,7 @@
  *
  * HOLE: this is boot self-test drawing; both tapes reach it before either input matters, so the two
  * sessions coincide and the second buys robustness, not extra states.
- * HOLE: what shape the runs draw, and what the run table's endpoints mean, is not established here.
+ * HOLE: what shape the runs draw, and what the run table's start points mean, is not established here.
  *
  * Run: node --test games/timeplt/idiomatic/test/equivalence-0201.test.js
  */
@@ -189,7 +189,7 @@ function drawRun(m) {
   } while (regs.hl !== mem16[END_CELL]);
 }
 
-/** Advance the run index and read the next run's endpoint word into DE. */
+/** Advance the run index and read the next run's start-point word into DE. */
 function loadNextRun(m) {
   const { regs, mem8 } = m;
   mem8[RUN_INDEX] = mem8[RUN_INDEX] + 1;
@@ -226,7 +226,7 @@ function brokenStepUnsigned(m) {
   return oracleZ(m);
 }
 
-/** BUG: stores the loaded endpoint into the wrong axis integers. */
+/** BUG: stores the loaded start point into the wrong axis integers. */
 function brokenSwapRowCol(m) {
   const { regs, mem8 } = m;
   drawRun(m);

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** serviceEra3EnemyCraftSlot — the era-3 step for one object slot, dispatched on the slot's lifecycle byte at ix+0:
  * an idle slot does nothing; a live slot (0xff) is steered and flown a step, then either retired at
- * the line or given a shot attempt, dressed and given a spawn attempt; 0xfe releases a held slot; a lower value is a death
- * countdown step. LIVE-OUT: memory. */
+ * the line or given a shot attempt, dressed and given a spawn attempt; 0xfe runs a held slot's
+ * release-delay countdown; a lower value is a death countdown step. LIVE-OUT: memory. */
 
 /*
  * ROM 0x29B0-0x29D4, grounding [seen] (names.js ROUTINES 0x29b0).

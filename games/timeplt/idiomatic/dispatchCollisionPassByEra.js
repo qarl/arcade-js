@@ -12,7 +12,7 @@
  * ROLE IN THE MACHINE. Reached from the round engine's sub-step 7 dispatcher (ROM 0x1199) once per
  * round-engine pass of play. Era 4 (the last, 2001 era) and era 1 (1940) each have their own dispatch tail;
  * every other era splits on the low bit of FRAME_TICK
- * (0xA980): odd frames run the shot sweep, even frames the whole collision-and-destruction pass.
+ * (0xA980): odd frames run the shot sweep, even frames the rest of the collision work (0x4E63).
  *
  * LIVE-OUT: memory.
  */

@@ -37,7 +37,7 @@ whose role is only partly pinned, carry a terse caveat.
 | a8b0 | craftRecordSlot6 | Slot 6's record head (the last ordinary craft slot), with two extra duties. |
 | a8b4 | motherShipAimSideToggle | The Mother-Ship's aimed-shot aim-side toggle: incremented each launch, bit 0 picks the +0x18 / -0x18 side of the aim. |
 | a8c0 | eraObjectRecordSlot0 | Era-object bank slot 0's record head -- base of the three-slot per-era special-object bank (array 12-14). |
-| a8c6 | attackerSpawnSlotCount | Per-era-and-rung count of era-object-bank slots the launchers may fill, 0 to 3: byte +6 of the era/rung settings row ERA_RUNG_SETTINGS_POINTER_TABLE (0x1B04) selects, rising with the rung. |
+| a8c6 | attackerSpawnSlotCount | Per-era-and-rung era-object slot count, 0 to 3, which also picks the era-1 bomber shot's seat: byte +6 of the era/rung settings row ERA_RUNG_SETTINGS_POINTER_TABLE (0x1B04) selects, rising with the rung. |
 | a8d0 | eraObjectRecordSlot1 | Era-object bank slot 1's record head (second of the grouped three). |
 | a8d4 | attackerSpawnAimSideToggle | Aim-side toggle for the era bomber's shot (fireBomberShotWhenClearOfPlayer): incremented each shot fired, bit 0 picks a +0x18 or -0x18 offset off the aim heading. |
 | a8d6 | attackerSpawnWindowHalf | Half-width of the proximity window deciding WHETHER a craft launches an era weapon or the era-1 bomber fires its shot (doubled into a window). |
@@ -234,6 +234,6 @@ whose role is only partly pinned, carry a terse caveat.
 | adfb | tamperGlyphReadback | Tile-image tamper tripwire: the glyph read back from video cell 0xA5DC; the demo start derails into a data-run trap unless it reads 0xFD. |
 | adfc | tamperColourReadback | Tile-image tamper tripwire: the colour read back from cell 0xA1DC; the demo proceeds only if it is 0x10 or 0x05. |
 | ae00 | deferredWriteCursor | Write pointer of the deferred character-write list, which runs from 0xAE04. |
-| ae04 | deferredWriteList | Head of the deferred-PAINT list -- 4-byte records {addr lo, addr hi, tile, colour} that DEFERRED_WRITE_CURSOR 0xae00 fills and paintDeferredCells drains into both planes; a cursor still == this head means the list is empty. |
+| ae04 | deferredWriteList | Head of the deferred-PAINT list -- 4-byte records {addr lo, addr hi, tile, colour} that DEFERRED_WRITE_CURSOR 0xae00 fills and paintDeferredCells drains into both planes, adding the low nibble of PEN_COLOUR to each colour and passing over any entry whose colour cell already has bit 4 set; a cursor still == this head means the list is empty. |
 | ae80 | deferredBlankCursor | Write pointer of the SECOND deferred cell list, the one holding what to blank. |
 | ae84 | deferredBlankList | Head of the deferred-BLANK list (same 4-byte record layout). |

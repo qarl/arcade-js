@@ -22,7 +22,8 @@
  * against the Mother-Ship's position on both axes; a shot inside the box sets BOTH the Mother-Ship's state and
  * the shot's state to 0xF0 ("just hit") and posts a score (postChainedHitScore, ROM 0x51DE). The loop does
  * not re-test the Mother-Ship's state after a hit, so several shots landing in one pass each score.
- * The box on the first axis depends on the era (ERA_INDEX [seen]): wider in eras 0 and 4.
+ * The box on native X depends on the era (ERA_INDEX [seen]): 17 wide in eras 0 and 4, 13 in the
+ * others. On native Y it is 31 wide in every era.
  *
  * LIVE-OUT: memory-only.
  */
@@ -38,16 +39,17 @@ const TARGETS = 5;
 const TARGET_REACH = 7;
 const TARGET_SPAN = 15;
 
-/** Sweep 2's record layout: state byte at +0, and a shot's two whole coordinates at +6 and +4 (shots have
- *  no sprite entries). 0xFF is live and 0xF0 just hit, the same alphabet as every object slot. */
+/** Sweep 2's record layout: state byte at +0, and a shot's two whole coordinates at +6 (native X) and +4
+ *  (native Y; shots have no sprite entries). 0xFF is live and 0xF0 just hit, the same alphabet as every
+ *  object slot. */
 const STATE = 0;
 const SHOT_FIRST_AXIS = 6;
 const SHOT_SECOND_AXIS = 4;
 const LIVE = 255;
 const JUST_HIT = 240;
 
-/** Sweep 2's hit box. First axis: eras 0 and 4 get L = 8 / H = 0x11 (ROM 0x502B arm), the others
- *  L = 6 / H = 0x0D. Second axis: always E = 0x17 / D = 0x1F. */
+/** Sweep 2's hit box. First axis (native X): eras 0 and 4 get L = 8 / H = 0x11 (ROM 0x502B arm), the others
+ *  L = 6 / H = 0x0D. Second axis (native Y): always E = 0x17 / D = 0x1F. */
 const WIDE_ERAS = [0, 4];
 const WIDE_REACH = 8;
 const WIDE_SPAN = 17;

@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** dispatchEra4CollisionByFrameParity — the era-4 collision dispatch for one round-engine pass, split by frame parity. On even frames run the
- * whole collision-and-destruction pass: the player-contact sweeps plus one shot sweep against the era-object slots. On odd frames stage one shot-versus-
- * target sweep over a run of object slots and hand it the shared destruction body: while the mother
+/** dispatchEra4CollisionByFrameParity — the era-4 collision dispatch for one round-engine pass, split by
+ * frame parity. On even frames run the even-frame collision-and-destruction pass (0x4E63): the
+ * player-contact sweeps plus one shot sweep against the era-object slots. On odd frames stage one
+ * shot-versus-target sweep over a run of object slots and hand it the shared destruction body:
+ * while the mother
  * ship is armed the run is nine long and a following shot-versus-Mother-Ship hit pass runs after it;
  * while it is clear the run is eleven long and no mother-ship pass follows. The two cursor cells the
  * shared body reloads between passes are staged in memory first so every pass restarts on this run.
@@ -12,7 +14,7 @@
  *
  * Role in the machine: reached only as the era-4 tail of dispatchCollisionPassByEra — in the last
  * era (ERA_INDEX 4) collision work is split across two frames instead of being done all at once.
- * FRAME_TICK (0xA980) advances once per frame, so its bit 0 alternates: even frames run the full
+ * FRAME_TICK (0xA980) advances once per frame, so its bit 0 alternates: even frames run the 0x4E63
  * pass, odd frames run the shot-versus-target sweep below. */
 
 import { runAllCollisionSweepsThisFrame } from "./runAllCollisionSweepsThisFrame.js";
@@ -31,7 +33,7 @@ const OPEN_TARGETS = 0x0b;
 
 export function dispatchEra4CollisionByFrameParity(m) {
   const { mem8, mem16 } = m;
-  /* Even frame (0x4F2A-0x4F31): the whole collision-and-destruction pass (0x4E63, a tail jump). */
+  /* Even frame (0x4F2A-0x4F31): the even-frame collision pass (0x4E63, a tail jump). */
   if ((mem8[FRAME_TICK] & 0x01) === 0) return runAllCollisionSweepsThisFrame(m);
 
   /* Odd frame (0x5032): the run length depends on MOTHER_SHIP_ARMED (0xAD0D), which stays raised for

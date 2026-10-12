@@ -22,7 +22,7 @@
  * contract drops.
  *
  * GATE: strict unit-capture, the attract corpus replayed at every dispatch, an exhaustive sweep of
- *   the routine's entire input space at five record bases, a whole-session hostile-register
+ *   the routine's entire input space at five sprite-entry bases, a whole-session hostile-register
  *   instrument, and a whole-machine replay. What it exercises, holes stated:
  *
  *   1. BLIND — a no-op passes the RAM diff, so RAM cannot be this gate.
@@ -33,13 +33,14 @@
  *      rewrite does not.
  *   3. NO DRIVEN TAPE REACHES IT — the two zeroes above, asserted.
  *   4. DEGENERATE ENTRY AND DEGENERATE CORPUS — the captured entry answers false, and so does
- *      every other dispatch; one record base and one era occur. Doubling the entry budget captures
- *      the SAME entry, so no frame budget escapes it, only crafting does.
+ *      every other dispatch; one sprite-entry base and one era occur. Doubling the entry budget
+ *      captures the SAME entry, so no frame budget escapes it, only crafting does.
  *   5. CORPUS — every dispatch of the attract session, compared on the returned boolean.
  *   6. EXHAUSTIVE — the routine reads exactly one cell, so 256 values IS its whole input space and
  *      every value is swept. The set answering true is asserted to be exactly four values.
- *   7. CRAFTED BASES — the same sweep at four further record bases, because real play presents one.
- *   8. HONEST SIGNATURE — passing the record base explicitly agrees with taking it from the
+ *   7. CRAFTED BASES — the same sweep at four further sprite-entry bases, because real play presents
+ *      one.
+ *   8. HONEST SIGNATURE — passing the sprite-entry base explicitly agrees with taking it from the
  *      register the frozen routine reads it from.
  *   9. LIVE-OUT IS CARRY ONLY — measured, not argued: a whole attract session with the accumulator
  *      and every non-carry flag forced hostile after each dispatch is bit-identical to the clean
@@ -59,7 +60,7 @@
  *  12. TEETH — twins, each declaring the EXACT number of input values it is caught on by the
  *      returned contract, plus its whole-machine verdict.
  *
- * HOLE: EVERY dispatch this gate has ever seen sits in ONE era of the attract demo, at ONE record
+ * HOLE: EVERY dispatch this gate has ever seen sits in ONE era of the attract demo, at ONE sprite-entry
  * base. The routine's body reads a single cell and no era cell, so its ANSWER cannot depend on the
  * era — but the states it is dispatched IN are era-limited, and nothing here speaks for the later
  * eras or for a dispatch during real play, because none was ever observed.
@@ -91,7 +92,7 @@ const VALUES = 256;
 const WINDOW = 4;
 const STARTS_BELOW_WRAP = 2;
 
-/** The other coordinate of the same record, and the byte next door, for two of the twins. */
+/** The native-Y byte (+0x31) of the same sprite entry, and the byte next door, for two of the twins. */
 const OTHER_COORDINATE = 49;
 const NEIGHBOUR = 1;
 
@@ -212,7 +213,7 @@ function craft(value, base = entryState().regs.iy) {
   return m;
 }
 
-/** Bases beyond the single one real play presents; the record stride is two. */
+/** Bases beyond the single one real play presents; the sprite-entry stride is two. */
 const CRAFT_BASES = [0xaa00, 0xaa26, 0xaa2a, 0xaa50];
 
 /** Split the whole input space into the values a candidate is caught on and the ones it survives. */
@@ -319,9 +320,9 @@ const brokenNarrower = (m) => u8(at(m) + STARTS_BELOW_WRAP) < WINDOW - 1;
 const brokenShifted = (m) => u8(at(m) + STARTS_BELOW_WRAP - 1) < WINDOW;
 /** BUG: an unwrapped range test, so only the half at or past the wrap counts. */
 const brokenUnwrapped = (m) => at(m) < WINDOW;
-/** BUG: reads the byte next door in the record. */
+/** BUG: reads the byte next door in the sprite entry. */
 const brokenNeighbour = (m) => u8(at(m, NEIGHBOUR) + STARTS_BELOW_WRAP) < WINDOW;
-/** BUG: measures the record's other coordinate instead of this one. */
+/** BUG: measures the entry's native-Y byte instead of its native-X one. */
 const brokenOtherCoordinate = (m) => u8(at(m, OTHER_COORDINATE) + STARTS_BELOW_WRAP) < WINDOW;
 /** BUG: right answer left in the carry flag, nothing returned to the caller that takes the value. */
 const brokenNoReturn = (m) => {
@@ -402,7 +403,7 @@ test("DEGENERATE CORPUS: every real answer is false, at one base, in one era", {
   assert.equal(s.trues, 0, "a real dispatch answered true, so the corpus is no longer degenerate " +
     "and the blindness this file records must be re-derived");
   assert.deepEqual([...s.carryIn], [false], "a caller now arrives with carry already set");
-  assert.equal(s.bases.size, 1, "real play now presents more than one record base");
+  assert.equal(s.bases.size, 1, "real play now presents more than one sprite-entry base");
   assert.equal(s.eras.size, 1, "the corpus now spans more than one era");
   const values = [...s.values].sort((a, b) => a - b);
   assert.ok(!values.some((v) => TRUE_VALUES.includes(v)), "a value inside the window now occurs");
@@ -421,7 +422,7 @@ test("DEGENERATE ENTRY: doubling the budget captures the SAME entry", { skip }, 
     return hasReachedNativeXEdgeWindow(m);
   }, { maxFrames: 2 * ENTRY_BUDGET });
   assert.notEqual(later, null, "vacuous: the doubled budget never reached the routine");
-  assert.equal(later.regs.iy, first.regs.iy, "a longer run must not change which record it came from");
+  assert.equal(later.regs.iy, first.regs.iy, "a longer run must not change which entry it came from");
   assert.equal(later.mem8[later.regs.iy], first.mem8[first.regs.iy], "nor the value it read");
   console.log(
     `  DEGENERATE ENTRY: value ${first.mem8[first.regs.iy]} at ${hex4(first.regs.iy)} on both ` +
@@ -449,7 +450,7 @@ test("EXHAUSTIVE: all 256 values of the one cell it reads answer as the oracle d
   console.log(`  EXHAUSTIVE: ${VALUES} values identical; ${trues.join(",")} answer true`);
 });
 
-test("CRAFTED BASES: the same sweep at four further record bases", { skip }, () => {
+test("CRAFTED BASES: the same sweep at four further sprite-entry bases", { skip }, () => {
   for (const base of CRAFT_BASES) {
     const r = sweep(hasReachedNativeXEdgeWindow, base);
     assert.deepEqual(r.contract, [], `base ${hex4(base)} diverged on ${r.contract.join(",")}`);

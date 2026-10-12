@@ -5,13 +5,13 @@
  *
  * ROM 0x08B4. Grounding: [seen] (names.js ROUTINES 0x08b4).
  *
- * WHAT IT IS. After a game ends with a score good enough for the table, the game's "pen" (which
- * stamps one glyph per character cell, run by run, along a route of target cells) is in use on
- * screen. The previous arm (arm 8,
- * fileScoreAfterGameOverHoldElsePassTurn) switched the pen to the blanking glyph 0xF1 and restarted
- * the route, so re-running the route now ERASES it. Once the erase finishes, this arm lays out the
- * initials-entry screen and seats the press histories, letter index, slot count and locked-letter colour the next arm (stepHighScoreInitialsEntry, arm 10) reads
- * as the player dials in three initials.
+ * WHAT IT IS. After a game ends with a score good enough for the table, the game's "pen" (which stamps one
+ * glyph per character cell, run by run, from each start point of a fixed route toward one fixed target
+ * cell) is in use on screen. The previous arm (arm 8, fileScoreAfterGameOverHoldElsePassTurn) set the pen
+ * to colour 0 (its glyph is the blank 0xF1, as it always is) and restarted the route, so re-running the
+ * route repaints the route's blank tiles in colour 0, erasing it. Once the erase finishes, this arm lays
+ * out the initials-entry screen and seats the press histories, letter index, slot count and locked-letter
+ * colour the next arm (stepHighScoreInitialsEntry, arm 10) reads as the player dials in three initials.
  *
  * ROLE IN THE MACHINE. Entry 9 of the phase-3 sub-step table at 0x0F29; the sequence machine calls it
  * once per frame until it steps the sub-index on. Each call:
@@ -61,7 +61,7 @@ const GLYPH_PLANE_BIT = 0x400;
 export function erasePenRouteThenOpenInitialsEntry(m) {
   const { mem8, mem16 } = m;
 
-  // Step 1: one leg of the (blanking) pen route. Until the route reseats to row 0 the erase is
+  // Step 1: one leg of the (colour-0) pen route. Until the route reseats to row 0 the erase is
   // still under way, so come back next frame.
   // The pen run leaves the return to the dispatch, so the early exit owes none of its own.
   drawInterpolatedPenRun(m);

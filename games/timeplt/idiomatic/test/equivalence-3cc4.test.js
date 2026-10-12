@@ -76,7 +76,7 @@ const HEADING_IN_RECORD = 2;
 const FIRST_COORDINATE = 0x00;
 const SECOND_COORDINATE = 0x31;
 
-/** The band this file decides itself, the band it hands to, and the other coordinate's. */
+/** The band this file decides itself, the band it hands to, and the native-X (+0x00) window. */
 const LOCAL_BAND = 3;
 const LOCAL_STARTS_BELOW_WRAP = 19;
 const FAR_BAND = 3;
@@ -347,7 +347,7 @@ function brokenBandTooWide(m) {
   return (arrived || inWindow(f, FIRST_STARTS_BELOW_WRAP, FIRST_BAND));
 }
 
-/** BUG: this file's arm never hands the question on to the other coordinate. */
+/** BUG: this file's arm never hands the question on to the native-X window. */
 function brokenDropsTheOtherCoordinate(m) {
   const [h, f, s] = reading(m);
   if (takesTheFarArm(h)) return (farArm(f, s));

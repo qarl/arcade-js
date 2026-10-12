@@ -15,9 +15,10 @@
  * arc -- a constant sideways step plus a velocity on the other axis that grows every frame -- which
  * fits gameplay.md's note that the 1910 bombs fall on a parabola.
  *
- * MECHANISM. The bank is walked by one loop with several entry points (0x4008, 0x400B among them):
- * this entry only seats the cursors and decides, from the FIRST slot's marker byte, which of those
- * entry points to join. The later slots are routed by the loop itself.
+ * MECHANISM. The bank is walked by one loop whose head (0x3FF9) branches on each slot's marker byte:
+ * 0x00 to 0x400B, 0xFF to 0x4003, any other value to 0x4008. In the ROM this entry only seats the
+ * cursors and runs straight on into that head; in this port it reads the FIRST slot's marker itself
+ * and joins the matching part of the loop. The later slots are routed by the loop itself.
  *
  * LIVE-OUT: memory; in era zero, the object the joined sweep returns (where the cursors stopped).
  */
@@ -44,7 +45,8 @@ export function serviceEra0BallisticObjectBank(m) {
   const sprite = ERA_OBJECT_ENTRY_SLOT0;
   // Route by the first slot's marker. Empty: join the loop at its advance step (0x400B), which moves
   // to the next slot and carries on. Any marker other than 0xFF: join at 0x4008, which services this
-  // first slot's shape cycle and then routes the rest. Both are ROM tail jumps.
+  // first slot's shape cycle and then routes the rest. In the ROM these are the loop head's own
+  // branches (`jp z,0x400b`, `jr nz,0x4008`), which 0x3FEA runs straight into.
   const marker = mem8[record];
   if (marker === EMPTY) return advanceSlotThenSweepObjectBankByHead(m, record, sprite, BANK_SLOTS);
   if (marker !== BALLISTIC) return sweepObjectSlotBankServicingFirstSlot(m, record, sprite, BANK_SLOTS);

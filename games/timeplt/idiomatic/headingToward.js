@@ -17,7 +17,8 @@
  * 0x3415) holds the eight multiples of 32, so the eight sectors tile the circle exactly.
  *
  * `point` addresses the target's pair of coordinate bytes (HL on the Z80): the byte at `point`
- * pairs with the object's +0x00 coordinate, the byte just below it with the object's +0x31.
+ * pairs with the object's +0x00 coordinate (native X), the byte just below it with the object's
+ * +0x31 (native Y).
  * `object` is the object's sprite entry (IY).
  *
  * LIVE-OUT: the heading, returned and in the accumulator. */
@@ -31,8 +32,9 @@ import { DIAGONAL_HEADING_TABLE, OCTANT_BASE_HEADING_TABLE } from "./names.js";
 const FIRST_COORDINATE = 0x00;
 const SECOND_COORDINATE = 0x31;
 
-// The sector index is built as three bits, as the ROM builds it in C: bit 0 when the second
-// distance is negative, bit 1 when the first is, bit 2 when the first distance is the shorter.
+// The sector index is built as three bits, as the ROM builds it in C: bit 0 when the native-Y
+// reach (target minus object) is negative, bit 1 when the native-X reach is, bit 2 when the
+// native-X distance is the shorter.
 const SECOND_REACH_NEGATIVE = 0x01;
 const FIRST_REACH_NEGATIVE = 0x02;
 const FIRST_IS_SHORTER = 0x04;

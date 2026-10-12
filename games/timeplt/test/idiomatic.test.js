@@ -98,7 +98,7 @@ async function runIdiomatic(live, mutate = null, nmis = NMIS) {
     sweepEntries: 0, // times the era-2+ object sweep got past both of its guards (read below)
   };
 
-  // The era-2+ sweep's entry reads the bank's slot count only after its era guard has passed, and runs
+  // The era-2+ sweep's entry reads the slot count only after its era guard has passed, and runs
   // the per-slot sweep exactly when that read is nonzero. The count cell has other readers, so a read
   // is attributed to the sweep entry by the host call stack -- a rename of that entry turns this
   // positive control RED rather than silently vacuous.

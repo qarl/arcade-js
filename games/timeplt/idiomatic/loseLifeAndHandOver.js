@@ -11,9 +11,9 @@
  * ROLE IN THE MACHINE. This is what happens after the player's ship has died. The round engine
  * (serviceRoundThenResolvePlayerState) calls it as soon as PLAYER_STATE reads 0, i.e. the dying
  * sequence is over (mechanisms.md, "loseLifeAndHandOver runs as soon as PLAYER_STATE reads 0").
- * The "constant" and "program-image byte" above are the sequence machine's delay (90 frames) and
+ * The "constant" and "program-image byte" above are the sequence machine's delay (a count of 90) and
  * its sub-step (NEXT_LIFE_SUBSTEP_SEED, which reads 1), so the next life -- or the other player's
- * turn -- re-enters the sequence at step 1 after a short pause.
+ * turn -- re-enters the sequence at step 1 at once; the delay times the life-start hold at step 5.
  *
  * The context block: each player's per-life state (lives, pen, ...) lives in a sixteen-byte block.
  * The LIVE copy is at 0xAD00 (LIVES_REMAINING [seen] is its first byte); player one's saved copy
@@ -31,7 +31,7 @@ import { ROUND_TRANSITION_HOLD, LIVES_REMAINING, PLAYER_ONE_LIVES, PLAYER_TWO_LI
 // The context block is copied whole (`ld bc,0x0010` / ldir at 0x120E-0x1211).
 const RECORD_LEN = 16;
 
-// The sequence delay armed for the next life: 90 frames (`ld a,0x5a` at 0x122F).
+// The sequence delay armed for the next life's start hold: a count of 90 (`ld a,0x5a` at 0x122F).
 const STAMP_VALUE = 90;
 
 export function loseLifeAndHandOver(m) {

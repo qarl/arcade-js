@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** serviceEra4EnemyCraftSlot — service one object slot by its lifecycle byte: idle when free, release when held,
- * step when dying, and when live steer it, retire it on the line, else animate and try two launches. */
+/** serviceEra4EnemyCraftSlot — service one object slot by its lifecycle byte: idle when free,
+ * count the release delay down when held, step when dying, and when live steer it, retire it on
+ * the line, else animate and try two launches. */
 
 /*
  * ROM 0x29D5-0x29F6, grounding [seen] (names.js ROUTINES 0x29d5).

@@ -19,10 +19,11 @@
  * entries (address low, address high, glyph, attribute) to the pending list whose cursor is DEFERRED_WRITE_CURSOR (0xAE00, entries from 0xAE04). Once a frame this entry
  * takes back the previous pass's cells, paints the new ones, and records what it just painted so
  * the NEXT pass can take those back in turn. A cell queued once therefore shows for one pass and
- * is then blanked unless it is queued again.
+ * is then blanked unless it is queued again. Both walks skip a cell whose colour byte already has
+ * bit 4 set (0x52EC, 0x5324), so such a cell is neither painted nor blanked.
  *
  * The two lists are not a double buffer: blankCellsPaintedLastPass walks the erase list at
- * DEFERRED_BLANK_CURSOR (0xAE80) and writes only the blank glyph into the character plane, leaving
+ * DEFERRED_BLANK_CURSOR (0xAE80) and writes only the blank shape 0x20 into the character plane, leaving
  * colour alone, while paintDeferredCells walks the pending list and writes glyph AND colour. The
  * copy always runs 0xAE00 onto 0xAE80, never back.
  */

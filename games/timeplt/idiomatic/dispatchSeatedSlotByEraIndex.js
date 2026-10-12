@@ -45,9 +45,10 @@ export function dispatchSeatedSlotByEraIndex(m, record = m.regs.ix, entry = m.re
   const slot = m.mem8[ERA_INDEX] & ARM_MASK;
   switch (slot) {
     // Words 0-4: one craft service per era (0x2927, 0x294C, 0x2984, 0x29B0, 0x29D5), each run on the
-    // seated slot. They share one skeleton on the slot's head byte -- free does nothing, 0xFE releases
-    // a held object, a countdown value steps the dying state, a live craft is steered, flown and
-    // retire-tested -- and differ in how they steer, how fast they fly and what they launch.
+    // seated slot. They share one skeleton on the slot's head byte -- free does nothing, 0xFE counts
+    // a held object's release delay down, a countdown value steps the dying state, a live craft
+    // is steered, flown and retire-tested -- and differ in how they steer, how fast they fly and
+    // what they launch.
     // startNextRound wraps the era after the fifth back to zero, so in play only these five run.
     case 0: return serviceEra0EnemyCraftSlot(m, record, entry);
     case 1: return serviceEra1EnemyCraftSlot(m, record, entry);

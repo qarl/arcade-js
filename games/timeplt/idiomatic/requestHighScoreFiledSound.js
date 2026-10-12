@@ -6,8 +6,8 @@
  *
  * Role in the machine: the sound that marks a score entering the high-score table. Its one
  * caller, fileScoreAfterGameOverHoldElsePassTurn, calls it only on the path where
- * fileScoreIntoHighScoreTable did file the finished score, just before the pen is blanked and
- * initials entry begins; a score that beats no record never reaches it.
+ * fileScoreIntoHighScoreTable did file the finished score, just before the pen is set to colour 0
+ * to erase its route and initials entry begins; a score that beats no record never reaches it.
  *
  * The code is the program byte at 0x18FA (HIGH_SCORE_FILED_SOUND_CODE in names.js), read as
  * data, not an immediate operand. It goes through enqueueSoundIfGameInProgress, so it is queued
