@@ -70,8 +70,9 @@ PLAY_ACTIVE = 0xAD30   # explicit flag: stored 0xFF when play begins, cleared wi
 
 # ══ --done: the runbook DONE BAR (attract COMPLETENESS + tape-driven GAMEPLAY vs MAME) ══════════
 # The default main() path below is the per-commit fixed-offset gameplay TRIPWIRE that tools/
-# pixel_gate_required.py invokes plain. --done is the go-forward SHIP bar: it reconverges the WHOLE
-# run with the drift-tolerant "nearest-golden-frame" rule (docs/pixel-gate.md, tools/convergence.mjs),
+# pixel_gate_required.py invokes plain. --done is the 30 s pass done_gate's pixel subsystem runs before
+# the full ~10-minute tools/long_golden.py run (which carries the whole-run verdict): it reconverges the
+# whole 30 s run with the drift-tolerant "nearest-golden-frame" rule (docs/pixel-gate.md, tools/convergence.mjs),
 # adding the attract COMPLETENESS pass an attract-blind gate structurally lacks (runbook 5: an
 # attract-only gate must NOT count green for done) AND the tape-driven GAMEPLAY-vs-MAME pass.
 #
@@ -89,7 +90,8 @@ PLAY_ACTIVE = 0xAD30   # explicit flag: stored 0xFF when play begins, cleared wi
 # Time Pilot is DETERMINISTIC without a pin (module docstring: the coin tape reconverges byte-for-byte
 # over all 1802 state frames), so both parts run UNpinned -- there is no spin-counter RNG to fork the way
 # DK's does, and nothing to pin on either side.
-DONE_ATTRACT_SECONDS = 30        # a full attract window (title/demo/score), reconverged
+DONE_ATTRACT_SECONDS = 30        # the first 30 s from power-on into attract, reconverged -- not a whole attract
+                                 # loop (no attract-loop wrap falls inside it)
 DONE_GAMEPLAY_SECONDS = SECONDS  # coin -> start -> play, the same 30s window the default gate drives
 RECON_STRIDE = 15                # score every 15th JS frame (convergence.mjs default --frame-stride)
 RECON_S = 8                      # 8px downsample grid (convergence.mjs default sample stride)
@@ -457,7 +459,7 @@ def run_done(a):
           f"  (--done: attract completeness + tape gameplay, nearest-frame reconverge)")
     work = tempfile.mkdtemp(prefix="timeplt_pixel_done_")
     with raw_dumps(work, keep=a.keep_frames, rmtree=True):
-        # PART A -- attract COMPLETENESS (input-free golden, a full attract window, reconverged).
+        # PART A -- attract COMPLETENESS (input-free golden, the first 30 s from power-on, reconverged).
         ok, why = _done_part(work, "attract", a.rompath, DONE_ATTRACT_SECONDS, idiomatic, offset)
         if not ok:
             print(f"pixel_suite: FAIL -- {why}")

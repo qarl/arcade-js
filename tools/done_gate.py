@@ -612,9 +612,10 @@ def check_disasm(game, root="."):
                    Hardware.md are not scanned: the doc REQUIRES their provenance paragraph to name MAME.
       staleness  - re-trace the ROM into a scratch dir, run tools/gen_ca_contrib.py into another, and the
                    committed pages must equal what it emits now, AND the generator's own fail-closed checks
-                   (DEFB, crash-site, byte round-trip, dangling cross-ref, straddle-bury) must pass. This needs
-                   the ROM (out/dk.asm is ROM-derived, never committed): with no games/<game>/rom/maincpu.bin
-                   (a ROM-less clone) the staleness half is SKIPPED with a loud notice, and the leak scan still runs.
+                   (label placement, named ROM data and declared records shown as data, DEFB, crash-site,
+                   byte round-trip, dangling cross-ref, straddle-bury) must pass. This needs the ROM (out/dk.asm is ROM-derived, never
+                   committed): with no games/<game>/rom/maincpu.bin (a ROM-less clone) the staleness half is
+                   SKIPPED with a loud notice, and the leak scan still runs.
     Wired because the R40 timeplt audit found the pages stale against names.js and failing their own scan while
     every other subsystem read OK -- no gate looked at them."""
     import tempfile

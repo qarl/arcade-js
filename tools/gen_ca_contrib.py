@@ -238,6 +238,61 @@ FORCE_DATA = {
          "256 velocity words (peak 206) indexed by heading. The whole-image checksum at power-up jumps "
          "here on a mismatch.",
          None),
+        # The fourth velocity table, same shape (256 words, base..base+$1FF; $2730 after it is real code). Its
+        # only code entry is the signature-check derail jp nz,$2530 at $2735; the two stubs that load it as a
+        # table ($585A/$595F) are never transferred to, so no pointer load is seen and the descent ran it as
+        # code. The whole table is forced, not just the part the descent reached.
+        (0x2530, 0x272f, "velocity table (281 peak)",
+         "256 velocity words (peak 281) indexed by heading, the same shape as the other velocity tables. "
+         "Two entry stubs load it (`ld hl,$2530` at $585A and at $595F), but nothing in the program "
+         "transfers to either. A failed program-image signature check ($2735) jumps here, so the table "
+         "also serves as a crash pad.",
+         None),
+        # Inline word table of the phase-0 sub-step dispatcher at $15C2 (`and $07` / `rst $30` at $15C5): eight
+        # words, $15C8-$15D7, of which the descent recognised only the first. Words 0 and 6 are the two arms
+        # ($15E2, $15FE -- both decoded as code after the table); the rest are caption bytes. Caption record 5
+        # runs on past the table to its terminator at $15E1, so its tail is forced too ($15D8-$15E1): the arm at
+        # $15E2 then resumes with its own label and no mis-decoded call is left in between.
+        (0x15c8, 0x15d7, "phase-0 sub-step jump table",
+         "The eight words the dispatcher at $15C2 indexes with the low three bits of the inner sequence "
+         "step (`and $07` / `rst $30`). Only words 0 and 6 name code: $15E2 (word 0) and $15FE (word 6, "
+         "at $15D4). The other words are caption bytes: $15CA-$15D3 is caption record 8 of the caption "
+         "table at $0C50 (destination cell $A55F, colour byte $13, six glyphs and the $B9 terminator at "
+         "$15D3), and caption record 5 begins at $15D6 (destination cell $A660). A failed check of a "
+         "copyright-line glyph ($17A6) jumps to $15CA and runs record 8's bytes as code.",
+         None),
+        (0x15d8, 0x15e1, "caption record 5 (cont.)",
+         "The rest of caption record 5, which begins at $15D6: its colour byte $14, eight glyphs and the "
+         "$B9 terminator at $15E1. Word 0's arm at $15E2 follows.",
+         None),
+        # The tail of DEMO_AUTOPILOT_SCRIPT_FIRST ($218C): the demo cursor reads it up to $2251. Its only code entry
+        # is `jr $224A` at $22BD, inside the noted $2251 tamper run.
+        (0x224a, 0x2250, "demo-autopilot script (cont.)",
+         "The last seven bytes of the first demo-autopilot script at $218C, which the demo cursor reads up to "
+         "$2251. A run of the second script as code (`jr $224A` at $22BD) lands here.",
+         None),
+        # Caption record 7 (table word at $0C5E). Its only code entry is the round-number caption's image-check
+        # derail jp nz,$2509 at $0EE7; $2511 after it is real code.
+        (0x2509, 0x2510, "caption record",
+         "Caption record 7 of the caption table at $0C50: destination cell $A4E0, colour byte $14, four "
+         "glyphs and the $B9 terminator at $2510. A failed program-image check after the round number is "
+         "painted ($0EE7) jumps here and runs the bytes as code.",
+         None),
+        # ERA_SCENERY_ROW_TABLE: read by `ld hl,$3176` / `rst $18` at $30B6 (HL += 8*era). Its only code entry is
+        # the UNCONDITIONAL tamper jp $3176 at $315B, which the crash-site net (conditional branch + pointer load)
+        # cannot see. Five rows end at $319D; caption record 20 (table word at $0C78) follows to its terminator at
+        # $31B3, and $31B4 is real code.
+        (0x3176, 0x319d, "era scenery-row table",
+         "Five 8-byte rows, one per era. The routine at $30A5 picks the row at $3176 plus eight times the "
+         "era (`ld hl,$3176` / `rst $18` at $30B6) and copies its eight bytes into every second byte from "
+         "$AA31. A failed tamper check on the era-4 scenery path jumps here through $315B (`jp $3176`) "
+         "and runs the rows as code.",
+         None),
+        (0x319e, 0x31b3, "caption record",
+         "Caption record 20 of the caption table at $0C50: destination cell $A708, colour byte $32, "
+         "eighteen glyphs and the $B9 terminator at $31B3. A run of the scenery-row table above as code "
+         "continues into these bytes.",
+         None),
     ],
     "tempest": [
         (0xcfd9, 0xcfe0, "data table",
@@ -357,6 +412,72 @@ CRASH_SITE_OK = {
                  # Reached as code via `jr nz,$0701` ($06df) AND used as a handler address (`ld de,$0701`) -- dual-use code, not data
         0x1060,  # advanceObjectPathStepAscending -- a named path-walk routine; a jp-target that is also loaded as a pointer
     ],
+}
+
+# Named ROM data on the page (fail-closed, check_named_rom_data below). names.js names its ROM data with an
+# `export const` whose name carries one of these words as a whole `_`-separated segment -- *_TABLE (incl.
+# *_TABLE_2, *_TABLE_BIT0_SET, VELOCITY_TABLE_5C00), *_RECORD (COPYRIGHT_CAPTION_RECORD), a final *_STRIP or
+# *_STRIP_<n> (the player-animation shape strips -- not COPYRIGHT_STRIP_CHECK_SEED, a seed byte), *_SCRIPT_* (the
+# demo-autopilot scripts). Every other ROM-address constant
+# is NOT a data table and is not bound: a code byte or operand word reused as a value (*_SEED, *_SOUND,
+# *_BYTE, *_WORD, *_COUNT ...), the base of a checksum span that runs over code (*_CHECKSUM_BASE,
+# *_SPAN_BASE, IMAGE_GUARD_BLOCK_*), or a routine alias (*_ADDR, excluded explicitly). Such a named table
+# must render inside a data block -- never as a decoded instruction.
+ROM_DATA_NAME_RE = re.compile(r"(?:^|_)(?:TABLE|RECORD|SCRIPT)(?:_|$)|(?:^|_)STRIP(?:_[0-9]+)?$")
+
+# Named ROM "data" the page deliberately shows as CODE, each with its reason: a table whose bytes a tamper
+# path runs as instructions on purpose, or a name over a checksum-summed span that is real code. The page
+# documents the code at the landing (a role header above the label or a gloss on its first instruction --
+# the check requires one). Every entry must still render as code; a stale entry fails too. Anything not
+# listed here renders as data.
+DATA_AS_CODE_OK = {
+    "timeplt": {
+        0x0f8d: "ERA_PEN_TABLE: the (glyph, colour) pen records are also the image-checksum tamper trap "
+                "(pop af / ld bc,.. / pop af ..) that unwinds the caller chain, entered by jp nz,$0F8D at "
+                "$5308 -- dual-use, see CRASH_SITE_OK",
+        0x1f2e: "STICK_HEADING_TABLE: the copyright-glyph tamper divert in the player-explosion animation "
+                "(jp $1F2E at $2063) runs the direction table as code and falls out of it into the heading snap",
+        0x2251: "DEMO_AUTOPILOT_SCRIPT_SECOND: the demo seed's failed readback check (jp $2251 at $213D) "
+                "runs the second autopilot script as code",
+        0x461b: "MOTHER_SHIP_WRECK_SHAPE_TABLE: the glyph-copy witness mismatch path (jp $461B at $4643) "
+                "runs the eight shape codes as harmless register churn",
+        # Caption records (RECORD_TABLES) that a tamper path runs as code, each documented at its landing.
+        0x0167: "caption record 9: the checksum-mismatch derail `call nz,$0167` at $01B1 runs the record as "
+                "code, which falls into the frame-interrupt epilogue",
+        0x307f: "caption record 2: the scenery seed's witness-mismatch trampoline (`jp $307F` at $3114) runs "
+                "the record as code",
+    },
+    "pooyan": {
+        0x776b: "CREDIT_CHECKSUM_TABLE: names.js calls the 20 checksum-summed bytes a ROM table, but they are "
+                "real code (dual-use, CRASH_SITE_OK) that the credit-consume path also sums -- a names.js "
+                "naming question, not a mis-decode",
+    },
+}
+
+# Record pointer tables (fail-closed, check_record_tables): (table base, word count, record terminator,
+# header bytes before the terminator scan). Every record the table points to must render as data from its
+# first byte to its terminator, or be a DATA_AS_CODE_OK landing. timeplt's caption table: 32 words at $0C50
+# (the table runs to $0C8F; $0C90 is code), read by the caption painters at $0BF2-$0C39 and $3421, each
+# record a destination-cell word and a colour byte, then glyphs up to the $B9 terminator.
+RECORD_TABLES = {
+    "timeplt": [(0x0c50, 32, 0xb9, 3)],
+}
+
+# Named ROM data whose BASE address is a byte of an instruction (an operand, or the opcode just before the
+# table): the table is indexed from 1, so the base byte is never read as table data and the code/data overlap
+# is real. The gate requires the base to sit in an instruction and base+1 (the first entry read) in a data
+# block.
+DATA_BASE_IN_CODE_OK = {
+    "centiped": {
+        0x3fd8: "LIVES_GLYPH_TABLE: the reader `lda $3FD8,x` at $3E6E runs only for x = 1..5 (beq skips 0, "
+                "cmp #$06 / bcs skips 6 and up), so the entries are $3FD9-$3FDD in the data block; the base "
+                "byte $3FD8 is the high operand byte of `jmp $3D57` at $3FD6",
+    },
+    "frogger": {
+        0x2cd5: "SPRITE_OBJECT_PHASE_TILE_TABLE: read as (0x2CD5+phase) only with the stepped phase 1..4 "
+                "(phase 0 returns first; 1 wraps to 4), so the entries are $2CD6-$2CD9 in the data block; the "
+                "base byte $2CD5 is the RET ending the routine before it",
+    },
 }
 
 
@@ -930,6 +1051,12 @@ def gen_code(meta, raw_lines, routines, wr_lo, wr_hi, rom_hi, notes, rom=None):
             j += 1
             continue
         ah = _line_addr(line)
+        if ah is None:
+            # A FORCE_DATA span may start at an inline jump table the descent truncated (its header line
+            # carries the address; the `dw` rows after it carry no bytes) -- the span replaces the table.
+            tjm = re.match(r"^; ---- inline jump table 0x([0-9a-f]+)-", line)
+            if tjm and int(tjm.group(1), 16) in force_start:
+                ah = int(tjm.group(1), 16)
         if ah is not None and ah in force_start:
             s, e, lbl, cmt, _src = force_start[ah]
             need = e - s + 1
@@ -1130,6 +1257,126 @@ def check_label_placement(code, routines):
     return bad
 
 
+def _page_map(code):
+    """(shown, note) helpers over a rendered Code.md. shown(a) is None when ROM address `a` sits inside a data
+    block, else what the page shows there ("decoded instruction at $X" / "inside the instruction at $X" / "not
+    on the page"). note(a) is True when the instruction decoded at `a` carries a gloss, or its label line has a
+    role-header comment directly above it."""
+    lines = code.split("\n")
+    blocks, instr = [], {}            # data-block spans; instruction addr -> (line index, byte count)
+    for k, ln in enumerate(lines):
+        m = re.match(r"^; ---- \$([0-9A-F]+)-\$([0-9A-F]+): .* ----$", ln)
+        if m:
+            blocks.append((int(m.group(1), 16), int(m.group(2), 16)))
+            continue
+        m = re.match(r"^([0-9A-F]{4}): (.{%d})(\S)" % BYTES_W, ln)   # an instruction: mnemonic at column 22
+        if m and re.fullmatch(r"(?:[0-9A-F]{2} )+\s*", m.group(2)):
+            instr[int(m.group(1), 16)] = (k, len(m.group(2).split()))
+
+    def shown(a):
+        if any(s <= a <= e for s, e in blocks):
+            return None
+        if a in instr:
+            return "decoded instruction at $%04X" % a
+        hit = next((s for s, (_k, n) in instr.items() if s < a < s + n), None)
+        return ("inside the instruction at $%04X" % hit) if hit is not None else "not on the page"
+
+    def note(a):
+        if a not in instr:
+            return False
+        k = instr[a][0]
+        gloss = lines[k][50:].strip() if len(lines[k]) > 50 else ""
+        gloss = re.sub(r"^;\s*", "", gloss)
+        gloss = re.sub(r"^\{[^}]*\}\s*", "", gloss)
+        above = lines[k - 2] if k >= 2 and re.match(r"^[A-Za-z_][A-Za-z0-9_]*:\s*$", lines[k - 1]) else ""
+        return bool(gloss) or above.startswith("; ")
+
+    return shown, note
+
+
+def _check_allowed_code(shown, note, label, a):
+    """The DATA_AS_CODE_OK contract for one entry `a`: shown as a decoded instruction, with a note. -> problem or None."""
+    how = shown(a)
+    if how is None or not how.startswith("decoded"):
+        return (label, a, "listed in DATA_AS_CODE_OK but not shown as code (%s) -- drop the entry"
+                % (how or "data block"))
+    if not note(a):
+        return (label, a, "listed in DATA_AS_CODE_OK but the landing carries no note")
+    return None
+
+
+def check_named_rom_data(code, names_path, lo, hi, allow, operand_ok=None, other_uses=()):
+    """[(name, addr, how)] for every names.js ROM data table (ROM_DATA_NAME_RE, address in lo..hi, not a
+    *_ADDR alias) that does NOT render inside a data block, plus every `allow` entry (DATA_AS_CODE_OK) that
+    no longer renders as code or carries no note at its landing, and every `operand_ok` entry
+    (DATA_BASE_IN_CODE_OK) whose base is not in an instruction or whose first entry (base+1) is not in a
+    data block. `other_uses` are `allow` addresses another check (check_record_tables) accounts for, so they
+    are not reported stale here. `how` says what the page shows instead."""
+    operand_ok = operand_ok or {}
+    text = open(names_path).read()
+    consts = [(m.group(1), int(m.group(2), 16)) for m in
+              re.finditer(r"^export const ([A-Z][A-Z0-9_]*) = 0x([0-9a-fA-F]+);", text, re.M)]
+    shown, note = _page_map(code)
+    bad = []
+    seen_allow = set(other_uses)
+    for name, a in consts:
+        if not (lo <= a <= hi) or name.endswith("_ADDR") or not ROM_DATA_NAME_RE.search(name):
+            continue
+        how = shown(a)
+        if a in operand_ok:
+            seen_allow.add(a)
+            if how is None or how == "not on the page":
+                bad.append((name, a, "listed in DATA_BASE_IN_CODE_OK but its base is not in an instruction (%s) "
+                            "-- drop the entry" % (how or "data block")))
+            elif shown(a + 1) is not None:
+                bad.append((name, a, "first entry $%04X not in a data block (%s)" % (a + 1, shown(a + 1))))
+            continue
+        if a in allow:
+            seen_allow.add(a)
+            prob = _check_allowed_code(shown, note, name, a)
+            if prob:
+                bad.append(prob)
+            continue
+        if how is not None:
+            bad.append((name, a, how))
+    for a in sorted((set(allow) | set(operand_ok)) - seen_allow):
+        bad.append(("DATA_AS_CODE_OK" if a in allow else "DATA_BASE_IN_CODE_OK", a,
+                    "names no ROM data table or record -- drop the entry"))
+    return bad
+
+
+def check_record_tables(code, rom, rom_lo, decls, allow):
+    """([(label, addr, how)], {allow addrs used}) for every record a declared RECORD_TABLES pointer table
+    points to: the record's bytes, from its first byte to its terminator, must all render inside data blocks,
+    unless the record's first byte is in `allow` (DATA_AS_CODE_OK; then it must render as code with a note).
+    A pointer outside the ROM, or a record with no terminator within 256 bytes, is a bad declaration."""
+    shown, note = _page_map(code)
+    bad, used = [], set()
+    for base, count, term, skip in decls:
+        for i in range(count):
+            p = base + 2 * i - rom_lo
+            a = rom[p] | (rom[p + 1] << 8)
+            label = "record %d of the table at $%04X" % (i, base)
+            if not (rom_lo <= a < rom_lo + len(rom)):
+                bad.append((label, a, "points outside the ROM -- check the RECORD_TABLES declaration"))
+                continue
+            body = rom[a - rom_lo + skip:a - rom_lo + skip + 256]
+            if term not in body:
+                bad.append((label, a, "no $%02X terminator within 256 bytes" % term))
+                continue
+            e = a + skip + body.index(term)
+            if a in allow:
+                used.add(a)
+                prob = _check_allowed_code(shown, note, label, a)
+                if prob:
+                    bad.append(prob)
+                continue
+            miss = next((x for x in range(a, e + 1) if shown(x) is not None), None)
+            if miss is not None:
+                bad.append((label, a, "$%04X-$%04X not all data: %s" % (a, e, shown(miss))))
+    return bad, used
+
+
 # --------------------------------------------------------------------- driver
 def main():
     args = sys.argv[1:]
@@ -1201,6 +1448,29 @@ def main():
             print(f"      {name}: at {at} -- names.js gives {want}", file=sys.stderr)
         print("    A name labels only the address names.js assigns it; any other address gets its own "
               "name or loc_<addr>. Nothing written.", file=sys.stderr)
+        sys.exit(1)
+
+    # Named ROM data shown as data (fail-closed, before anything is written): every names.js ROM data table
+    # (ROM_DATA_NAME_RE) must sit inside a data block, unless DATA_AS_CODE_OK lists it as a deliberately
+    # documented tamper landing. A recursive descent that reaches a table only through a tamper jump decodes
+    # it as code, and no other check sees that when the bytes are valid opcodes (timeplt's $3176 scenery-row
+    # table, reached by an UNCONDITIONAL jp the crash-site net cannot see, shipped as `LD H,B ...`).
+    misrec, rec_allow = [], set()
+    if RECORD_TABLES.get(game):
+        assert rom is not None, f"{game} declares RECORD_TABLES but games/{game}/rom/maincpu.bin is absent"
+        misrec, rec_allow = check_record_tables(code, rom, ROM_LO, RECORD_TABLES[game],
+                                                DATA_AS_CODE_OK.get(game, {}))
+    misdata = misrec + check_named_rom_data(code, names_path, ROM_LO, rom_hi, DATA_AS_CODE_OK.get(game, {}),
+                                            DATA_BASE_IN_CODE_OK.get(game, {}), rec_allow)
+    if misdata:
+        print(f"\n*** {len(misdata)} named ROM data table(s) / declared record(s) NOT shown as data on Code.md:",
+              file=sys.stderr)
+        for name, a, how in misdata[:20]:
+            print(f"      {name} 0x{a:04x}: {how}", file=sys.stderr)
+        print("    A named ROM table renders as a data block: add its span to FORCE_DATA (a FORCE_CODE entry "
+              "recovers any real routine it buries). Only a table whose bytes a tamper path deliberately runs "
+              "as code, documented at the landing, may stay code -- list it in DATA_AS_CODE_OK with the reason (a "
+              "table indexed from 1 whose base byte is code goes in DATA_BASE_IN_CODE_OK). Nothing written. See docs/contributing-disassembly.md.", file=sys.stderr)
         sys.exit(1)
 
     with open(os.path.join(out_dir, "RAMUse.md"), "w") as fh:

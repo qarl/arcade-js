@@ -31,7 +31,8 @@
 //                          goes back to LIVE (absorbMotherShipHitElseStepItsDeath); so a ship never
 //                          relaunched takes eight hits to kill.
 //   0xEF..0x01   DYING     with no hits left the head counts down one per step
-//                          (stepMotherShipWreckCountdown): at 0xEF it sweeps the whole field
+//                          (stepMotherShipWreckCountdown): the fatal hit's own step, at 0xF0, already
+//                          writes one wreck shape, at 0xEF it sweeps the whole field
 //                          (sweepFieldOnMotherShipDeathElseStepWreck), from 0xE4 down it plays its wreck
 //                          shapes, at 0xB4 it swaps them for a '3000' label and pays 3,000 points
 //                          (swapWreckForThreeThousandLabelAndPay), at 0x5A its sprite codes are set to

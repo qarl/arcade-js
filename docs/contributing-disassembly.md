@@ -158,7 +158,8 @@ Konami ROMs (and their kin) are studded with **anti-tamper crash sites**: a chec
 against a sentinel and, on a mismatch, **derails into data** — `jp nz,$XXXX` / `jr nz,$XXXX` into a byte
 table that is *not* code — or reads a checksum block via `LD HL,$X` / `LD DE,$X` then `CP (HL)`. The
 recursive-descent disassembler follows the conditional edge (or the pointer) and **decodes that data as
-instructions.** Those spans must ship as CA **data blocks**, not code, or the listing is simply wrong.
+instructions.** Those spans must ship as CA **data blocks**, not code, or the listing is simply wrong (the one
+exception is `DATA_AS_CODE_OK`, below: a tamper landing kept as code with a note saying what the bytes are).
 
 **The generator's DEFB check is necessary but NOT sufficient — do not rely on it alone.** It only catches
 a span whose bytes hit an *undefined* opcode (which emits a `DEFB` the deploy tool chokes on). A derail /
@@ -221,6 +222,24 @@ it). Then:
   A `FORCE_DATA` entry's `name_src` must equal the span's start: the name labels the data block itself (so
   the derails into it link there), and the instruction resuming after the span keeps its own label. On
   timeplt a derail name once moved from its `$459B` data block onto the ordinary countdown at `$45B3`.
+- **Named-ROM-data gate (fail-closed).** `gen_ca_contrib.py` also checks that every `names.js` ROM data
+  table's base address (its first byte) renders inside a data block, never as a decoded instruction. It does
+  not know a table's length, so a tail shown as code still needs the manual audit. A "ROM data table" is an `export const`
+  at a program-ROM address whose name has `TABLE`, `RECORD` or `SCRIPT` as a whole `_`-separated word, or
+  ends in `STRIP` / `STRIP_<n>` (`ROM_DATA_NAME_RE`); `*_ADDR` routine aliases, code bytes reused as values
+  (`*_SEED`, `*_SOUND`, `*_BYTE`, `*_WORD` ...) and checksum-span bases are not bound. The two exceptions
+  are `DATA_AS_CODE_OK[game]` -- a table whose bytes a tamper path deliberately runs as code, or a name over a
+  checksum-summed span that is real code, kept as code because the page documents it at the landing (the
+  gate requires a role header or a gloss there, and fails a stale entry) -- and `DATA_BASE_IN_CODE_OK[game]`,
+  a table indexed from 1 whose base byte belongs to an instruction (centiped's `$3FD8` lives-glyph table under
+  `jmp $3D57`, frogger's `$2CD5` phase-tile table after a `ret`; the gate requires base+1 in a data block). This catches the derail landings the crash-site net cannot see -- timeplt's `$3176`
+  scenery-row table, reached only by an UNCONDITIONAL `jp $3176`, shipped as `LD H,B ...`. It binds only
+  names `names.js` gives. **Records behind a pointer table** are bound too: a game that declares one in
+  `RECORD_TABLES[game]` (table base, word count, terminator byte, header length) gets every record checked
+  from its first byte to its terminator -- all of it in data blocks, or its first byte in `DATA_AS_CODE_OK`
+  with a note at the landing (timeplt's 32-word caption table at `$0C50`; records 2 and 9 are noted tamper
+  landings kept as code). Other unnamed data (timeplt's `$2530` velocity table) still needs the manual audit
+  above.
 
 **Completeness limit — say it honestly.** Round-trip proves every *byte* is present and correct; the scans
 catch the *obvious* mis-decoded tables (ramp and pointer). What no static method can see is data that decodes
@@ -237,8 +256,10 @@ would help every future port, but trace.py is shared with finished games — tre
 `FORCE_DATA`, `CRASH_SITE_OK` and `FORCE_CODE` live at the top of `tools/gen_ca_contrib.py`. A `FORCE_DATA` span
 that ends inside an UNREACHED block emits the block's remaining bytes as data (or as the `FORCE_DATA` entry that
 starts right after it), so no byte is lost. Examples: Time Pilot's misaligned `$459B`/`$49FA` anti-tamper
-entries, its three velocity tables (`$08FA`/`$2E3E`/`$59D7`, each 256 heading-indexed words and each also a
-derail landing), and the caption record at `$0AFA`; pooyan's `$5119` checksum sentinel, its `$0799`/`$07D0`
+entries, its four velocity tables (`$08FA`/`$2E3E`/`$59D7`/`$2530`, each 256 heading-indexed words and each
+also a derail landing), the caption records at `$0AFA`, `$2509` and `$319E`, the era scenery-row table at
+`$3176` (an unconditional derail landing), and the truncated phase-0 jump table at `$15C8` (its words double
+as caption records 8 and 5); pooyan's `$5119` checksum sentinel, its `$0799`/`$07D0`
 derail-crash tables, its `$2F93` fall-through value-ramp table, and its `$0083`/`$0247`/`$08A8`/`$30ED`/`$339B`
 dispatch/pointer tables (all `FORCE_DATA`); the three routines those tables buried — `$0092` (the boot entry),
 `$0254`, `$08B3` — recovered via `FORCE_CODE`; vs the `$6DF9`/`$7071` code clones and `$0018`/`$020F`

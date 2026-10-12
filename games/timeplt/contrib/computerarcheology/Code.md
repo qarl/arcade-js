@@ -2423,7 +2423,7 @@ loc_0ee1:
 0EE3: 4F              LD      C,A                 
 0EE4: 13              INC     DE                  
 0EE5: 10 FA           DJNZ    $0EE1               ; {code.loc_0ee1}
-0EE7: C2 09 25        JP      NZ,$2509            ; {code.loc_2509}
+0EE7: C2 09 25        JP      NZ,$2509            
 0EEA: C9              RET                         
 
 ; paint one decimal digit, with its colour, into the cell a cursor names
@@ -2545,7 +2545,7 @@ loadDifficultyRecord:
 ; chain, then falls into the sprite position-fixup pass (rets on the fifth
 ; word)
 loc_0f8d:
-0F8D: F1              POP     AF                  
+0F8D: F1              POP     AF                  ; the era pen table's first (glyph, colour) record run as code -- a tamper landing
 0F8E: 01 F1 02        LD      BC,$02F1            
 0F91: F1              POP     AF                  
 0F92: 03              INC     BC                  
@@ -3658,28 +3658,22 @@ dispatchSequencePhase0SubStepArm:
 15C5: E6 07           AND     $07                 ; keep its low three bits -- one of eight table words, only two of them arms
 15C7: F7              RST     $30                 ; jump to the selected arm through the inline word table
 
-; ---- $15C8-$15C9: jump table ----
-15C8: E2 15
+; The eight words the dispatcher at $15C2 indexes with the low three bits
+; of the inner sequence step (`and $07` / `rst $30`). Only words 0 and 6
+; name code: $15E2 (word 0) and $15FE (word 6, at $15D4). The other words
+; are caption bytes: $15CA-$15D3 is caption record 8 of the caption table
+; at $0C50 (destination cell $A55F, colour byte $13, six glyphs and the
+; $B9 terminator at $15D3), and caption record 5 begins at $15D6
+; (destination cell $A660). A failed check of a copyright-line glyph
+; ($17A6) jumps to $15CA and runs record 8's bytes as code.
+; ---- $15C8-$15D7: phase-0 sub-step jump table ----
+15C8: E2 15 5F A5 13 77 D7 34 87 FD DC B9 FE 15 60 A6
 
-loc_15ca:
-15CA: 5F              LD      E,A                 
-15CB: A5              AND     L                   
-15CC: 13              INC     DE                  
-15CD: 77              LD      (HL),A              
-15CE: D7              RST     $10                 
-15CF: 34              INC     (HL)                
-15D0: 87              ADD     A,A                 
-15D1: FD DC B9 FE     CALL    C,$FEB9             
-15D5: 15              DEC     D                   
-15D6: 60              LD      H,B                 
-15D7: A6              AND     (HL)                
-15D8: 14              INC     D                   
-15D9: C4 FD 10        CALL    NZ,$10FD            ; {code.spinRemainingSpriteMultiplexSlots}
-15DC: ED 77           NOP                         
-15DE: 68              LD      L,B                 
-15DF: D7              RST     $10                 
-15E0: 34              INC     (HL)                
-15E1: B9              CP      C                   
+; The rest of caption record 5, which begins at $15D6: its colour byte
+; $14, eight glyphs and the $B9 terminator at $15E1. Word 0's arm at $15E2
+; follows.
+; ---- $15D8-$15E1: caption record 5 (cont.) ----
+15D8: 14 C4 FD 10 ED 77 68 D7 34 B9
 
 ; the first arm of the sequence machine's outer phase zero: arm the whole-
 ; plane wipe, then hand the inner index the step that actually runs that
@@ -4028,7 +4022,7 @@ holdCopyrightThenVerifyGlyphAndSeatWitnessOrDerail:
 17A2: 67              LD      H,A                 ; as the pointer high byte
 17A3: 7E              LD      A,(HL)              ; read the addressed cell
 17A4: FE 3B           CP      $3B                 ; is its glyph the expected one?
-17A6: C2 CA 15        JP      NZ,$15CA            ; {code.loc_15ca} wrong glyph: derail into the jump-table bytes, run as code
+17A6: C2 CA 15        JP      NZ,$15CA            ; wrong glyph: derail into the jump-table bytes, run as code
 17A9: 21 7C A6        LD      HL,$A67C            ; point at a character cell
 17AC: 11 43 AB        LD      DE,$AB43            ; point at a tamper-witness pair
 17AF: 7E              LD      A,(HL)              ; read its glyph
@@ -5087,14 +5081,11 @@ loc_2181:
 222C: 8F 47 06 8B 02 55 03 9D 67 8A 0A 56 05 8B 02 48
 223C: 88 03 55 09 60 03 76 13 8B 24 4B 2F 8B 05
 
-loc_224a:
-224A: 8B              ADC     A,E                 
-224B: 08              EX      AF,AF'              
-224C: 8A              ADC     A,D                 
-224D: 15              DEC     D                   
-224E: 96              SUB     (HL)                
-224F: 3C              INC     A                   
-2250: 3C              INC     A                   
+; The last seven bytes of the first demo-autopilot script at $218C, which
+; the demo cursor reads up to $2251. A run of the second script as code
+; (`jr $224A` at $22BD) lands here.
+; ---- $224A-$2250: demo-autopilot script (cont.) ----
+224A: 8B 08 8A 15 96 3C 3C
 
 ; the second demo-autopilot script, entered as code by the jp 0x2251 at
 ; 0x213D when the demo seed's readback witness (0xADFB/0xADFC) fails; its
@@ -5197,7 +5188,7 @@ loc_2251:
 22BA: 12              LD      (DE),A              
 22BB: 87              ADD     A,A                 
 22BC: 47              LD      B,A                 
-22BD: 18 8B           JR      $224A               ; {code.loc_224a}
+22BD: 18 8B           JR      $224A               
 
 ; ---- $22BF-$23E2: data ----
 22BF: 03 8A 02 96 08 4B 02 8B 07 95 3C 3C 17 55 3C 05
@@ -5375,14 +5366,12 @@ loc_24fc:
 2503: DD 77 06        LD      (IX+$06),A          ; clear the whole part of its X
 2506: C3 F3 24        JP      $24F3               ; {code.loc_24f3} on to the next slot
 
-loc_2509:
-2509: E0              RET     PO                  
-250A: A4              AND     H                   
-250B: 14              INC     D                   
-250C: 9B              SBC     A,E                 
-250D: 10 0D           DJNZ    $251C               
-250F: 88              ADC     A,B                 
-2510: B9              CP      C                   
+; Caption record 7 of the caption table at $0C50: destination cell $A4E0,
+; colour byte $14, four glyphs and the $B9 terminator at $2510. A failed
+; program-image check after the round number is painted ($0EE7) jumps here
+; and runs the bytes as code.
+; ---- $2509-$2510: caption record ----
+2509: E0 A4 14 9B 10 0D 88 B9
 
 ; cold-boot init: paints a 64-byte work-RAM block all-ones, seeds RNG /
 ; loads default high scores / empties the deferred lists (watchdog-kicking
@@ -5403,76 +5392,44 @@ loc_2516:
 252A: 32 00 C2        LD      ($C200),A           ; kick the watchdog
 252D: C3 AA 52        JP      $52AA               ; {code.seedGameConfigFromDipSwitches} on into the settings and cold-start chain
 
-loc_2530:
-2530: 19              ADD     HL,DE               
-2531: 01 18 01        LD      BC,$0118            
-2534: 17              RLA                         
-2535: 01 16 01        LD      BC,$0116            
-2538: 15              DEC     D                   
-2539: 01 14 01        LD      BC,$0114            
-253C: 13              INC     DE                  
-253D: 01 10 01        LD      BC,$0110            
-2540: 0E 01           LD      C,$01               
-2542: 0C              INC     C                   
-2543: 01 0A 01        LD      BC,$010A            
-2546: 08              EX      AF,AF'              
-2547: 01 04 01        LD      BC,$0104            
-254A: 01 01 FF        LD      BC,$FF01            
-254D: 00              NOP                         
-254E: FB              EI                          
-254F: 00              NOP                         
-2550: F8              RET     M                   
-2551: 00              NOP                         
-2552: F5              PUSH    AF                  
-2553: 00              NOP                         
-2554: F2 00 EE        JP      P,$EE00             
-2557: 00              NOP                         
-2558: EB              EX      DE,HL               
-2559: 00              NOP                         
-255A: E8              RET     PE                  
-255B: 00              NOP                         
-255C: E4 00 E1        CALL    PO,$E100            
-255F: 00              NOP                         
-2560: DE 00           SBC     A,$00               
-2562: DA 00 D7        JP      C,$D700             
-2565: 00              NOP                         
-2566: D4 00 D1        CALL    NC,$D100            
-2569: 00              NOP                         
-256A: CD 00 CA        CALL    $CA00               
-256D: 00              NOP                         
-256E: C7              RST     $00                 
-256F: 00              NOP                         
-2570: C3 00 C0        JP      $C000               
-
-; ---- $2573-$272F: data ----
-2573: 00 BC 00 B8 00 B5 00 B1 00 AC 00 A8 00 A5 00 A0
-2583: 00 9A 00 94 00 8F 00 87 00 84 00 7D 00 76 00 70
-2593: 00 69 00 61 00 5B 00 53 00 4B 00 44 00 3B 00 33
-25A3: 00 2C 00 23 00 1A 00 11 00 08 00 00 00 00 00 F8
-25B3: FF EF FF 00 00 DD FF D4 FF CD FF C5 FF BC FF B5
-25C3: FF AD FF A5 FF 9F FF 97 FF 90 FF 8A FF 83 FF 7C
-25D3: FF 79 FF 7C FF 6C FF 66 FF 60 FF 5B FF 58 FF 54
-25E3: FF 4F FF 4B FF 48 FF 44 FF 40 FF 3D FF 39 FF 36
-25F3: FF 33 FF 33 FF 2C FF 29 FF 26 FF 22 FF 1F FF 1C
-2603: FF 18 FF 15 FF 12 FF 0E FF 0B FF 08 FF 05 FF 01
-2613: FF FF FE FC FE F8 FE F6 FE F4 FE F2 FE F0 FE ED
-2623: FE EC FE EB FE EA FE E9 FE E8 FE E7 FE E7 FE E8
-2633: FE E9 FE EA FE EB FE EC FE ED FE F0 FE F2 FE F4
-2643: FE F6 FE F8 FE FC FE FF FE 01 FF 05 FF 08 FF 0B
-2653: FF 0E FF 12 FF 15 FF 18 FF 1C FF 1F FF 22 FF 26
-2663: FF 29 FF 2C FF 2F FF 33 FF 36 FF 39 FF 3D FF 40
-2673: FF 44 FF 48 FF 4B FF 4F FF 54 FF 58 FF 5B FF 60
-2683: FF 66 FF 6C FF 71 FF 79 FF 7C FF 83 FF 8A FF 90
-2693: FF 97 FF 9F FF A5 FF AD FF B5 FF BC FF C5 FF CD
-26A3: FF D4 FF DD FF E6 FF EF FF F8 FF 00 00 00 00 08
-26B3: 00 11 00 1A 00 23 00 2C 00 33 00 3B 00 44 00 4B
-26C3: 00 53 00 5B 00 61 00 69 00 70 00 76 00 7D 00 84
-26D3: 00 87 00 87 00 94 00 9A 00 A0 00 A5 00 A8 00 AC
-26E3: 00 B1 00 B5 00 B8 00 BC 00 C0 00 C3 00 C7 00 CA
-26F3: 00 CD 00 CA 00 D4 00 D7 00 DA 00 DE 00 E1 00 E4
-2703: 00 E8 00 EB 00 EE 00 F2 00 F5 00 F8 00 FB 00 FF
-2713: 00 01 01 FB 00 08 01 0A 01 0C 01 0E 01 10 01 13
-2723: 01 14 01 15 01 16 01 17 01 18 01 19 01
+; 256 velocity words (peak 281) indexed by heading, the same shape as the
+; other velocity tables. Two entry stubs load it (`ld hl,$2530` at $585A
+; and at $595F), but nothing in the program transfers to either. A failed
+; program-image signature check ($2735) jumps here, so the table also
+; serves as a crash pad.
+; ---- $2530-$272F: velocity table (281 peak) ----
+2530: 19 01 18 01 17 01 16 01 15 01 14 01 13 01 10 01
+2540: 0E 01 0C 01 0A 01 08 01 04 01 01 01 FF 00 FB 00
+2550: F8 00 F5 00 F2 00 EE 00 EB 00 E8 00 E4 00 E1 00
+2560: DE 00 DA 00 D7 00 D4 00 D1 00 CD 00 CA 00 C7 00
+2570: C3 00 C0 00 BC 00 B8 00 B5 00 B1 00 AC 00 A8 00
+2580: A5 00 A0 00 9A 00 94 00 8F 00 87 00 84 00 7D 00
+2590: 76 00 70 00 69 00 61 00 5B 00 53 00 4B 00 44 00
+25A0: 3B 00 33 00 2C 00 23 00 1A 00 11 00 08 00 00 00
+25B0: 00 00 F8 FF EF FF 00 00 DD FF D4 FF CD FF C5 FF
+25C0: BC FF B5 FF AD FF A5 FF 9F FF 97 FF 90 FF 8A FF
+25D0: 83 FF 7C FF 79 FF 7C FF 6C FF 66 FF 60 FF 5B FF
+25E0: 58 FF 54 FF 4F FF 4B FF 48 FF 44 FF 40 FF 3D FF
+25F0: 39 FF 36 FF 33 FF 33 FF 2C FF 29 FF 26 FF 22 FF
+2600: 1F FF 1C FF 18 FF 15 FF 12 FF 0E FF 0B FF 08 FF
+2610: 05 FF 01 FF FF FE FC FE F8 FE F6 FE F4 FE F2 FE
+2620: F0 FE ED FE EC FE EB FE EA FE E9 FE E8 FE E7 FE
+2630: E7 FE E8 FE E9 FE EA FE EB FE EC FE ED FE F0 FE
+2640: F2 FE F4 FE F6 FE F8 FE FC FE FF FE 01 FF 05 FF
+2650: 08 FF 0B FF 0E FF 12 FF 15 FF 18 FF 1C FF 1F FF
+2660: 22 FF 26 FF 29 FF 2C FF 2F FF 33 FF 36 FF 39 FF
+2670: 3D FF 40 FF 44 FF 48 FF 4B FF 4F FF 54 FF 58 FF
+2680: 5B FF 60 FF 66 FF 6C FF 71 FF 79 FF 7C FF 83 FF
+2690: 8A FF 90 FF 97 FF 9F FF A5 FF AD FF B5 FF BC FF
+26A0: C5 FF CD FF D4 FF DD FF E6 FF EF FF F8 FF 00 00
+26B0: 00 00 08 00 11 00 1A 00 23 00 2C 00 33 00 3B 00
+26C0: 44 00 4B 00 53 00 5B 00 61 00 69 00 70 00 76 00
+26D0: 7D 00 84 00 87 00 87 00 94 00 9A 00 A0 00 A5 00
+26E0: A8 00 AC 00 B1 00 B5 00 B8 00 BC 00 C0 00 C3 00
+26F0: C7 00 CA 00 CD 00 CA 00 D4 00 D7 00 DA 00 DE 00
+2700: E1 00 E4 00 E8 00 EB 00 EE 00 F2 00 F5 00 F8 00
+2710: FB 00 FF 00 01 01 FB 00 08 01 0A 01 0C 01 0E 01
+2720: 10 01 13 01 14 01 15 01 16 01 17 01 18 01 19 01
 
 ; phase-1 attract sub-step arm (computed dispatch off the phase-1 table at
 ; inner sub-step 12, no static call site): read the folded program-image
@@ -5487,7 +5444,7 @@ loc_2530:
 verifyImageSignatureThenStartAttractDemoOrDerail:
 2730: 3A 6F AA        LD      A,($AA6F)           ; {hard.workRam+26F}
 2733: FE 76           CP      $76                 
-2735: C2 30 25        JP      NZ,$2530            ; {code.loc_2530}
+2735: C2 30 25        JP      NZ,$2530            
 2738: CD 2B 0B        CALL    $0B2B               ; {code.hideCaptionSprites}
 273B: CD 0E 21        CALL    $210E               ; {code.seedDemoAutopilotScript}
 273E: AF              XOR     A                   
@@ -6844,65 +6801,28 @@ setFinalEraSceneryAttributesThenRunEraScenery:
 ; a bare transfer to 0x3176 and no return; no cell is read or written and
 ; no register moves
 loc_315b:
-315B: C3 76 31        JP      $3176               ; {code.loc_3176} derail into the scenery-row data table when a guard reads wrong
+315B: C3 76 31        JP      $3176               ; derail into the scenery-row data table when a guard reads wrong
 
 ; ---- $315E-$3175: data ----
 315E: 40 68 38 62 60 70 68 D8 88 58 99 B0 37 43 CF 78
 316E: 20 D0 50 60 A0 A0 D0 60
 
-loc_3176:
-3176: 60              LD      H,B                 
-3177: 68              LD      L,B                 
-3178: 61              LD      H,C                 
-3179: 60              LD      H,B                 
-317A: 61              LD      H,C                 
-317B: 62              LD      H,D                 
-317C: 63              LD      H,E                 
-317D: 5C              LD      E,H                 
-317E: 74              LD      (HL),H              
-317F: 75              LD      (HL),L              
-3180: 76              HALT                        
-3181: 60              LD      H,B                 
-3182: 61              LD      H,C                 
-3183: 64              LD      H,H                 
-3184: 65              LD      H,L                 
-3185: 5D              LD      E,L                 
-3186: 77              LD      (HL),A              
-3187: 78              LD      A,B                 
-3188: 79              LD      A,C                 
-3189: 66              LD      H,(HL)              
-318A: 67              LD      H,A                 
-318B: 64              LD      H,H                 
-318C: 65              LD      H,L                 
-318D: 5E              LD      E,(HL)              
-318E: 7A              LD      A,D                 
-318F: 7B              LD      A,E                 
-3190: 7C              LD      A,H                 
-3191: 60              LD      H,B                 
-3192: 61              LD      H,C                 
-3193: 62              LD      H,D                 
-3194: 63              LD      H,E                 
-3195: 5F              LD      E,A                 
-3196: 31 30 33        LD      SP,$3330            
-3199: 32 85 86        LD      ($8685),A           
-319C: 87              ADD     A,A                 
-319D: 85              ADD     A,L                 
-319E: 08              EX      AF,AF'              
-319F: A7              AND     A                   
-31A0: 32 CA 7E        LD      ($7ECA),A           
-31A3: C8              RET     Z                   
-31A4: FF              RST     $38                 
-31A5: 5F              LD      E,A                 
-31A6: 93              SUB     E                   
-31A7: FB              EI                          
-31A8: C4 AF D8        CALL    NZ,$D8AF            
-31AB: 2A 6C E1        LD      HL,($E16C)          
-31AE: 7A              LD      A,D                 
-31AF: 42              LD      B,D                 
-31B0: BD              CP      L                   
-31B1: B0              OR      B                   
-31B2: 5A              LD      E,D                 
-31B3: B9              CP      C                   
+; Five 8-byte rows, one per era. The routine at $30A5 picks the row at
+; $3176 plus eight times the era (`ld hl,$3176` / `rst $18` at $30B6) and
+; copies its eight bytes into every second byte from $AA31. A failed
+; tamper check on the era-4 scenery path jumps here through $315B (`jp
+; $3176`) and runs the rows as code.
+; ---- $3176-$319D: era scenery-row table ----
+3176: 60 68 61 60 61 62 63 5C 74 75 76 60 61 64 65 5D
+3186: 77 78 79 66 67 64 65 5E 7A 7B 7C 60 61 62 63 5F
+3196: 31 30 33 32 85 86 87 85
+
+; Caption record 20 of the caption table at $0C50: destination cell $A708,
+; colour byte $32, eighteen glyphs and the $B9 terminator at $31B3. A run
+; of the scenery-row table above as code continues into these bytes.
+; ---- $319E-$31B3: caption record ----
+319E: 08 A7 32 CA 7E C8 FF 5F 93 FB C4 AF D8 2A 6C E1
+31AE: 7A 42 BD B0 5A B9
 
 ; when the tens digit of the packed-decimal life tick LIFE_TICKS_LOW
 ; (0xad05) is 0 or 3, service enemy-craft slot (units digit, only slots

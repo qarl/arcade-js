@@ -46,4 +46,9 @@ straight to `0x07B1`) and the vblank NMI (`0x0066`), together with code the stat
 could not follow from them — the restart vectors, handlers entered through jump tables and
 the command ring, and a few other runs that MAME was seen to execute — added as extra
 entry points. ROM data tables (tilemaps, lookup tables, text) and spans never reached
-are shown as `DEFB` data blocks.
+are shown as data blocks: a `; ---- $start-$end: ... ----` line over rows of raw bytes. Some
+tables are also the landing of an anti-tamper jump that runs their bytes as code on a modified
+image; those are shown as data with a note naming the jump, except a few kept as the code they
+run, each with a note at the landing saying what the bytes are. The split between data and code
+follows the traced control flow, so a data table reached only by such a jump can still read as
+code where it has not been spotted.

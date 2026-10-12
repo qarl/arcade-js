@@ -708,6 +708,7 @@
 0F86	copy the second
 0F88	copy the third
 0F8A	copy the fourth
+0F8D	the era pen table's first (glyph, colour) record run as code -- a tamper landing
 0F97	read the first scenery slot's Y byte -- bit 7 marks a slot wanting a second image this frame
 0F9A	test that request bit
 0F9C	clear -- move on to the next slot
