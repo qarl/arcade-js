@@ -73,8 +73,8 @@ export function resetPlayfieldForLifeStart(m) {
   // player shot slots (freeAllShotSlots, 0x2755).
   dressPlayerSpriteForHeading(m);
   freeAllShotSlots(m);
-  // Retire the era-object bank. Slot 0 (and the slot one stride on) is taken out of play and left
-  // holding a nonzero byte (retireObjectAndHold, 0x3C0D).
+  // Retire the era-object bank. Slot 0 and the slot one stride on are taken out of play, and slot
+  // 0's delay byte (+0x0E) is armed at 0x80 (retireObjectAndHold, 0x3C0D).
   retireObjectAndHold(m, ERA_OBJECT_RECORD_SLOT0, ERA_OBJECT_ENTRY_SLOT0);
 
   // Bank slot 2 is retired with its delay byte armed from one shared address

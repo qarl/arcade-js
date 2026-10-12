@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** stepDyingObjectState — step one object's state byte and dispatch on its value: the just-hit mark 0xF0 starts the
- * death countdown at 0x3B and counts the kill; the threshold begins the death then flies the object on, as does any
- * higher value; below it the byte counts down, retiring the slot at zero, else moving it. LIVE-OUT: memory. */
+ * death countdown at 0x3B and counts the kill; the threshold begins the death, then it and any higher
+ * value count the byte down one and fly the object on; below it the byte counts down, retiring the
+ * slot at zero, else moving it. LIVE-OUT: memory. */
 //
 // ROM 0x2B93-0x2BB3; lift: translated/loc_2b93.js. Grounding tag in names.js ROUTINES: [seen].
 //

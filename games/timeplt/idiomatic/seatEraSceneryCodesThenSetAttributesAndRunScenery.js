@@ -44,7 +44,7 @@ const FILL_BYTE = 0xcc;
 export function seatEraSceneryCodesThenSetAttributesAndRunScenery(m, entryCursor = ERA_OBJECT_ENTRY_SLOT0, recordCursor = m.regs.ix) {
   const { mem8 } = m;
 
-  // Anti-tamper tripwire. The ROM sums the 16-byte copyright caption record at 0x086B
+  // Anti-tamper tripwire. The ROM sums the first 16 bytes of the copyright caption record at 0x086B
   // (COPYRIGHT_CAPTION_RECORD, [seen]) with sumByteRunAndCompareToExpected (0x0B4C) and compares the
   // total with 0x22; the answer is left in the flags and nothing here tests it, so on any image the
   // routine carries on. It is kept because it is part of what the ROM does.

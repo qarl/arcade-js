@@ -3923,9 +3923,10 @@ seatSequencePhase3AndResetSubStep:
 
 ; one interpolated-run sequence step: call drawInterpolatedPenRun to
 ; draw/advance one pen run and ret nz unless it reseated to a zero row
-; integer, then store the two's-complement checksum of the 34-byte code
-; block at 0x1748 into 0xA817 (0x00 on a clean image) and tail-jump to
-; 0x0F1A (advanceSequenceSubStep) to step the sequence sub-index
+; integer, then store the two's-complement checksum of the 34-byte block
+; at 0x1748 (the 33-byte routine there plus the byte at 0x1769) into
+; 0xA817 (0x00 on a clean image) and tail-jump to 0x0F1A
+; (advanceSequenceSubStep) to step the sequence sub-index
 advancePenRunAnimationStep:
 1734: CD 01 02        CALL    $0201               ; {code.drawInterpolatedPenRun} draw and advance one interpolated pen run
 1737: C0              RET     NZ                  ; not yet reseated to a zero row -- leave
@@ -5542,9 +5543,9 @@ loc_2766:
 armNewGameThenStepSequence:
 27B1: CD 34 58        CALL    $5834               ; {code.requestGameStartSound} ask for the game-start sound
 27B4: 3E 78           LD      A,$78               
-27B6: 32 64 AC        LD      ($AC64),A           ; {hard.workRam+464} seed the enemy aim anchor
+27B6: 32 64 AC        LD      ($AC64),A           ; {hard.workRam+464} seed the enemy aim anchor's Y byte ($78)
 27B9: 3E 84           LD      A,$84               
-27BB: 32 65 AC        LD      ($AC65),A           ; {hard.workRam+465} seed the enemy aim point
+27BB: 32 65 AC        LD      ($AC65),A           ; {hard.workRam+465} seed the enemy aim anchor's X byte ($84)
 27BE: 21 00 00        LD      HL,$0000            
 27C1: 22 16 AD        LD      ($AD16),HL          ; {hard.workRam+516} clear player 1's life-tick counter's mid and high bytes
 27C4: 22 26 AD        LD      ($AD26),HL          ; {hard.workRam+526} clear player 2's life-tick counter's mid and high bytes
@@ -6121,16 +6122,17 @@ hasReachedRetireLine:
 
 ; per-object state-machine step: dispatch on the object's state byte —
 ; 0xf0 (the collision sweeps' just-hit mark) starts the death countdown at
-; 0x3b, 0x3c begins the death then flies it on, above 0x3c flies it on,
-; below 0x3c counts the byte down, retiring the slot at zero else moving
-; the object for the frame
+; 0x3b, 0x3c begins the death then counts the byte down one and flies it
+; on, above 0x3c counts it down one and flies it on, below 0x3c counts the
+; byte down, retiring the slot at zero else moving the object for the
+; frame
 stepDyingObjectState:
 2B93: DD 7E 00        LD      A,(IX+$00)          ; read the object's state byte
 2B96: FE F0           CP      $F0                 ; the just-hit mark 0xf0?
 2B98: CA AC 2B        JP      Z,$2BAC             ; {code.loc_2bac} yes: start the death countdown and count the kill
 2B9B: FE 3C           CP      $3C                 ; at the death-begins threshold 0x3c?
 2B9D: CC BA 2B        CALL    Z,$2BBA             ; {code.countTheKillAndGrantTheSharedToken} exactly there: count the kill and grant the token
-2BA0: D2 B4 2B        JP      NC,$2BB4            ; {code.decrementObjectStateThenFlyAtSlowestSpeed} at or above the threshold: fly it on
+2BA0: D2 B4 2B        JP      NC,$2BB4            ; {code.decrementObjectStateThenFlyAtSlowestSpeed} at or above the threshold: count it down and fly it on
 2BA3: DD 35 00        DEC     (IX+$00)            ; below it: count the state byte down
 2BA6: 28 36           JR      Z,$2BDE             ; {code.retireSlotAndSubPixel} hit zero: take the slot out of play
 2BA8: CD 22 2C        CALL    $2C22               ; {code.moveObjectByStateByteThenRunAppearance} else move it for the frame and run its appearance
@@ -8575,9 +8577,12 @@ sweepObjectSlotBankServicingFirstSlot:
 ; the advance step of the object-bank sweep loop, reached in the ROM only
 ; from inside the loop (`jp z,0x400b` at 0x3FFD, `jr 0x400b` at 0x4006):
 ; stride one slot forward (record +0x10, sprite entry +2) and return when
-; the count runs out; step over an empty slot, fly a ballistic (0xFF) slot
-; a step and step over it, and hand the first slot bearing any other
-; marker to the servicing sweep for the rest of the bank
+; the count runs out, else loop back (`djnz 0x3ff9` at 0x4014) to the
+; marker test, which routes each slot in turn: step over an empty slot,
+; fly a ballistic (0xFF) slot a step, service any other marker; this
+; port's function instead walks only to the first slot bearing any other
+; marker and hands that slot and the rest of the bank to
+; sweepObjectSlotBankServicingFirstSlot
 advanceSlotThenSweepObjectBankByHead:
 400B: 11 10 00        LD      DE,$0010            ; the record stride -- sixteen bytes per slot
 400E: DD 19           ADD     IX,DE               ; step the record cursor to the next slot
@@ -10402,8 +10407,8 @@ paintCreditCountPanel:
 4B17: AC C9
 
 ; step the sequence's inner sub-step on, folding a block of the program
-; image on the way; a total that does not match advances the outer phase
-; instead, which derails the sequence rather than halting it
+; image on the way; a total that does not match also advances the outer
+; phase first, which derails the sequence rather than halting it
 stepSequenceUnderChecksum:
 4B19: 11 CC 0B        LD      DE,$0BCC            ; point at the program block to sum
 4B1C: 01 89 00        LD      BC,$0089            ; 256 bytes, starting the total at 0x89
@@ -11188,12 +11193,12 @@ markEra1BomberAndShotHitByShots:
 4F8A: 06 06           LD      B,$06               ; six shot slots to sweep
 4F8C: 3A C0 A8        LD      A,($A8C0)           ; {hard.workRam+C0} read the target's occupancy
 4F8F: 3C              INC     A                   ; is it live?
-4F90: C0              RET     NZ                  ; target already gone: nothing to do
+4F90: C0              RET     NZ                  ; target not live ($FF): nothing to do
 
 loc_4f91:
 4F91: FD 7E 00        LD      A,(IY+$00)          ; read this shot slot's occupancy
 4F94: 3C              INC     A                   ; is the shot live?
-4F95: 20 1F           JR      NZ,$4FB6            ; {code.loc_4fb6} empty slot: skip to the next
+4F95: 20 1F           JR      NZ,$4FB6            ; {code.loc_4fb6} shot not live ($FF): skip to the next
 4F97: 3A 28 AA        LD      A,($AA28)           ; {hard.workRam+228} target's X position
 4F9A: FD 96 06        SUB     (IY+$06)            ; minus the shot's X position
 4F9D: 85              ADD     A,L                 ; plus the X slack
@@ -11340,7 +11345,7 @@ destroyPlayerAndBomberOnContact:
 5086: C0              RET     NZ                  ; player not live ($FF) -- nothing to do
 5087: 3A C0 A8        LD      A,($A8C0)           ; {hard.workRam+C0} read the slot-0 object's state
 508A: 3C              INC     A                   
-508B: C0              RET     NZ                  ; target gone -- nothing to do
+508B: C0              RET     NZ                  ; target not live ($FF) -- nothing to do
 508C: 3A 28 AA        LD      A,($AA28)           ; {hard.workRam+228} the slot-0 object's X coordinate
 508F: DD 96 00        SUB     (IX+$00)            ; minus the player's X
 5092: C6 06           ADD     A,$06               ; add the X slack (6)
@@ -11377,7 +11382,7 @@ destroyPlayerAndMotherShipOnContactByEra:
 50C3: C0              RET     NZ                  ; player not live ($FF) -- nothing to do
 50C4: 3A A0 A8        LD      A,($A8A0)           ; {hard.workRam+A0} read the mother ship's state
 50C7: 3C              INC     A                   
-50C8: C0              RET     NZ                  ; mother ship gone -- nothing to do
+50C8: C0              RET     NZ                  ; mother ship not live ($FF) -- nothing to do
 50C9: 3A 24 AA        LD      A,($AA24)           ; {hard.workRam+224} the mother ship's X coordinate
 50CC: DD 96 00        SUB     (IX+$00)            ; minus the player's X
 50CF: C6 06           ADD     A,$06               ; add the narrow X slack (6)
@@ -11408,7 +11413,7 @@ destroyPlayerAndMotherShipOnContact:
 50F6: C0              RET     NZ                  ; player not live ($FF) -- nothing to do
 50F7: 3A A0 A8        LD      A,($A8A0)           ; {hard.workRam+A0} read the mother ship's state
 50FA: 3C              INC     A                   
-50FB: C0              RET     NZ                  ; mother ship gone -- nothing to do
+50FB: C0              RET     NZ                  ; mother ship not live ($FF) -- nothing to do
 50FC: 3A 24 AA        LD      A,($AA24)           ; {hard.workRam+224} the mother ship's X coordinate
 50FF: DD 96 00        SUB     (IX+$00)            ; minus the player's X
 5102: C6 08           ADD     A,$08               ; add the wider X slack (8)

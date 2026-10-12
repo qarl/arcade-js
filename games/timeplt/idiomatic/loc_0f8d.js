@@ -3,8 +3,9 @@
  * unwind its caller chain, falls into the sprite position-fixup pass at 0x0F97, and returns through
  * a fifth. This layer lays no return words (every routine is a direct call and the frame interrupt fires
  * as one), so there is no chain on the stack to unwind and no faithful transcription of the unwind; it
- * raises where the transfer lands instead. It is reached only when the one image block the credit line
- * folds does not total 0x67, and that block is fixed program bytes, so a genuine image never arrives
+ * raises where the transfer lands instead. It is reached only when the one image block that
+ * showCreditLine folds -- the copyright caption record at 0x086B and the three bytes after it --
+ * does not total 0x67, and that block is fixed program bytes, so a genuine image never arrives
  * here. No cell is read or written before the raise. LIVE-OUT: none — it never returns.
  * ROM 0x0F8D-0x0F96. Grounding: [code] (names.js ROUTINES 0x0F8D). */
 

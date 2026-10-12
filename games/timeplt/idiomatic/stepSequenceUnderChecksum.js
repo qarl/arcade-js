@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** stepSequenceUnderChecksum — step the sequence's inner sub-step on, folding a block of the
- * program image on the way; a total that does not match advances the outer phase instead, which
+ * program image on the way; a total that does not match also advances the outer phase first, which
  * derails the sequence rather than halting it.
  *
  * ROLE. The game's top level is a sequence machine: an outer phase and an inner sub-step, each
@@ -11,8 +11,9 @@
  * block (256 bytes from 0x0BCC), the value the running total starts from (0x89) and where the
  * expected total is read from (0x1A50) are ALL fixed, so on an unaltered image the comparison has
  * one answer and only one arm can run -- under MAME the mismatch call at 0x4B2A is never taken.
- * The other arm neither stops nor reports: it advances the sequence PHASE (a different cell from
- * the sub-step), so a patched image quietly derails the sequence rather than halting.
+ * The mismatch arm neither stops nor reports: it advances the sequence PHASE (a different cell
+ * from the sub-step), which restarts the sub-step at zero, and then the sub-step is stepped on as
+ * on the passing arm, so a patched image quietly derails the sequence rather than halting.
  *
  * ROM 0x4B19-0x4B2F (frozen lift translated/loc_4b19.js). Grounding: [seen] (names.js ROUTINES
  * 0x4b19). LIVE-OUT: the sub-step, plus the phase.

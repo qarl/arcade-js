@@ -2004,8 +2004,8 @@
 276C	step to the next slot
 276E	clear all six
 27B1	ask for the game-start sound
-27B6	seed the enemy aim anchor
-27BB	seed the enemy aim point
+27B6	seed the enemy aim anchor's Y byte ($78)
+27BB	seed the enemy aim anchor's X byte ($84)
 27C1	clear player 1's life-tick counter's mid and high bytes
 27C4	clear player 2's life-tick counter's mid and high bytes
 27C7	take the per-round kill quota
@@ -2292,7 +2292,7 @@
 2B98	yes: start the death countdown and count the kill
 2B9B	at the death-begins threshold 0x3c?
 2B9D	exactly there: count the kill and grant the token
-2BA0	at or above the threshold: fly it on
+2BA0	at or above the threshold: count it down and fly it on
 2BA3	below it: count the state byte down
 2BA6	hit zero: take the slot out of play
 2BA8	else move it for the frame and run its appearance
@@ -3965,7 +3965,7 @@
 45A1	pull a stray word off the stack -- the misaligned entry
 45A4	leave the stack pointer odd
 45AD	pull a second stray word, taking the flags from it
-45AF	if the add with carry overflows, drop into the life-loss handover
+45AF	if the add with carry sets the carry flag, call into the life-loss handover
 45B3	drift the object along with the world scroll
 45B6	take its Y
 45BA	is it inside the three-wide band at 0xED-0xEF?
@@ -4775,10 +4775,10 @@
 4F8A	six shot slots to sweep
 4F8C	read the target's occupancy
 4F8F	is it live?
-4F90	target already gone: nothing to do
+4F90	target not live ($FF): nothing to do
 4F91	read this shot slot's occupancy
 4F94	is the shot live?
-4F95	empty slot: skip to the next
+4F95	shot not live ($FF): skip to the next
 4F97	target's X position
 4F9A	minus the shot's X position
 4F9D	plus the X slack
@@ -4867,7 +4867,7 @@
 5082	read the player's state
 5086	player not live ($FF) -- nothing to do
 5087	read the slot-0 object's state
-508B	target gone -- nothing to do
+508B	target not live ($FF) -- nothing to do
 508C	the slot-0 object's X coordinate
 508F	minus the player's X
 5092	add the X slack (6)
@@ -4892,7 +4892,7 @@
 50BF	read the player's state
 50C3	player not live ($FF) -- nothing to do
 50C4	read the mother ship's state
-50C8	mother ship gone -- nothing to do
+50C8	mother ship not live ($FF) -- nothing to do
 50C9	the mother ship's X coordinate
 50CC	minus the player's X
 50CF	add the narrow X slack (6)
@@ -4912,7 +4912,7 @@
 50F2	read the player's state
 50F6	player not live ($FF) -- nothing to do
 50F7	read the mother ship's state
-50FB	mother ship gone -- nothing to do
+50FB	mother ship not live ($FF) -- nothing to do
 50FC	the mother ship's X coordinate
 50FF	minus the player's X
 5102	add the wider X slack (8)

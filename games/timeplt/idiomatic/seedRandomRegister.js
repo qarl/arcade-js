@@ -12,11 +12,11 @@
  * identical generator state. A real game is not re-seeded; it inherits whatever
  * state the attract cycle left. A reader who takes the register as fixed from boot will be wrong.
  *
- * THE GUARD IS AN ANTI-TAMPER CHECK ON THE CREDIT LINE, NOT A CHECKSUM OF THE SEED: the two words it
+ * THE GUARD IS AN ANTI-TAMPER CHECK ON THE COPYRIGHT LINE, NOT A CHECKSUM OF THE SEED: the two words it
  * reads (RANDOM_SEED_GUARD_WORD0 / RANDOM_SEED_GUARD_WORD1) sit in the middle of the copyright
  * caption's record -- its colour byte 0x10, the (c) glyph 0x30 and the K glyph 0x7C -- which with this
  * routine's own 0x44 come to zero exactly. The seed run is not read by the guard at all. A tampered
- * credit line therefore raises only AFTER the register has been seeded.
+ * copyright line therefore raises only AFTER the register has been seeded.
  *
  * LIVE-OUT: memory -- the seventeen seed bytes -- plus the zero the guard total comes to (the ROM leaves
  * it in the accumulator).

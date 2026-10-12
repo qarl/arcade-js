@@ -17,7 +17,7 @@ export function loc_1734(m) {
   regs.hl = 0x1748;
   m.step(0x173b, 10); // 1738  ld hl,0x1748 -- loc_1748's first byte
   regs.b = 0x22;
-  m.step(0x173d, 7); // 173b  ld b,0x22 -- its exact length
+  m.step(0x173d, 7); // 173b  ld b,0x22 -- the 33-byte routine plus the unreferenced byte at 0x1769
   regs.xor(regs.a);
   m.step(0x173e, 4); // 173d  xor a
 

@@ -23,7 +23,9 @@
  *
  * LIVE-OUT: the component pair velocityForHeading leaves (DE, BC), also returned; no memory is written.
  * Kept as the ROUTINES override of 0x5965: no idiomatic module calls
- * it, because scrollWorldAtTheEraPace hands velocityForHeading the table itself.
+ * it. Its two ROM transfers -- scrollWorldAtTheEraPace
+ * (eras 1 and 2) and setMotherShipVelocityFromHeading (era 3, a word of its arm table at 0x46C4) --
+ * each hand velocityForHeading the table directly in this port.
  */
 
 import { velocityForHeading } from "./velocityForHeading.js";

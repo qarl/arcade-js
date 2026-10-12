@@ -14,7 +14,7 @@
  * set (names.js). Under MAME every firing wrote the same five stores, the last one zero.
  *
  * Anti-tamper: the folded bytes 0x4901-0x4903 sit inside the copyright caption's record, so an
- * image with an altered credit line restarts attract at a wrong step instead of failing cleanly.
+ * image with an altered copyright line restarts attract at a wrong step instead of failing cleanly.
  */
 
 import { u8 } from "../../../core/int.js";

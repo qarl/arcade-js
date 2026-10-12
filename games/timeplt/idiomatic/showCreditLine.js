@@ -18,7 +18,8 @@
 // nothing but step on.
 //
 // It is also one link of the ANTI-TAMPER chain: its tail sums a run of the program image (the
-// sixteen-byte copyright caption record and the four bytes after it) and hands the total on -- sumImageBlockForTheTamperCheck ->
+// seventeen-byte copyright caption record, terminator included, and the three bytes after it) and
+// hands the total on -- sumImageBlockForTheTamperCheck ->
 // parkTheImageTotalForTheTamperVerdict -> advanceSequenceUnlessImageTampered, which compares it with
 // a baked-in constant and steps the sequence on only on a match; a mismatch goes to its tamper arm.
 //

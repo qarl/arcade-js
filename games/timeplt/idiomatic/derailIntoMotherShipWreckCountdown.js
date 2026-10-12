@@ -8,6 +8,8 @@
  * offset from the frame — so control is destroyed rather than handed back. There is no faithful
  * transcription of that as a routine; the Mother-Ship's genuine wreck countdown is entered past this
  * prologue, at 0x45B3, and lives in loc_43f0.js (stepMotherShipWreckCountdown). So this raises where the derail would begin.
+ * The 24 bytes 0x459B-0x45B2 are also caption record 17 (the word at 0x0C72 in the caption table at
+ * 0x0C50): destination 0xA716, colour 0x13, twenty glyphs and the 0xB9 terminator at 0x45B2.
  * LIVE-OUT: none — it never returns.
  * ROM 0x459B-0x460D, 0x4623-0x4642 and 0x4646-0x4662. Grounding: [code] (names.js ROUTINES 0x459B). */
 
