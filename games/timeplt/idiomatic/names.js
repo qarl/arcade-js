@@ -1613,7 +1613,7 @@ export const PARACHUTIST_AWARD_SOUND = 0x079b; // ROM cell holding the sound cod
 export const ENEMY_LAUNCH_SOUND = 0x07a2; // sound-command code enqueued by requestEnemyLaunchSound [seen]
 export const TWO_SOUND_REQUEST_FIRST_CODE = 0x07a6; // 1st of the two sound codes requestTwoSounds enqueues; its sites are mixed combat impacts (hit/kill/retire), so it is named generically, not 'death' [seen]
 export const ROUND_WON_FLASH_SOUND = 0x07a9; // sound-command code enqueued by requestPlayerWhiteFlashSound [seen]
-export const ATTACKER_SPAWN_SOUND_MID_ERA_1 = 0x07d8; // 1st code of the mid-era (1-3) attacker-spawn sound; requestTwoSoundsWhilePlaying reads it then falls into the ATTACKER_SPAWN_SOUND_ERAS_1_TO_4 request [seen]
+export const ATTACKER_SPAWN_SOUND_MID_ERA_1 = 0x07d8; // 1st code of the mid-era (1-3) attacker-spawn sound; requestTwoSoundsWhilePlaying reads it then falls into the ATTACKER_SPAWN_SOUND_ERAS_2_TO_4 request [seen]
 export const LATE_ERA_SOUND_6_STOP_CODE = 0x07fe; // sound-command code enqueued by requestSoundSixStopWhilePlaying [seen]
 export const DESTRUCTION_SOUND_2 = 0x0855; // 2nd of the three destruction sound codes (requestDestructionSoundBurst) [seen]
 /**
@@ -1627,7 +1627,7 @@ export const ATTACKER_SPAWN_SOUND_ERA0 = 0x16de; // sound-command code, requestA
 export const GAME_START_SOUND = 0x1767; // sound-command code enqueued by requestGameStartSound [seen]
 export const HIGH_SCORE_FILED_SOUND_CODE = 0x18fa; // program-image byte read as a sound code by requestHighScoreFiledSound (`ld a,(0x18fa)` at 0x583A), enqueued only while a game is in progress [seen]
 export const ENEMY_WAVE_SOUND = 0x273a; // sound-command code enqueued by requestEnemyWaveSound [seen]
-export const ATTACKER_SPAWN_SOUND_ERAS_1_TO_4 = 0x276b; // sound-command code read by requestAttackerSpawnSoundLateEra; requestTwoSoundsWhilePlaying (mid-era path) falls through into the same read, so the byte is not late-era-only [seen]
+export const ATTACKER_SPAWN_SOUND_ERAS_2_TO_4 = 0x276b; // sound-command code read by requestAttackerSpawnSoundLateEra; requestTwoSoundsWhilePlaying (mid-era path) falls through into the same read, so the byte is not late-era-only [seen]
 export const DESTRUCTION_OR_ROUND_END_SOUND_1 = 0x27cb; // 1st of the destruction-or-round-end sound pair (requestDestructionOrRoundEndSoundPair) [seen]
 export const BONUS_LIFE_SOUND = 0x2d4e; // sound-command code enqueued by requestBonusLifeSound [seen]
 export const ONE_SHOT_COUNTDOWN_SOUND = 0x2d87; // sound requested when a one-shot/countdown object's count is clamped to 0x3b (animate-out onset); not named 'death', since callers include non-combat objects [seen]
@@ -1794,16 +1794,16 @@ export const PHASE0_SUBSTEP_DISPATCH_TABLE = 0x15c8; // inline 8-entry word jump
  * 0x0f29, fetchTableWord pc 0x0012/0x0014 reads entry words 0x0f29-0x0f46)
  */
 export const PHASE3_SUBSTEP_DISPATCH_TABLE = 0x0f29;
-export const CAPTION_BAND_COLOUR_CELL0 = 0xa210; // 1st of three colour-RAM cells the round-won band's colouring sets: 0xa0+base here, 0x20+base one row back (paintRoundWonBandTailThenStepSequence) [seen]
-export const CAPTION_BAND_COLOUR_CELL1 = 0xa211; // 2nd round-won band colour cell: 0xa0+base here, 0x20+base one row back [seen]
-export const CAPTION_BAND_COLOUR_CELL2 = 0xa212; // 3rd round-won band colour cell: 0xe0+base here, 0x60+base one row back (paintRoundWonBandTailThenStepSequence) [seen]
+export const COLOUR_PLANE_STUB_UPPER_LEFT = 0xa210; // 1st of three colour-RAM cells the round-won band's colouring sets: 0xa0+base here, 0x20+base one row back (paintRoundWonBandTailThenStepSequence) [seen]
+export const COLOUR_PLANE_COLUMN_MID_BOTTOM = 0xa211; // 2nd round-won band colour cell: 0xa0+base here, 0x20+base one row back [seen]
+export const COLOUR_PLANE_STUB_LOWER_LEFT = 0xa212; // 3rd round-won band colour cell: 0xe0+base here, 0x60+base one row back (paintRoundWonBandTailThenStepSequence) [seen]
 /**
  * colour-plane counterpart (res 2,h fold) of CHAR_PLANE_LOWER_RUN_BOTTOM (0xa7b1); fillCellRun base
  * for the round-won band's lower colour run. Under MAME (poke-rcnat) fillCellRun writes 0xa0+PEN_COLOUR
  * here first, then 12 more cells up by 0x20 to 0xa231 [seen]
  */
-export const CAPTION_COLOUR_LOWER_RUN_BOTTOM = 0xa3b1;
-export const CAPTION_COLOUR_UPPER_RUN_BOTTOM = 0xa1d1; // colour-plane counterpart of CHAR_PLANE_UPPER_RUN_BOTTOM (0xa5d1); fillCellRun base for the round-won band's upper colour run [seen]
+export const COLOUR_PLANE_LOWER_RUN_BOTTOM = 0xa3b1;
+export const COLOUR_PLANE_UPPER_RUN_BOTTOM = 0xa1d1; // colour-plane counterpart of CHAR_PLANE_UPPER_RUN_BOTTOM (0xa5d1); fillCellRun base for the round-won band's upper colour run [seen]
 export const ROUND_WON_ANIMATION_STEP_SEED = 0x3213; // program-image code byte (0x00, the immediate operand of ld (ix+9),0 at 0x3210) read as a value to seed ROUND_WON_ANIMATION_STEP to 0 when a won round's band animation is set up (armRoundWonBandAnimationThenStepSequence) [seen]
 /**
  * 11-entry ROM table: a digit (0-9) to its glyph, plus entry 10 = the blanking glyph 0xF1 that
@@ -2053,11 +2053,11 @@ export const INITIALS_LETTER_INDEX = 0xa999; // index (0..26) of the letter show
 export const INITIALS_SLOTS_LEFT = 0xa99a; // count of initials still to enter: set to 3 when the entry opens, decremented on each committed letter; reaching 0 finishes the entry [seen]
 export const INITIALS_CURSOR_FLASH_TIMER = 0xa99c; // initials cursor blink counter: incremented every odd frame of the entry, bit 4 picks the cursor cell's colour (0x14 over 0x10); zeroed whenever the cursor letter is redrawn [seen]
 export const INITIALS_LETTER_GLYPH_TABLE = 0x12c7; // 27-entry ROM table mapping INITIALS_LETTER_INDEX to the glyph drawn at the entry cursor and locked into the saved initials: A..Z in order, then one final non-letter mark (glyph 0x1a, whose tile is a small dot); MAME read indices 0, 1 and 26, and the A..Z order rests on matching the tile bitmaps against the caption font [seen]
-export const ROUND_START_CHECKSUM_BASE = 0x4c99; // base of a 256-byte ROM anti-tamper block XOR-folded by the life-start sequence arm (sub-step 4); any fold but 0x6b advances the outer sequence phase [seen]
+export const LIFE_START_CAPTIONS_CHECKSUM_BASE = 0x4c99; // base of a 256-byte ROM anti-tamper block XOR-folded by the life-start sequence arm (sub-step 4); any fold but 0x6b advances the outer sequence phase [seen]
 export const INITIALS_ENTRY_CHECKSUM_BASE = 0x4880; // base of a 256-byte ROM anti-tamper block XOR-folded by the initials-entry setup arm (sub-step 9); any fold but 0x30 derails into the frame service [seen]
 export const HIGH_SCORE_FILED_CHECKSUM_BASE = 0x01f1; // base of a 256-byte ROM anti-tamper block summed to 8 bits by the game-over hold arm on the path where the score was filed; any total but 0x19 advances the outer sequence phase [seen]
 export const SKIP_INITIALS_SUBSTEP_SEED = 0x0843; // ROM code byte (0x0b, operand of the call at 0x0841) read as a value: seeds SEQUENCE_SUBSTEP when the finished score beats no high-score record, so the sequence bypasses the initials setup (sub-step 9) and entry (sub-step 10) [seen]
-export const ROUND_INTRO_CHECKSUM_BASE = 0x4d9f; // base of a 256-byte ROM anti-tamper block subtract-folded into SEQUENCE_PHASE then XORed with 0xa2 by the round-intro arm (phase-3 sub-step 5, flyRoundIntroFlashingEraYearThenEraseIntroCaptions); nets out on a genuine image [seen]
+export const LIFE_START_HOLD_CHECKSUM_BASE = 0x4d9f; // base of a 256-byte ROM anti-tamper block subtract-folded into SEQUENCE_PHASE then XORed with 0xa2 by the round-intro arm (phase-3 sub-step 5, flyLifeStartHoldThenEraseLifeStartCaptions); nets out on a genuine image [seen]
 export const LEAD_IN_CHECKSUM_BASE = 0x0831; // base of the first 256-byte ROM anti-tamper block the lead-in arm (phase-3 sub-step 6, flyEnemyFreeLeadInThenStepSequence) subtract-folds into SEQUENCE_PHASE (closed by XOR 0xc2) every frame; nets out on a genuine image; the block is live code (it starts inside drawKillMeter) read here as data [seen]
 export const LEAD_IN_EXPIRY_CHECKSUM_BASE = 0x12a7; // base of the second 256-byte ROM anti-tamper block the lead-in arm subtract-folds into SEQUENCE_PHASE (closed by XOR 0x59) on the frame SEQUENCE_DELAY expires; nets out on a genuine image [seen]
 
@@ -2075,7 +2075,7 @@ export const ROUTINES = {
     why: "the pen-run gate could have been a DRAW rather than an ERASE, and the preceding arm settles it: fileScoreAfterGameOverHoldElsePassTurn (arm 8) sets PEN_GLYPH=0xF1 (the blanking glyph) and PEN_COLOUR=0 right before re-arming the pen route and nothing between the two arms changes PEN_GLYPH, the same pattern as the sibling armPenRouteInColour5ThenAdvanceStep; 'OpenInitialsEntry' is refutable by the next arm, and stepHighScoreInitialsEntry (arm 10) consumes every cell this seeds -- the four press histories, INITIALS_LETTER_INDEX, INITIALS_SLOTS_LEFT=3 and INITIALS_LOCKED_LETTER_COLOUR. Under MAME this arm writes those cells and stepHighScoreInitialsEntry then reads them; what the erased route covers on screen is not MAME-checked",
   },
   0x16af: {
-    name: "flyRoundIntroFlashingEraYearThenEraseIntroCaptions",
+    name: "flyLifeStartHoldThenEraseLifeStartCaptions",
     role: "round-intro hold, entry 5 of the phase-3 sub-step table at 0x0F29 (between the life-start arm 0x0774 and the enemy-free lead-in 0x5694): each frame it subtract-folds the 256-byte image block at 0x4D9F into SEQUENCE_PHASE and xors 0xA2 (nets out on a genuine image), then flies the ship over the era scenery with no enemy or collision service (a sprite-fixup pass, dispatchPlayerFrameByState, a second sprite-fixup pass, then runSceneryForEra, closed by multiplexSpriteSlots). While ROUND_INTRO_PENDING is set, FRAME_TICK low nibble 0/5/10 repaints the era's year caption (A.D. 1910/1940/1970/1982/2001, index 0x1A+ERA_INDEX) through the +0/+5/+10 shared-colour painters, so it flashes. SEQUENCE_DELAY counts down on odd frames; on expiry it erases the PLAYER-n line (caption 9), STAGE (0x0E) and the year line (0x1A), clears ROUND_INTRO_PENDING, re-arms SEQUENCE_DELAY to 0x2A and advances the sequence sub-step",
     cert: "seen",
     why: "'EraYear' could have been refuted by the caption data: the records at 0x1A-0x1E of the 0x0C50 caption table share a prefix and differ only in a four-glyph digit run, and the digit glyphs 0x96='1' and 0x9b='2' are fixed independently by captions 9 and 10 (PLAYER 1 / PLAYER 2), so the flashed caption indexed by 0x1A+ERA_INDEX is the era's year; 'EraseIntroCaptions' is the expiry path's command 3 on captions 9, 0x0E and 0x1A; the flight runs only the player-side services, no enemy or collision service. Under MAME the flight calls and the expiry path's caption commands are observed",
@@ -3772,7 +3772,7 @@ export const ROUTINES = {
     cert: "seen",
   },
   0x507e: {
-    name: "destroyFixedTargetReachedByPlayer",
+    name: "destroyPlayerAndBomberOnContact",
     role: "destroy the object in era-object slot 0 (0xA8C0; in era 1 the flying bomber) and the player with it when the two touch, zero the target's BOMBER_HITS_TO_ABSORB so the contact kills it outright rather than costing it a hit, and tail-transfer to the scoring routine; four tests must all pass, so nothing at all is written unless every one of them does",
     cert: "seen",
     why: "the reference it measures the target against is what the name adds, and it is fixed outside this routine: it reads the same sprite-entry pair three sibling sweeps use, and the write tap behind destroyEraObjectsAndPlayerOnContact attributed that pair to the ship that holds one screen position while the world scrolls past. Undriven play never satisfies the four-test conjunction, but under MAME a poked run that brings the ship onto that target does, and all three of its stores fire, followed by the player's and the target's deaths",

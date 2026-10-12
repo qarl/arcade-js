@@ -30,12 +30,12 @@ import { FRAME_TICK } from "./names.js";
 
 // Offsets within the sprite-shadow entry: the shape code, and the attribute byte 0x30 beyond.
 const SHAPE_SLOT = 1;
-const CONTROL_SLOT = 48;
+const ATTRIBUTE = 48;
 // The eight shapes of the cycle are codes 0x40..0x47 (`add a,0x40`).
 const FIRST_SHAPE = 64;
 const SHAPES = 8;
 // The constant stored at +0x30 (`ld (iy+0x30),0x44`).
-const CONTROL_BYTE = 68;
+const ATTRIBUTE_VALUE = 68;
 
 export function animateFixedShapeCycle(m, entry = m.regs.iy) {
   const { mem8 } = m;
@@ -45,5 +45,5 @@ export function animateFixedShapeCycle(m, entry = m.regs.iy) {
   // Store the shape: base plus frame (`add a,0x40 / ld (iy+0x01),a`).
   mem8[entry + SHAPE_SLOT] = FIRST_SHAPE + frame;
   // Pin the byte beside it to its one constant, whatever it held before.
-  mem8[entry + CONTROL_SLOT] = CONTROL_BYTE;
+  mem8[entry + ATTRIBUTE] = ATTRIBUTE_VALUE;
 }

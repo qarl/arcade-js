@@ -32,7 +32,7 @@
 //   0xEF..0x01   DYING     with no hits left the head counts down one per step (stepMotherShipWreckCountdown): at 0xEF
 //                          it sweeps the whole field (sweepFieldOnMotherShipDeathElseStepWreck), from 0xE4 down it plays its wreck-and-flash
 //                          shapes, at 0xB4 it pays 3,000 points (flashMotherShipWreckAndPayThreeThousand), at 0x5A its sprite
-//                          codes are set to 0xFF, and at 0 it goes idle and hands over to the round advance (retireMotherShipAndReleaseRoundHold).
+//                          codes are set to 0xFF, and at 0 it goes idle and hands over to the round advance (retireMotherShipAndRaiseRoundHold).
 //
 // SPRITE ENTRY LAYOUT (mechanisms.md). An entry's +0x00 is one coordinate and +0x01 the sprite code
 // (shape); 0x30 bytes on, +0x30 is the attribute (colour and flip) and +0x31 the other coordinate. The
@@ -194,11 +194,11 @@ export function sweepFieldOnMotherShipDeathElseStepWreck(m, phase, record, entry
   let code = FIRST_SLOT_CODE;
   let count = SLOT_COUNT;
   do {
-    const held = mem8[slot];
-    if (held === 0xff) {
+    const head = mem8[slot];
+    if (head === 0xff) {
       mem8[slot] = code;
       postCommand(m, SWEEP_SCORE_AWARD_COMMAND, TWO_HUNDRED_POINTS_INDEX); // post 200 points (command 4, award entry 2) for this record
-    } else if (u8(held + 2) === 0x00) {
+    } else if (u8(head + 2) === 0x00) {
       mem8[slot] = 0x00; // slot held 0xFE
     }
     slot = u16(slot + SLOT_STRIDE);
@@ -262,7 +262,7 @@ export function stepMotherShipWreckCountdown(m, record, entry) {
   // codes are set to 0xFF, as at the edge above.
   const spent = u8(mem8[X(STATE)] - 1);
   mem8[X(STATE)] = spent;
-  if (spent === 0x00) return retireMotherShipAndReleaseRoundHold(m, record);
+  if (spent === 0x00) return retireMotherShipAndRaiseRoundHold(m, record);
   if (mem8[X(STATE)] !== WRECK_HIDE_STATE) return;
   mem8[Y(0x01)] = 0xff;
   mem8[Y(0x03)] = 0xff;
@@ -294,7 +294,7 @@ export function flashMotherShipWreckAndPayThreeThousand(m, record, entry) {
 // and simply returns. Anything else is a patched caption, and the ROM jumps into
 // derailIntoMotherShipWreckCountdown (0x459B) [code] through a misaligned prologue that pops the stack out
 // of step -- a deliberate derail, not a routine this ship means to run.
-export function retireMotherShipAndReleaseRoundHold(m, record) {
+export function retireMotherShipAndRaiseRoundHold(m, record) {
   const { mem8 } = m;
   const X = (offset) => u16(record + offset);
 

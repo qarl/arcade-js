@@ -112,10 +112,10 @@ directly-called ones by host call-stack attribution on a read their own body mak
 
 | tape | reaches |
 |---|---|
-| boss-armed, deep-round | postLifeStartCaptionsAndResetPlayfield, flyRoundIntroFlashingEraYearThenEraseIntroCaptions, flyEnemyFreeLeadInThenStepSequence |
+| boss-armed, deep-round | postLifeStartCaptionsAndResetPlayfield, flyLifeStartHoldThenEraseLifeStartCaptions, flyEnemyFreeLeadInThenStepSequence |
 | two-player | the three above + loadActivePlayerContextAndPostRoundHud |
 | era-one | the three above + serviceEra1EnemyCraftSlot |
-| era-advance | flyRoundIntroFlashingEraYearThenEraseIntroCaptions, flyEnemyFreeLeadInThenStepSequence, serviceSlotByMarkerThenCloseSweepTurn |
+| era-advance | flyLifeStartHoldThenEraseLifeStartCaptions, flyEnemyFreeLeadInThenStepSequence, serviceSlotByMarkerThenCloseSweepTurn |
 | countdown-slot | stepCountdownSlotThenCloseTurn, serviceSlotByMarkerThenCloseSweepTurn |
 | game-over | fileScoreAfterGameOverHoldElsePassTurn — **reached, pixel-invisible** (see below) |
 | high-score | fileScoreAfterGameOverHoldElsePassTurn (its filing arm), erasePenRouteThenOpenInitialsEntry, stepHighScoreInitialsEntry, startTwoPlayerGame |

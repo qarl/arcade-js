@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * flyRoundIntroFlashingEraYearThenEraseIntroCaptions — sequence arm 5: the round-intro hold.
+ * flyLifeStartHoldThenEraseLifeStartCaptions — sequence arm 5: the round-intro hold.
  *
  * ROM 0x16AF. Grounding: [seen] (names.js ROUTINES 0x16af).
  *
@@ -13,7 +13,7 @@
  * ROLE IN THE MACHINE. Entry 5 of the phase-3 sub-step table at 0x0F29, between the life-start arm
  * (0x0774, postLifeStartCaptionsAndResetPlayfield) and the enemy-free lead-in (0x5694,
  * flyEnemyFreeLeadInThenStepSequence). Every frame it first folds the 256-byte program block at
- * ROUND_INTRO_CHECKSUM_BASE (0x4D9F) into SEQUENCE_PHASE (0xA9AB) -- a subtract-fold closed by XOR
+ * LIFE_START_HOLD_CHECKSUM_BASE (0x4D9F) into SEQUENCE_PHASE (0xA9AB) -- a subtract-fold closed by XOR
  * 0xA2, an anti-tamper check that nets out on a genuine image.
  *
  * LIVE-OUT: memory. The one continuation reloads every register it reads.
@@ -26,7 +26,7 @@ import { runSceneryForEra } from "./runSceneryForEra.js";
 import { multiplexSpriteSlots } from "./multiplexSpriteSlots.js";
 import { postCommand } from "./postCommand.js";
 import { advanceSequenceSubStep } from "./advanceSequenceSubStep.js";
-import { ERA_INDEX, FRAME_TICK, ROUND_INTRO_PENDING, SEQUENCE_DELAY, SEQUENCE_PHASE, ROUND_INTRO_CHECKSUM_BASE } from "./names.js";
+import { ERA_INDEX, FRAME_TICK, ROUND_INTRO_PENDING, SEQUENCE_DELAY, SEQUENCE_PHASE, LIFE_START_HOLD_CHECKSUM_BASE } from "./names.js";
 
 // The anti-tamper block: 256 program bytes, closed with this XOR key.
 const FOLD_BYTES = 256;
@@ -43,12 +43,12 @@ const ERA_ARGUMENT_BASE = 0x1a;
 // Frame-tick low nibble -> command posted while the round's intro is pending; any other nibble posts nothing.
 const TICK_COMMANDS = new Map([[0x00, 0x02], [0x05, 0x0a], [0x0a, 0x0b]]);
 
-export function flyRoundIntroFlashingEraYearThenEraseIntroCaptions(m) {
+export function flyLifeStartHoldThenEraseLifeStartCaptions(m) {
   const { mem8 } = m;
 
   // Anti-tamper fold: subtract each byte of the block from the phase (eight-bit wrap), then XOR 0xA2.
   let fold = mem8[SEQUENCE_PHASE];
-  for (let i = 0; i < FOLD_BYTES; i++) fold = u8(fold - mem8[ROUND_INTRO_CHECKSUM_BASE + i]);
+  for (let i = 0; i < FOLD_BYTES; i++) fold = u8(fold - mem8[LIFE_START_HOLD_CHECKSUM_BASE + i]);
   mem8[SEQUENCE_PHASE] = fold ^ FOLD_KEY;
 
   // Fly the ship over the scenery: the player's frame between two sprite fixup passes, then the

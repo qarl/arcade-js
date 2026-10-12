@@ -56,7 +56,7 @@ const RUN_LENGTH = 5;
 // Three initials per entry.
 const SLOTS_PER_ENTRY = 3;
 // Clearing this address bit turns a tile-plane cell address into its colour-plane twin.
-const COLOUR_PLANE_BIT = 0x400;
+const GLYPH_PLANE_BIT = 0x400;
 
 export function erasePenRouteThenOpenInitialsEntry(m) {
   const { mem8, mem16 } = m;
@@ -89,7 +89,7 @@ export function erasePenRouteThenOpenInitialsEntry(m) {
   // colour already on that cell's colour-plane byte; each initial is repainted in it as it locks.
   const cell = mem16[SCRATCH_PTR_B];
   mem8[cell] = fetchTableByte(m, INITIALS_LETTER_GLYPH_TABLE, mem8[INITIALS_LETTER_INDEX]);
-  mem8[INITIALS_LOCKED_LETTER_COLOUR] = mem8[cell & ~COLOUR_PLANE_BIT];
+  mem8[INITIALS_LOCKED_LETTER_COLOUR] = mem8[cell & ~GLYPH_PLANE_BIT];
 
   // Step 6: on to arm 10, the per-frame initials entry.
   return advanceSequenceSubStep(m);

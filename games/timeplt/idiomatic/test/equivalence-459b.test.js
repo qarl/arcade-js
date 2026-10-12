@@ -37,7 +37,7 @@ import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { ROUTINES as TRANSLATED } from "../../routines.js";
 import { derailIntoMotherShipWreckCountdown } from "../derailIntoMotherShipWreckCountdown.js";
 import { paintReadoutsThenSampleWitnessOrDerail } from "../paintReadoutsThenSampleWitnessOrDerail.js";
-import { retireMotherShipAndReleaseRoundHold } from "../loc_43f0.js";
+import { retireMotherShipAndRaiseRoundHold } from "../loc_43f0.js";
 import { loc_459b as oracle } from "../../translated/loc_459b.js";
 import { loc_176a as oracle176a } from "../../translated/loc_176a.js";
 import { NotImplemented } from "../../../../boards/timeplt/io.js";
@@ -299,13 +299,13 @@ test("TAMPER: each guard reaches this fault only on a tampered value", { skip },
     const c = d.clone();
     c.mem8[WITNESS] = WITNESS_GLYPH;
     c.mem8[WITNESS + 1] = colour;
-    assert.ok(!raisesHere(() => retireMotherShipAndReleaseRoundHold(c, ix)), `the genuine witness (colour ${colour}) raised`);
+    assert.ok(!raisesHere(() => retireMotherShipAndRaiseRoundHold(c, ix)), `the genuine witness (colour ${colour}) raised`);
   }
   for (const [glyph, colour] of [[0x00, 0x05], [WITNESS_GLYPH, 0x00]]) {
     const c = d.clone();
     c.mem8[WITNESS] = glyph;
     c.mem8[WITNESS + 1] = colour;
-    assert.ok(raisesHere(() => retireMotherShipAndReleaseRoundHold(c, ix)), `a tampered witness ${glyph}/${colour} did not raise this fault`);
+    assert.ok(raisesHere(() => retireMotherShipAndRaiseRoundHold(c, ix)), `a tampered witness ${glyph}/${colour} did not raise this fault`);
   }
   console.log("  TAMPER: glyph guard and witness gate each raise this fault only on a tampered value; " +
     "the frozen glyph arm is seen transferring here");

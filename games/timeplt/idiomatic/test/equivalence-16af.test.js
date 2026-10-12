@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * flyRoundIntroFlashingEraYearThenEraseIntroCaptions — memory-equivalent to the frozen oracle at ROM 0x16AF.
+ * flyLifeStartHoldThenEraseLifeStartCaptions — memory-equivalent to the frozen oracle at ROM 0x16AF.
  *
  * GATE: masked strict, run through the game's omitted-return seam so SP and pc are compared EXACTLY.
  *   The rewrite omits its closing return and the seam completes it, as in the live game; the frozen
@@ -44,7 +44,7 @@ import assert from "node:assert/strict";
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { withOmittedRet } from "../../machine.js";
 import { seamPlaceable } from "../../../../core/equivalence.js";
-import { flyRoundIntroFlashingEraYearThenEraseIntroCaptions as candidate } from "../flyRoundIntroFlashingEraYearThenEraseIntroCaptions.js";
+import { flyLifeStartHoldThenEraseLifeStartCaptions as candidate } from "../flyLifeStartHoldThenEraseLifeStartCaptions.js";
 import { loc_16af as oracle } from "../../translated/loc_16af.js";
 import { loc_0f54 as continuation } from "../../translated/loc_0f54.js";
 import { loc_0f1f as frozenDispatcher } from "../../translated/loc_0f1f.js";

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * destroyFixedTargetReachedByPlayer — ROM 0x507E [seen]
+ * destroyPlayerAndBomberOnContact — ROM 0x507E [seen]
  *
  * WHAT IT IS. The collision test between the player's own ship and the object (in era 1 the flying bomber) held in
  * era-object slot 0 (record ERA_OBJECT_RECORD_SLOT0 0xA8C0, sprite entry ERA_OBJECT_ENTRY_SLOT0
@@ -31,7 +31,7 @@ const SECOND_AXIS_WINDOW = 0x21;
 const LIVE = 0xff;
 const DESTROYED = 0xf0;
 
-export function destroyFixedTargetReachedByPlayer(m) {
+export function destroyPlayerAndBomberOnContact(m) {
   const { mem8 } = m;
   // Tests 1 and 2: the player (PLAYER_STATE 0xA800) and the target (0xA8C0) must both be live
   // (ROM 0x5082-0x508B: inc a / ret nz on each).
@@ -39,11 +39,11 @@ export function destroyFixedTargetReachedByPlayer(m) {
   if (mem8[ERA_OBJECT_RECORD_SLOT0] !== LIVE) return;
 
   // Test 3: target entry +0 (0xAA28) against the player's entry +0 (PLAYER_ENTRY 0xAA10).
-  const across = u8(mem8[ERA_OBJECT_ENTRY_SLOT0] - mem8[PLAYER_ENTRY] + FIRST_AXIS_SLACK);
-  if (across >= FIRST_AXIS_WINDOW) return;
+  const xDelta = u8(mem8[ERA_OBJECT_ENTRY_SLOT0] - mem8[PLAYER_ENTRY] + FIRST_AXIS_SLACK);
+  if (xDelta >= FIRST_AXIS_WINDOW) return;
   // Test 4: target sprite Y (ERA_OBJECT_SPRITE_Y_SLOT0 0xAA59) against the player's (PLAYER_SPRITE_Y 0xAA41).
-  const along = u8(mem8[ERA_OBJECT_SPRITE_Y_SLOT0] - mem8[PLAYER_SPRITE_Y] + SECOND_AXIS_SLACK);
-  if (along >= SECOND_AXIS_WINDOW) return;
+  const yDelta = u8(mem8[ERA_OBJECT_SPRITE_Y_SLOT0] - mem8[PLAYER_SPRITE_Y] + SECOND_AXIS_SLACK);
+  if (yDelta >= SECOND_AXIS_WINDOW) return;
 
   // Contact: both start to die, the hits the target could still absorb are cleared (BOMBER_HITS_TO_ABSORB 0xA8DC)
   // so nothing survives the contact, and the ROM tail-jumps to postChainedHitScore (0x51DE).

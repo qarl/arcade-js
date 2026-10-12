@@ -30,10 +30,10 @@ import { requestTwoSounds } from "./requestTwoSounds.js";
 import { CLAIM_TOKEN, KILLS_REMAINING, WAVE_CLAIM_TIMER, WAVE_KILL_COUNTDOWN } from "./names.js";
 
 /** Record offsets (ROM `ld a,(ix+0x0e)` / `ld a,(ix+0x0f)`): the cooldown byte and the slot ordinal. */
-const COOLDOWN = 0x0e;
+const RELEASE_DELAY = 0x0e;
 const ORDINAL = 0x0f;
 /** Top bit of the cooldown byte: this object may claim (ROM `bit 7,a; ret z`). */
-const COOLDOWN_CLAIMS = 0x80;
+const RELEASED_FROM_HOLD_MARK = 0x80;
 /** Added to the ordinal to mark the token as held (ROM `add a,0x80`). */
 const HOLDER_MARK = 0x80;
 
@@ -45,7 +45,7 @@ export function countTheKillAndGrantTheSharedToken(m, object = m.regs.ix) {
   if (mem8[KILLS_REMAINING] !== 0) mem8[KILLS_REMAINING] = mem8[KILLS_REMAINING] - 1;
 
   // Guards 1-2: this object is eligible, and the wave's claim window is open.
-  if ((mem8[object + COOLDOWN] & COOLDOWN_CLAIMS) === 0) return;
+  if ((mem8[object + RELEASE_DELAY] & RELEASED_FROM_HOLD_MARK) === 0) return;
   if (mem8[WAVE_CLAIM_TIMER] === 0) return;
 
   // Guard 3: tick the wave's countdown; only the kill that brings it to zero goes on.

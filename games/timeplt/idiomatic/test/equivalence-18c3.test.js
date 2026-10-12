@@ -363,7 +363,7 @@ const MUTANTS = [
   ["histories-swapped", "rollHistory(mem8, INITIALS_BACK_PRESS_HISTORY, controls & BACK_BIT);", "rollHistory(mem8, INITIALS_BACK_PRESS_HISTORY, controls & FORWARD_BIT);"],
   ["locked-colour-constant", "= mem8[INITIALS_LOCKED_LETTER_COLOUR];", "= CURSOR_COLOUR;"],
   ["copy-not-stepped", "mem16[SCRATCH_PTR_A] = copy + 1;", "mem16[SCRATCH_PTR_A] = copy;"],
-  ["cursor-plane-not-snapped", "advanceCharCursor(m, cursor | COLOUR_PLANE_BIT)", "advanceCharCursor(m, cursor)"],
+  ["cursor-plane-not-snapped", "advanceCharCursor(m, cursor | GLYPH_PLANE_BIT)", "advanceCharCursor(m, cursor)"],
   ["last-slot-keeps-going", "if (commitLetter(m)) return true;", "commitLetter(m);"],
   ["flash-inverted", "phase & FLASH_BIT ? CURSOR_FLASH_COLOUR : CURSOR_COLOUR", "phase & FLASH_BIT ? CURSOR_COLOUR : CURSOR_FLASH_COLOUR"],
   ["clock-every-frame", "(mem8[FRAME_TICK] & EVERY_EIGHTH_FRAME) !== 0", "false"],

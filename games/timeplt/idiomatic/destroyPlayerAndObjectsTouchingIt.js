@@ -41,9 +41,9 @@ export function destroyPlayerAndObjectsTouchingIt(m, occupancy = m.regs.de, entr
   let left = targets === 0 ? COUNT_ZERO_MEANS : targets;
   while (left-- > 0) {
     if (mem8[occupancyAt] === LIVE) {
-      const across = u8(mem8[PLAYER_ENTRY] - mem8[entryAt + ENTRY_FIRST_AXIS] + reach);
-      const along = u8(mem8[PLAYER_SPRITE_Y] - mem8[entryAt + ENTRY_SECOND_AXIS] + reach);
-      if (across < span && along < span) {
+      const xDelta = u8(mem8[PLAYER_ENTRY] - mem8[entryAt + ENTRY_FIRST_AXIS] + reach);
+      const yDelta = u8(mem8[PLAYER_SPRITE_Y] - mem8[entryAt + ENTRY_SECOND_AXIS] + reach);
+      if (xDelta < span && yDelta < span) {
         mem8[PLAYER_STATE] = DESTROYED;
         mem8[occupancyAt] = DESTROYED;
       }

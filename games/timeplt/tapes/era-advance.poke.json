@@ -9,7 +9,7 @@
     { "frame": 700, "addr": "0xad04", "val": "0x04", "dur": 1100 }
   ],
   "responded": {"cell": "0xad04", "op": "eq", "val": 4},
-  "reaches": ["flyRoundIntroFlashingEraYearThenEraseIntroCaptions", "flyEnemyFreeLeadInThenStepSequence", "serviceSlotByMarkerThenCloseSweepTurn"],
+  "reaches": ["flyLifeStartHoldThenEraseLifeStartCaptions", "flyEnemyFreeLeadInThenStepSequence", "serviceSlotByMarkerThenCloseSweepTurn"],
   "_reaches": "postLifeStartCaptionsAndResetPlayfield runs only before the era poke lands (outside the compared window), so it is not declared. stepCountdownSlotThenCloseTurn (0x4108) is inlined into serviceSlotByMarkerThenCloseSweepTurn as its drifting-countdown arm; no slot in this tape carries a drifting marker, so this tape does not declare it; countdown-slot.poke.json covers it.",
   "idiomatic_residual_frames": 56
 }

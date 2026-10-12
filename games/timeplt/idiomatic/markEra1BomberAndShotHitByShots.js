@@ -56,9 +56,9 @@ export function markEra1BomberAndShotHitByShots(m) {
     if (mem8[slot + OCCUPANCY] === LIVE) {
       // Compare the target's entry +0 (0xAA28) and its sprite Y (ERA_OBJECT_SPRITE_Y_SLOT0 0xAA59,
       // entry +0x31) with the shot's two coordinates, each inside its window.
-      const across = u8(mem8[ERA_OBJECT_ENTRY_SLOT0] - mem8[slot + SHOT_FIRST_AXIS] + FIRST_AXIS_SLACK);
-      const along = u8(mem8[ERA_OBJECT_SPRITE_Y_SLOT0] - mem8[slot + SHOT_SECOND_AXIS] + SECOND_AXIS_SLACK);
-      if (across < FIRST_AXIS_WINDOW && along < SECOND_AXIS_WINDOW) {
+      const xDelta = u8(mem8[ERA_OBJECT_ENTRY_SLOT0] - mem8[slot + SHOT_FIRST_AXIS] + FIRST_AXIS_SLACK);
+      const yDelta = u8(mem8[ERA_OBJECT_SPRITE_Y_SLOT0] - mem8[slot + SHOT_SECOND_AXIS] + SECOND_AXIS_SLACK);
+      if (xDelta < FIRST_AXIS_WINDOW && yDelta < SECOND_AXIS_WINDOW) {
         // A hit: mark the target and this shot 0xF0, and post the score through
         // postChainedHitScore (0x51DE), which steps the award up while hits keep chaining.
         mem8[ERA_OBJECT_RECORD_SLOT0] = HIT_MARK;

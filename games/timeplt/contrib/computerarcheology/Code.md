@@ -3832,7 +3832,7 @@ loc_169c:
 ; PLAYER-n line (caption 9), STAGE (0x0E) and the year line (0x1A), clears
 ; ROUND_INTRO_PENDING, re-arms SEQUENCE_DELAY to 0x2A and advances the
 ; sequence sub-step
-flyRoundIntroFlashingEraYearThenEraseIntroCaptions:
+flyLifeStartHoldThenEraseLifeStartCaptions:
 16AF: 06 00           LD      B,$00               ; 256 bytes to fold
 16B1: 21 9F 4D        LD      HL,$4D9F            ; point at a program-image block
 16B4: 3A AB A9        LD      A,($A9AB)           ; {hard.workRam+1AB} take the outer sequence phase
@@ -11046,7 +11046,7 @@ splitCollisionWorkByFrameParity:
 4EDF: 2E 07           LD      L,$07               ; collision box near bound
 4EE1: 26 0F           LD      H,$0F               ; collision box far bound
 4EE3: CD 52 51        CALL    $5152               ; {code.destroySlotsAndPlayerOnContact} destroy the slots and the player on contact
-4EE6: CD 7E 50        CALL    $507E               ; {code.destroyFixedTargetReachedByPlayer} destroy the era-object slot-0 object the player has reached
+4EE6: CD 7E 50        CALL    $507E               ; {code.destroyPlayerAndBomberOnContact} destroy the era-object slot-0 object the player has reached
 4EE9: 06 01           LD      B,$01               ; one object
 4EEB: 11 E0 A8        LD      DE,$A8E0            ; point the record cursor at era-object slot 2
 4EEE: FD 21 2C AA     LD      IY,$AA2C            ; point the entry cursor at era-object slot 2
@@ -11064,7 +11064,7 @@ loc_4f02:
 4F06: 26 0F           LD      H,$0F               ; collision box far bound
 4F08: CD 52 51        CALL    $5152               ; {code.destroySlotsAndPlayerOnContact} destroy the slots and the player on contact
 4F0B: CD B1 50        CALL    $50B1               ; {code.destroyPlayerAndMotherShipOnContactByEra} the mother-ship mutual-kill box
-4F0E: CD 7E 50        CALL    $507E               ; {code.destroyFixedTargetReachedByPlayer} destroy the era-object slot-0 object the player has reached
+4F0E: CD 7E 50        CALL    $507E               ; {code.destroyPlayerAndBomberOnContact} destroy the era-object slot-0 object the player has reached
 4F11: 06 01           LD      B,$01               ; one object
 4F13: 11 E0 A8        LD      DE,$A8E0            ; point the record cursor at era-object slot 2
 4F16: FD 21 2C AA     LD      IY,$AA2C            ; point the entry cursor at era-object slot 2
@@ -11295,7 +11295,7 @@ loc_505a:
 ; costing it a hit, and tail-transfer to the scoring routine; four tests
 ; must all pass, so nothing at all is written unless every one of them
 ; does
-destroyFixedTargetReachedByPlayer:
+destroyPlayerAndBomberOnContact:
 507E: DD 21 10 AA     LD      IX,$AA10            ; point at the player's sprite entry
 5082: 3A 00 A8        LD      A,($A800)           ; {hard.workRam} read the player's state
 5085: 3C              INC     A                   

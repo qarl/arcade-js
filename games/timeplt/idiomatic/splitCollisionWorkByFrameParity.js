@@ -19,7 +19,7 @@
 //   2. the player against the four enemy-shot slots from 0xA810 (destroyPlayerAndObjectsTouchingIt, 0x5185);
 //   3. the player against the craft band that follows at 0xA850 (destroySlotsAndPlayerOnContact, 0x5152);
 //   4. while the Mother-Ship is armed, the player against it (destroyPlayerAndMotherShipOnContactByEra, 0x50B1);
-//   5. the player against the bomber (destroyFixedTargetReachedByPlayer, 0x507E);
+//   5. the player against the bomber (destroyPlayerAndBomberOnContact, 0x507E);
 //   6. the player against the bomber's launched object at 0xA8E0 (destroyPlayerAndObjectsTouchingIt);
 //   7. the next record, the parachutist at 0xA8F0, marked if the player touches it
 //      (markObjectsTouchingPlayer, 0x51B3) -- the touch that collects it.
@@ -31,7 +31,7 @@ import { markEra1BomberAndShotHitByShots } from "./markEra1BomberAndShotHitBySho
 import { destroyPlayerAndObjectsTouchingIt } from "./destroyPlayerAndObjectsTouchingIt.js";
 import { destroySlotsAndPlayerOnContact } from "./destroySlotsAndPlayerOnContact.js";
 import { destroyPlayerAndMotherShipOnContactByEra } from "./destroyPlayerAndMotherShipOnContactByEra.js";
-import { destroyFixedTargetReachedByPlayer } from "./destroyFixedTargetReachedByPlayer.js";
+import { destroyPlayerAndBomberOnContact } from "./destroyPlayerAndBomberOnContact.js";
 import { markObjectsTouchingPlayer } from "./markObjectsTouchingPlayer.js";
 import { ACTOR_ENTRY_SLOT0, ACTOR_RECORD_SLOT0, ERA_OBJECT_ENTRY_SLOT2, ERA_OBJECT_RECORD_SLOT2, FRAME_TICK, MOTHER_SHIP_ARMED } from "./names.js";
 
@@ -61,7 +61,7 @@ export function splitCollisionWorkByFrameParity(m) {
   destroySlotsAndPlayerOnContact(m, afterSlot0.occupancy, afterSlot0.entry, armed ? 5 : 7, 7, 15);
   if (armed) destroyPlayerAndMotherShipOnContactByEra(m);
   // Step 5: the player ramming the bomber -- a touch marks both and posts a chained score.
-  destroyFixedTargetReachedByPlayer(m);
+  destroyPlayerAndBomberOnContact(m);
 
   // Step 6: the player against the bomber's third record (0xA8E0 / entry 0xAA2C), which holds what the
   // bomber launches: one target, 5 either side. No shot sweep covers this record in era 1, so whatever

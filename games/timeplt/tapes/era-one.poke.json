@@ -9,6 +9,6 @@
     { "frame": 700, "addr": "0xad04", "val": "0x01", "dur": 1100 }
   ],
   "responded": {"cell": "0xad04", "op": "eq", "val": 1},
-  "reaches": ["postLifeStartCaptionsAndResetPlayfield", "flyRoundIntroFlashingEraYearThenEraseIntroCaptions", "flyEnemyFreeLeadInThenStepSequence", "serviceEra1EnemyCraftSlot"],
+  "reaches": ["postLifeStartCaptionsAndResetPlayfield", "flyLifeStartHoldThenEraseLifeStartCaptions", "flyEnemyFreeLeadInThenStepSequence", "serviceEra1EnemyCraftSlot"],
   "idiomatic_residual_frames": 57
 }

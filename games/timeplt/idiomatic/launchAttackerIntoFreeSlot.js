@@ -78,10 +78,10 @@ export function launchAttackerIntoFreeSlot(m, craftRecord = m.regs.ix, craftEntr
   // the window on BOTH coordinates: sprite-entry +0x31 against 0x78, then +0x00 against 0x84.
   const margin = mem8[ATTACKER_SPAWN_WINDOW_HALF];
   const window = u8(margin + margin);
-  const along = u8(FIRST_LINE - mem8[craftEntry + 0x31] + margin);
-  if (along < window) {
-    const across = u8(SECOND_LINE - mem8[craftEntry + 0x00] + margin);
-    if (across < window) return;
+  const yDelta = u8(FIRST_LINE - mem8[craftEntry + 0x31] + margin);
+  if (yDelta < window) {
+    const xDelta = u8(SECOND_LINE - mem8[craftEntry + 0x00] + margin);
+    if (xDelta < window) return;
   }
 
   // Launch: the craft's heading (record +0x02) becomes the facing handed on. Era 0 goes to the

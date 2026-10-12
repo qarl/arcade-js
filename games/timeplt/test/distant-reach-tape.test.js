@@ -227,7 +227,7 @@ romTest("control: a routine whose only entry is cut (body intact) counts 0, whil
   assert.equal(r.stop, null, `render stopped: ${r.stop}`);
   assert.notEqual(r.respondedAt, null, "vacuous: the tape never reached its responded state");
   assert.equal(r.hits[name], 0, `${name} counted ${r.hits[name]} with every entry to it cut`);
-  for (const sibling of ["flyRoundIntroFlashingEraYearThenEraseIntroCaptions", "flyEnemyFreeLeadInThenStepSequence"]) {
+  for (const sibling of ["flyLifeStartHoldThenEraseLifeStartCaptions", "flyEnemyFreeLeadInThenStepSequence"]) {
     assert.ok(r.hits[sibling] > 0, `positive control: ${sibling} (same switch, same run) counted nothing`);
   }
 });

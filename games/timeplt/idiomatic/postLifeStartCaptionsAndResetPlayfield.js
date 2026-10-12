@@ -30,7 +30,7 @@ import { postCommand } from "./postCommand.js";
 import { drawKillMeter } from "./drawKillMeter.js";
 import { resetPlayfieldForLifeStart } from "./resetPlayfieldForLifeStart.js";
 import { advanceSequenceSubStep } from "./advanceSequenceSubStep.js";
-import { PLAY_ACTIVE, ACTIVE_PLAYER, ROUND_INTRO_PENDING, ROUND_START_CHECKSUM_BASE } from "./names.js";
+import { PLAY_ACTIVE, ACTIVE_PLAYER, ROUND_INTRO_PENDING, LIFE_START_CAPTIONS_CHECKSUM_BASE } from "./names.js";
 
 // Anti-tamper guard: the XOR of 256 program bytes must be 0x6B. (The ROM tests it as
 // `add a,0x95`, which is zero exactly when the fold is 0x6B.)
@@ -47,12 +47,12 @@ const ROUND_NUMBER_CAPTION_COMMAND = 7;
 export function postLifeStartCaptionsAndResetPlayfield(m) {
   const { mem8 } = m;
 
-  // Anti-tamper guard. XOR-fold the 256 bytes at ROUND_START_CHECKSUM_BASE (0x4C99, [seen]). A
+  // Anti-tamper guard. XOR-fold the 256 bytes at LIFE_START_CAPTIONS_CHECKSUM_BASE (0x4C99, [seen]). A
   // modified image folds to something else, and then advanceSequencePhase (0x0F11) throws the
   // outer phase forward (and restarts its sub-step). On a genuine image the fold
   // is 0x6B and nothing happens; the rest of the arm runs either way.
   let fold = 0;
-  for (let i = 0; i < GUARD_SPAN_BYTES; i++) fold ^= mem8[ROUND_START_CHECKSUM_BASE + i];
+  for (let i = 0; i < GUARD_SPAN_BYTES; i++) fold ^= mem8[LIFE_START_CAPTIONS_CHECKSUM_BASE + i];
   if (fold !== GUARD_GENUINE_FOLD) advanceSequencePhase(m);
 
   // Captions. PLAY_ACTIVE (0xAD30, [seen]) is what separates a credited game from the attract

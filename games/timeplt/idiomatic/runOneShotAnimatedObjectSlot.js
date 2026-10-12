@@ -27,7 +27,7 @@ import { ONE_SHOT_OBJECT_SHAPE_TABLE } from "./names.js";
 // bytes apart (+0 and +0x31), its shape at +1 and its attribute at +0x30.
 const COUNTER = 0;
 // 60: at or above this the counter is re-stamped (`cp 0x3c` / `call nc,0x409d`).
-const REARM_AT = 0x3c;
+const CLAMP_AT = 0x3c;
 // 28: below this the object keeps whatever shape it last had (`cp 0x1c` / `ret c`).
 const SHAPE_FLOOR = 0x1c;
 const SPRITE_SHAPE = 1;
@@ -41,7 +41,7 @@ export function runOneShotAnimatedObjectSlot(m, object = m.regs.ix, sprite = m.r
   // Step 1 -- rearm. A counter of 60 or more is forced to 59 (0x3B) and the matching sound requested
   // (clampOneShotCountdownThenRequestSound, 0x409D [seen]). After the decrement below it reads 58,
   // under the mark, so this fires only on the first pass: it does not self-retrigger.
-  if (mem8[object + COUNTER] >= REARM_AT) clampOneShotCountdownThenRequestSound(m, object);
+  if (mem8[object + COUNTER] >= CLAMP_AT) clampOneShotCountdownThenRequestSound(m, object);
 
   // Step 2 -- count down (`dec (ix+0x00)`). Reaching zero ends the animation: the slot is retired by
   // zeroing both sprite coordinates, which takes it off the screen (ROM 0x40AB-0x40B7). The ROM also

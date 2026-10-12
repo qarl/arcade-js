@@ -22,7 +22,7 @@ import { markEra1BomberAndShotHitByShots } from "../markEra1BomberAndShotHitBySh
 import { destroyPlayerAndObjectsTouchingIt } from "../destroyPlayerAndObjectsTouchingIt.js";
 import { destroySlotsAndPlayerOnContact } from "../destroySlotsAndPlayerOnContact.js";
 import { destroyPlayerAndMotherShipOnContactByEra } from "../destroyPlayerAndMotherShipOnContactByEra.js";
-import { destroyFixedTargetReachedByPlayer } from "../destroyFixedTargetReachedByPlayer.js";
+import { destroyPlayerAndBomberOnContact } from "../destroyPlayerAndBomberOnContact.js";
 import { markObjectsTouchingPlayer } from "../markObjectsTouchingPlayer.js";
 
 const TARGET = 0x4ebc;
@@ -180,7 +180,7 @@ function evenChain(m, { skipFirst = false, forceArmed = null, tailReach = 17, fi
   regs.h = 15;
   destroySlotsAndPlayerOnContact(m);
   if (armed) destroyPlayerAndMotherShipOnContactByEra(m);
-  destroyFixedTargetReachedByPlayer(m);
+  destroyPlayerAndBomberOnContact(m);
   regs.b = 1;
   regs.de = 0xa8e0;
   regs.iy = 0xaa2c;

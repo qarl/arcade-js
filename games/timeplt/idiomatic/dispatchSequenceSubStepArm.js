@@ -29,7 +29,7 @@ import { seatCaptionPenFromEraFoldingTamperIntoPhase } from "./seatCaptionPenFro
 import { blankKillMeterThenAdvancePenRunStep } from "./blankKillMeterThenAdvancePenRunStep.js";
 import { loadActivePlayerContextAndPostRoundHud } from "./loadActivePlayerContextAndPostRoundHud.js";
 import { postLifeStartCaptionsAndResetPlayfield } from "./postLifeStartCaptionsAndResetPlayfield.js";
-import { flyRoundIntroFlashingEraYearThenEraseIntroCaptions } from "./flyRoundIntroFlashingEraYearThenEraseIntroCaptions.js";
+import { flyLifeStartHoldThenEraseLifeStartCaptions } from "./flyLifeStartHoldThenEraseLifeStartCaptions.js";
 import { flyEnemyFreeLeadInThenStepSequence } from "./flyEnemyFreeLeadInThenStepSequence.js";
 import { serviceRoundThenResolvePlayerState } from "./serviceRoundThenResolvePlayerState.js";
 import { fileScoreAfterGameOverHoldElsePassTurn } from "./fileScoreAfterGameOverHoldElsePassTurn.js";
@@ -61,7 +61,7 @@ export function dispatchSequenceSubStepArm(m) {
     case 2: blankKillMeterThenAdvancePenRunStep(m); break;
     case 3: loadActivePlayerContextAndPostRoundHud(m); break;
     case 4: postLifeStartCaptionsAndResetPlayfield(m); break;
-    case 5: flyRoundIntroFlashingEraYearThenEraseIntroCaptions(m); break;
+    case 5: flyLifeStartHoldThenEraseLifeStartCaptions(m); break;
     case 6: flyEnemyFreeLeadInThenStepSequence(m); break;
     case 7: serviceRoundThenResolvePlayerState(m); break;
     // Arms 8-10: the end of a game -- the GAME OVER hold that then files the score, the pen-route

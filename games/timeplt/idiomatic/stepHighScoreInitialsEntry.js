@@ -29,7 +29,7 @@
 //
 // THE SCREEN. Video RAM has two planes 0x400 apart: a cell's glyph at the tile-plane address and its
 // colour at the same address with bit 10 (0x400) clear, which is how every colour write below is
-// addressed (`cursor & ~COLOUR_PLANE_BIT`).
+// addressed (`cursor & ~GLYPH_PLANE_BIT`).
 //
 // LIVE-OUT: memory only -- the initials glyphs in the table record and on screen, their colours, the
 // entry cells (histories, letter index, slots left, flash timer), SEQUENCE_DELAY, the two scratch
@@ -76,7 +76,7 @@ const WRAPPED_BELOW = 0x80;
 
 // Screen constants: the plane bit, the cursor's two flash colours (bit 4 of the flash timer picks
 // 0x14 over 0x10, per INITIALS_CURSOR_FLASH_TIMER), and 0xF1, the blanking glyph.
-const COLOUR_PLANE_BIT = 0x400;
+const GLYPH_PLANE_BIT = 0x400;
 const CURSOR_COLOUR = 0x10;
 const CURSOR_FLASH_COLOUR = 0x14;
 const FLASH_BIT = 0x10;
@@ -111,7 +111,7 @@ function redrawCursorLetter(m) {
   const { mem8, mem16 } = m;
   const cursor = mem16[SCRATCH_PTR_B];
   mem8[cursor] = letterGlyph(m);
-  mem8[cursor & ~COLOUR_PLANE_BIT] = CURSOR_COLOUR;
+  mem8[cursor & ~GLYPH_PLANE_BIT] = CURSOR_COLOUR;
   mem8[INITIALS_CURSOR_FLASH_TIMER] = 0;
 }
 
@@ -129,9 +129,9 @@ function commitLetter(m) {
   const cursor = mem16[SCRATCH_PTR_B];
   mem8[cursor] = glyph;
   mem8[copy] = glyph;
-  mem8[cursor & ~COLOUR_PLANE_BIT] = mem8[INITIALS_LOCKED_LETTER_COLOUR];
+  mem8[cursor & ~GLYPH_PLANE_BIT] = mem8[INITIALS_LOCKED_LETTER_COLOUR];
   mem16[SCRATCH_PTR_A] = copy + 1;
-  mem16[SCRATCH_PTR_B] = advanceCharCursor(m, cursor | COLOUR_PLANE_BIT);
+  mem16[SCRATCH_PTR_B] = advanceCharCursor(m, cursor | GLYPH_PLANE_BIT);
   mem8[INITIALS_SLOTS_LEFT] = u8(mem8[INITIALS_SLOTS_LEFT] - 1);
   if (mem8[INITIALS_SLOTS_LEFT] === 0) return true;
   mem8[INITIALS_LETTER_INDEX] = 0;
@@ -206,7 +206,7 @@ function flashCursor(m) {
   const { mem8, mem16 } = m;
   const phase = u8(mem8[INITIALS_CURSOR_FLASH_TIMER] + 1);
   mem8[INITIALS_CURSOR_FLASH_TIMER] = phase;
-  mem8[mem16[SCRATCH_PTR_B] & ~COLOUR_PLANE_BIT] = phase & FLASH_BIT ? CURSOR_FLASH_COLOUR : CURSOR_COLOUR;
+  mem8[mem16[SCRATCH_PTR_B] & ~GLYPH_PLANE_BIT] = phase & FLASH_BIT ? CURSOR_FLASH_COLOUR : CURSOR_COLOUR;
 }
 
 /** With both players out of lives, a held start button begins the next game when it may. */

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * destroyFixedTargetReachedByPlayer — memory-equivalent to the frozen oracle at ROM 0x507E.
+ * destroyPlayerAndBomberOnContact — memory-equivalent to the frozen oracle at ROM 0x507E.
  *
  * ★ THE REAL DISPATCHES ARE VACUOUS ON RAM AND THIS GATE MEASURES IT. Every dispatch the attract
  *   run produces fails one of the four tests, so nothing is written and a do-nothing candidate is
@@ -36,7 +36,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMachine, romsPresent } from "./_harness.js";
-import { destroyFixedTargetReachedByPlayer } from "../destroyFixedTargetReachedByPlayer.js";
+import { destroyPlayerAndBomberOnContact } from "../destroyPlayerAndBomberOnContact.js";
 import { loc_507e as oracle } from "../../translated/loc_507e.js";
 import { unitEquivalence } from "../../../../core/equivalence.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
@@ -97,7 +97,7 @@ function gate(candidate) {
 }
 
 function entryState() {
-  if (entry === null) gate(destroyFixedTargetReachedByPlayer);
+  if (entry === null) gate(destroyPlayerAndBomberOnContact);
   return entry;
 }
 
@@ -324,13 +324,13 @@ const TWINS = [
 // ── the gate ────────────────────────────────────────────────────────────────────────────
 
 test("EQUAL at the real dispatch: identical outside the scratch window", { skip }, () => {
-  gate(destroyFixedTargetReachedByPlayer);
+  gate(destroyPlayerAndBomberOnContact);
   assert.notEqual(entry, null, "vacuous: the attract run never reached the routine");
   const sp = entryState().regs.sp;
   const a = entryState().clone();
   const b = entryState().clone();
   oracle(a);
-  destroyFixedTargetReachedByPlayer(b);
+  destroyPlayerAndBomberOnContact(b);
   const strays = allDiffs(a, b).filter((d) => !inScratch(d.addr, sp));
   assert.deepEqual(strays, [], `a divergence escaped the scratch window: ${show(strays[0])}`);
   console.log(`  EQUAL: sp ${hex4(sp)}; nothing outside the ${SCRATCH_BYTES}-byte window moves`);
@@ -356,7 +356,7 @@ test("EXCLUDED, deliberately: scratch registers, the record base and pc", { skip
   const a = entryState().clone();
   const b = entryState().clone();
   oracle(a);
-  destroyFixedTargetReachedByPlayer(b);
+  destroyPlayerAndBomberOnContact(b);
   const moved = REG_FIELDS.filter((k) => a.regs[k] !== b.regs[k]);
   const unexpected = moved.filter((k) => !MOVED.includes(k));
   assert.deepEqual(unexpected, [], "a register diverged outside the excluded set");
@@ -368,7 +368,7 @@ test("CORPUS: every captured dispatch replays identically", { skip }, () => {
   const { entries, shapes } = captureCorpus();
   assert.equal(entries.length, DISPATCHES, "the dispatch count moved");
   for (const captured of entries) {
-    assert.equal(unitDiff(destroyFixedTargetReachedByPlayer, captured), null, "a captured dispatch diverged");
+    assert.equal(unitDiff(destroyPlayerAndBomberOnContact, captured), null, "a captured dispatch diverged");
   }
   console.log(`  CORPUS: ${entries.length} dispatches over ${shapes.size} flag pairs`);
 });
@@ -378,7 +378,7 @@ test("CRAFTED: every flag and coordinate combination is identical", { skip }, ()
     for (const v of FLAGS) {
       for (const a of ACROSS) {
         for (const b of ALONG) {
-          const d = unitDiff(destroyFixedTargetReachedByPlayer, craft(t, v, a, b));
+          const d = unitDiff(destroyPlayerAndBomberOnContact, craft(t, v, a, b));
           assert.equal(d, null, `${hex4(t)}/${hex4(v)}/${a}/${b}: ${show(d)}`);
         }
       }
@@ -390,7 +390,7 @@ test("CRAFTED: every flag and coordinate combination is identical", { skip }, ()
 test("IT IS WHOLE-OR-NOTHING: each test failing alone writes nothing", { skip }, () => {
   const hit = hitting();
   const after = hit.clone();
-  destroyFixedTargetReachedByPlayer(after);
+  destroyPlayerAndBomberOnContact(after);
   assert.notEqual(after.mem8[PLAYER_STATE], LIVE, "the crafted hit must actually destroy something");
 
   const failures = [
@@ -401,14 +401,14 @@ test("IT IS WHOLE-OR-NOTHING: each test failing alone writes nothing", { skip },
   ];
   for (const [label, m] of failures) {
     const before = m.dumpState();
-    destroyFixedTargetReachedByPlayer(m);
+    destroyPlayerAndBomberOnContact(m);
     assert.deepEqual([...m.dumpState()], [...before], `${label}: something was written anyway`);
   }
   console.log(`  WHOLE-OR-NOTHING: ${failures.length} single failures each write nothing`);
 });
 
 test("WHOLE-MACHINE: the session differs only inside the scratch windows", { skip }, () => {
-  const r = wholeRunCells(hosted(destroyFixedTargetReachedByPlayer));
+  const r = wholeRunCells(hosted(destroyPlayerAndBomberOnContact));
   assert.equal(r.threw, null, `the run threw: ${r.threw}`);
   assert.equal(r.stopped, null, `the run stopped early: ${r.stopped}`);
   assert.equal(r.frames, FRAMES, `compared ${r.frames} of ${FRAMES} frames`);
@@ -420,7 +420,7 @@ test("WHOLE-MACHINE: the session differs only inside the scratch windows", { ski
 });
 
 test("TEETH: removing the shim's return kills the run, so the shim is load-bearing", { skip }, () => {
-  const r = wholeRunCells(destroyFixedTargetReachedByPlayer);
+  const r = wholeRunCells(destroyPlayerAndBomberOnContact);
   assert.ok(
     r.threw !== null || r.stopped !== null,
     "the run COMPLETED without the shim, so the callers no longer expect a return",

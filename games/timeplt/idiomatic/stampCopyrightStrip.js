@@ -32,7 +32,7 @@ const ENTRY_STRIDE = 2;
 // the parallel table 0x30 bytes further on holds +0x30 the attribute (colour and flip) and +0x31
 // the other screen coordinate.
 const SHAPE = 1;
-const CONTROL = 48;
+const ATTRIBUTE = 48;
 const SECOND_AXIS = 49;
 
 // The constants the ROM loads: coordinate 0xD8 at +0x00 for every piece (`ld e,0xd8`),
@@ -40,7 +40,7 @@ const SECOND_AXIS = 49;
 // coordinate starting at 0xA0 and dropping by 0x10 per piece (`ld d,0xa0`, `sub 0x10`) — sixteen
 // pixels being one sprite's width, so the four pieces abut.
 const FIXED_AXIS_VALUE = 216;
-const CONTROL_VALUE = 108;
+const ATTRIBUTE_VALUE = 108;
 const FIRST_SHAPE = 4;
 const LEADING_EDGE = 160;
 const PIECE_PITCH = 16;
@@ -55,7 +55,7 @@ export function stampCopyrightStrip(m) {
     mem8[entry + SHAPE] = FIRST_SHAPE + piece;
     // Second half, 0x30 bytes on: the shared attribute and the coordinate that spaces the pieces
     // one sprite-width apart, so the four glyphs read as one continuous caption.
-    mem8[entry + CONTROL] = CONTROL_VALUE;
+    mem8[entry + ATTRIBUTE] = ATTRIBUTE_VALUE;
     mem8[entry + SECOND_AXIS] = LEADING_EDGE - piece * PIECE_PITCH;
   }
 }

@@ -33,12 +33,12 @@ export function setSavedPenFromEra(m) {
   // with 0xAD14, and only on a non-zero player swaps both to player two's pair (0xAD2B / 0xAD24).
   const secondPlayer = mem8[ACTIVE_PLAYER] !== 0;
   const field = secondPlayer ? PLAYER_TWO_PEN_GLYPH : PLAYER_ONE_PEN_GLYPH;
-  const round = mem8[secondPlayer ? PLAYER_TWO_ERA_INDEX : PLAYER_ONE_ERA_INDEX];
+  const eraIndex = mem8[secondPlayer ? PLAYER_TWO_ERA_INDEX : PLAYER_ONE_ERA_INDEX];
 
   // Locate the era's record. The table sits at 0x0F8D -- bytes of the program image that are also
   // routine 0x0F8D's own code, read here as data. The index is doubled in eight bits, then the
   // restart at 0x0018 (offsetAddress) adds it to the table base.
-  const entry = offsetAddress(m, ERA_PEN_TABLE, u8(round * FIELD_WIDTH));
+  const entry = offsetAddress(m, ERA_PEN_TABLE, u8(eraIndex * FIELD_WIDTH));
 
   // Copy the record's two bytes into the saved pen pair, glyph first -- the ROM's two `ldi`s.
   mem8[field] = mem8[entry];
