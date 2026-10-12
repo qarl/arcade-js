@@ -94,7 +94,7 @@ export function armRoundWonBandAnimationThenStepSequence(m) {
 
 // Colour one cell and the cell one native row back (toward row zero), the ROM's
 // `ld (hl),a / add hl,de / ld (hl),a`.
-function paintColumn(mem8, cell, here, above) {
+function paintColumn(mem8, cell, here, rowBackColour) {
   mem8[cell] = here;
-  mem8[u16(cell + ROW_STEP)] = above;
+  mem8[u16(cell + ROW_STEP)] = rowBackColour;
 }

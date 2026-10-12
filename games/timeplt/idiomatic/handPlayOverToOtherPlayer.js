@@ -14,7 +14,7 @@
  * triple, the score drawer and the turn caption are all reached through it, 0 naming player one.
  */
 
-import { SEQUENCE_SUBSTEP, ACTIVE_PLAYER, SEQUENCE_DELAY, HANDOVER_SUBSTEP_SEED } from "./names.js";
+import { SEQUENCE_SUBSTEP, ACTIVE_PLAYER, SEQUENCE_DELAY, NEXT_LIFE_SUBSTEP_SEED } from "./names.js";
 
 // The pause before the next sequence step runs: 90 ticks of SEQUENCE_DELAY (`ld a,0x5a`).
 const HANDOVER_DELAY = 90;
@@ -27,5 +27,5 @@ export function handPlayOverToOtherPlayer(m) {
   mem8[SEQUENCE_DELAY] = HANDOVER_DELAY;
   // Reseat the round engine's inner sequence index (0xA9AC) from the program byte at 0x4B52
   // (0x01 on this image) rather than an immediate, so the sequence resumes at that sub-step.
-  mem8[SEQUENCE_SUBSTEP] = mem8[HANDOVER_SUBSTEP_SEED];
+  mem8[SEQUENCE_SUBSTEP] = mem8[NEXT_LIFE_SUBSTEP_SEED];
 }

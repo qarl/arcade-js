@@ -12,7 +12,7 @@
  * (serviceRoundThenResolvePlayerState) calls it as soon as PLAYER_STATE reads 0, i.e. the dying
  * sequence is over (mechanisms.md, "loseLifeAndHandOver runs as soon as PLAYER_STATE reads 0").
  * The "constant" and "program-image byte" above are the sequence machine's delay (90 frames) and
- * its sub-step (HANDOVER_SUBSTEP_SEED, which reads 1), so the next life -- or the other player's
+ * its sub-step (NEXT_LIFE_SUBSTEP_SEED, which reads 1), so the next life -- or the other player's
  * turn -- re-enters the sequence at step 1 after a short pause.
  *
  * The context block: each player's per-life state (lives, pen, ...) lives in a sixteen-byte block.
@@ -26,7 +26,7 @@ import { enqueueTransitionSoundStops } from "./enqueueTransitionSoundStops.js";
 import { hideAllSprites } from "./hideAllSprites.js";
 import { startNextRound } from "./startNextRound.js";
 import { postGameOverBanner } from "./postGameOverBanner.js";
-import { ROUND_TRANSITION_HOLD, LIVES_REMAINING, PLAYER_ONE_LIVES, PLAYER_TWO_LIVES, ACTIVE_PLAYER, SEQUENCE_DELAY, SEQUENCE_SUBSTEP, HANDOVER_SUBSTEP_SEED } from "./names.js";
+import { ROUND_TRANSITION_HOLD, LIVES_REMAINING, PLAYER_ONE_LIVES, PLAYER_TWO_LIVES, ACTIVE_PLAYER, SEQUENCE_DELAY, SEQUENCE_SUBSTEP, NEXT_LIFE_SUBSTEP_SEED } from "./names.js";
 
 // The context block is copied whole (`ld bc,0x0010` / ldir at 0x120E-0x1211).
 const RECORD_LEN = 16;
@@ -65,7 +65,7 @@ export function loseLifeAndHandOver(m) {
   if (mem8[other] !== 0) mem8[ACTIVE_PLAYER] = (mem8[ACTIVE_PLAYER] + 1) & 1;
 
   /* Step 5 -- rearm the sequence (0x122F-0x123A): SEQUENCE_DELAY 0xA9EB [seen] = 90 ticks and
-   * SEQUENCE_SUBSTEP 0xA9AC [seen] from the program byte at 0x4B52 (HANDOVER_SUBSTEP_SEED). */
+   * SEQUENCE_SUBSTEP 0xA9AC [seen] from the program byte at 0x4B52 (NEXT_LIFE_SUBSTEP_SEED). */
   mem8[SEQUENCE_DELAY] = STAMP_VALUE;
-  mem8[SEQUENCE_SUBSTEP] = mem8[HANDOVER_SUBSTEP_SEED];
+  mem8[SEQUENCE_SUBSTEP] = mem8[NEXT_LIFE_SUBSTEP_SEED];
 }
