@@ -6,7 +6,8 @@
  *
  * ROM 0x56E4-0x56EF (frozen lift loc_56e4). Grounding: [seen] (names.js ROUTINES 0x56E4).
  *
- * Role in the machine: the sound pair between rounds. It is reached as a call from
+ * Role in the machine: the sound pair that closes every destruction burst (the player's explosion,
+ * the Mother-Ship's death sweep) and marks the end of the round-won band. It is reached as a call from
  * advanceScriptedCharPlaneBandTo4 (when band-to-4 reaches its lower sentinel and sets step 4) and
  * by falling out of the bottom of requestDestructionSoundBurst. It has the same shape as
  * requestTwoSounds (0x5683), with a different pair of program bytes.

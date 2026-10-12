@@ -3,7 +3,7 @@
  * wait in two fixed cells. Copies the spawner's two coordinate pairs and the caller's facing byte
  * across into the new slot, then fits it out one of four ways chosen by the current era: era zero
  * an unaimed throw with a fixed shape, flip bits from a mirror flag and a seeded velocity word; eras one and two a heading toward a
- * fixed screen point skewed a quarter turn to one side or the other, picked by a stored bit; era three a velocity vector for a heading
+ * point standing off the player's ship along its heading, skewed a quarter turn to one side or the other, picked by a stored bit; era three a velocity vector for a heading
  * offset a fixed step either side of the facing; era four a straight aim at that same point, with
  * one extra byte seeded. Every way counts the new slot's head byte down from free (0x00) to live (0xFF), re-arms the spawn
  * cooldown, and hands off to a sound request (eras one and two share era three's). The staged record/entry pointers ride
@@ -47,8 +47,9 @@ export function commissionStagedAttackerByEra(m, spawnerRecord = m.regs.ix, spaw
   const { mem8 } = m;
 
   // STEP 1 -- READ THE LAUNCHER'S POSITION (0x42B7-0x42C3). Each axis is split across the record and
-  // the sprite entry: the vertical whole part in the entry's +0x31 byte with its fraction at record
-  // +0x03, the horizontal whole part in the entry's +0x00 byte with its fraction at record +0x05.
+  // the sprite entry: the native-Y whole part in the entry's +0x31 byte with its fraction at record
+  // +0x03, the native-X whole part in the entry's +0x00 byte with its fraction at record +0x05. The
+  // locals' vertical/horizontal name the board's native axes; native Y runs across the glass.
   const verticalWhole = mem8[spawnerEntry + 0x31];
   const verticalFraction = mem8[spawnerRecord + 0x03];
   const horizontalWhole = mem8[spawnerEntry + 0x00];

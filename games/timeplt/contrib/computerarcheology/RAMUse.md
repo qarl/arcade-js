@@ -139,7 +139,7 @@ whose role is only partly pinned, carry a terse caveat.
 | aa30 | sceneryEntrySlot0 | Scenery sprite-entry X seat, scenery slot 0 (array slot 16); base of publishSpriteShadow's 6-byte bank-0 head run (slots 16-18). |
 | aa31 | scenerySpriteCodeSlot0 | Scenery sprite code/shape byte, scenery slot 0 (= SCENERY_ENTRY_SLOT0 +1); base of the era-keyed 8-slot code fill (stride 2). |
 | aa36 | sceneryEntrySlot3 | Scenery sprite-entry X seat, scenery slot 3 (array slot 19); base of publishSpriteShadow's 10-byte bank-0 tail run (slots 19-23). |
-| aa3f | scenerySpriteCodeSlot7 | work-RAM flag set 0xff before the image-signature fold, no routine reads it back by address (foldImageBlockIntoSignatureThenAdvanceSequence) |
+| aa3f | scenerySpriteCodeSlot7 | scenery slot 7's sprite code byte (sprite entry 23 +1, the last of the stride-two era fill from SCENERY_SPRITE_CODE_SLOT0, published each frame by the 0xAA36 ldi run); also set to 0xff before the image-signature fold (foldImageBlockIntoSignatureThenAdvanceSequence) |
 | aa40 | playerSpriteAttribute | The player's sprite attribute byte (colour + flip bits), and the base of the second bank's 32-byte attribute/Y run publishSpriteShadow copies to hardware. |
 | aa41 | playerSpriteY | The player's sprite Y (vertical) byte, and the base of the Y band hideAllSprites zeroes (hideCaptionSprites zeroes only its first four entries) to park every sprite off-screen. |
 | aa43 | actorSpriteYSlot0 | Actor slot 0's sprite Y (array slot 1; = ACTOR_ENTRY_SLOT0 +0x31, one step of the PLAYER_SPRITE_Y band). |
@@ -179,7 +179,7 @@ whose role is only partly pinned, carry a terse caveat.
 | acc1 | craftSpawnSlotCount | Craft spawn slot count: how many craft slots a spawn pass walks; it follows the difficulty rung. |
 | acc2 | waveSpawnBusyFlag | work-RAM busy flag =0xff around the inline wave-build loop, =0 after; no routine reads it back by address, so it locks nothing (driveEnemyWaveForLifePhase) |
 | acc3 | waveDescriptorIndex | Descriptor-table selector for the current inline wave: (2 * era) + a random parity bit. |
-| acc4 | scriptPickThreshold | Per-round threshold that decides how each spawning craft's movement script is chosen. |
+| acc4 | scriptPickThreshold | Threshold that decides how each spawning craft's movement script is chosen, reloaded from the era-and-rung row at every life start and on every rung bump. |
 | acc5 | spawnClearedSpareByte | work-RAM byte zeroed when an enemy is spawned into a free slot (spawnEnemyIntoFreeSlotElseStepSearch, `ld (0xacc5),a` at 0x3816) and by the boot wipe, and read by no code |
 | acc6 | roundTransitionHold | Nonzero while a round / Mother-Ship transition is underway. |
 | acc7 | tamperGlyphKonami | Anti-tamper caption witness -- the glyph sampled from the "(c) KONAMI 1982" caption cell 0xA63C ('N'); checked by the scenery/era arm as cp 0x3b, derailing into the trap at 0x315b on mismatch. |
@@ -195,7 +195,7 @@ whose role is only partly pinned, carry a terse caveat.
 | ad0b | penGlyph | The active caption/pen glyph (active context +0x0B, companion of PEN_COLOUR at +0x0C). |
 | ad0c | penColour | The live caption/pen colour attribute (active context +0x0C; the saved per-player copies are at 0xAD1C/0xAD2C). |
 | ad0d | motherShipArmed | Raised while this round's Mother-Ship has been armed. |
-| ad0e | roundIntroPending | Active context +0xE: the round-intro-pending flag -- set when a round starts (0xFF from startNextRound; the game's first round loads the saved copy's 1), cleared when the round-intro fly-in timer expires, so it reads zero for the rest of a live round; while it is set the round-start arm posts the stage-number caption instead of READY and the fly-in flashes the era year; mirrors PLAYER_ONE/TWO_ROUND_INTRO_PENDING. |
+| ad0e | roundIntroPending | Active context +0xE: the round-intro-pending flag -- set when a round starts (0xFF from startNextRound; the game's first round loads the saved copy's 1), cleared when the round-intro fly-in timer expires, so it reads zero for the rest of a live round; while it is set the life-start arm posts the stage-number caption instead of READY and the fly-in flashes the era year; mirrors PLAYER_ONE/TWO_ROUND_INTRO_PENDING. |
 | ad10 | playerOneLives | Player one's lives, in their saved sixteen-byte context block at 0xAD10. |
 | ad11 | playerOneRoundNumber | Player one's copy of ROUND_NUMBER (0xAD01), the unwrapped round ordinal. |
 | ad12 | playerOneKillsRemaining | Player one's copy of KILLS_REMAINING (0xAD02): craft still to destroy this round, seeded from KILL_QUOTA (0xA9CD). |

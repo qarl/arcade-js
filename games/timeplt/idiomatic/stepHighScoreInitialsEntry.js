@@ -4,7 +4,7 @@
  * next slot (and, on the last slot, finishes the entry), a fresh forward/back press steps the
  * shown letter round its 27-value ring, and a forward or back history that has saturated is emptied so a held
  * control repeats. On odd frames the cursor cell's colour flashes. Every eighth frame the entry
- * clock ticks, and running out finishes the entry too. Finishing re-arms the clock, queues the
+ * clock ticks, and running out finishes the entry too. Finishing reloads SEQUENCE_DELAY with 60 for the next arm, queues the
  * transition sound stops and steps the sequence on. After the scan, once neither player has lives
  * left, a held start button with a credit (or on free play) starts the next game.
  * LIVE-OUT: memory only; the accumulator and flags left behind are dead at the one caller. */

@@ -5,7 +5,7 @@
  * ROM 0x5834-0x5839 (`ld a,(0x1767)` then `jp 0x560c`). Grounding: [seen].
  *
  * Role in the machine: one of the one-line "sound request" entries the game logic calls when
- * something audible happens -- here, the start of a round. It plays nothing itself: it hands a
+ * something audible happens -- here, the start of a new game. It plays nothing itself: it hands a
  * sound-command code to the shared sound queue, which the main CPU later drains to the
  * sound-data latch for the second (audio) Z80.
  *

@@ -3,7 +3,7 @@
  * reset mark the state is re-stamped and its sound requested; then the object drifts with the
  * world and the count falls by one. At zero the slot retires. Below the animation window nothing
  * more happens; otherwise the count picks a frame from one of two fixed tables — the choice made
- * on the era index — and that frame plus a fixed sprite state are written to the sprite entry.
+ * on the era index — and that frame plus a fixed sprite attribute are written to the sprite entry.
  * The object record and its sprite entry are arguments. LIVE-OUT: memory.
  *
  * ROM 0x413C-0x4182 (frozen lift translated/loc_413c.js). Grounding: [seen] in names.js.
@@ -66,7 +66,7 @@ export function stepDriftingCountdownObjectByEraFrames(m, object = m.regs.ix, sp
    * and 0x07`), gives a frame index 0-7, so each shape holds for four counts. ERA_INDEX chooses
    * which inline ROM table the index reads through fetchTableByte (rst 0x08): the near-era table at
    * 0x416E for eras 0-3, the far-era table at 0x4183 for era 4. The fetched byte becomes the
-   * entry's tile, and a fixed attribute byte per table sets its colour. */
+   * entry's tile, and a fixed attribute byte per table sets its colour and flip bits. */
   const frame = ((count - WINDOW_FLOOR) >> 2) & 0x07;
   const far = mem8[ERA_INDEX] >= FINAL_ERA;
   mem8[sprite + SPRITE_CODE] = fetchTableByte(m, far ? FAR_TABLE : NEAR_TABLE, frame);

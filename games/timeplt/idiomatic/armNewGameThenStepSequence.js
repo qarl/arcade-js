@@ -42,7 +42,7 @@ const ONE_CELLS = [PLAYER_ONE_ROUND_NUMBER, PLAYER_TWO_ROUND_NUMBER, PLAYER_ONE_
 export function armNewGameThenStepSequence(m) {
   const { mem8, mem16 } = m;
 
-  // Ask for the round-start sound (ROM call 0x5834: the code byte at 0x1767, admitted only while a game
+  // Ask for the game-start sound (ROM call 0x5834: the code byte at 0x1767, admitted only while a game
   // is being played).
   requestGameStartSound(m);
 

@@ -8,7 +8,7 @@
  * ROM 0x19F0-0x1AE3, grounding [seen] (names.js ROUTINES 0x19f0).
  *
  * ROLE. The playfield reset run at every life start: postLifeStartCaptionsAndResetPlayfield (the
- * round-start arm of the sequence machine) calls it after posting the round-start captions. It puts
+ * life-start arm of the sequence machine) calls it after posting the life-start captions. It puts
  * the world, the player's ship and every object slot back to a clean start, and then loads the
  * difficulty settings for the current era and rung.
  *

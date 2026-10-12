@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** flyBomberThenTryAimedShot — advance a two-tile object one step: fly it along its stored velocity, then place its
- * second tile directly under the first (same X, Y + 0x10). If it has reached a boundary,
+ * second tile beside the first (same X, Y + 0x10; native Y runs across the glass). If it has reached a boundary,
  * retire it; otherwise dress the pair by heading and run the bomber's aimed-shot attempt. LIVE-OUT: memory. */
 //
 // ROM 0x3B77-0x3B93 (lift: translated/loc_3b77.js). Grounding tag in names.js ROUTINES: [seen].
 //
-// ROLE IN THE MACHINE. This object is drawn as two sprite entries stacked one above the other, so
+// ROLE IN THE MACHINE. This object is drawn as two sprite entries side by side on the glass, so
 // every step both must be moved together. names.js records the caller as serviceEra1BomberObject
 // (0x3B5F): in era 1 it dispatches the single object at record 0xA8C0 on its head byte, and a head of
 // 0xFF runs THIS routine -- the per-pass "fly it" arm of that object's life.
@@ -30,7 +30,7 @@ const TILE_Y = 0x31;
 const SECOND_TILE_Y = 0x33;
 const TILE_X = 0x00;
 const SECOND_TILE_X = 0x02;
-// The lower tile sits a fixed 0x10 further along Y than the upper one (`add a,0x10` at 0x3B7D).
+// The second tile sits a fixed 0x10 further along native Y than the first (`add a,0x10` at 0x3B7D).
 const TILE_DROP = 0x10;
 
 export function flyBomberThenTryAimedShot(m, record = m.regs.ix, sprite = m.regs.iy) {
@@ -42,7 +42,7 @@ export function flyBomberThenTryAimedShot(m, record = m.regs.ix, sprite = m.regs
   flyAlongStoredVelocity(m, record, sprite);
   // STEP 2 -- KEEP THE PAIR TOGETHER (0x3B7A-0x3B87). Only the first tile was moved, so re-seat the
   // second from it: Y = first Y + 0x10 (wrapping at a byte, as the Z80 add does), X = first X. The two
-  // hardware sprites then draw as one tall object.
+  // hardware sprites then draw as one wide object, side by side on the glass.
   mem8[u16(sprite + SECOND_TILE_Y)] = u8(mem8[u16(sprite + TILE_Y)] + TILE_DROP);
   mem8[u16(sprite + SECOND_TILE_X)] = mem8[u16(sprite + TILE_X)];
 

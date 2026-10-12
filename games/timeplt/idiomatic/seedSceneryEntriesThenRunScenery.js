@@ -20,12 +20,12 @@
  * sprite entry keeps its native-Y and native-X, so each pair is a starting position.
  *
  * PARAMETERS (all from the caller, and read only by the divert arm): `era` (the ROM's C),
- * `entryCursor` (IY), `attributeStride` (E), `attributeCountLeft` (B, the caller's clear loop's spent count) and
+ * `entryCursor` (IY), `attributeStride` (E), `attributeCountLeft` (B, the caller's attribute loop's spent count) and
  * `recordCursor` (IX, which the placed tile's closing step advances with the entry cursor).
  * On the seat arm every register the body touches is dead-after-return scratch -- the scenery run
  * reseats both cursors before reading either -- so it lives here as JS locals. The divert arm is
- * different: the divert's destination stores the caller's clear stride through the walked pointer,
- * folds the byte under it, counts the caller's spent clear count down (wrapping, so it keeps to its
+ * different: the divert's destination stores the caller's attribute stride through the walked pointer,
+ * folds the byte under it, counts the caller's spent attribute count down (wrapping, so it keeps to its
  * one-tile arm) and places one tile through the caller's entry cursor offset by the era -- so the
  * pointer, the byte, the era, the cursors, the stride and the count are all handed across.
  * LIVE-OUT: memory.

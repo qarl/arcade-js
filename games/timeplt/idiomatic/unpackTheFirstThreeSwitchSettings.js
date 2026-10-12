@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * unpackTheFirstThreeSwitchSettings — open the settings block: store the lives count whole, peel the
+ * unpackTheFirstThreeSwitchSettings — open the settings block: store the lives count as handed in, peel the
  * next two switch bits into a cell each, and hand the rest of the switch byte on.
  *
  * ROM 0x2E19-0x2E30 (ends `jp 0x49A8`). Grounding: [seen] (names.js ROUTINES 0x2E19).

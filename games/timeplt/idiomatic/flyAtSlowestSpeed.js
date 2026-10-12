@@ -23,7 +23,7 @@ import { SLOWEST_VELOCITY_TABLE } from "./names.js";
 import { flyAlongHeading } from "./flyAlongHeading.js";
 
 /*
- * The table at ROM 0x59D7: 256 16-bit velocity words. It keeps a hex name because the same address is
+ * The table at ROM 0x59D7 (SLOWEST_VELOCITY_TABLE): 256 16-bit velocity words. The same address is
  * also the derail target of the whole-ROM checksum in clearScreenRamAndVerifyImageThenColdInit (names.js).
  */
 const VELOCITY_TABLE = SLOWEST_VELOCITY_TABLE;

@@ -2,7 +2,7 @@
 /** destroyPlayerAndObjectsTouchingIt — run one moving thing against a caller-supplied list of targets and destroy the ones
  * it has reached. The mover must still be live before anything is tested, so nothing happens once
  * it has already been spent. Each live target is then tested on both axes against the SAME window
- * width, which the caller supplies along with its slack, and a target inside both is marked
+ * width, span, which the caller supplies along with reach, the bias added to each difference, and a target inside both is marked
  * destroyed together with the mover — but the sweep runs on, so one pass can mark several.
  * How many targets there are is the caller's too, and it is the bottom of the loop that ends the
  * sweep: a count of zero walks the whole 256, which is what the count register means rather than

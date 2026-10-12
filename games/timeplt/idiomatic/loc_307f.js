@@ -5,7 +5,7 @@
  * pops two stack bytes it never pushed, dropping its caller's return word so control unwinds a level
  * out of step. This layer lays no return words, so that unwind has no faithful transcription and the
  * arm raises at the pop. It is never taken: the one way in (the scenery seed's guard-fail divert) always
- * arrives with the clear loop's spent count of zero, which counts down to 255, the straight placer.
+ * arrives with the attribute loop's spent count of zero, which counts down to 255, the straight placer.
  * PARAMETERS: pointer, coordinate, foldByte, slotsLeft, entry, offset; record = the record cursor,
  * which the placer steps on with the entry.
  * LIVE-OUT: memory, and the placer's cursors.

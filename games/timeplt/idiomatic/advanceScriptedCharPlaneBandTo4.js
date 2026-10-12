@@ -12,6 +12,8 @@
  * the player-ship colour cycle). The "band" is a column of character cells centred on the player's jet
  * (names.js: the CHAR_PLANE_STUB_* cells are the warp-band flare corners around the jet's centre column,
  * observed under MAME on the rotated screen) that a script animates one pass at a time.
+ * The "upper"/"lower" runs below, and walks up or down a run, count native rows; the CHAR_PLANE_STUB_*
+ * names give each corner's place on the glass.
  *
  * TWO ALTERNATING PASSES, chosen by bit 0 of BAND_TO4_PASS_COUNTDOWN (0xA9F4) [seen], which is
  * decremented at the end of each pass so the bit flips every call:
@@ -22,8 +24,8 @@
  * band (advanceScriptedCharPlaneBandTo2) and stepThirteenScriptedGlyphCells, left wherever it ended.
  *
  * END OF SCRIPT. A drawing pass whose current script byte has any bit above bit 0 set (ROM `and 0xfe`)
- * is the terminator: it zeroes the countdown, sets ROUND_WON_ANIMATION_STEP to 4, asks for the inter-round
- * sound pair, steps the cursor up one byte off the terminator (this half reads the script downward)
+ * is the terminator: it zeroes the countdown, sets ROUND_WON_ANIMATION_STEP to 4, asks for the round-end
+ * sound pair (requestDestructionOrRoundEndSoundPair), steps the cursor up one byte off the terminator (this half reads the script downward)
  * and returns WITHOUT the final decrement.
  *
  * LIVE-OUT: memory-only (the caller returns the instant this does).

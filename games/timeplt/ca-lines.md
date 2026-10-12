@@ -1215,7 +1215,7 @@
 14D6	...clears the pass countdown -- script done
 14D9	value 4...
 14DB	...into the round-won animation step -- advance to stage 4
-14DE	request the inter-round sound pair
+14DE	request the round-end sound pair
 14E1	reload the cursor
 14E5	step the cursor on -- ending early
 14E9	restore the working column from its saved run
@@ -1390,7 +1390,7 @@
 16A4	read the per-game life allowance
 16A7	stock player one's lives
 16AA	stock player two's lives
-16AD	seat the round-start phase
+16AD	join the phase-3 seat that opens the game
 16AF	256 bytes to fold
 16B1	point at a program-image block
 16B4	take the outer sequence phase
@@ -1522,7 +1522,7 @@
 17DD	cross to the colour plane of the same cell
 17DF	read its colour
 17E0	save the colour beside it
-17E4	raise a flag cell to all bits set
+17E4	set scenery slot 7's shape code to 0xFF
 17E7	point a second pointer at a block of the program image
 17EC	select the guarded block -- its start and thirty-byte length
 17EF	seed the running total from a program byte
@@ -1584,7 +1584,7 @@
 18A9	take the starting-lives setting
 18AC	seat it as player one's life count
 18AF	and as player two's life count
-18B2	run the two-player-start object arm
+18B2	check the tamper witness -- nothing happens on a genuine image
 18B5	point at the on-screen credit count
 18B9	take two credits off it
 18BB	fix the packed-decimal result
@@ -1843,7 +1843,7 @@
 209D	read a tile from the strip
 209E	write it into video memory
 209F	aim at the colour plane
-20A1	lay its colour attribute alongside in colour memory
+20A1	lay the attribute byte alongside in colour memory
 20A6	across the row's tiles
 20A8	the step from a row's end to the next row's start
 20AA	carry the cursor on to the next row
@@ -2003,7 +2003,7 @@
 2769	clear the slot's Y byte
 276C	step to the next slot
 276E	clear all six
-27B1	ask for the round-start jingle
+27B1	ask for the game-start sound
 27B6	seed the enemy aim anchor
 27BB	seed the enemy aim point
 27C1	clear player 1's life-tick counter's mid and high bytes
@@ -3078,7 +3078,7 @@
 38AB	store the script selector
 38AE	start the flight script at its top
 38B2	step the flight script once
-38B5	set the slot's active flag
+38B5	pick shape block one
 38B9	clear the slot's tail byte
 38BD	mark the slot live -- head to 0xFF
 38C0	the record stride
@@ -3098,10 +3098,10 @@
 3B73	is the head 0xFF (fully live)?
 3B74	a partial count: soak hits toward death -- 0xFF runs the two-tile move
 3B77	fly the object along its stored velocity
-3B7A	read the top tile's Y
-3B7D	drop sixteen -- one tile down
-3B7F	place the second tile's Y under it
-3B82	read the top tile's X
+3B7A	read the first tile's Y
+3B7D	add sixteen -- one tile further along Y
+3B7F	place the second tile's Y beside it
+3B82	read the first tile's X
 3B85	give the second tile the same X
 3B88	has it reached a heading-selected boundary?
 3B8B	reached: retire it and hold the slot
@@ -3127,8 +3127,8 @@
 3BC0	reached zero: retire and hold the slot
 3BC2	drift the object with the world scroll
 3BC5	read tile one's Y
-3BC8	drop sixteen
-3BCA	place tile two's Y under it
+3BC8	add sixteen -- one tile further along Y
+3BCA	place tile two's Y beside it
 3BCD	read tile one's X
 3BD0	give tile two the same X
 3BD3	read the record head
@@ -3251,7 +3251,7 @@
 3D3D	free -- go look for a tile clear of the player to fire from
 3D40	read the primary attacker record's head
 3D44	return unless it is free
-3D45	two bank slots to scan
+3D45	two tiles to test -- the bomber's pair
 3D47	read the spawn-window half-width
 3D4B	double it -- the full window width
 3D4D	screen X reference ($84)
@@ -3265,10 +3265,10 @@
 3D5D	within the doubled Y window?
 3D5E	outside the window on Y -- go launch from it
 3D62	record stride ($10)
-3D65	step to the next bank record
-3D67	step to the next sprite entry (two bytes)
-3D6C	try the other slot
-3D6E	both inside the window on both axes -- no shot fired
+3D65	step to the bomber's second record
+3D67	step to its second tile's sprite entry (two bytes)
+3D6C	test the second tile
+3D6E	both tiles inside the window on both axes -- no shot fired
 3D6F	request the enemy-launch sound
 3D72	point at the standoff aim point
 3D75	find the heading toward the standoff aim point
@@ -3287,7 +3287,7 @@
 3D93	count exactly one?
 3D95	then seat into the primary attacker record
 3D98	read era-object slot 2's record head
-3D9C	free -- seat into the second era bank
+3D9C	free -- seat into era-object slot 2
 3D9F	point at the primary attacker record
 3DA3	and its sprite entry
 3DA7	seat the object's Y into the new entry
@@ -3425,9 +3425,9 @@
 3F29	re-centre by the half-width
 3F2A	within the heading window?
 3F2B	outside it -- reject this launch
-3F2C	read the found entry's page byte
+3F2C	read the found entry's page byte -- always $AA here
 3F2D	is the entry page $02?
-3F2F	if so, take the extra window check
+3F2F	never taken: the page is never $02
 3F32	point at the standoff aim point
 3F35	compute the heading toward the standoff aim point
 3F38	keep the heading
@@ -3778,11 +3778,11 @@
 431B	era 4: the straight-aim path
 431E	point at the main standoff aim point -- eras 1-2
 4321	work out the heading toward it
-4324	store that heading
+4324	store it as the aim heading
 4327	take the new slot's phase byte
 432A	rotate its low bit up to the top
 432D	skew the heading a quarter-turn either way
-4332	store the skewed heading as the object's facing
+4332	store the skewed heading as the current heading
 4335	dress the sprite's shape and colour for that heading
 4338	wind the new slot live
 433B	read the spawn-cooldown reload
@@ -3793,8 +3793,8 @@
 4349	ask for the in-play spawn sounds and return
 434C	point at the main standoff aim point
 434F	work out the heading toward it
-4352	store it as the object's heading
-4355	and as its facing, unskewed
+4352	store it as the aim heading
+4355	and as the current heading, unskewed
 4358	dress the sprite for that heading
 435B	wind the new slot live
 435E	read the spawn-cooldown reload
@@ -3980,10 +3980,10 @@
 45D5	blank the sprite's two shapes -- off-screen
 45DD	read the sequence counter
 45E0	is this the flash-trigger step?
-45E2	the trigger step: fire the warp/flash
+45E2	the trigger step: fire the flash
 45E4	below the trigger: skip the shape step
 45E6	turn the sequence count into a 0-7 shape index
-45EE	point at the eight-entry warp shape table
+45EE	point at the eight-entry wreck shape table
 45F1	read this frame's shape
 45F2	seat it as one shape
 45F5	seat the next code as the other shape
@@ -3996,15 +3996,15 @@
 4611	read it
 4613	compare against the mirror cell
 4617	they disagree: fall into the wreck-flash stores
-461B	eight warp-flash shape codes -- also run off as harmless register churn when the mismatch path jumps here and drops into 0x4623
+461B	eight wreck shape codes -- also run off as harmless register churn when the mismatch path jumps here and drops into 0x4623
 4623	step the sequence counter
 4626	set the flash shapes
 462E	set the flash colour in both slots
 4636	is the player alive (PLAYER_STATE reads 0xFF)?
-4639	if so, sound the mother-ship warp
+4639	if so, sound the mother-ship award
 463D	the scoring command -- entry 13, 3,000 points
 4640	queue it and return
-4643	jump back into the flash-shape bytes
+4643	jump back into the wreck-shape bytes
 4646	raise the round-transition hold
 464B	reset the object's state to idle
 464F	point at the tamper-glyph copy
@@ -4125,7 +4125,7 @@
 47FA	yes: post its next bonus value
 47FD	is it at or above the award state?
 47FF	yes: show its award glyph
-4802	else count its dying timer down
+4802	else count its award countdown down
 4805	still counting: leave
 4806	timer spent: retire the slot into cooldown
 4809	put the slot into its award / exit state
@@ -4709,10 +4709,10 @@
 4EDF	collision box near bound
 4EE1	collision box far bound
 4EE3	destroy the slots and the player on contact
-4EE6	destroy the fixed target the player has reached
+4EE6	destroy the era-object slot-0 object the player has reached
 4EE9	one object
-4EEB	point the record cursor at the second era-object run
-4EEE	point the entry cursor at the second era-object run
+4EEB	point the record cursor at era-object slot 2
+4EEE	point the entry cursor at era-object slot 2
 4EF2	collision box near bound
 4EF4	collision box far bound
 4EF6	destroy the player and the objects it is touching
@@ -4725,10 +4725,10 @@
 4F06	collision box far bound
 4F08	destroy the slots and the player on contact
 4F0B	the mother-ship mutual-kill box
-4F0E	destroy the fixed target the player has reached
+4F0E	destroy the era-object slot-0 object the player has reached
 4F11	one object
-4F13	point the record cursor at the second era-object run
-4F16	point the entry cursor at the second era-object run
+4F13	point the record cursor at era-object slot 2
+4F16	point the entry cursor at era-object slot 2
 4F1A	collision box near bound
 4F1C	collision box far bound
 4F1E	destroy the player and the objects it is touching
@@ -4866,21 +4866,21 @@
 507E	point at the player's sprite entry
 5082	read the player's state
 5086	player gone -- nothing to do
-5087	read the fixed target's state
+5087	read the slot-0 object's state
 508B	target gone -- nothing to do
-508C	the fixed target's X coordinate
+508C	the slot-0 object's X coordinate
 508F	minus the player's X
 5092	add the X slack (6)
 5094	inside the X window (13)?
 5096	outside -- no contact
-5097	the fixed target's Y coordinate
+5097	the slot-0 object's Y coordinate
 509A	minus the player's Y
 509D	add the Y slack (24)
 509F	inside the Y window (33)?
 50A1	outside -- no contact
 50A2	the destroyed code
 50A4	destroy the player
-50A7	destroy the fixed target
+50A7	destroy the slot-0 object
 50AB	clear the hits it can absorb, so the contact kills it outright rather than being absorbed
 50AE	post the chained hit score
 50B1	read the era index
@@ -5321,7 +5321,7 @@
 56D8	second sound code from the program image
 56DB	request it, only while a game is in progress
 56DE	third sound code from the program image
-56E1	request it while a game runs, then fall into the inter-round pair
+56E1	request it while a game runs, then fall into the round-end pair
 56E4	first sound code from the program image
 56E7	request it -- game or attract sound
 56EA	second sound code from the program image
@@ -5335,13 +5335,13 @@
 5802	request it, only while a game is in progress
 5805	fetch the bonus-life sound code from the program image
 5808	request it, only while a game is in progress
-580B	fetch the mother-ship warp sound code from the program image
+580B	fetch the mother-ship award sound code from the program image
 580E	request it, only while a game is in progress
 5811	fetch the round-won flash sound code from the program image
 5814	request it, only while a game is in progress
 5817	fetch the enemy-wave sound code from the program image
 581A	request it, only while a game is in progress
-5834	fetch the round-start sound code from the program image
+5834	fetch the game-start sound code from the program image
 5837	request it, only while a game is in progress
 583A	fetch another sound code from the program image
 583D	request it, only while a game is in progress

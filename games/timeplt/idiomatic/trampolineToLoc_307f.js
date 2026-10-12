@@ -13,9 +13,9 @@
  *
  * What each argument carries (the Z80 register it rides in, as loc_307f reads it):
  *   pointer    (HL) -- the address the divert's guard was walking; loc_307f stores `coordinate` there;
- *   coordinate (E)  -- the caller's clear stride, the byte stored through `pointer`;
+ *   coordinate (E)  -- the caller's attribute stride, the byte stored through `pointer`;
  *   fold       (A)  -- the sentinel byte the guard read, folded against the stored byte;
- *   counter    (B)  -- the caller's spent clear count, counted down by loc_307f's `djnz`;
+ *   counter    (B)  -- the caller's spent attribute count, counted down by loc_307f's `djnz`;
  *   entry      (IY) -- the caller's sprite-entry cursor, where the placer lays its tile;
  *   offset     (C)  -- the era, the offset the placer applies to the tile;
  *   record     (IX) -- the caller's record cursor, stepped on with the entry cursor after the tile. */

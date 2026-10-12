@@ -24,8 +24,8 @@ import { SECOND_FASTEST_VELOCITY_TABLE } from "./names.js";
 import { flyAlongHeading } from "./flyAlongHeading.js";
 
 /*
- * The velocity table at ROM 0x2E3E -- also the era-1/2 pace of scrollWorldAtTheEraPace. It keeps a hex
- * name because the same address is the tamper-trap jump target in showCreditLine (names.js).
+ * The velocity table at ROM 0x2E3E (SECOND_FASTEST_VELOCITY_TABLE) -- also the era-1/2 pace of
+ * scrollWorldAtTheEraPace. The same address is also the tamper-trap jump target in showCreditLine (names.js).
  */
 const VELOCITY_TABLE = SECOND_FASTEST_VELOCITY_TABLE;
 

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** loc_1f99 — a stretch of table bytes decoded as instructions rather than a hand-written routine.
- * The ADDRESS lies inside live data (the player-animation shape strips at 0x1F94-0x1FED) that advancePlayerAnimationStrip reads as DATA; only
+ * The ADDRESS lies inside live data (the player-animation shape strips at 0x1F76-0x200B) that advancePlayerAnimationStrip reads as DATA; only
  * this ROUTINE, decoding those bytes as CODE, is a dead arm. It is reached as code only through a fold
  * arm that the whole live-in space proves is never taken (0 of 65536), itself downstream of a
  * copyright-glyph tamper divert that a genuine image never fires.

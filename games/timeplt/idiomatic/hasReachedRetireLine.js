@@ -35,14 +35,14 @@ const NATIVE_Y_RETIRE_LINE = 248;
 
 // "Within one of the line": shift so line-1 lands on 0, then an unsigned eight-bit compare against 3
 // accepts line-1, line and line+1. The ROM spells the two instances as `add a,0x09 / cp 0x03`
-// (row 247..249) and `sub 0x03 / cp 0x03` (column 3..5); the carry from the `cp` is its answer.
+// (native Y 247..249) and `sub 0x03 / cp 0x03` (native X 3..5); the carry from the `cp` is its answer.
 const atLine = (coord, line) => u8(coord - line + 1) < 3;
 
 export function hasReachedRetireLine(m, entry = m.regs.iy) {
   const { mem8 } = m;
-  // The ROM tests the row first and returns at once (`ret c`) on a hit; only when the row misses
-  // does it read and test the column. `||` keeps that order, and the column test's result is the
-  // answer when the row test fails.
+  // The ROM tests native Y first and returns at once (`ret c`) on a hit; only when native Y misses
+  // does it read and test native X. `||` keeps that order, and the native-X test's result is the
+  // answer when the native-Y test fails.
   const reached =
     atLine(mem8[u16(entry + NATIVE_Y_OFFSET)], NATIVE_Y_RETIRE_LINE) ||
     atLine(mem8[entry], NATIVE_X_RETIRE_LINE);

@@ -23,6 +23,8 @@
  * two centre cells (0xA5F1 / 0xA611) between them and four "stub" corner cells in the neighbouring
  * columns (0xA5F0, 0xA5F2, 0xA610, 0xA612). Under the board's ROT90 a fixed native column is a
  * horizontal line on the glass, so the runs read as a full-width streak with flares at its centre.
+ * The upper/lower runs, and a step a row up, down or above, count native rows (on the glass the upper
+ * run lies right of centre, the lower run left); the CHAR_PLANE_STUB_* names give each corner's place on the glass.
  * A 32-byte copy of the column lives in the never-displayed first row of the plane (0xA400-0xA41F);
  * restoreColumnFromSavedRun lays it down and gatherCharColumnIntoBackingRun takes it back up, so the
  * edits made between them persist even though the blanking passes wipe the visible cells.
@@ -61,8 +63,8 @@ export function advanceScriptedCharPlaneBandTo2(m) {
   // blanking pass, then a drawing pass again.
   if ((mem8[BAND_TO2_PASS_COUNTDOWN] & 1) === 0) {
     // BLANKING PASS (ROM 0x149D-0x14BD). Both thirteen-cell runs are filled with the blank glyph by
-    // fillCellRun (0x1319), each starting at its run's bottom cell. Then three cells of the lower
-    // row -- the left upper stub, the lower centre cell and the left lower stub -- are blanked
+    // fillCellRun (0x1319), each starting at its run's bottom cell. Then three cells of native
+    // row 16 -- the left upper stub, the lower centre cell and the left lower stub -- are blanked
     // together with the cell one row above each (the ROM's `add hl,de` with DE = -0x20), which
     // covers the centre pair and all four stubs. Only the visible cells are touched; the saved copy
     // in the hidden first row is left as it is, so the next drawing pass can put the picture back.

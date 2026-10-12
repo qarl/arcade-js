@@ -10,7 +10,7 @@
  * the ship, repaints the year caption on three frame phases out of sixteen, and when the shared
  * sequence delay runs out it erases the three captions and steps the sequence on.
  *
- * ROLE IN THE MACHINE. Entry 5 of the phase-3 sub-step table at 0x0F29, between the round-start arm
+ * ROLE IN THE MACHINE. Entry 5 of the phase-3 sub-step table at 0x0F29, between the life-start arm
  * (0x0774, postLifeStartCaptionsAndResetPlayfield) and the enemy-free lead-in (0x5694,
  * flyEnemyFreeLeadInThenStepSequence). Every frame it first folds the 256-byte program block at
  * ROUND_INTRO_CHECKSUM_BASE (0x4D9F) into SEQUENCE_PHASE (0xA9AB) -- a subtract-fold closed by XOR

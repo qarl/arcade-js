@@ -30,7 +30,7 @@
 //   0xF0         HIT       written by a collision sweep. While hits remain one is absorbed and the ship
 //                          goes back to LIVE (absorbMotherShipHitElseStepItsDeath); so it takes eight hits to kill.
 //   0xEF..0x01   DYING     with no hits left the head counts down one per step (stepMotherShipWreckCountdown): at 0xEF
-//                          it sweeps the whole field (sweepFieldOnMotherShipDeathElseStepWreck), from 0xE4 down it plays its warp-and-flash
+//                          it sweeps the whole field (sweepFieldOnMotherShipDeathElseStepWreck), from 0xE4 down it plays its wreck-and-flash
 //                          shapes, at 0xB4 it pays 3,000 points (flashMotherShipWreckAndPayThreeThousand), at 0x5A its sprite
 //                          codes are set to 0xFF, and at 0 it goes idle and hands over to the round advance (retireMotherShipAndReleaseRoundHold).
 //
@@ -88,7 +88,7 @@ const FLASH_SCORE_AWARD_COMMAND = 0x04;
 const THREE_THOUSAND_POINTS_INDEX = 0x0d;
 
 // Dying-countdown landmarks (see the table in the header), and the anti-tamper witness the finished
-// warp checks: TAMPER_GLYPH_COPY must hold glyph 0x7C followed by colour 0x10 or 0x05.
+// wreck checks: TAMPER_GLYPH_COPY must hold glyph 0x7C followed by colour 0x10 or 0x05.
 const FLASH_STATE = 0xb4;
 const WRECK_HIDE_STATE = 0x5a;
 const WITNESS_GLYPH = 0x7c;
@@ -197,7 +197,7 @@ export function sweepFieldOnMotherShipDeathElseStepWreck(m, phase, record, entry
     const held = mem8[slot];
     if (held === 0xff) {
       mem8[slot] = code;
-      postCommand(m, SWEEP_SCORE_AWARD_COMMAND, TWO_HUNDRED_POINTS_INDEX); // post this slot's command pair
+      postCommand(m, SWEEP_SCORE_AWARD_COMMAND, TWO_HUNDRED_POINTS_INDEX); // post 200 points (command 4, award entry 2) for this record
     } else if (u8(held + 2) === 0x00) {
       mem8[slot] = 0x00; // slot held 0xFE
     }
@@ -214,7 +214,7 @@ export function sweepFieldOnMotherShipDeathElseStepWreck(m, phase, record, entry
   mem8[Y(0x32)] = SPRITE_SEED;
 }
 
-// ── The dying countdown (0x45B3): one step of the warp-and-flash, run every step the head is neither
+// ── The dying countdown (0x45B3): one step of the wreck-and-flash, run every step the head is neither
 // 0x00 nor 0xFF with no hits left (the fatal hit at head 0xF0 included), other than the sweep step at head 0xEF.
 export function stepMotherShipWreckCountdown(m, record, entry) {
   const { mem8 } = m;
@@ -243,7 +243,7 @@ export function stepMotherShipWreckCountdown(m, record, entry) {
     mem8[Y(0x03)] = 0xff;
   }
 
-  // The warp shapes: at exactly 0xB4 the flash (below). Above it, the ship's two sprite codes come from
+  // The wreck shapes: at exactly 0xB4 the flash (below). Above it, the ship's two sprite codes come from
   // MOTHER_SHIP_WRECK_SHAPE_TABLE (0x461B), an eight-entry table indexed by the falling head: (head - 0xB4)
   // rotated right three times, less one, masked to 0..7 (`and 0x07` at 0x45EC), then `rst 0x08` fetches
   // the entry. The second tile (+0x03) gets the shape and the first tile (+0x01) the shape plus one.
@@ -269,7 +269,7 @@ export function stepMotherShipWreckCountdown(m, record, entry) {
 }
 
 // ── The flash (0x4623), the step the head reads 0xB4: count the head down, show the flash sprite codes
-// (0xFE and 0xFD) with attribute 0x6C on both tiles, request the warp sound only if the player is
+// (0xFE and 0xFD) with attribute 0x6C on both tiles, request the award sound only if the player is
 // alive (PLAYER_STATE 0xA800 [seen] reading 0xFF, `ld a,(0xa800)` at 0x4636), and post the 3,000-point
 // award to the scoring ring as a tail (`jp 0x0038`).
 export function flashMotherShipWreckAndPayThreeThousand(m, record, entry) {

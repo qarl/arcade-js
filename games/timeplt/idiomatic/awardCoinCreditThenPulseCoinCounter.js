@@ -35,7 +35,7 @@ export function awardCoinCreditThenPulseCoinCounter(m, credits = m.regs.c) {
   // unpack when a coin switch is set to free play; then a coin never has to buy a credit, so the
   // count and its readout are left alone (`jr nz,0x4984` at 0x4972 skips straight to the pulse).
   if (mem8[FREE_PLAY] === 0) {
-    // BCD-add the coin's low digit into the packed-BCD credit count; a carry out means it passed 99,
+    // BCD-add the low digit of the credits handed in (C) into the packed-BCD credit count; a carry out means it passed 99,
     // so it saturates at 0x99.
     // In the ROM this is `add a,(hl)` + `daa` on CREDIT_COUNT (0xA986, tagged [seen] in
     // names.js); bcdAddByte performs the same decimal-adjusted add and reports the

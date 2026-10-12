@@ -6,8 +6,8 @@
  * ROM 0x0EAC-0x0EEA. Grounding: [seen] (names.js ROUTINES 0x0EAC).
  *
  * ROLE IN THE MACHINE. Command 7 of the command table at 0x0BBC (its dispatch word is at 0x0BCA), run by the
- * foreground loop runCommandRingDrainLoop when that command comes off the ring. The round-start arm posts it
- * when ROUND_INTRO_PENDING is set (names.js: the round-start arm's entry, and 0x0BBC slot 7 = this routine). The number is ROUND_NUMBER (0xAD01) [seen], the unwrapped round count that keeps
+ * foreground loop runCommandRingDrainLoop when that command comes off the ring. The life-start arm posts it
+ * when ROUND_INTRO_PENDING is set, so on a round's first life only (names.js: the life-start arm's entry, and 0x0BBC slot 7 = this routine). The number is ROUND_NUMBER (0xAD01) [seen], the unwrapped round count that keeps
  * climbing past the fifth era, which is why it can need two digits — and why 100 and above draw nothing.
  *
  * DRAWING. The caption frame (caption 0x0E) is painted first in the live pen colour, then the character

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** checkTamperGlyphCopyElseRunWreckFlash — on any call that finds a watched pair of cells disagreeing, step a counter the caller points at down,
- * seat two shape codes and two attribute bytes (read as a sprite entry) into one object slot, ask for the Mother-Ship warp
+ * seat two shape codes and two attribute bytes (read as a sprite entry) into one object slot, ask for the Mother-Ship award
  * sound while the player is live, and post a 3,000-point score award (ring command 4, award entry 13). When the pair still agrees it does nothing.
  * LIVE-OUT: memory.
  *
@@ -12,7 +12,7 @@
  * two equal. Under MAME both held 0x7C at every captured two-player start, so the routine returned
  * without acting (mechanisms.md). What the acting arm is for -- which counter and which slot the
  * caller's pointers name there -- is recorded as open in mechanisms.md; mechanisms.md reads it as
- * replaying a fragment of the Mother-Ship warp's bookkeeping.
+ * stamping a Mother-Ship flash into whatever slot is at hand and paying a Mother-Ship award.
  *
  * PARAMETERS: counterBase, slotBase = the pointers the acting arm steps and seats through (the ROM's
  * IX and IY). The ROM's caller (startTwoPlayerGame) loads neither, so they hold whatever earlier

@@ -49,7 +49,7 @@ const RAISE_PHASE = 3;
 const RAISE_STEP_CEILING = 8;
 const TOP_BIT = 0x80;
 
-/** The eight sprites the raise reaches: the three of the first run and the five of the third. */
+/** Byte offsets (two bytes a sprite) of the eight sprites the raise reaches: the three of the first run and the five of the third. */
 const RAISED_SPRITE_OFFSETS = [0, 2, 4, 38, 40, 42, 44, 46];
 
 /** Gather one bank: walk its three runs in order into consecutive hardware bytes, sending even

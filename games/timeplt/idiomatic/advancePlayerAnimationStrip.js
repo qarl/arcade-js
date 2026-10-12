@@ -127,9 +127,9 @@ export function advancePlayerAnimationStrip(m, record = m.regs.ix, entry = m.reg
   if (base === null) return; // phase between keyframes draws nothing
 
   // STEP 3 -- PAINT THE KEYFRAME (0x2089-0x20AE).
-  // blit the shape strip tile-by-tile into video memory, mirroring each tile's colour attribute
+  // blit the shape strip tile-by-tile into video memory, writing each tile's attribute byte
   // into the colour plane VRAM_TO_COLOUR below; ROW_COUNT rows of COL_COUNT tiles, ROW_ADVANCE
-  // between rows. The colour byte is the same for every tile: the level biased by ATTRIBUTE_BIAS.
+  // between rows. The attribute byte is the same for every tile: the level biased by ATTRIBUTE_BIAS.
   // ("Level" here is ERA_INDEX, 0xAD04 [seen].) The destination is PLAYER_ANIM_VRAM_BASE (0xA5AF), the
   // block over the ship's pinned screen position. The row and column counts are not immediates: the
   // ROM reads them as bytes of its own image at 0x337A (rows, outer loop) and 0x4902 (tiles per row,

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** postLifeStartCaptionsAndResetPlayfield — round-start sequence arm: verify a fixed program span, post the round-start caption
- * commands, repaint the kill meter, reset the playfield for the new round, and step the sequence
+/** postLifeStartCaptionsAndResetPlayfield — life-start sequence arm: verify a fixed program span, post the pre-life caption
+ * commands, repaint the kill meter, reset the playfield for the coming life, and step the sequence
  * sub-index.
  * The span is XOR-folded; any total but the genuine one advances the outer sequence phase first.
  * With play inactive a single default caption pair is posted. With play active the player caption
@@ -13,8 +13,9 @@
  *
  * ROLE. The game is run by a two-level sequence machine: an outer phase (SEQUENCE_PHASE) and an inner
  * sub-step (SEQUENCE_SUBSTEP) that indexes a word table of "arms". This is entry 4 of the phase-3
- * (round engine) table at 0x0F29: the one-frame arm that opens a round -- in real play and in the
- * attract demo alike. It posts the captions shown before the round begins, repaints the kill meter,
+ * (round engine) table at 0x0F29: the one-frame arm that opens every life, a round's first and each
+ * restart after a lost life -- in real play and in the attract demo alike. It posts the captions shown
+ * before the life begins (in a game, the round-number caption only on a round's first life), repaints the kill meter,
  * resets the whole playfield, and steps the sub-step so the next frame runs the next arm.
  *
  * CAPTIONS. Text is not drawn here: postCommand (RST 0x38, 0x0038) queues a (command, argument) pair

@@ -2,7 +2,7 @@
 /**
  * destroyFixedTargetReachedByPlayer — ROM 0x507E [seen]
  *
- * WHAT IT IS. The collision test between the player's own ship and the one fixed target held in
+ * WHAT IT IS. The collision test between the player's own ship and the object (in era 1 the flying bomber) held in
  * era-object slot 0 (record ERA_OBJECT_RECORD_SLOT0 0xA8C0, sprite entry ERA_OBJECT_ENTRY_SLOT0
  * 0xAA28): flying into it destroys both.
  *
@@ -11,7 +11,7 @@
  * both are marked destroyed, the target's BOMBER_HITS_TO_ABSORB is zeroed so the contact kills it outright
  * rather than costing it a hit, and the score is posted. Any test failing leaves everything
  * untouched, so this is a whole-or-nothing check. Undriven play never meets the four tests; under
- * MAME a poked run that brings the ship onto a fixed target does, and all three stores fire.
+ * MAME a poked run that brings the ship onto that target does, and all three stores fire.
  *
  * LIVE-OUT: memory only.
  */

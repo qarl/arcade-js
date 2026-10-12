@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** destroyPlayerAndMotherShipOnContactByEra — pick the collision box for the mutual kill of the player and one fixed two-slot
+/** destroyPlayerAndMotherShipOnContactByEra — pick the collision box for the mutual kill of the player and the flying two-slot
  * target by the era, then run it. In two of the eras the wider first-axis box applies and control
  * transfers to that check; in the rest the same destruction runs here with a narrower first-axis
  * box. Both things must be live and their coordinates must fall inside the box; when they do, both

@@ -33,7 +33,7 @@ export function advanceHitSoakingObjectThenAnimateDeath(m, record = m.regs.ix, e
   /* Arm 1 — a hit absorbed (0x3B96-0x3BA6).
    * With hits still in hand, spend one, force the head back to 0xFF (live), request the hit's pair
    * of sounds (0x5683), and carry on with the ordinary two-tile move (0x3B77, a tail jump), which
-   * flies the object and keeps its second tile seated under the first. */
+   * flies the object and keeps its second tile seated beside the first. */
   if (mem8[BOMBER_HITS_TO_ABSORB] !== 0) {
     mem8[BOMBER_HITS_TO_ABSORB] = mem8[BOMBER_HITS_TO_ABSORB] - 1;
     mem8[record] = 0xff;
@@ -58,7 +58,7 @@ export function advanceHitSoakingObjectThenAnimateDeath(m, record = m.regs.ix, e
   if (mem8[record] === 0) return retireObjectAndHold(m, record, entry);
 
   /* Still dying: the wreck keeps drifting with the world (0x2B60), and the second tile is re-seated
-   * directly under the first — same X (+0x02 <- +0x00), Y 0x10 further on (+0x33 <- +0x31 + 0x10). */
+   * beside the first — same X (+0x02 <- +0x00), Y 0x10 further on (+0x33 <- +0x31 + 0x10), native Y running across the glass. */
   driftWithWorldScroll(m, record, entry);
   mem8[entry + 0x33] = mem8[entry + 0x31] + 0x10;
   mem8[entry + 0x02] = mem8[entry + 0x00];

@@ -2,8 +2,8 @@
 /**
  * foldImageBlockIntoSignatureThenAdvanceSequence — one step of the tamper-check sequence.
  *
- * WHAT IT IS: ROM 0x17E2-0x17FA, tag [seen] (names.js ROUTINES 0x17e2). It raises one flag cell to all
- * bits set, folds a fixed block of the program image into a running total seeded from an image byte,
+ * WHAT IT IS: ROM 0x17E2-0x17FA, tag [seen] (names.js ROUTINES 0x17e2). It sets scenery slot 7's sprite
+ * code byte to all bits, folds a fixed block of the program image into a running total seeded from an image byte,
  * banks the result, and steps the inner sequence index on.
  *
  * ROLE IN THE MACHINE: an anti-tamper check. The banked total, TAMPER_IMAGE_SIGNATURE (0xAA6F), is read
@@ -12,8 +12,9 @@
  * and foldBlockIntoTotal's "why", which puts that read three frames after this one). So a modified
  * image sends the game off its genuine path a few frames later.
  *
- * The flag cell, SCENERY_SPRITE_CODE_SLOT7 (0xAA3F), is written here and no routine reads it back by address
- * (names.js). A second pointer is walked in step with the block and contributes nothing to the total.
+ * SCENERY_SPRITE_CODE_SLOT7 (0xAA3F) is scenery slot 7's sprite code byte: the era scenery fill seats it
+ * and every frame's publish copies it to sprite RAM, so the 0xFF stands until the next playfield reset
+ * (mechanisms.md). A second pointer is walked in step with the block and contributes nothing to the total.
  *
  * LIVE-OUT: memory-only.
  */
@@ -23,12 +24,12 @@ import { foldBlockIntoTotal } from "./foldBlockIntoTotal.js";
 import { trampolineToSelectFoldBlock } from "./trampolineToSelectFoldBlock.js";
 import { TAMPER_IMAGE_SIGNATURE, TAMPER_SIGNATURE_SEED_BYTE, SCENERY_SPRITE_CODE_SLOT7, guardBlockOrBlankDisplay_ADDR } from "./names.js";
 
-/* The flag value: every bit set (the ROM's `ld a,0xff`). */
+/* The code stored: every bit set (the ROM's `ld a,0xff`). */
 const ALL_BITS = 255;
 
 export function foldImageBlockIntoSignatureThenAdvanceSequence(m) {
   const { mem8 } = m;
-  /* Step 1: raise the flag cell 0xAA3F to 0xFF (`ld (0xaa3f),a`). */
+  /* Step 1: set scenery slot 7's sprite code byte 0xAA3F to 0xFF (`ld (0xaa3f),a`). */
   mem8[SCENERY_SPRITE_CODE_SLOT7] = ALL_BITS;
 
   /*
