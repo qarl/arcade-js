@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** loc_5942 — hand back the component pair an object's heading calls for, at the pace one fixed
+/** velocityForHeadingAtSlowestSpeed — hand back the component pair an object's heading calls for, at the pace one fixed
  * velocity table sets; choosing it is all this entry does.
  *
  * ROM 0x5942-0x5947 (frozen lift translated/loc_5942.js): `ld hl,0x59d7 / jp 0x596e`, a two-
@@ -21,7 +21,7 @@ import { SLOWEST_VELOCITY_TABLE } from "./names.js";
 const VELOCITY_TABLE = SLOWEST_VELOCITY_TABLE;
 const HEADING_IN_RECORD = 2;
 
-export function loc_5942(m, heading = m.mem8[u16(m.regs.ix + HEADING_IN_RECORD)]) {
+export function velocityForHeadingAtSlowestSpeed(m, heading = m.mem8[u16(m.regs.ix + HEADING_IN_RECORD)]) {
   // Look the heading up in the fixed table; the pair comes back unchanged.
   return velocityForHeading(m, VELOCITY_TABLE, heading);
 }

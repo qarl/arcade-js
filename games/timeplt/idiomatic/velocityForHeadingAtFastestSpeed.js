@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** loc_596b — hand back the perpendicular component pair an object's heading calls for, at the pace one fixed table
+/** velocityForHeadingAtFastestSpeed — hand back the perpendicular component pair an object's heading calls for, at the pace one fixed table
  * of velocity samples sets. Choosing it is all this entry does; an incoming pointer is discarded. LIVE-OUT: the pair.
  *
  * ROM 0x596B-0x596D (frozen lift translated/loc_596b.js): a single `ld hl,0x08fa`, after which execution
@@ -16,7 +16,7 @@
  * top rung of the velocity ladder, peaking at 331 (about 1.3 pixels per step in 8.8 fixed point) —
  * the pace mechanisms.md gives the fourth and fifth eras (1982, 2001). The same bytes double as the
  * anti-tamper checksum-failure landing (loc_08fa); on a genuine image they are only read as data.
- * Its siblings loc_594e (0x5E00, peak 256) and loc_5965 (0x2E3E, peak 306) are the same shim with
+ * Its siblings loc_594e (0x5E00, peak 256) and velocityForHeadingAtSecondFastestSpeed (0x2E3E, peak 306) are the same shim with
  * the other two rungs the ship uses.
  *
  * Whatever pointer the caller had in HL is overwritten by the table base, which is why no incoming
@@ -38,7 +38,7 @@ import { VELOCITY_TABLE_08FA } from "./names.js";
 const HEADING_CELL = 2;
 const VELOCITY_TABLE = VELOCITY_TABLE_08FA;
 
-export function loc_596b(m, heading = m.mem8[m.regs.ix + HEADING_CELL]) {
+export function velocityForHeadingAtFastestSpeed(m, heading = m.mem8[m.regs.ix + HEADING_CELL]) {
   // The fall-through into 0x596E: velocityForHeading runs next, so its return is this entry's
   // return; the pair is also left in DE and BC.
   return velocityForHeading(m, VELOCITY_TABLE, heading);

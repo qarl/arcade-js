@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** loc_5965 — hand back the perpendicular component pair an object's heading calls for, at the pace one fixed table
+/** velocityForHeadingAtSecondFastestSpeed — hand back the perpendicular component pair an object's heading calls for, at the pace one fixed table
  * of velocity samples sets. Choosing it is all this entry does; an incoming pointer is discarded. LIVE-OUT: the pair.
  *
  * ROM 0x5965-0x596A (frozen lift translated/loc_5965.js): `ld hl,0x2e3e / jp 0x596e`. Grounding: [seen]
@@ -15,7 +15,7 @@
  * the velocity ladder rung that peaks at 306 (about 1.2 pixels per step in 8.8 fixed point) — the
  * pace mechanisms.md gives the second and third eras (1940, 1970). The same bytes are also a jump
  * target on the anti-tamper path; on a genuine image they are only ever read as data. Its siblings
- * loc_594e (0x5E00, peak 256) and loc_596b (0x08FA, peak 331) are the same shim with the other two
+ * loc_594e (0x5E00, peak 256) and velocityForHeadingAtFastestSpeed (0x08FA, peak 331) are the same shim with the other two
  * rungs the ship uses.
  *
  * Whatever pointer the caller had in HL is overwritten by the table base before the jump, which is
@@ -36,7 +36,7 @@ import { SECOND_FASTEST_VELOCITY_TABLE } from "./names.js";
 const HEADING_CELL = 2;
 const VELOCITY_TABLE = SECOND_FASTEST_VELOCITY_TABLE;
 
-export function loc_5965(m, heading = m.mem8[m.regs.ix + HEADING_CELL]) {
+export function velocityForHeadingAtSecondFastestSpeed(m, heading = m.mem8[m.regs.ix + HEADING_CELL]) {
   // The ROM's `jp 0x596e`: a tail jump, so velocityForHeading's return is this entry's return; the
   // pair is also left in DE/BC.
   return velocityForHeading(m, VELOCITY_TABLE, heading);

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * loc_596b — memory-equivalent to the frozen oracle at ROM 0x596B.
+ * velocityForHeadingAtFastestSpeed — memory-equivalent to the frozen oracle at ROM 0x596B.
  *
  * WHAT IT IS. Two instructions: fix one velocity table, then fall into the shared lookup, WHICH IS
  * ALREADY DECOMPILED — so the rewrite calls it directly and dissolving that transfer belongs to
@@ -40,7 +40,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMachine, romsPresent } from "./_harness.js";
-import { loc_596b } from "../loc_596b.js";
+import { velocityForHeadingAtFastestSpeed } from "../velocityForHeadingAtFastestSpeed.js";
 import { velocityForHeading } from "../velocityForHeading.js";
 import { loc_596b as oracle } from "../../translated/loc_596b.js";
 import { ERA_INDEX } from "../names.js";
@@ -154,7 +154,7 @@ function replay(candidate, poked = true) {
 }
 
 function entryState() {
-  if (entry === null) replay(loc_596b);
+  if (entry === null) replay(velocityForHeadingAtFastestSpeed);
   assert.notEqual(entry, null, "vacuous: the poked session never reached the routine");
   return entry;
 }
@@ -211,7 +211,7 @@ const TWINS = [
 // ── the control ─────────────────────────────────────────────────────────────────────────
 
 test("NEGATIVE CONTROL: with the era left alone the session never dispatches it", { skip }, () => {
-  const r = replay(loc_596b, false);
+  const r = replay(velocityForHeadingAtFastestSpeed, false);
   assert.equal(r.dispatches, 0, "the unpoked session reached the arm, so the poke proves nothing");
   console.log("  CONTROL: zero dispatches with the era left alone");
 });
@@ -222,7 +222,7 @@ test("EQUAL at the poked dispatch: RAM and the returned pair both agree", { skip
   const a = entryState().clone();
   const b = entryState().clone();
   oracle(a);
-  loc_596b(b);
+  velocityForHeadingAtFastestSpeed(b);
   assert.deepEqual(allDiffs(a, b), [], "no byte of the dump may differ; this entry writes none");
   assert.equal(a.regs.de, b.regs.de, "the first half of the pair");
   assert.equal(a.regs.bc, b.regs.bc, "the second half");
@@ -244,7 +244,7 @@ test("EXCLUDED, deliberately: a pinned register set, and nothing else", { skip }
   const a = entryState().clone();
   const b = entryState().clone();
   oracle(a);
-  loc_596b(b);
+  velocityForHeadingAtFastestSpeed(b);
   assert.deepEqual(
     REG_FIELDS.filter((k) => a.regs[k] !== b.regs[k]),
     EXCLUDED,
@@ -257,7 +257,7 @@ test("EXCLUDED, deliberately: a pinned register set, and nothing else", { skip }
 });
 
 test("CORPUS: every dispatch of the poked session replays identically", { skip }, () => {
-  const r = replay(loc_596b);
+  const r = replay(velocityForHeadingAtFastestSpeed);
   assert.equal(r.dispatches, DISPATCHES, "the dispatch count moved");
   assert.equal(r.caught, 0, "the rewrite diverged on a real dispatch");
   assert.ok(r.headings.size > 1, "vacuous: the session presents one heading only");
@@ -265,13 +265,13 @@ test("CORPUS: every dispatch of the poked session replays identically", { skip }
 });
 
 test("EXHAUSTIVE: all 256 headings, and the two halves stay a quarter turn apart", { skip }, () => {
-  assert.equal(sweepCaught(loc_596b), 0, "the rewrite diverged somewhere in the crafted space");
+  assert.equal(sweepCaught(velocityForHeadingAtFastestSpeed), 0, "the rewrite diverged somewhere in the crafted space");
   const pairs = new Set();
   for (const heading of HEADINGS) {
     const m = craft(heading);
-    loc_596b(m);
+    velocityForHeadingAtFastestSpeed(m);
     const quarter = craft((heading - 64) & 0xff);
-    loc_596b(quarter);
+    velocityForHeadingAtFastestSpeed(quarter);
     assert.equal(m.regs.bc, quarter.regs.de, `heading ${heading}: the halves are not perpendicular`);
     pairs.add(`${m.regs.de}:${m.regs.bc}`);
   }

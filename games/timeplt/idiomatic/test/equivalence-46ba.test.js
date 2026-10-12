@@ -62,10 +62,10 @@ import { loc_3e63 as walk } from "../../translated/loc_3e63.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
 import { seamPlaceable } from "../../../../core/equivalence.js";
 import { withOmittedRet } from "../../machine.js";
-import { loc_5942 } from "../loc_5942.js";
+import { velocityForHeadingAtSlowestSpeed } from "../velocityForHeadingAtSlowestSpeed.js";
 import { loc_594e } from "../loc_594e.js";
-import { loc_5965 } from "../loc_5965.js";
-import { loc_596b } from "../loc_596b.js";
+import { velocityForHeadingAtSecondFastestSpeed } from "../velocityForHeadingAtSecondFastestSpeed.js";
+import { velocityForHeadingAtFastestSpeed } from "../velocityForHeadingAtFastestSpeed.js";
 import { paintSixDigitFieldSuppressingLeadingZeros } from "../paintSixDigitFieldSuppressingLeadingZeros.js";
 import { fileTwoPairsIntoObjectRecordHighByteFirst } from "../fileTwoPairsIntoObjectRecordHighByteFirst.js";
 
@@ -89,7 +89,7 @@ const DISSOLVED_RET = 2;
 const ARM_SCRATCH = ["a", "f", "h", "l"];
 /** The routines the live game had lifted at each table word, keyed by the word. */
 const LIFTED_ARMS = [
-  [0x5942, loc_5942], [0x594e, loc_594e], [0x5965, loc_5965], [0x596b, loc_596b],
+  [0x5942, velocityForHeadingAtSlowestSpeed], [0x594e, loc_594e], [0x5965, velocityForHeadingAtSecondFastestSpeed], [0x596b, velocityForHeadingAtFastestSpeed],
   [0x0d73, paintSixDigitFieldSuppressingLeadingZeros],
 ];
 /** Indices the mask admits past the table's defined arms. */

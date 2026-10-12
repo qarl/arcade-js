@@ -1999,8 +1999,8 @@ export const parkTheImageTotalForTheTamperVerdict_ADDR = 0x07ad; // entry addres
 export const serviceVerticalBlankInterrupt_ADDR = 0x00d9; // entry of the vblank service (0x00d9), which the push af at 0x00d8 falls into [seen]
 export const sendOneQueuedSoundThenReopenFrameInterrupt_ADDR = 0x0174; // entry of the frame-service epilogue (0x0174), used as a return address [seen]
 export const serviceSlotByMarkerThenCloseSweepTurn_ADDR = 0x40ea; // routine 0x40ea as a code target -- the object-bank sweep body (sweepEra2PlusObjectBank) [seen]
-export const SECOND_FASTEST_VELOCITY_TABLE = 0x2e3e; // ROM table of 256 16-bit velocity words, peak 306, second rung from the top of the velocity ladder: the era-1/2 pace (scrollWorldAtTheEraPace), also read by flyAtSecondFastestSpeed/loc_5965/setMotherShipVelocityFromHeading; the same address is the tamper-trap jump target in showCreditLine [seen]
-export const SLOWEST_VELOCITY_TABLE = 0x59d7; // ROM table of 256 16-bit velocity words, peak 206, the bottom rung of the velocity ladder, read by chaseOneAimPointAndRetireAtTheLine, flyAtSlowestSpeed, setMotherShipVelocityFromHeading and loc_58aa/loc_5942/loc_598e/loc_59c5; the same address is the derail target of the whole-ROM checksum in clearScreenRamAndVerifyImageThenColdInit [seen]
+export const SECOND_FASTEST_VELOCITY_TABLE = 0x2e3e; // ROM table of 256 16-bit velocity words, peak 306, second rung from the top of the velocity ladder: the era-1/2 pace (scrollWorldAtTheEraPace), also read by flyAtSecondFastestSpeed/velocityForHeadingAtSecondFastestSpeed/setMotherShipVelocityFromHeading; the same address is the tamper-trap jump target in showCreditLine [seen]
+export const SLOWEST_VELOCITY_TABLE = 0x59d7; // ROM table of 256 16-bit velocity words, peak 206, the bottom rung of the velocity ladder, read by chaseOneAimPointAndRetireAtTheLine, flyAtSlowestSpeed, setMotherShipVelocityFromHeading and loc_58aa/velocityForHeadingAtSlowestSpeed/loc_598e/loc_59c5; the same address is the derail target of the whole-ROM checksum in clearScreenRamAndVerifyImageThenColdInit [seen]
 
 // ROM data-table and cell bases shared by the velocity, bonus, sprite-frame, checksum, tile, demo-script, sound and
 // self-test modules; roles read from the modules' use and the ROM disassembly (contrib Code.md).
@@ -3191,12 +3191,12 @@ export const ROUTINES = {
     why: "named by rank like its siblings flyAtSlowestSpeed and flyAtFastestSpeed: its table, 0x2E3E (peak 306), is second-fastest however the ladder is counted -- over the live flyAlongHeading shims (206/256/306/331), over the six ROM rungs (206/231/256/281/306/331; the 231 and 281 shims at 0x5846/0x585A are never entered, no absolute word or relative branch reaches them) -- so the rank does not depend on which tables are counted. Bytes 21 3E 2E C3 BC 58; its one entry is the jp at 0x2A19 in steerEra4CraftTowardAimHeadingThenFly, which alternates it with loc_58aa on bit 1 of the frame tick. 'SecondFastest' is a rank over tables, the same caveat flyAtFastestSpeed records: loc_58aa's doubled 206 moves farther per step. Converged with a third, independent derivation; the two first-pass derivers had offered an era-pace wording at low confidence",
   },
   0x5942: {
-    name: "loc_5942",
+    name: "velocityForHeadingAtSlowestSpeed",
     role: "hand back the perpendicular component pair for an object's heading from the velocity samples at 0x59D7, the ladder's bottom rung; choosing that table is all it does, an incoming pointer is discarded, and nothing is written. Two readers: armBomberSlotWhenTimerFires stores the pair straight into the slot it arms, and it is the era-0 word of the arm table at 0x46C4 that setMotherShipVelocityFromHeading dispatches",
     cert: "seen",
   },
   0x596b: {
-    name: "loc_596b",
+    name: "velocityForHeadingAtFastestSpeed",
     role: "hand back the perpendicular component pair an object's heading calls for, at the pace the velocity samples based at 0x08FA set; choosing that table is all this entry does, an incoming pointer is discarded, and the pair is the whole product -- no memory is written",
     cert: "seen",
   },
@@ -3367,7 +3367,7 @@ export const ROUTINES = {
     cert: "seen",
   },
   0x5965: {
-    name: "loc_5965",
+    name: "velocityForHeadingAtSecondFastestSpeed",
     role: "hand back the perpendicular component pair an object's heading calls for, at the pace the velocity samples based at 0x2E3E set; choosing that table is all this entry does",
     cert: "seen",
   },

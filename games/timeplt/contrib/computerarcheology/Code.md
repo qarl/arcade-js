@@ -4780,8 +4780,8 @@ scrollWorldAtTheEraPace:
 1F49: A7              AND     A                   
 1F4A: CA 4E 59        JP      Z,$594E             ; {code.loc_594e} opening era: use its own velocity table
 1F4D: FE 03           CP      $03                 
-1F4F: DA 65 59        JP      C,$5965             ; {code.loc_5965} the next two eras share a second table
-1F52: C3 6B 59        JP      $596B               ; {code.loc_596b} the fourth era on shares the last table
+1F4F: DA 65 59        JP      C,$5965             ; {code.velocityForHeadingAtSecondFastestSpeed} the next two eras share a second table
+1F52: C3 6B 59        JP      $596B               ; {code.velocityForHeadingAtFastestSpeed} the fourth era on shares the last table
 
 ; negate both velocity components into the world scroll cells, so the
 ; world moves opposite the player, then dress the player's sprite for its
@@ -7960,7 +7960,7 @@ loc_3c44:
 3C55: C6 C0           ADD     A,$C0               ; rotate three quarters
 3C57: E6 80           AND     $80                 ; keep the facing bit
 3C59: DD 77 02        LD      (IX+$02),A          ; store the facing
-3C5C: CD 42 59        CALL    $5942               ; {code.loc_5942} look up the velocity pair for this facing
+3C5C: CD 42 59        CALL    $5942               ; {code.velocityForHeadingAtSlowestSpeed} look up the velocity pair for this facing
 3C5F: DD 73 0A        LD      (IX+$0A),E          ; store a velocity byte
 3C62: DD 72 0B        LD      (IX+$0B),D          ; store a velocity byte
 3C65: DD 71 0C        LD      (IX+$0C),C          ; store a velocity byte
@@ -12528,7 +12528,7 @@ loc_5919:
 ; written. Two readers: armBomberSlotWhenTimerFires stores the pair
 ; straight into the slot it arms, and it is the era-0 word of the arm
 ; table at 0x46C4 that setMotherShipVelocityFromHeading dispatches
-loc_5942:
+velocityForHeadingAtSlowestSpeed:
 5942: 21 D7 59        LD      HL,$59D7            ; point at the slowest velocity table
 5945: C3 6E 59        JP      $596E               ; {code.velocityForHeading} look up the velocity vector for the heading using that table
 
@@ -12549,7 +12549,7 @@ loc_594e:
 ; hand back the perpendicular component pair an object's heading calls
 ; for, at the pace the velocity samples based at 0x2E3E set; choosing that
 ; table is all this entry does
-loc_5965:
+velocityForHeadingAtSecondFastestSpeed:
 5965: 21 3E 2E        LD      HL,$2E3E            ; point at a velocity table
 5968: C3 6E 59        JP      $596E               ; {code.velocityForHeading} look up the velocity vector for the heading using that table
 
@@ -12557,7 +12557,7 @@ loc_5965:
 ; for, at the pace the velocity samples based at 0x08FA set; choosing that
 ; table is all this entry does, an incoming pointer is discarded, and the
 ; pair is the whole product -- no memory is written
-loc_596b:
+velocityForHeadingAtFastestSpeed:
 596B: 21 FA 08        LD      HL,$08FA            ; point at a velocity table, then look up the velocity vector for the heading
 
 ; look up the velocity vector for a heading: two perpendicular components

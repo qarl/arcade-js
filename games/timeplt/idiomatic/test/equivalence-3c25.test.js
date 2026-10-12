@@ -17,7 +17,7 @@ import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { armBomberSlotWhenTimerFires as candidate } from "../armBomberSlotWhenTimerFires.js";
 import { loc_3c25 as oracle } from "../../translated/loc_3c25.js";
 import { fetchTableByte } from "../fetchTableByte.js";
-import { loc_5942 } from "../loc_5942.js";
+import { velocityForHeadingAtSlowestSpeed } from "../velocityForHeadingAtSlowestSpeed.js";
 import { u8, u16 } from "../../../../core/int.js";
 
 const TARGET = 0x3c25;
@@ -132,7 +132,7 @@ function twin({ hits = 3, live = 0xff, table = EDGE_POSITION_TABLE, snap = true,
     mem8[(regs.iy + 0x00) & 0xffff] = mem8[u16(regs.hl + 1)];
     mem8[(regs.ix + 0x02) & 0xffff] = snap ? (u8(heading + 0xc0) & 0x80) : heading;
     if (velocity) {
-      loc_5942(m);
+      velocityForHeadingAtSlowestSpeed(m);
       mem8[(regs.ix + 0x0a) & 0xffff] = regs.e;
       mem8[(regs.ix + 0x0b) & 0xffff] = regs.d;
       mem8[(regs.ix + 0x0c) & 0xffff] = regs.c;

@@ -19,7 +19,7 @@ import { serviceEra1BomberObject } from "../serviceEra1BomberObject.js";
 import { loc_3b5f as oracle } from "../../translated/loc_3b5f.js";
 import { ERA_INDEX, FRAME_TICK, BOMBER_HITS_TO_ABSORB, MOTHER_SHIP_ARMED } from "../names.js";
 import { armBomberSlotWhenTimerFires } from "../armBomberSlotWhenTimerFires.js";
-import { loc_5942 } from "../loc_5942.js";
+import { velocityForHeadingAtSlowestSpeed } from "../velocityForHeadingAtSlowestSpeed.js";
 import { advanceHitSoakingObjectThenAnimateDeath } from "../advanceHitSoakingObjectThenAnimateDeath.js";
 import { flyBomberThenTryAimedShot } from "../flyBomberThenTryAimedShot.js";
 
@@ -257,7 +257,7 @@ function brokenHeadingFromRegisterRecord(m) {
   const armed = m.mem8[ERA_INDEX] === ACTIVE_ERA && m.mem8[RECORD] === HEAD_EMPTY;
   const r = serviceEra1BomberObject(m);
   if (armed && m.mem8[RECORD] === HEAD_LIVE) {
-    const [de, bc] = loc_5942(m);
+    const [de, bc] = velocityForHeadingAtSlowestSpeed(m);
     m.mem8[RECORD + VELOCITY] = de & 0xff;
     m.mem8[RECORD + VELOCITY + 1] = de >> 8;
     m.mem8[RECORD + VELOCITY + 2] = bc & 0xff;

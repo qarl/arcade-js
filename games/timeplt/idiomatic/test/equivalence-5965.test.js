@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * loc_5965 — memory-equivalent to the frozen oracle at ROM 0x5965.
+ * velocityForHeadingAtSecondFastestSpeed — memory-equivalent to the frozen oracle at ROM 0x5965.
  *
  * WHAT IT IS. Two instructions: load a fixed table pointer, then tail-jump to the velocity lookup
  * at 0x596E, which IS ALREADY DECOMPILED — so the rewrite calls velocityForHeading directly with
@@ -90,7 +90,7 @@ import assert from "node:assert/strict";
 
 import { makeMachine, COIN_FRAME, START_FRAME, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { buildRoutines } from "../../routines.js";
-import { loc_5965 } from "../loc_5965.js";
+import { velocityForHeadingAtSecondFastestSpeed } from "../velocityForHeadingAtSecondFastestSpeed.js";
 import { velocityForHeading } from "../velocityForHeading.js";
 import { ERA_INDEX } from "../names.js";
 import { loc_5965 as oracle } from "../../translated/loc_5965.js";
@@ -265,7 +265,7 @@ function gate(candidate) {
 }
 
 function entryState() {
-  if (entry === null) gate(loc_5965);
+  if (entry === null) gate(velocityForHeadingAtSecondFastestSpeed);
   return entry;
 }
 
@@ -322,7 +322,7 @@ function replaySession(factory, candidate) {
 let sessionCache = null;
 function sessions() {
   if (sessionCache) return sessionCache;
-  sessionCache = SESSIONS.map(([label, factory]) => ({ label, ...replaySession(factory, loc_5965) }));
+  sessionCache = SESSIONS.map(([label, factory]) => ({ label, ...replaySession(factory, velocityForHeadingAtSecondFastestSpeed) }));
   return sessionCache;
 }
 
@@ -441,11 +441,11 @@ const TWINS = [
 
 // ── the gate ────────────────────────────────────────────────────────────────────────────
 
-test("CONTRACT: loc_5965 == oracle on RAM and the live-out at the real dispatch", { skip }, () => {
-  const r = gate(loc_5965);
+test("CONTRACT: velocityForHeadingAtSecondFastestSpeed == oracle on RAM and the live-out at the real dispatch", { skip }, () => {
+  const r = gate(velocityForHeadingAtSecondFastestSpeed);
   assert.notEqual(entry, null, "vacuous: the session never reached the routine");
   assert.equal(r.ram, null, `RAM diverged — ${JSON.stringify(r.ram)}`);
-  const d = unitDiff(loc_5965, entryState());
+  const d = unitDiff(velocityForHeadingAtSecondFastestSpeed, entryState());
   assert.equal(d, null, `the live-out diverged — ${d}`);
   const e = entryState();
   console.log(
@@ -501,7 +501,7 @@ test("DEAD FIRST DISPATCH: doubling the budget captures the SAME entry", { skip 
   let later = null;
   unitEquivalence(turningMachine, TARGET, oracle, (m) => {
     if (later === null) later = m.clone();
-    return loc_5965(m);
+    return velocityForHeadingAtSecondFastestSpeed(m);
   }, { maxFrames: 2 * ENTRY_FRAMES });
   assert.notEqual(later, null, "vacuous: the doubled budget never reached the routine");
   assert.equal(headingOf(later), headingOf(first), "a longer run must not change the entry");
@@ -573,7 +573,7 @@ test("EXCLUDED, deliberately: only the dropped registers move, over the whole sw
     const a = selector(heading);
     const b = a.clone();
     oracle(a);
-    loc_5965(b);
+    velocityForHeadingAtSecondFastestSpeed(b);
     for (const k of REG_FIELDS) if (a.regs[k] !== b.regs[k]) moved.add(k);
     assert.notEqual(a.pc, b.pc, "the oracle's return moves pc; the rewrite returns to JS");
   }
@@ -590,7 +590,7 @@ test("EXCLUDED, deliberately: only the dropped registers move, over the whole sw
 test("EXHAUSTIVE: 256 headings crafted off the real entry are identical", { skip }, () => {
   let swept = 0;
   for (const heading of everyHeading) {
-    const d = unitDiff(loc_5965, selector(heading));
+    const d = unitDiff(velocityForHeadingAtSecondFastestSpeed, selector(heading));
     assert.equal(d, null, `heading ${heading}: ${d}`);
     swept++;
   }
@@ -684,7 +684,7 @@ test("EXHAUSTIVE: the shim charges exactly what the oracle charges", { skip }, (
 });
 
 test("WHOLE-MACHINE: driven play is byte-identical with the rewrite wired", { skip }, () => {
-  const w = replay(loc_5965);
+  const w = replay(velocityForHeadingAtSecondFastestSpeed);
   const fired = w.invocations.get(TARGET);
   assert.ok(fired > 0, "vacuous: the override never dispatched in this many frames");
   assert.equal(w.framesCompared, WHOLE_FRAMES, "the replay ran short of the frames asked for");

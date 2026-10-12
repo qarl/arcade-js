@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * loc_5942 — memory-equivalent to the frozen oracle at ROM 0x5942.
+ * velocityForHeadingAtSlowestSpeed — memory-equivalent to the frozen oracle at ROM 0x5942.
  *
  * WHAT IT IS. Two instructions: load a fixed table pointer, then tail-jump to the velocity lookup
  * at 0x596E, which IS ALREADY DECOMPILED — so the rewrite calls velocityForHeading directly with
@@ -58,7 +58,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { makeMachine, romsPresent } from "./_harness.js";
-import { loc_5942 } from "../loc_5942.js";
+import { velocityForHeadingAtSlowestSpeed } from "../velocityForHeadingAtSlowestSpeed.js";
 import { velocityForHeading } from "../velocityForHeading.js";
 import { loc_5942 as oracle } from "../../translated/loc_5942.js";
 import {
@@ -135,7 +135,7 @@ function gate(candidate) {
 }
 
 function entryState() {
-  if (entry === null) gate(loc_5942);
+  if (entry === null) gate(velocityForHeadingAtSlowestSpeed);
   return entry;
 }
 
@@ -187,7 +187,7 @@ function replaySession(factory, candidate) {
 let sessionCache = null;
 function sessions() {
   if (sessionCache) return sessionCache;
-  sessionCache = SESSIONS.map(([label, factory]) => ({ label, ...replaySession(factory, loc_5942) }));
+  sessionCache = SESSIONS.map(([label, factory]) => ({ label, ...replaySession(factory, velocityForHeadingAtSlowestSpeed) }));
   return sessionCache;
 }
 
@@ -265,7 +265,7 @@ const TWINS = [
 // ── the gate ────────────────────────────────────────────────────────────────────────────
 
 test("CONTRACT: unitEquivalence at the first real dispatch, RAM identical", { skip }, () => {
-  const r = gate(loc_5942);
+  const r = gate(velocityForHeadingAtSlowestSpeed);
   assert.notEqual(entry, null, "vacuous: the session never reached the routine");
   assert.equal(r.ram, null, `RAM diverged — ${show(r.ram)}`);
   const e = entryState();
@@ -331,7 +331,7 @@ test("EXCLUDED, deliberately: only scratch registers move, over the whole sweep"
     const a = selector(heading);
     const b = a.clone();
     oracle(a);
-    loc_5942(b);
+    velocityForHeadingAtSlowestSpeed(b);
     for (const k of REG_FIELDS) if (a.regs[k] !== b.regs[k]) moved.add(k);
     assert.notEqual(a.pc, b.pc, "the oracle's return moves pc; the rewrite returns to JS");
     for (const k of LIVE_OUT) assert.equal(a.regs[k], b.regs[k], `live-out ${k} at heading ${heading}`);
@@ -342,7 +342,7 @@ test("EXCLUDED, deliberately: only scratch registers move, over the whole sweep"
 
 test("EXHAUSTIVE: all 256 headings crafted off the real entry are identical", { skip }, () => {
   for (const heading of everyHeading) {
-    const d = unitDiff(loc_5942, selector(heading));
+    const d = unitDiff(velocityForHeadingAtSlowestSpeed, selector(heading));
     assert.equal(d, null, `heading ${heading}: ${show(d)}`);
   }
   console.log(`  EXHAUSTIVE: ${HEADINGS} headings identical on RAM and on the pair`);
@@ -365,7 +365,7 @@ test("RUNG LADDER: the neighbour agrees on one sample and never on the pair", { 
 });
 
 test("WHOLE-MACHINE: attract is byte-identical with the rewrite wired", { skip }, () => {
-  const w = replay(loc_5942);
+  const w = replay(velocityForHeadingAtSlowestSpeed);
   assert.ok(w.invocations.get(TARGET) > 0, "vacuous: the override never dispatched");
   assert.equal(w.framesCompared, WHOLE_FRAMES, "the replay ran short of the frames asked for");
   assert.equal(w.equal, true, `forked at frame ${w.frame} on ${hex4(w.addr ?? 0)}`);
