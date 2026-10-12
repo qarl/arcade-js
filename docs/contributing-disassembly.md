@@ -106,7 +106,10 @@ sending it** — contributing it is the separate, human-authorised step below.
 `tools/gen_ca_contrib.py <game>` is the game-agnostic generator: it reads only clean-room sources
 (the raw `out/<game>.asm`, `names.js` names/roles, the manifest, `boards/<game>/hardware.json`) and
 writes `RAMUse.md` + `Code.md`, cleaning each role for the routine header (it drops our `★`, the
-evidence tags, `§`, and "grounded in MAME" citations). It never opens the port. `Hardware.md` and
+evidence tags, `§`, and "grounded in MAME" citations). It never opens the port. For a game in
+`CONST_ADDR_GAMES` a role header also gives a names.js constant outside work RAM its address wherever the
+name stands without one (`INITIALS_LETTER_GLYPH_TABLE ($12C7)`), since `RAMUse.md` lists only work-RAM cells and
+the name would otherwise resolve to nothing on the pages. `Hardware.md` and
 `README.md` stay hand-authored per game.
 
 `names.js` legitimately keeps its grounding evidence (capture notes, PCs, "under MAME", `§` refs) — that
@@ -223,8 +226,31 @@ it). Then:
   the derails into it link there), and the instruction resuming after the span keeps its own label. On
   timeplt a derail name once moved from its `$459B` data block onto the ordinary countdown at `$45B3`.
 - **Named-ROM-data gate (fail-closed).** `gen_ca_contrib.py` also checks that every `names.js` ROM data
-  table's base address (its first byte) renders inside a data block, never as a decoded instruction. It does
-  not know a table's length, so a tail shown as code still needs the manual audit. A "ROM data table" is an `export const`
+  table renders as data over its whole extent, not just its first byte. names.js gives no lengths, so the
+  extent is bounded by what else the image names (`table_extent`): it runs from the table's address up to,
+  not including, the first of
+  - the next names.js program-ROM address of any kind -- another constant (a table, a `*_ADDR` routine
+    alias, a code byte reused as a value, a checksum base) or a `ROUTINES` entry with an English name. A
+    kept-hex `loc_XXXX` routine is NOT a boundary: a hex name only records that the descent reached the
+    address, and the bytes inside a table that a stray transfer lands on carry exactly such a name (timeplt's
+    `$1F99`, inside `PLAYER_ANIM_STRIP_1`);
+  - the next `FORCE_CODE` entry;
+  - a labelled code entry that one of the table's own little-endian words points at (a dispatch table's
+    arms are real code);
+  - the end of a `FORCE_DATA` span that starts at the table's address (a span bounded by hand declares the
+    table's length; tempest's `$CFD9` span ends where its routine resumes);
+  - else the end of the program ROM.
+
+  Over that extent two tests run. **(1) No code between data:** capped at the extent's last data byte, no
+  decoded instruction may sit between two data bytes -- the page shows data on both sides, so the stretch is
+  the table's own bytes as code. Code after the last data byte is the routine that follows a table of
+  unnamed length, so it is not flagged (that is what keeps the rule quiet: a table followed by unnamed real
+  code and then unrelated data later still reads as a table then code). **(2) No code falling into data:**
+  over the extent without the `FORCE_DATA` length (a hand-bounded span can stop short), no decoded stretch may
+  run straight into a data byte -- an instruction that is not a return, jump, halt or restart directly
+  followed by data. Real code cannot fall into data, so either the stretch is the table's bytes or a bound is
+  wrong. What it still cannot see: a table tail decoded as code that ends in a jump or return and is followed
+  only by code up to the next boundary -- that needs the manual audit. A "ROM data table" is an `export const`
   at a program-ROM address whose name has `TABLE`, `RECORD` or `SCRIPT` as a whole `_`-separated word, or
   ends in `STRIP` / `STRIP_<n>` (`ROM_DATA_NAME_RE`); `*_ADDR` routine aliases, code bytes reused as values
   (`*_SEED`, `*_SOUND`, `*_BYTE`, `*_WORD` ...) and checksum-span bases are not bound. The two exceptions
@@ -254,12 +280,16 @@ these mis-decodes are trace.py limitations (RST-$28 table sizing, following fake
 would help every future port, but trace.py is shared with finished games — treat that as a separate call.
 
 `FORCE_DATA`, `CRASH_SITE_OK` and `FORCE_CODE` live at the top of `tools/gen_ca_contrib.py`. A `FORCE_DATA` span
-that ends inside an UNREACHED block emits the block's remaining bytes as data (or as the `FORCE_DATA` entry that
-starts right after it), so no byte is lost. Examples: Time Pilot's misaligned `$459B`/`$49FA` anti-tamper
+that ends inside an UNREACHED block emits the block's remaining bytes as data, so no byte is lost. An UNREACHED
+block (or such a remainder) is split at every `FORCE_DATA` entry that lies wholly inside it, each rendering as its
+own labelled block with its comment and, when `name_src` is set, its names.js name; an entry that starts inside one
+but runs past its end fails loudly. That is how a never-reached table gets per-part labels (Time Pilot's five
+player-explosion shape strips, its command handler table and the two never-dispatched handlers after it). Examples: Time Pilot's misaligned `$459B`/`$49FA` anti-tamper
 entries, its four velocity tables (`$08FA`/`$2E3E`/`$59D7`/`$2530`, each 256 heading-indexed words and each
 also a derail landing), the caption records at `$0AFA`, `$2509` and `$319E`, the era scenery-row table at
-`$3176` (an unconditional derail landing), and the truncated phase-0 jump table at `$15C8` (its words double
-as caption records 8 and 5); pooyan's `$5119` checksum sentinel, its `$0799`/`$07D0`
+`$3176` (an unconditional derail landing), the truncated phase-0 jump table at `$15C8` (its words double
+as caption records 8 and 5), and the player-explosion shape strips at `$1F76-$200B` (strip 1's `$1F99-$1FAB`,
+landed on only by the never-taken `jr nz,$1F99` at `$1F37`, had shipped as code); pooyan's `$5119` checksum sentinel, its `$0799`/`$07D0`
 derail-crash tables, its `$2F93` fall-through value-ramp table, and its `$0083`/`$0247`/`$08A8`/`$30ED`/`$339B`
 dispatch/pointer tables (all `FORCE_DATA`); the three routines those tables buried — `$0092` (the boot entry),
 `$0254`, `$08B3` — recovered via `FORCE_CODE`; vs the `$6DF9`/`$7071` code clones and `$0018`/`$020F`

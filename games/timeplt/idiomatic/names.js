@@ -2648,7 +2648,7 @@ export const ROUTINES = {
   },
   0x1f99: {
     name: "loc_1f99",
-    role: "bytes inside PLAYER_ANIM_STRIP_1 (0x1F94+) decoded as code, not a routine: they unwind a run of stack words and leave by an unpredictable transfer. The only transfer aimed at it is the jr nz at 0x1F37 inside the 0x1F2E table, run only on the tamper derail (TAMPER_GLYPH_STRIP not 0xA5 or TAMPER_COLOUR_STRIP not 0x05/0x10, which never fires on a genuine image), and even there not taken, since A is zero when it tests",
+    role: "bytes inside PLAYER_ANIM_STRIP_1 (0x1F94+), not a routine: run as code they would unwind a run of stack words and leave by an unpredictable transfer. The only transfer aimed at it is the jr nz at 0x1F37 inside the 0x1F2E table, run only on the tamper derail (TAMPER_GLYPH_STRIP not 0xA5 or TAMPER_COLOUR_STRIP not 0x05/0x10, which never fires on a genuine image), and even there not taken, since A is zero when it tests",
     cert: "code",
   },
   0x200c: {

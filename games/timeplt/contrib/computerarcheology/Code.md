@@ -1829,11 +1829,46 @@ runCommandRingDrainLoop:
 0BBA: EB              EX      DE,HL               
 0BBB: E9              JP      (HL)                ; run the handler
 
-; ---- $0BBC-$0BF1: data ----
+; The sixteen-word handler table the drain loop at $0B93 indexes with a
+; command's low nibble (`ld hl,$0BBC` at $0BAF). Words 1 to 7, 10 and 11
+; name the handlers the posted commands use. Word 0 names $0BDD, and words
+; 8, 9 and 12 to 15 name the lone `ret` at $0BDC.
+; ---- $0BBC-$0BDB: command handler table ----
 0BBC: DD 0B F2 0B 0F 0C 39 0C 90 0C 72 4D D7 0D AC 0E
 0BCC: DC 0B DC 0B 21 34 23 0C DC 0B DC 0B DC 0B DC 0B
-0BDC: C9 21 50 0C CD 8C 01 EB 5E 23 56 23 23 7E FE B9
-0BEC: C8 12 23 E7 18 F7
+
+; a lone `ret` filling slots 8, 9 and 12-15 of the sixteen-word command
+; handler table at 0x0BBC that runCommandRingDrainLoop indexes by the
+; command's low nibble: it reads and writes nothing and returns to the top
+; of the drain loop, so such a command only frees its pair. The address
+; occurs in the image only as those six table words. No poster puts a
+; command with one of those low nibbles on the ring, so the slots are
+; unreachable filler
+;
+; One byte, $C9 (`ret`). Every command posted to the ring (through `rst
+; $38` or `jp $0038`) has a low nibble of 1 to 7, 10 or 11.
+loc_0bdc:
+; ---- $0BDC-$0BDC: filler ret ----
+0BDC: C9
+
+; command 0's handler (word 0 of the handler table at 0x0BBC): paint the
+; glyph run of the caption record an index selects from
+; CAPTION_RECORD_TABLE ($0C50) into the character plane, one cell along
+; the line per glyph from the record's start cell, stepping over the
+; record's colour byte and writing no colour cell. No poster in the image
+; puts command 0 on the ring, so the handler is never dispatched; its
+; bytes are still read as part of the IMAGE_GUARD_BLOCK_0BDD_BASE ($0BDD)
+; checksum span
+;
+; Shown as data, since no posted command selects it. Read as instructions:
+; `ld hl,$0C50` / `call $018C` / `ex de,hl` / `ld e,(hl)` / `inc hl` / `ld
+; d,(hl)` / `inc hl` / `inc hl`, then a loop at $0BE9: `ld a,(hl)` / `cp
+; $B9` / `ret z` / `ld (de),a` / `inc hl` / `rst $20` / `jr $0BE9`. The
+; checksum span it starts is folded by the exclusive-or loop at $5BDE.
+drawCaptionGlyphsKeepingColour:
+; ---- $0BDD-$0BF1: command 0 handler ----
+0BDD: 21 50 0C CD 8C 01 EB 5E 23 56 23 23 7E FE B9 C8
+0BED: 12 23 E7 18 F7
 
 ; paint the caption an index selects: the index picks a record from one
 ; word table, and the record supplies the destination cell, the colour and
@@ -2776,21 +2811,21 @@ loc_10d8:
 ; give five display-list slots a second appearance half a screen away: a
 ; slot is a byte pair whose first byte carries a request in its top bit,
 ; and where that bit is set the pass first waits, re-reading the slot,
-; until the request byte plus SCANLINE_COUNTER carries, and then the pair
-; trades half a byte range -- the requester gives that half up and the
-; partner takes it on, which is what carries the slot into the far half of
-; the display. A slot with no request is stepped over rather than stopped
-; at, so a gap in the middle costs the slots after it nothing
+; until the request byte plus SCANLINE_COUNTER ($C000) carries, and then
+; the pair trades half a byte range -- the requester gives that half up
+; and the partner takes it on, which is what carries the slot into the far
+; half of the display. A slot with no request is stepped over rather than
+; stopped at, so a gap in the middle costs the slots after it nothing
 loc_10f8:
 10F8: 3A 37 B4        LD      A,($B437)           ; read the next slot's Y byte
 10FB: CB 7F           BIT     7,A                 ; test its request bit
 
 ; subroutine entry into the five-slot sprite split pass (slots 19-23),
 ; joined inside slot 19 with the caller's held byte and test: when the
-; test is set and the held byte plus SCANLINE_COUNTER carries, trade slot
-; 19 from the held byte; without the carry, rejoin the pass at slot 19
-; (0x10F8) and re-read all five slots from memory instead; after a trade
-; or a clear test, trade slots 20-23 wherever their top bit is set
+; test is set and the held byte plus SCANLINE_COUNTER ($C000) carries,
+; trade slot 19 from the held byte; without the carry, rejoin the pass at
+; slot 19 (0x10F8) and re-read all five slots from memory instead; after a
+; trade or a clear test, trade slots 20-23 wherever their top bit is set
 spinRemainingSpriteMultiplexSlots:
 10FD: 28 19           JR      Z,$1118             ; {code.loc_1118} clear -- skip ahead to the following slot
 10FF: 4F              LD      C,A                 
@@ -4204,8 +4239,8 @@ startTwoPlayerGame:
 ; sub-step table): on even FRAME_TICK frames roll the facing panel's
 ; back/forward/two commit controls into their press histories
 ; (INITIALS_BACK/FORWARD/COMMIT/ALT_COMMIT_PRESS_HISTORY); a fresh commit
-; locks the shown letter's glyph (INITIALS_LETTER_GLYPH_TABLE indexed by
-; INITIALS_LETTER_INDEX) into the filed record's initials cell
+; locks the shown letter's glyph (INITIALS_LETTER_GLYPH_TABLE ($12C7)
+; indexed by INITIALS_LETTER_INDEX) into the filed record's initials cell
 ; (SCRATCH_PTR_A) and the on-screen cursor cell (SCRATCH_PTR_B), colours
 ; it from INITIALS_LOCKED_LETTER_COLOUR, steps both on and counts down
 ; INITIALS_SLOTS_LEFT (seeded to 3), finishing on the last slot; a fresh
@@ -4776,44 +4811,56 @@ loc_1f6f:
 1F71: 32 02 A8        LD      ($A802),A           ; {hard.workRam+2} store the heading stepped up by the turn step
 1F74: 18 CC           JR      $1F42               ; {code.scrollWorldAtTheEraPace} on to the world scroll
 
-; ---- $1F76-$1F98: data ----
+; The first of five player-explosion shape strips, thirty tile codes each
+; (six rows of five: the row count is the byte at $337A, the row length
+; the byte at $4902), back to back from $1F76 to $200B. The routine at
+; $2010 picks a strip by the explosion phase and copies it into video
+; memory from $A5AF. Strip 0 is drawn on phase $B3 (`ld de,$1F76` at
+; $2066).
+; ---- $1F76-$1F93: player-explosion shape strip 0 ----
 1F76: F1 F1 F1 F1 F1 F1 F1 DD F1 F1 F1 F1 F0 F1 F1 F1
-1F86: F1 C3 F1 F1 F1 F1 EA F1 F1 F1 F1 F1 F1 F1 F1 F1
-1F96: B7 F1 F1
+1F86: F1 C3 F1 F1 F1 F1 EA F1 F1 F1 F1 F1 F1 F1
 
-; bytes inside PLAYER_ANIM_STRIP_1 (0x1F94+) decoded as code, not a
-; routine: they unwind a run of stack words and leave by an unpredictable
+; Strip 1, drawn on phase $AB (`ld de,$1F94` at $206B). Its thirty bytes
+; run on through the two blocks below to $1FB1.
+; ---- $1F94-$1F98: player-explosion shape strip 1 ----
+1F94: F1 F1 B7 F1 F1
+
+; bytes inside PLAYER_ANIM_STRIP_1 (0x1F94+), not a routine: run as code
+; they would unwind a run of stack words and leave by an unpredictable
 ; transfer. The only transfer aimed at it is the jr nz at 0x1F37 inside
 ; the 0x1F2E table, run only on the tamper derail (TAMPER_GLYPH_STRIP not
 ; 0xA5 or TAMPER_COLOUR_STRIP not 0x05/0x10, which never fires on a
 ; genuine image), and even there not taken, since A is zero when it tests
+;
+; Strip 1 continued: nineteen of its tile codes. A is zero at the `jr
+; nz,$1F99` because `ret nz` at $1F32 lets only a zero sum past `add a,b`
+; at $1F30, and `and b` at $1F34 keeps it zero with Z set, so the branch
+; falls through.
 loc_1f99:
-1F99: F1              POP     AF                  
-1F9A: F1              POP     AF                  
-1F9B: 4D              LD      C,L                 
-1F9C: F1              POP     AF                  
-1F9D: F1              POP     AF                  
-1F9E: F1              POP     AF                  
-1F9F: E5              PUSH    HL                  
-1FA0: 2D              DEC     L                   
-1FA1: 6E              LD      L,(HL)              
-1FA2: F1              POP     AF                  
-1FA3: F1              POP     AF                  
-1FA4: 5E              LD      E,(HL)              
-1FA5: 61              LD      H,C                 
-1FA6: E6 F1           AND     $F1                 
-1FA8: F1              POP     AF                  
-1FA9: F1              POP     AF                  
-1FAA: B2              OR      D                   
-1FAB: F1              POP     AF                  
+; ---- $1F99-$1FAB: player-explosion shape strip 1 (cont.) ----
+1F99: F1 F1 4D F1 F1 F1 E5 2D 6E F1 F1 5E 61 E6 F1 F1
+1FA9: F1 B2 F1
 
-; ---- $1FAC-$200B: data ----
-1FAC: F1 F1 F1 53 F1 F1 F1 F1 95 F1 F1 F1 45 CA F1 F1
-1FBC: F1 C6 2C 97 F1 F1 81 69 1E F1 F1 BC A1 60 F1 F1
-1FCC: F4 EB F1 F1 F1 F1 48 F1 F1 F1 E0 63 35 F1 F1 AA
-1FDC: B4 8A F1 F1 51 E9 F6 F1 F1 82 92 98 F1 F1 F1 46
-1FEC: F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1
-1FFC: F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1
+; The last six bytes of strip 1.
+; ---- $1FAC-$1FB1: player-explosion shape strip 1 (cont.) ----
+1FAC: F1 F1 F1 53 F1 F1
+
+; Strip 2, drawn on phases $A3 and $8B (`ld de,$1FB2` at $2070 and $207F).
+; ---- $1FB2-$1FCF: player-explosion shape strip 2 ----
+1FB2: F1 F1 95 F1 F1 F1 45 CA F1 F1 F1 C6 2C 97 F1 F1
+1FC2: 81 69 1E F1 F1 BC A1 60 F1 F1 F4 EB F1 F1
+
+; Strip 3, drawn on phases $9B and $93 (`ld de,$1FD0` at $2075 and $207A).
+; ---- $1FD0-$1FED: player-explosion shape strip 3 ----
+1FD0: F1 F1 48 F1 F1 F1 E0 63 35 F1 F1 AA B4 8A F1 F1
+1FE0: 51 E9 F6 F1 F1 82 92 98 F1 F1 F1 46 F1 F1
+
+; Strip 4, the last, drawn on phase $83 (`ld de,$1FEE` at $2084): thirty
+; $F1 codes.
+; ---- $1FEE-$200B: player-explosion shape strip 4 ----
+1FEE: F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1
+1FFE: F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1
 
 ; put the byte the caller has been carrying where a result is read from,
 ; so the verdict of an image check can be taken; on the way it walks an
@@ -6615,7 +6662,11 @@ placeAbuttingTile:
 3064: FD 71 02        LD      (IY+$02),C          ; copy the X into the next entry unchanged
 3067: C3 9B 30        JP      $309B               ; {code.advanceToNextSlot} step both cursors onto the entry just written
 
-; ---- $306A-$3073: data ----
+; Ten bytes that read as `ld b,(iy+$31)` / `ld c,(iy+$00)` / `ld h,$08` /
+; `ld l,$6E` and run on into the placer at $3074. Nothing in the program
+; jumps or calls into them, and the instruction before them ($3067) is a
+; `jp`, so they never run.
+; ---- $306A-$3073: placer head (never run) ----
 306A: FD 46 31 FD 4E 00 26 08 2E 6E
 
 loc_3074:
@@ -8430,8 +8481,8 @@ loc_3f9e:
 
 ; point an object's sprite the way it is heading: round the heading in its
 ; record (+2) to one of sixteen sectors, and set the sprite entry's shape
-; byte (+1) from that sector's entry in HEADING_SECTOR_SHAPE_TABLE and its
-; attribute byte (+0x30) from the parallel table sixteen bytes on
+; byte (+1) from that sector's entry in HEADING_SECTOR_SHAPE_TABLE ($3FCA)
+; and its attribute byte (+0x30) from the parallel table sixteen bytes on
 dressSpriteShapeAndAttributeForHeadingSector:
 3FAF: DD 7E 02        LD      A,(IX+$02)          ; read the object's heading byte
 3FB2: C6 08           ADD     A,$08               ; add half a sector -- round to the nearest
@@ -9432,12 +9483,15 @@ loc_4594:
 ; and the 0xAB44 gate after it; reached through a misaligned prologue (two
 ; POP AF, DEC SP) whose stray carry can fold in a life-loss
 ;
-; reached only via the "wrong-glyph" derail ($1772) and the witness-copy
-; derail ($4660); the bytes run as register churn, undefined NOPs, stack-
+; Caption record 17 of the caption table at $0C50 ("1ST BONUS 20000
+; PTS."): destination cell $A716, colour byte $13, twenty glyphs and the
+; $B9 terminator at $45B2. It is also the landing of the "wrong-glyph"
+; derail ($1772) and the witness-copy derail ($4660), the only transfers
+; to it; there the bytes run as register churn, undefined NOPs, stack-
 ; misaligning POPs and a carry-gated call into the life-loss handover. The
 ; Mother-Ship wreck countdown proper starts at $45B3.
 derailIntoMotherShipWreckCountdown:
-; ---- $459B-$45B2: misaligned anti-tamper entry ----
+; ---- $459B-$45B2: caption record 17 (misaligned anti-tamper entry) ----
 459B: 16 A7 13 96 ED DC F1 8C 68 3B 0D ED F1 9B 13 13
 45AB: 13 13 F1 88 DC ED 11 B9
 
@@ -10132,7 +10186,7 @@ loc_49f5:
 ; popped flag byte brings (`call c,$BFD7` at $4A01, `call c,$FDC4` at
 ; $4A05), targets outside the program ROM; with both carries clear they
 ; run on into the real routine at $4A0F.
-; ---- $49FA-$4A0E: misaligned anti-tamper entry ----
+; ---- $49FA-$4A0E: caption record 4 (misaligned anti-tamper entry) ----
 49FA: EE A6 14 A5 3B 87 F1 DC D7 BF F1 DC C4 FD ED F1
 4A0A: 7D A5 38 34 B9
 
@@ -10606,8 +10660,9 @@ loc_4ca8:
 ; to find the first the new score is not below, slide the records beneath
 ; down one slot (lddr), write the new score with blank 0xf1 name-cell
 ; sentinels, point SCRATCH_PTR_B at its initials cells on screen
-; (HIGH_SCORE_INITIALS_CELL_BASE + 2 x rank), and renumber the rank column
-; 0..4; carry returns clear when filed, set when the score beat none
+; (HIGH_SCORE_INITIALS_CELL_BASE ($A531) + 2 x rank), and renumber the
+; rank column 0..4; carry returns clear when filed, set when the score
+; beat none
 fileScoreIntoHighScoreTable:
 4CC3: 21 0B AB        LD      HL,$AB0B            ; point at the top standing score's high byte
 4CC6: 06 05           LD      B,$05               ; five records to consider

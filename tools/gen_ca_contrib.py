@@ -70,6 +70,12 @@ GAME = None  # the game being emitted (main sets it); narrows the wrong-game lea
 # Games whose kept-hex (loc_) routines still get their names.js role as a header comment. Opt-in, so a
 # game's committed pages change only in the unit that regenerates them.
 LOC_ROLE_GAMES = {"timeplt"}
+# Games whose role headers give a names.js constant outside work RAM its address wherever the name stands
+# without one ("INITIALS_LETTER_GLYPH_TABLE ($12C7)"): RAMUse.md lists only work-RAM cells, so a ROM table or an
+# I/O name in the prose otherwise resolves to nothing on the pages. Opt-in, like LOC_ROLE_GAMES. main fills
+# NON_RAM_CONSTS (name -> address) for these games.
+CONST_ADDR_GAMES = {"timeplt"}
+NON_RAM_CONSTS = {}
 
 
 def _role_header(rn):
@@ -198,12 +204,14 @@ GAME_CONVENTIONS = {
 # derails that jump to start then link to the block. See scratchpad/CA-topher-459b-followup.md.
 FORCE_DATA = {
     "timeplt": [
-        (0x459b, 0x45b2, "misaligned anti-tamper entry",
-         'reached only via the "wrong-glyph" derail ($1772) and the witness-copy derail ($4660); the '
-         "bytes run as register churn, undefined NOPs, stack-misaligning POPs and a carry-gated call into "
-         "the life-loss handover. The Mother-Ship wreck countdown proper starts at $45B3.",
+        (0x459b, 0x45b2, "caption record 17 (misaligned anti-tamper entry)",
+         'Caption record 17 of the caption table at $0C50 ("1ST BONUS 20000 PTS."): destination cell $A716, '
+         "colour byte $13, twenty glyphs and the $B9 terminator at $45B2. It is also the landing of the "
+         '"wrong-glyph" derail ($1772) and the witness-copy derail ($4660), the only transfers to it; '
+         "there the bytes run as register churn, undefined NOPs, stack-misaligning POPs and a "
+         "carry-gated call into the life-loss handover. The Mother-Ship wreck countdown proper starts at $45B3.",
          0x459b),
-        (0x49fa, 0x4a0e, "misaligned anti-tamper entry",
+        (0x49fa, 0x4a0e, "caption record 4 (misaligned anti-tamper entry)",
          'Caption record 4 of the caption table at $0C50 ("AND TRY THIS GAME"): destination cell $A6EE, '
          "colour byte $14, seventeen glyphs and the $B9 terminator at $4A0E. It is also the landing of the "
          "copyright-line colour check's derail ($19E6). Run as code, the bytes misalign the stack "
@@ -282,6 +290,65 @@ FORCE_DATA = {
         # the UNCONDITIONAL tamper jp $3176 at $315B, which the crash-site net (conditional branch + pointer load)
         # cannot see. Five rows end at $319D; caption record 20 (table word at $0C78) follows to its terminator at
         # $31B3, and $31B4 is real code.
+        # PLAYER_ANIM_STRIP_0..4: five 30-byte player-explosion shape strips, $1F76-$200B, copied by the routine
+        # at $2010 (`ld de,<strip>` at $2066-$2084; six rows at $337A, five tiles a row at $4902). The descent
+        # left $1F76-$1F98 and $1FAC-$200B unreached and decoded $1F99-$1FAB as code: its only entry is the
+        # never-taken `jr nz,$1F99` at $1F37 inside the tamper-run STICK_HEADING_TABLE. One block per strip, with
+        # strip 1 split at the $1F99 landing so the name loc_1f99 labels its own data block.
+        (0x1f76, 0x1f93, "player-explosion shape strip 0",
+         "The first of five player-explosion shape strips, thirty tile codes each (six rows of five: the row "
+         "count is the byte at $337A, the row length the byte at $4902), back to back from $1F76 to $200B. "
+         "The routine at $2010 picks a strip by the explosion phase and copies it into video memory from "
+         "$A5AF. Strip 0 is drawn on phase $B3 (`ld de,$1F76` at $2066).",
+         None),
+        (0x1f94, 0x1f98, "player-explosion shape strip 1",
+         "Strip 1, drawn on phase $AB (`ld de,$1F94` at $206B). Its thirty bytes run on through the two "
+         "blocks below to $1FB1.",
+         None),
+        (0x1f99, 0x1fab, "player-explosion shape strip 1 (cont.)",
+         "Strip 1 continued: nineteen of its tile codes. A is zero at the `jr nz,$1F99` because `ret nz` at "
+         "$1F32 lets only a zero sum past `add a,b` at $1F30, and `and b` at $1F34 keeps it zero with Z set, "
+         "so the branch falls through.",
+         0x1f99),
+        (0x1fac, 0x1fb1, "player-explosion shape strip 1 (cont.)",
+         "The last six bytes of strip 1.",
+         None),
+        (0x1fb2, 0x1fcf, "player-explosion shape strip 2",
+         "Strip 2, drawn on phases $A3 and $8B (`ld de,$1FB2` at $2070 and $207F).",
+         None),
+        (0x1fd0, 0x1fed, "player-explosion shape strip 3",
+         "Strip 3, drawn on phases $9B and $93 (`ld de,$1FD0` at $2075 and $207A).",
+         None),
+        (0x1fee, 0x200b, "player-explosion shape strip 4",
+         "Strip 4, the last, drawn on phase $83 (`ld de,$1FEE` at $2084): thirty $F1 codes.",
+         None),
+        # The ring-command handler table and the two handler bodies after it that no posted command reaches: the
+        # descent left $0BBC-$0BF1 one unreached block. Split so each part says what it is and $0BDC/$0BDD carry
+        # their names.js labels. Every poster (`rst $38` / `jp $0038`) loads D with a command whose low nibble is
+        # 1-7, 10 or 11, so word 0 ($0BDD) and words 8, 9, 12-15 ($0BDC) are never dispatched.
+        (0x0bbc, 0x0bdb, "command handler table",
+         "The sixteen-word handler table the drain loop at $0B93 indexes with a command's low nibble "
+         "(`ld hl,$0BBC` at $0BAF). Words 1 to 7, 10 and 11 name the handlers the posted commands use. "
+         "Word 0 names $0BDD, and words 8, 9 and 12 to 15 name the lone `ret` at $0BDC.",
+         None),
+        (0x0bdc, 0x0bdc, "filler ret",
+         "One byte, $C9 (`ret`). Every command posted to the ring (through `rst $38` or `jp $0038`) has a "
+         "low nibble of 1 to 7, 10 or 11.",
+         0x0bdc),
+        (0x0bdd, 0x0bf1, "command 0 handler",
+         "Shown as data, since no posted command selects it. Read as "
+         "instructions: `ld hl,$0C50` / `call $018C` / `ex de,hl` / `ld e,(hl)` / `inc hl` / `ld d,(hl)` / "
+         "`inc hl` / `inc hl`, then a loop at $0BE9: `ld a,(hl)` / `cp $B9` / `ret z` / `ld (de),a` / "
+         "`inc hl` / `rst $20` / `jr $0BE9`. The checksum span it starts is folded by the exclusive-or loop "
+         "at $5BDE.",
+         0x0bdd),
+        # The unreached head of the placer whose tail $3074 the caption-record-2 run reaches (`djnz $3074` at
+        # $3081). Nothing transfers to $306A-$3073 and the instruction before it is a `jp`.
+        (0x306a, 0x3073, "placer head (never run)",
+         "Ten bytes that read as `ld b,(iy+$31)` / `ld c,(iy+$00)` / `ld h,$08` / `ld l,$6E` and run on "
+         "into the placer at $3074. Nothing in the program jumps or calls into them, and the instruction "
+         "before them ($3067) is a `jp`, so they never run.",
+         None),
         (0x3176, 0x319d, "era scenery-row table",
          "Five 8-byte rows, one per era. The routine at $30A5 picks the row at $3176 plus eight times the "
          "era (`ld hl,$3176` / `rst $18` at $30B6) and copies its eight bytes into every second byte from "
@@ -709,7 +776,21 @@ def clean_role(text):
     t = re.sub(r"\s+", " ", t).strip()     # single-line before grounding strip's end-anchors
     if _has_cruft(t):
         t = _drop_cruft_parens(t, _grounding_cleans)  # evidence parentheticals go whole (see clean_desc)
-    return strip_process(strip_grounding(t))
+    return _address_consts(strip_process(strip_grounding(t)))
+
+
+def _address_consts(t):
+    """Append ` ($XXXX)` to each NON_RAM_CONSTS name in `t` that its address neither follows nor just precedes
+    ("the table at 0x59D7 (SLOWEST_VELOCITY_TABLE)" already gives it)."""
+    if not NON_RAM_CONSTS:
+        return t
+
+    def addr(m):
+        n = m.group(1)
+        if n not in NON_RAM_CONSTS or ("%04X" % NON_RAM_CONSTS[n]) in t[max(0, m.start() - 16):m.start()].upper():
+            return n
+        return "%s ($%04X)" % (n, NON_RAM_CONSTS[n])
+    return re.sub(r"\b([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)\b(?!\s*\(?\s*(?:0x|\$)[0-9A-Fa-f])", addr, t)
 
 
 def build_notes(gdir):
@@ -1032,6 +1113,40 @@ def gen_code(meta, raw_lines, routines, wr_lo, wr_hi, rom_hi, notes, rom=None):
         if body and body[-1] != "":
             body.append("")
 
+    def emit_forced(f, data):
+        """One FORCE_DATA block: the name_src routine's role header, the entry's lead comment, the name
+        label, then the data rows."""
+        s, e, lbl, cmt, _src = f
+        sep()
+        if s in force_named:   # the block's own names.js routine: role header + name label at s
+            rn = eff[s]
+            if _role_header(rn):
+                for w in textwrap.wrap(clean_role(rn[1]), ROLE_WRAP):
+                    body.append("; " + w)
+                body.append(";")
+        for w in textwrap.wrap(cmt, ROLE_WRAP):
+            body.append("; " + w)
+        if s in force_named:
+            body.append(eff[s][0] + ":")
+        emit_data(body, s, e, data, lbl)
+
+    def emit_unreached(start, end, data):
+        """An unreached span start..end (its bytes `data`) as data: plain `data` rows, split at every
+        FORCE_DATA entry that lies inside it, which renders as its own block (label, comment, name). An entry
+        that starts inside the span but runs past its end would lose bytes, so it fails loudly."""
+        pos = start
+        for f in sorted(x for x in force if start <= x[0] <= end):
+            assert f[1] <= end, (f"force-data 0x{f[0]:04x}-0x{f[1]:04x} starts inside the unreached span "
+                                 f"0x{start:04x}-0x{end:04x} but runs past it")
+            if f[0] > pos:
+                sep()
+                emit_data(body, pos, f[0] - 1, data[pos - start:f[0] - start], "data")
+            emit_forced(f, data[f[0] - start:f[1] + 1 - start])
+            pos = f[1] + 1
+        if pos <= end:
+            sep()
+            emit_data(body, pos, end, data[pos - start:], "data")
+
     # Drop dk.asm's own header-comment preamble, but stop at the FIRST real content --
     # a label, an UNREACHED/data-block marker, OR an instruction. A Z80 listing opens
     # with loc_0000, but a 6502 listing can open with a leading UNREACHED DATA span
@@ -1090,30 +1205,12 @@ def gen_code(meta, raw_lines, routines, wr_lo, wr_hi, rom_hi, notes, rom=None):
                         data += bs
                     j += 1
             assert len(data) == need, f"force-data 0x{s:04x}: got {len(data)} != {need}"
-            sep()
-            if s in force_named:   # the block's own names.js routine: role header + name label at s
-                rn = eff[s]
-                if _role_header(rn):
-                    for w in textwrap.wrap(clean_role(rn[1]), ROLE_WRAP):
-                        body.append("; " + w)
-                    body.append(";")
-            for w in textwrap.wrap(cmt, ROLE_WRAP):
-                body.append("; " + w)
-            if s in force_named:
-                body.append(eff[s][0] + ":")
-            emit_data(body, s, e, data, lbl)
+            emit_forced(force_start[ah], data)
             # The span ended INSIDE an UNREACHED block whose header it consumed: the block's tail
-            # (e+1..block end) has lost its header, so emit it here from the ROM -- as its own
-            # FORCE_DATA entry when one starts at e+1, else as plain data -- and skip its defb rows.
+            # (e+1..block end) has lost its header, so emit it here from the ROM -- split at the
+            # FORCE_DATA entries inside it, like any unreached span -- and skip its defb rows.
             if rom is not None and uend > e:
-                t = force_start.get(e + 1)
-                ts, te, tl, tc = (t[0], t[1], t[2], t[3]) if t and t[1] <= uend else (e + 1, uend, "data", "")
-                sep()
-                for w in textwrap.wrap(tc, ROLE_WRAP):
-                    body.append("; " + w)
-                emit_data(body, ts, te, list(rom[ts - ROM_LO:te + 1 - ROM_LO]), tl)
-                if te < uend:
-                    emit_data(body, te + 1, uend, list(rom[te + 1 - ROM_LO:uend + 1 - ROM_LO]), "data")
+                emit_unreached(e + 1, uend, list(rom[e + 1 - ROM_LO:uend + 1 - ROM_LO]))
                 while j < n:
                     sa = _line_start_addr(raw_lines[j])
                     if sa is not None and sa > uend:
@@ -1178,8 +1275,7 @@ def gen_code(meta, raw_lines, routines, wr_lo, wr_hi, rom_hi, notes, rom=None):
                         data.append(int(hm.group(1), 16))
                 j += 1
             assert len(data) == nby, f"data region 0x{start:04x}: {len(data)} bytes != {nby}"
-            sep()
-            emit_data(body, start, end, data, "data")
+            emit_unreached(start, end, data)
             continue
         # An inline jump table: reachable word-pointer table. The Pit has no DW
         # construct (its tables are all UNREACHED), so -- to stay in its format --
@@ -1305,18 +1401,106 @@ def _check_allowed_code(shown, note, label, a):
     return None
 
 
-def check_named_rom_data(code, names_path, lo, hi, allow, operand_ok=None, other_uses=()):
+def table_boundaries(names_path, lo, hi, force_code=()):
+    """The addresses that END any named ROM table's extent (check_named_rom_data): every names.js `export
+    const` at a program-ROM address (any name -- another table, a *_ADDR routine alias, a code byte reused as
+    a value, a checksum base), every names.js ROUTINES entry with an English name, and every FORCE_CODE
+    entry. A kept-hex (loc_XXXX) routine is NOT a boundary: a hex name records only that the descent reached
+    the address, and the bytes inside a table that a stray transfer lands on carry exactly such a name
+    (timeplt's $1F99, inside PLAYER_ANIM_STRIP_1)."""
+    text = open(names_path).read()
+    bounds = {int(m.group(1), 16) for m in
+              re.finditer(r"^export const [A-Z][A-Z0-9_]* = 0x([0-9a-fA-F]+);", text, re.M)}
+    bounds |= {a for a, rn in build_routines(names_path).items() if not rn[0].startswith("loc_")}
+    bounds |= set(force_code)
+    return sorted(b for b in bounds if lo <= b <= hi)
+
+
+def _page_bytes_and_entries(code):
+    """({addr: byte} for every byte the page shows, {addr} of every labelled code entry -- a `NAME:` label
+    line directly above an instruction, {addr: (length, mnemonic)} of every instruction)."""
+    lines = code.split("\n")
+    byts, entries, instrs = {}, set(), {}
+    for k, ln in enumerate(lines):
+        m = re.match(r"^([0-9A-F]{4}): (.*)$", ln)
+        if not m:
+            continue
+        toks = re.split(r"\s{2,}", m.group(2))[0].split()
+        if toks and all(re.fullmatch(r"[0-9A-F]{2}", t) for t in toks):
+            a = int(m.group(1), 16)
+            for n, t in enumerate(toks):
+                byts[a + n] = int(t, 16)
+            im = re.match(r"^[0-9A-F]{4}: (.{%d})(\S+)(.*)$" % BYTES_W, ln)
+            if im and re.fullmatch(r"(?:[0-9A-F]{2} )+\s*", im.group(1)):
+                instrs[a] = (len(toks), (im.group(2) + " " + im.group(3).split(";")[0].strip()).strip().upper())
+                if k > 0 and re.match(r"^[A-Za-z_][A-Za-z0-9_]*:\s*$", lines[k - 1]):
+                    entries.add(a)
+    return byts, entries, instrs
+
+
+# An instruction after which execution never reaches the next byte: a return, an unconditional jump, a halt,
+# or a restart (RST also hands control to the inline tables that follow some restarts). Z80, 8080 and 6502.
+_NO_FALL_RE = re.compile(r"^(?:RET|RETI|RETN|HALT|HLT|RTS|RTI|BRK|PCHL|RST\b.*|JMP\b.*|JP [^,]*|JR [^,]*)$")
+
+
+def table_extent(a, hi, bounds, spans, byts, entries, declared=True):
+    """(first, last) bytes of the named ROM table at `a`. It ends at the first of: the byte before the next
+    table boundary above `a` (table_boundaries); the byte before a labelled code entry that one of the
+    table's own little-endian words points at (a dispatch table's arms are real code); else the end of the
+    ROM. With `declared`, also the end of a FORCE_DATA span that starts at `a` (a span bounded by hand
+    declares the table's length)."""
+    end = min([b - 1 for b in bounds if b > a] + [hi])
+    if declared:
+        end = min([e for (s, e, *_r) in spans if s == a] + [end])
+    w = a
+    while w + 1 <= end:
+        if w in byts and w + 1 in byts:
+            t = byts[w] | (byts[w + 1] << 8)
+            if a < t <= end and t in entries:
+                end = t - 1
+        w += 2
+    return a, end
+
+
+def check_named_rom_data(code, names_path, lo, hi, allow, operand_ok=None, other_uses=(), force_code=(),
+                         spans=()):
     """[(name, addr, how)] for every names.js ROM data table (ROM_DATA_NAME_RE, address in lo..hi, not a
-    *_ADDR alias) that does NOT render inside a data block, plus every `allow` entry (DATA_AS_CODE_OK) that
-    no longer renders as code or carries no note at its landing, and every `operand_ok` entry
-    (DATA_BASE_IN_CODE_OK) whose base is not in an instruction or whose first entry (base+1) is not in a
-    data block. `other_uses` are `allow` addresses another check (check_record_tables) accounts for, so they
-    are not reported stale here. `how` says what the page shows instead."""
+    *_ADDR alias) whose base does NOT render inside a data block, or whose extent shows code that is the
+    table's own bytes (tail_miss below); plus every `allow` entry (DATA_AS_CODE_OK) that no longer renders as
+    code or carries no note at its landing, and every `operand_ok` entry (DATA_BASE_IN_CODE_OK) whose base is
+    not in an instruction or whose entries (base+1 on, the same rule) are not data. `other_uses` are `allow`
+    addresses another check (check_record_tables) accounts for, so they are not reported stale here. `spans`
+    are the game's FORCE_DATA entries. `how` says what the page shows instead."""
     operand_ok = operand_ok or {}
     text = open(names_path).read()
     consts = [(m.group(1), int(m.group(2), 16)) for m in
               re.finditer(r"^export const ([A-Z][A-Z0-9_]*) = 0x([0-9a-fA-F]+);", text, re.M)]
+    bounds = table_boundaries(names_path, lo, hi, force_code)
+    byts, entries, instrs = _page_bytes_and_entries(code)
     shown, note = _page_map(code)
+
+    def tail_miss(first, a):
+        """Two tests over the bytes after the base. (1) Over the DECLARED extent (table_extent), capped at its
+        last data byte: no decoded instruction may sit between two data bytes -- the page shows data on both
+        sides, so the stretch is the table's bytes as code. Code after the last data byte is the routine that
+        follows a table of unnamed length, so it is not flagged. (2) Over the extent WITHOUT the FORCE_DATA
+        length (a hand-bounded span can stop short of the table): no decoded stretch may run straight into a
+        data byte -- an instruction that is not a return, jump, halt or restart, directly followed by data.
+        Real code cannot fall into data, so either the stretch is the table's bytes or the bound is wrong."""
+        _a, end = table_extent(a, hi, bounds, spans, byts, entries)
+        last = next((x for x in range(end, first - 1, -1) if shown(x) is None), None)
+        if last is not None:
+            x = next((x for x in range(first, last + 1) if shown(x) is not None), None)
+            if x is not None:
+                return "$%04X-$%04X not all data: $%04X is %s" % (a, last, x, shown(x))
+        _a, end = table_extent(a, hi, bounds, spans, byts, entries, declared=False)
+        for x in sorted(x for x in instrs if first <= x <= end):
+            n, mnem = instrs[x]
+            if x + n <= end and shown(x + n) is None and not _NO_FALL_RE.match(mnem):
+                return ("$%04X-$%04X: the decoded `%s` at $%04X runs straight into the data at $%04X"
+                        % (a, end, mnem, x, x + n))
+        return None
+
     bad = []
     seen_allow = set(other_uses)
     for name, a in consts:
@@ -1330,6 +1514,8 @@ def check_named_rom_data(code, names_path, lo, hi, allow, operand_ok=None, other
                             "-- drop the entry" % (how or "data block")))
             elif shown(a + 1) is not None:
                 bad.append((name, a, "first entry $%04X not in a data block (%s)" % (a + 1, shown(a + 1))))
+            elif tail_miss(a + 1, a):
+                bad.append((name, a, tail_miss(a + 1, a)))
             continue
         if a in allow:
             seen_allow.add(a)
@@ -1339,6 +1525,8 @@ def check_named_rom_data(code, names_path, lo, hi, allow, operand_ok=None, other
             continue
         if how is not None:
             bad.append((name, a, how))
+        elif tail_miss(a, a):
+            bad.append((name, a, tail_miss(a, a)))
     for a in sorted((set(allow) | set(operand_ok)) - seen_allow):
         bad.append(("DATA_AS_CODE_OK" if a in allow else "DATA_BASE_IN_CODE_OK", a,
                     "names no ROM data table or record -- drop the entry"))
@@ -1421,6 +1609,11 @@ def main():
     wr_lo, wr_hi = work_ram_region(game)
     all_cells = build_cells(names_path, 0x0000, 0xFFFF)
     cells = [c for c in all_cells if wr_lo <= c[0] <= wr_hi]
+    NON_RAM_CONSTS.clear()
+    if game in CONST_ADDR_GAMES:
+        NON_RAM_CONSTS.update({m.group(1): int(m.group(2), 16) for m in re.finditer(
+            r"^export const ([A-Z][A-Z0-9_]*) = 0x([0-9a-fA-F]+);", open(names_path).read(), re.M)
+            if not (wr_lo <= int(m.group(2), 16) <= wr_hi)})
 
     routines = build_routines(names_path)
     raw_lines = open(raw_path).read().split("\n")
@@ -1461,7 +1654,8 @@ def main():
         misrec, rec_allow = check_record_tables(code, rom, ROM_LO, RECORD_TABLES[game],
                                                 DATA_AS_CODE_OK.get(game, {}))
     misdata = misrec + check_named_rom_data(code, names_path, ROM_LO, rom_hi, DATA_AS_CODE_OK.get(game, {}),
-                                            DATA_BASE_IN_CODE_OK.get(game, {}), rec_allow)
+                                            DATA_BASE_IN_CODE_OK.get(game, {}), rec_allow,
+                                            FORCE_CODE.get(game, []), FORCE_DATA.get(game, []))
     if misdata:
         print(f"\n*** {len(misdata)} named ROM data table(s) / declared record(s) NOT shown as data on Code.md:",
               file=sys.stderr)
