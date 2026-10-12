@@ -13,7 +13,7 @@
  * bytes go to one cell each and two go to two cells each -- a cooldown PERIOD and the live
  * COUNTDOWN that the vblank service runs down and other code reloads from that period -- so applying a row also
  * restarts both countdowns at the new period. It is reached from the life-start routine (0x19F0, by
- * fall-through) as well as from the escalation timer, so round start applies the row too.
+ * fall-through) as well as from the escalation timer, so every life start applies the row too.
  * Under MAME, as the rung climbed, each destination took a monotone ladder of values.
  *
  * LIVE-OUT: memory; nothing read back or returned.

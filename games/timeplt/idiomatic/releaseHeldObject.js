@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** releaseHeldObject — release a held object once its delay runs out. A countdown in the object
- * record's fifteenth byte ticks down by one per entry, and while it is still running that
- * tick is the whole effect; on the tick that lands it on zero the record's first byte —
- * the code a slot is held in — steps on by one, and the same cell is set to 128, a mark whose top bit the kill step later tests.
+ * record's fifteenth byte ticks down by one per entry, and while it is still running that tick is the
+ * whole effect; on the tick that lands it on zero the record's first byte — the code a slot is held in
+ * — steps on by one, and the countdown byte is set to 128, a mark whose top bit the kill step later
+ * tests.
  * LIVE-OUT: memory only — one cell every entry, two on the entry that releases.
  *
  * ROM: 0x2B52. Tag [seen] (names.js). Role in the machine: the waiting stage of an enemy-craft slot.

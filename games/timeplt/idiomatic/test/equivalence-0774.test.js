@@ -189,7 +189,7 @@ test("EQUAL at real dispatches: RAM identical outside the masked stack scratch",
   console.log(`  EQUAL: ${entries.length} real dispatches identical; arms ${[...arms].sort().join("/")}`);
 });
 
-test("REACHABILITY: the computed dispatch reaches it at round start, in play and attract", { skip }, () => {
+test("REACHABILITY: computed dispatch reaches it at life start, in play and attract", { skip }, () => {
   const run = (opts) => {
     const seen = { [TARGET]: 0, [HOT_CONTROL]: 0 };
     const wrap = (a) => (mm) => { seen[a]++; return TRANSLATED.get(a)(mm); };

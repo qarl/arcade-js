@@ -12,8 +12,8 @@
  * the player-ship colour cycle). The "band" is a column of character cells centred on the player's jet
  * (names.js: the CHAR_PLANE_STUB_* cells are the warp-band flare corners around the jet's centre column,
  * observed under MAME on the rotated screen) that a script animates one pass at a time.
- * The "upper"/"lower" runs below, and walks up or down a run, count native rows; the CHAR_PLANE_STUB_*
- * names give each corner's place on the glass.
+ * The run, centre and stub names below give places on the glass; a walk along a run steps native
+ * rows (32 addresses), and a higher native row lies further left.
  *
  * TWO ALTERNATING PASSES, chosen by bit 0 of BAND_TO4_PASS_COUNTDOWN (0xA9F4) [seen], which is
  * decremented at the end of each pass so the bit flips every call:
@@ -62,10 +62,11 @@ const SCRIPT_STRIDE = 13;
 export function advanceScriptedCharPlaneBandTo4(m) {
   const { mem8, mem16 } = m;
 
-  // BLANKING PASS (ROM: `bit 0,a` on 0xA9F4). Two thirteen-cell runs of the working column — the lower
-  // run up from 0xA7B1 and the upper run up from 0xA5D1 — go blank through fillCellRun (ROM 0x1319),
-  // then the six lead cells around the column centre: the four flare-corner stubs (0xA5F0/0xA5F2 and
-  // 0xA610/0xA612) and the two column-centre cells (0xA5F1/0xA611).
+  // BLANKING PASS (ROM: `bit 0,a` on 0xA9F4). Two thirteen-cell runs of the working column — the
+  // left-hand run back from its outer cell 0xA7B1 and the right-hand run back from its inner cell
+  // 0xA5D1 — go blank through fillCellRun (ROM 0x1319), then the six lead cells around the column
+  // centre: the four flare-corner stubs (0xA5F0/0xA5F2 and 0xA610/0xA612) and the two column-centre
+  // cells (0xA5F1/0xA611).
   if ((mem8[BAND_TO4_PASS_COUNTDOWN] & 1) === 0) {
     fillCellRun(m, FILL, CHAR_PLANE_LEFT_RUN_OUTER);
     fillCellRun(m, FILL, CHAR_PLANE_RIGHT_RUN_INNER);
@@ -89,10 +90,11 @@ export function advanceScriptedCharPlaneBandTo4(m) {
     // twenty-eight cells plus the two two-cell stub columns beside it.
     restoreColumnFromSavedRun(m);
 
-    // Step the column's shapes through the script (ROM 0x4A9D, twice): thirteen cells down from the
-    // column top 0xA451 with direction bits C = 0x01, the cursor moved on thirteen script bytes, then
-    // thirteen cells from the lower-run bottom 0xA7B1 with C = 0x03. The callee reads the script
-    // through the shared cursor and leaves it where its walk ended.
+    // Step the column's shapes through the script (ROM 0x4A9D, twice): thirteen cells on from the
+    // column's first cell 0xA451 (the right-hand run's outer end) with direction bits C = 0x01, the
+    // cursor moved on thirteen script bytes, then thirteen cells back toward native row zero from the
+    // left-hand run's outer cell 0xA7B1 with C = 0x03 -- both runs walked inward to the centre. The
+    // callee reads the script through the shared cursor and leaves it where its walk ended.
 
     stepThirteenScriptedGlyphCells(m, CHAR_PLANE_COLUMN_BASE, 0x01);
     mem16[BAND_SCRIPT_CURSOR] = u16(mem16[BAND_SCRIPT_CURSOR] + SCRIPT_STRIDE);
@@ -100,7 +102,7 @@ export function advanceScriptedCharPlaneBandTo4(m) {
 
     // Two more script bytes, read walking the cursor BACK one byte each (ROM `dec hl`). Bit 0 of the
     // first lowers the two column-centre cells by one tile code (ROM `dec (hl)` on 0xA5F1 and the cell a
-    // row on, 0xA611); bit 0 of the second lowers the four flare-corner stubs the same way.
+    // native row on, 0xA611); bit 0 of the second lowers the four flare-corner stubs the same way.
     let lower = mem8[mem16[BAND_SCRIPT_CURSOR]] & 1;
     mem16[BAND_SCRIPT_CURSOR] = u16(mem16[BAND_SCRIPT_CURSOR] - 1);
     if (lower) {

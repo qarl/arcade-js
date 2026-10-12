@@ -12,17 +12,18 @@
  * by its own velocity plus the world scroll and then calls this to dress it (mechanisms.md: "0xFF
  * (live) moves the pair ... and dresses it").
  *
- * When the era cell holds one fixed value (ERA_INDEX 4, the last era) the object is given a plain
- * two-pose flutter and its wind-down counter is stepped, capped, or closed out once it overruns; on
- * any other era the record's +4 byte (folded to one of four steps; for its one caller, the Mother-Ship's remaining-hit count) with the era and a frame-tick bit picks a shape pair, and the era picks a colour, and one half of the
- * compass swaps the pair into the two entry slots in its own colour while the other half biases that
- * colour by half a page -- adding 0x80 flips bit 7, one of the two mirroring bits of the attribute
- * byte, which is how the pair is drawn mirrored (mechanisms.md).
+ * When the era cell holds one fixed value (ERA_INDEX 4, the last era) the object is given a plain two-pose
+ * flutter, and once it has taken a hit a damage-flash counter switches its colour code in a repeating
+ * cycle; on any other era the record's +4 byte (folded to one of four steps; for its one caller, the
+ * Mother-Ship's remaining-hit count) with the era and a frame-tick bit picks a shape pair, and the era
+ * picks a colour, and one half of the compass swaps the pair into the two entry slots in its own colour
+ * while the other half biases that colour by half a page -- adding 0x80 flips bit 7, one of the two
+ * mirroring bits of the attribute byte, which is how the pair is drawn mirrored (mechanisms.md).
  *
  * PARAMETERS: record = the object's record (the ROM's IX); entry = its sprite entry (IY). Both
  * arrive from the caller as it left them.
- * LIVE-OUT: the object's sprite entry and wind-down cell, plus whatever the retire or close-out
- * tail leaves in memory. */
+ * LIVE-OUT: the object's sprite entry and damage-flash counter cell, plus whatever the retire or
+ * alternate-colour tail leaves in memory. */
 
 import { u8, u16 } from "../../../core/int.js";
 import { hasReachedBoundaryBandSelectedByHeading } from "./hasReachedBoundaryBandSelectedByHeading.js";
@@ -34,11 +35,12 @@ import { ERA_INDEX, FRAME_TICK, MOTHER_SHIP_SHAPE_PAIR_TABLE, ERA_SPRITE_COLOUR_
 
 // The era value on which the object flutters instead of facing its heading (`cp 0x04` at 0x4451).
 const FLUTTER_ERA = 0x04;
-// A hits-to-absorb count of 7 (the armed value, no hit taken yet) skips the wind-down counter entirely (`cp 0x07` at 0x44A6).
+// A hits-to-absorb count of 7 (the armed value, no hit taken yet) skips the damage-flash counter
+// entirely (`cp 0x07` at 0x44A6).
 const HITS_WHEN_ARMED = 0x07;
 
 // Record offsets (mechanisms.md, object record layout): +2 the current heading, +4 the hits
-// still to absorb, +6 this routine's wind-down counter.
+// still to absorb, +6 this routine's damage-flash counter.
 const HEADING = 2;
 const HITS_TO_ABSORB = 4;
 const DAMAGE_FLASH_COUNTER = 6;
@@ -52,7 +54,7 @@ const COLOUR_HI = 0x32;
 
 // The one attribute code both flutter sprites wear (`ld (iy+0x30),0x70` at 0x44BF).
 const FLUTTER_CODE = 0x70;
-// Bit 7 of the wind-down counter marks it closed out (`bit 7,c` at 0x44B1; `ld (ix+0x06),0x80`).
+// Bit 7 of the counter marks the alternate-colour phase (`bit 7,c` at 0x44B1; `ld (ix+0x06),0x80`).
 const ALTERNATE_COLOUR_PHASE = 0x80;
 // Heading + 0x40 below 0x80 selects the half of the compass centred on heading 0 (0x447F-0x4483).
 const HEADING_BIAS = 0x40;
@@ -70,10 +72,12 @@ export function dressSpriteForHeadingOrRetireAtEdge(m, record = m.regs.ix, entry
   const era = mem8[ERA_INDEX];
 
   /* Step 2 -- the last era (ERA_INDEX == 4) flutters instead of facing a heading (0x44A2-0x44C7).
-   * The record's +4 hits-to-absorb count decides whether the wind-down counter at +6 runs: a count of 7 leaves it
-   * alone. Otherwise the counter is stepped by one; once bit 7 is set it is closed out and
-   * restartAnimationCounterThenDressFlutterSprite takes over the whole dressing. Below that, a
-   * counter that has overrun the hits-to-absorb count + 2 is forced to 0x80, so the NEXT call takes the close-out path.
+   * The record's +4 hits-to-absorb count decides whether the damage-flash counter at +6 runs: a
+   * count of 7 leaves it alone. Otherwise the counter is stepped by one; once bit 7 is set the
+   * alternate-colour phase is on and restartAnimationCounterThenDressFlutterSprite takes over the
+   * whole dressing (code 0x51 for three calls, then the counter restarts from zero). Below that, a
+   * counter that has overrun the hits-to-absorb count + 2 is forced to 0x80, so the NEXT call takes
+   * the alternate-colour path. The cycle repeats, and it shortens as the hits left fall.
    * Either way both colour bytes take the fixed flutter code and dressSpriteFlutterShapesByFrameTickBit
    * picks the two shapes from a frame-tick bit (mechanisms.md: FRAME_TICK bit 2), so the object
    * holds each flutter pose for four frames (bit 2 flips every fourth tick) no matter which way it

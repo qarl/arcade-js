@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** blankFourteenCharCells — blank a fourteen-cell run of the character plane and paint every one
  * of those cells the same colour. It starts at a fixed cell and walks a row at a time in the
- * direction that takes it back up the plane, so the whole run is decided here and no caller can
+ * direction that takes it back toward native row zero, so the whole run is decided here and no caller can
  * steer it. The run holds one column of the plane and varies the row, which is not the axis it
  * occupies on the glass; the name says how many cells, not where.
  *

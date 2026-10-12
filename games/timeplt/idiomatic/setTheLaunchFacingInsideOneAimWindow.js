@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** setTheLaunchFacingInsideOneAimWindow — the last gate before a launch: on one sprite-entry coordinate the launcher
- * must lie inside a window centred on a fixed line whose half-width is ATTACKER_SPAWN_AIM_WINDOW_HALF (a setting, not
- * baked in) -- outside it nothing launches; inside, the other coordinate's side of a second line is handed over as
- * the facing bit. LIVE-OUT: memory — inside the window, whatever the launcher writes; outside it, nothing. */
+/** setTheLaunchFacingInsideOneAimWindow — the last gate before a launch: on one sprite-entry coordinate
+ * the launcher must lie inside a window centred on the player's pinned native X 0x84, whose half-width is
+ * ATTACKER_SPAWN_AIM_WINDOW_HALF (a setting, not baked in) -- outside it nothing launches; inside, the
+ * other coordinate's side of the player's pinned native Y 0x78 is handed over as the facing bit.
+ * LIVE-OUT: memory — inside the window, whatever the launcher writes; outside it, nothing. */
 //
 // ROM 0x429C-0x42B6, ending by transferring to 0x42B7 (commissionStagedAttackerByEra); lift:
 // translated/loc_429c.js. Grounding tag in names.js ROUTINES: [seen].
@@ -14,9 +15,10 @@
 // heading, so in the first era the new object's facing is chosen by alignment and side rather than
 // by heading. The launcher turns the 0/1 handed to it into a mirroring of the new object's sprite.
 //
-// The two lines 0x84 and 0x78 are immediates in the ROM (`ld a,0x84` at 0x42A2, `ld a,0x78` at
-// 0x42AA). ATTACKER_SPAWN_AIM_WINDOW_HALF (0xA8E6) [seen] is one of the two aim-window half-widths
-// that applyEraRungSettings scatters, so its width is a setting rather than a constant of this code.
+// The player's pinned coordinates 0x84 and 0x78 are immediates in the ROM (`ld a,0x84` at 0x42A2,
+// `ld a,0x78` at 0x42AA). ATTACKER_SPAWN_AIM_WINDOW_HALF (0xA8E6) [seen] is one of the two aim-window
+// half-widths that applyEraRungSettings scatters, so its width is a setting rather than a constant of
+// this code.
 //
 // LIVE-OUT: memory only; outside the window nothing is written at all.
 

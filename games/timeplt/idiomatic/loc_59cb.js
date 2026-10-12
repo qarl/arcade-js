@@ -10,7 +10,7 @@
  * (0x59A0). That body looks up the two perpendicular 16-bit velocity components a heading (a
  * point on a 256-step circle, handed in by the caller in A) calls for, and doubles each. The
  * caller here is fireCraftShotWhenAimedNearPlayer, which uses this entry while ERA_INDEX is 0
- * and loc_59d1 otherwise, and stores the returned pair as the launched enemy's velocity.
+ * and loc_59d1 otherwise, and stores the returned pair as the launched shot's velocity.
  *
  * The table is VELOCITY_TABLE_5C00 (0x5C00): a ROM velocity table whose era names.js records as
  * not determined, also read by loc_5994.

@@ -70,17 +70,17 @@ export function armRoundWonBandAnimationThenStepSequence(m) {
   // (0x20, 0x60, 0xA0 or 0xE0), so the band takes the current caption colour.
   const base = mem8[PEN_COLOUR];
 
-  // The lower run: fillCellRun (0x1319) fills thirteen colour cells upward from the one behind
-  // CHAR_PLANE_LEFT_RUN_OUTER (0xA7B1 -> colour cell 0xA3B1) with pen + 0xA0.
+  // The left-hand run: fillCellRun (0x1319) fills thirteen colour cells, stepping back toward native
+  // row zero, from the one behind CHAR_PLANE_LEFT_RUN_OUTER (0xA7B1 -> colour cell 0xA3B1) with pen + 0xA0.
   fillCellRun(m, u8(0xa0 + base), toColour(CHAR_PLANE_LEFT_RUN_OUTER));
 
-  // The upper run: the same from CHAR_PLANE_RIGHT_RUN_INNER (0xA5D1 -> 0xA1D1) with pen + 0x20.
+  // The right-hand run: the same from CHAR_PLANE_RIGHT_RUN_INNER (0xA5D1 -> 0xA1D1) with pen + 0x20.
   fillCellRun(m, u8(0x20 + base), toColour(CHAR_PLANE_RIGHT_RUN_INNER));
 
-  // three columns of the colour plane, each a cell and the cell one row above it
+  // three columns of the colour plane, each a cell and the cell one native row back (toward row zero)
   // The warp-band flare corners at row 16, columns 0x10 and 0x12 (colour cells 0xA210 and 0xA212,
   // names.js [seen]) and the column-centre cell at column 0x11 (0xA211), each coloured together
-  // with the cell one row above it (ROM 0x4A6D-0x4A97).
+  // with the cell one native row back (toward row zero) (ROM 0x4A6D-0x4A97).
   paintColumn(mem8, toColour(CHAR_PLANE_STUB_UPPER_LEFT), u8(0xa0 + base), u8(0x20 + base));
   paintColumn(mem8, toColour(CHAR_PLANE_STUB_LOWER_LEFT), u8(0xe0 + base), u8(0x60 + base));
   paintColumn(mem8, toColour(CHAR_PLANE_COLUMN_MID_LEFT), u8(0xa0 + base), u8(0x20 + base));
@@ -92,7 +92,8 @@ export function armRoundWonBandAnimationThenStepSequence(m) {
   return advanceSequenceSubStep(m);
 }
 
-// Colour one cell and the cell one row above it (the ROM's `ld (hl),a / add hl,de / ld (hl),a`).
+// Colour one cell and the cell one native row back (toward row zero), the ROM's
+// `ld (hl),a / add hl,de / ld (hl),a`.
 function paintColumn(mem8, cell, here, above) {
   mem8[cell] = here;
   mem8[u16(cell + ROW_STEP)] = above;

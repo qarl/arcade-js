@@ -13,7 +13,7 @@
  * so the eight scenery-fed sprites (hardware sprites 0-2 and 19-23) are each shown twice per frame by
  * moving them while the picture is being scanned out (mechanisms.md, sprite doubling). The request is
  * bit 7 of the sprite's Y byte in hardware bank 1, set by publishSpriteShadow's copy. This is the
- * CLOSING, waiting pass: the round engine (serviceRoundThenResolvePlayerState) and the two pre-round
+ * CLOSING, waiting pass: the round engine (serviceRoundThenResolvePlayerState) and the life-start hold and
  * lead-in arms run it at the end of their service lists, after the opportunistic passes of
  * multiplexSpriteSlotsSkipping.
  *

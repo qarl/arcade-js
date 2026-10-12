@@ -28,11 +28,15 @@
 //                          player when it may (flyMotherShipOneFrame -> tryToFireFromMotherShip -> fireMotherShipShotIntoFreeSlot ->
 //                          launchAimedMotherShipShot).
 //   0xF0         HIT       written by a collision sweep. While hits remain one is absorbed and the ship
-//                          goes back to LIVE (absorbMotherShipHitElseStepItsDeath); so it takes eight hits to kill.
-//   0xEF..0x01   DYING     with no hits left the head counts down one per step (stepMotherShipWreckCountdown): at 0xEF
-//                          it sweeps the whole field (sweepFieldOnMotherShipDeathElseStepWreck), from 0xE4 down it plays its wreck-and-flash
-//                          shapes, at 0xB4 it pays 3,000 points (swapWreckForThreeThousandLabelAndPay), at 0x5A its sprite
-//                          codes are set to 0xFF, and at 0 it goes idle, which hands over to the round advance, and raises ROUND_TRANSITION_HOLD to 0xFF (retireMotherShipAndRaiseRoundHold).
+//                          goes back to LIVE (absorbMotherShipHitElseStepItsDeath); so a ship never
+//                          relaunched takes eight hits to kill.
+//   0xEF..0x01   DYING     with no hits left the head counts down one per step
+//                          (stepMotherShipWreckCountdown): at 0xEF it sweeps the whole field
+//                          (sweepFieldOnMotherShipDeathElseStepWreck), from 0xE4 down it plays its wreck
+//                          shapes, at 0xB4 it swaps them for a '3000' label and pays 3,000 points
+//                          (swapWreckForThreeThousandLabelAndPay), at 0x5A its sprite codes are set to
+//                          0xFF, and at 0 it goes idle, which hands over to the round advance, and raises
+//                          ROUND_TRANSITION_HOLD to 0xFF (retireMotherShipAndRaiseRoundHold).
 //
 // SPRITE ENTRY LAYOUT (mechanisms.md). An entry's +0x00 is one coordinate and +0x01 the sprite code
 // (shape); 0x30 bytes on, +0x30 is the attribute (colour and flip) and +0x31 the other coordinate. The
@@ -83,7 +87,7 @@ const IDLE_DELAY = 0x0e;
 const HITS_TO_ABSORB = 0x04;
 const STATE = 0x00;
 
-// Scoring-ring command (4, 13): 3,000 points, posted at the flash (`ld de,0x040d` at 0x463D).
+// Scoring-ring command (4, 13): 3,000 points, posted at the award-label step (`ld de,0x040d` at 0x463D).
 const LABEL_SCORE_AWARD_COMMAND = 0x04;
 const THREE_THOUSAND_POINTS_INDEX = 0x0d;
 
@@ -123,7 +127,8 @@ export function flyMotherShipOneFrame(m, record, entry) {
   const atRecord = (offset) => u16(record + offset);
   const atEntry = (offset) => u16(entry + offset);
 
-  // HL = record velocity (X+0c/0d) + world-Y scroll + sprite Y (Y+31 : X+03); split back to Y+31 : X+03
+  // HL = record velocity (record+0x0c/0d) + world-Y scroll + sprite Y (entry+0x31 : record+0x03);
+  // split back to entry+0x31 : record+0x03
   let vertical = u16(((mem8[atRecord(0x0c)] << 8) | mem8[atRecord(0x0d)]) + mem16[WORLD_SCROLL_Y]);
   vertical = u16(vertical + ((mem8[atEntry(0x31)] << 8) | mem8[atRecord(0x03)]));
   mem8[atEntry(0x31)] = vertical >> 8;
@@ -157,9 +162,10 @@ export function countDownIdleDelayThenLaunchMotherShip(m, record, entry) {
 // ── Any head other than 0x00 and 0xFF (0x4540). `phase` is the head plus one (the ROM's C).
 // A collision sweep marks a hit by writing 0xF0 into the head. While MOTHER_SHIP_HITS_TO_ABSORB (+0x04)
 // is non-zero the hit is ABSORBED: spend one, put the head back to 0xFF (live), request the pair of hit
-// sounds (requestTwoSounds, 0x5683 [seen]) and run the live step in this same pass. Armed with 7, the
-// ship survives seven hits and the eighth, finding the counter at zero, starts its death. From then on
-// the counter stays zero, so every later step of the dying countdown also passes straight through here.
+// sounds (requestTwoSounds, 0x5683 [seen]) and run the live step in this same pass. Armed with 7 and
+// never relaunched, the ship survives seven hits and the eighth, finding the counter at zero, starts
+// its death. From then on the counter stays zero, so every later step of the dying countdown also
+// passes straight through here.
 export function absorbMotherShipHitElseStepItsDeath(m, phase, record, entry) {
   const { mem8 } = m;
   const atRecord = (offset) => u16(record + offset);
@@ -214,8 +220,9 @@ export function sweepFieldOnMotherShipDeathElseStepWreck(m, phase, record, entry
   mem8[atEntry(0x32)] = SPRITE_SEED;
 }
 
-// ── The dying countdown (0x45B3): one step of the wreck-and-flash, run every step the head is neither
-// 0x00 nor 0xFF with no hits left (the fatal hit at head 0xF0 included), other than the sweep step at head 0xEF.
+// ── The dying countdown (0x45B3): one step of the wreck and its award label, run every step the head
+// is neither 0x00 nor 0xFF with no hits left (the fatal hit at head 0xF0 included), other than the
+// sweep step at head 0xEF.
 export function stepMotherShipWreckCountdown(m, record, entry) {
   const { mem8 } = m;
   const atRecord = (offset) => u16(record + offset);
@@ -243,10 +250,11 @@ export function stepMotherShipWreckCountdown(m, record, entry) {
     mem8[atEntry(0x03)] = 0xff;
   }
 
-  // The wreck shapes: at exactly 0xB4 the flash (below). Above it, the ship's two sprite codes come from
-  // MOTHER_SHIP_WRECK_SHAPE_TABLE (0x461B), an eight-entry table indexed by the falling head: (head - 0xB4)
-  // rotated right three times, less one, masked to 0..7 (`and 0x07` at 0x45EC), then `rst 0x08` fetches
-  // the entry. The second tile (+0x03) gets the shape and the first tile (+0x01) the shape plus one.
+  // The wreck shapes: at exactly 0xB4 the '3000' label (below). Above it, the ship's two sprite
+  // codes come from MOTHER_SHIP_WRECK_SHAPE_TABLE (0x461B), an eight-entry table indexed by the
+  // falling head: (head - 0xB4) rotated right three times, less one, masked to 0..7 (`and 0x07` at
+  // 0x45EC), then `rst 0x08` fetches the entry. The second tile (+0x03) gets the shape and the first
+  // tile (+0x01) the shape plus one.
   const state = mem8[atRecord(STATE)];
   if (state === AWARD_LABEL_STATE) return swapWreckForThreeThousandLabelAndPay(m, record, entry);
   if (state > AWARD_LABEL_STATE) {
@@ -268,8 +276,9 @@ export function stepMotherShipWreckCountdown(m, record, entry) {
   mem8[atEntry(0x03)] = 0xff;
 }
 
-// ── The flash (0x4623), the step the head reads 0xB4: count the head down, show the flash sprite codes
-// (0xFE and 0xFD) with attribute 0x6C on both tiles, request the award sound only if the player is
+// ── The award label (0x4623), the step the head reads 0xB4: count the head down, swap the wreck for
+// the '3000' label sprite codes (0xFE and 0xFD) with attribute 0x6C on both tiles (held until 0x5A,
+// or an earlier edge-window hide, sets them to 0xFF), request the award sound only if the player is
 // alive (PLAYER_STATE 0xA800 [seen] reading 0xFF, `ld a,(0xa800)` at 0x4636), and post the 3,000-point
 // award to the scoring ring as a tail (`jp 0x0038`).
 export function swapWreckForThreeThousandLabelAndPay(m, record, entry) {

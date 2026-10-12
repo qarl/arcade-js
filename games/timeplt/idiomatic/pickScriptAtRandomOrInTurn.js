@@ -6,11 +6,12 @@
  *
  * ROM 0x382D-0x3846 (frozen lift translated/loc_382d.js). Grounding: [seen] (names.js ROUTINES 0x382D).
  *
- * Role in the machine: chooses the movement script a freshly spawned enemy craft will follow. Its
- * two callers, driveEnemyWaveForLifePhase and spawnEnemyIntoFreeSlotElseStepSearch, store the answer (the first after adding 9)
- * at the new object's +0x0A, and stepCraftFlightScript later uses that byte to pick a flight script from
- * the word table at 0x3438 and walk it. SCRIPT_PICK_THRESHOLD (0xACC4) is set per round by
- * the era/rung configuration, so a higher threshold biases the game toward the ordered cycle.
+ * Role in the machine: chooses the movement script a freshly spawned enemy craft will follow. Its two
+ * callers, driveEnemyWaveForLifePhase and spawnEnemyIntoFreeSlotElseStepSearch, store the answer (the
+ * first after adding 9) at the new object's +0x0A, and stepCraftFlightScript later uses that byte to
+ * pick a flight script from the word table at 0x3438 and walk it. SCRIPT_PICK_THRESHOLD (0xACC4) is
+ * reloaded from the era/rung configuration at every life start and on each rung escalation, so a higher
+ * threshold biases the game toward the ordered cycle.
  *
  * The two arms answer from DISJOINT ranges — the random arm only 5 to 8, the rotation only 0 to 4 —
  * so which arm ran is recoverable from the answer alone.

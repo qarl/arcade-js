@@ -11,11 +11,12 @@
  * mechanisms.md §8): a sequence arm posts (2, caption index) and the foreground drain loop
  * dispatches it here through the handler table at 0x0BBC. The colour cell is PEN_COLOUR 0xAD0C
  * [seen], the active player's pen colour, which the era pen table sets to the era number plus
- * one -- so captions drawn this way (PLAYER n and READY at each life start, and the flashing era year
- * on its command-2 frames; GAME OVER is posted as command 10, the +5 sibling) change colour from
- * era to era. It is the +0 member of the caption family; drawTextRunByIndex is the
- * sibling that reads the byte this one steps over, which is what shows that byte is the record's
- * own colour (names.js).
+ * one -- so captions drawn this way (PLAYER n at each life start of a game, READY in the demo and on
+ * a restart after a death (a round's first life posts the round-number caption, command 7, in
+ * READY's place), and the flashing era year on its command-2 frames; GAME OVER is posted as command
+ * 10, the +5 sibling) change colour from era to era. It is the +0 member of the caption family;
+ * drawTextRunByIndex is the sibling that reads the byte this one steps over, which is what shows
+ * that byte is the record's own colour (names.js).
  * PARAMETER: index = the caption number, the ring command's argument (the ROM's A).
  * LIVE-OUT: the cells painted, plus the cursor the painter leaves standing; both the colour used
  * (left in C) and that cursor are returned, as [colour, cursor]. */

@@ -13,7 +13,7 @@
  * decode out of the sprite ROM as a copyright mark and then KO, NA, MI. The attract sequence's
  * title and copyright steps call it, and re-stamp it every frame while they hold the copyright
  * screen (mechanisms.md, phase 1 and the credit-wait steps). When a game begins,
- * hideCaptionSprites zeroes the vertical byte of exactly these four entries to park them off
+ * hideCaptionSprites zeroes the native-Y byte of exactly these four entries to park them off
  * screen.
  *
  * ★ This routine's own code bytes are also data: guardBlockOrBlankDisplay folds 51 bytes starting

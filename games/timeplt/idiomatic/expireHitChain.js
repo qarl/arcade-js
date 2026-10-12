@@ -6,12 +6,13 @@
  *
  * ROM 0x5205-0x5210 (lift: translated/loc_5205.js). Grounding: [seen].
  *
- * Role in the machine: shooting enemies in quick succession pays out on an award ladder. The
- * scoring post reloads CHAIN_WINDOW (0xA99D) to 30 on every hit and climbs CHAIN_STEP (0xA99E),
- * the rung the next hit is paid at. This routine, an entry of the round engine's service block
- * (called from serviceRoundThenResolvePlayerState), is the only thing that ends a chain: the
- * poster has no path that resets the step itself. It runs once per dispatch of that service
- * block — NOT once a frame — so the window is 30 of those ticks, not half a second.
+ * Role in the machine: shooting enemies in quick succession pays out on an award ladder. The scoring
+ * post reloads CHAIN_WINDOW (0xA99D) to 30 on every hit; a hit while the window is still open climbs
+ * CHAIN_STEP (0xA99E) and is paid by it, and a hit on a closed window pays entry 1 and leaves the step
+ * alone (`jr z,0x51fa` at 0x51E3). This routine, an entry of the round engine's service block (called
+ * from serviceRoundThenResolvePlayerState), is the only thing that ends a chain: the poster has no path
+ * that resets the step itself. It runs once per dispatch of that service block — NOT once a frame — so
+ * the window is 30 of those ticks, not half a second.
  */
 
 import { CHAIN_WINDOW, CHAIN_STEP } from "./names.js";

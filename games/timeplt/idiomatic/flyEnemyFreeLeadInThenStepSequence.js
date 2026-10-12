@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
- * flyEnemyFreeLeadInThenStepSequence — sequence arm 6: the enemy-free lead-in before a round.
+ * flyEnemyFreeLeadInThenStepSequence — sequence arm 6: the enemy-free lead-in at the start of every life.
  *
  * ROM 0x5694. Grounding: [seen] (names.js ROUTINES 0x5694).
  *
- * WHAT IT IS. When a round starts, the player gets a short stretch of flight with no enemies: the
- * ship flies and can fire over the era's scenery, but no enemy, object-slot, collision or
- * round-resolution service runs. This arm is that stretch. It runs once per pass of the vertical-blank service and counts the
- * shared sequence delay down; when the delay expires it steps the sequence on into the round engine.
+ * WHAT IT IS. At the start of every life, not only a round's first, the player gets a short stretch of
+ * flight with no enemies: the ship flies and can fire over the era's scenery, but no enemy,
+ * object-slot, collision or round-resolution service runs. This arm is that stretch. It runs once per
+ * pass of the vertical-blank service and counts the shared sequence delay down; when the delay expires
+ * it steps the sequence on into the round engine.
  *
  * ROLE IN THE MACHINE. Entry 6 of the phase-3 sub-step table, between the life-start caption hold
  * (arm 5, flyLifeStartHoldThenEraseLifeStartCaptions) and the round engine (arm 7,

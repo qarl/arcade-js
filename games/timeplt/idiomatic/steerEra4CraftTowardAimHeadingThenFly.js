@@ -33,9 +33,9 @@ const PROBE = 49;
 // unsigned compare, wrapping at 256 like the 8-bit coordinate itself.
 const HALF_WINDOW = 72;
 const WINDOW = 144;
-// The two reference points, 0x78 and 0x84 -- the pair of coordinates the player's own sprite entry is
-// pinned at (resetPlayfieldForLifeStart, per hasReachedRetireLine's names.js entry). The ROM tests
-// 0x78 first (0x29F7) and 0x84 second (0x2A02); either hit takes the same arm.
+// The two reference points, 0x78 and 0x84 -- the player's pinned native Y and native X
+// (resetPlayfieldForLifeStart, per hasReachedRetireLine's names.js entry). The ROM tests BOTH against
+// the craft's +0x31 native Y: 0x78 first (0x29F7), 0x84 second (0x2A02); either hit takes the same arm.
 const REFERENCES = [120, 132];
 // ERA_INDEX while the borrowed-rate turn runs (`xor a / ld (0xad04),a` at 0x2A1C)...
 const RATE_INDEX_WHILE_TURNING = 0;

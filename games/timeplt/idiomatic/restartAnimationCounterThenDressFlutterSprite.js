@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** restartAnimationCounterThenDressFlutterSprite — close out one object's animation and dress its sprite entry. The counter the caller
- * carries is read without the top bit that selected this path; once what is left has reached three
- * the counter cell in the object's record is put back to zero, and below three it is left alone.
+/** restartAnimationCounterThenDressFlutterSprite — one step of the second-colour phase of an object's
+ * flutter, dressing its sprite entry. The counter the caller carries is read without the top bit that
+ * selected this path; once what is left has reached three the counter cell in the object's record is
+ * put back to zero, and below three it is left alone.
  * Either way both attribute slots of the sprite entry take the one code fixed here, and the two
  * shape codes are then chosen by the flutter this hands on to.
  * LIVE-OUT: memory — the counter cell, the two attributes, and the pair of shapes.

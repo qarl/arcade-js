@@ -44,8 +44,8 @@ export function spriteForHeading(m, object = m.regs.ix) {
   // heading 255 both land in sector 0.
   const heading = mem8[u16(object + HEADING)];
   const sector = Math.floor(u8(heading + STEPS_PER_SECTOR / 2) / STEPS_PER_SECTOR);
-  // Which half of the two-frame flicker this is: FRAME_TICK advances once per vblank, so its
-  // bit 1 alternates the shape bank every two frames — the object's animation.
+  // Which of the two poses this is: FRAME_TICK advances once per vblank, so its bit 1
+  // alternates base and alternate pose every two frames — the object's animation.
   const alternatePose = (mem8[FRAME_TICK] & ALTERNATE_POSE_BIT) !== 0;
   // The two ROM tables are parallel, sixteen bytes apart (0x2A77 then 0x2A87): the first gives
   // the shape for the sector, the second the attribute byte whose flip bits mirror that shape

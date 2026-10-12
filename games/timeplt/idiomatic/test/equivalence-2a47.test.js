@@ -3,7 +3,7 @@
  * refreshSecondEraSpriteFromHeading — memory-equivalent to the frozen oracle at ROM 0x2A47.
  *
  * GATE: strict unit-capture replayed over every dispatch of an undriven attract session, plus an
- *   exhaustive crafted sweep over the heading and both halves of the shape-bank flip, plus teeth.
+ *   exhaustive crafted sweep over the heading and both poses of the shape-bank flip, plus teeth.
  *
  * What it exercises, with the holes stated:
  *   1. EQUAL at the real dispatch — identical outside a four-byte scratch window.
@@ -15,7 +15,7 @@
  *      outside it may move, and a rewrite that moves fewer of them still passes. The two bytes the
  *      lookup leaves behind are NOT in it: the rewrite reproduces them.
  *   5. CORPUS — every dispatch of a 2000-frame attract session replayed on a clone.
- *   6. EXHAUSTIVE — all 256 headings crossed with both halves of the bank flip, crafted onto the
+ *   6. EXHAUSTIVE — all 256 headings crossed with both poses of the bank flip, crafted onto the
  *      real entry state, which is the only arm that covers the whole circle.
  *   7. THE BIASES ARE MEASURED, not asserted about: both cells are read back and compared against
  *      the pair the lookup produced on the same state, so a wrong bias cannot hide.
@@ -115,17 +115,17 @@ function entryState() {
 }
 
 /** A real captured machine with the heading and the bank flip forced. */
-function craft(heading, half) {
+function craft(heading, poseBit) {
   const m = entryState().clone();
   m.mem8[(m.regs.ix + HEADING) & 0xffff] = heading;
-  m.mem8[FRAME_TICK] = (m.mem8[FRAME_TICK] & ~ALTERNATE_POSE_BIT) | half;
+  m.mem8[FRAME_TICK] = (m.mem8[FRAME_TICK] & ~ALTERNATE_POSE_BIT) | poseBit;
   return m;
 }
 
 function sweepCaught(candidate) {
   let caught = 0;
-  for (const half of POSES) {
-    for (const heading of HEADINGS) if (unitDiff(candidate, craft(heading, half))) caught++;
+  for (const poseBit of POSES) {
+    for (const heading of HEADINGS) if (unitDiff(candidate, craft(heading, poseBit))) caught++;
   }
   return caught;
 }
@@ -220,9 +220,9 @@ test("CORPUS: every dispatch of a real attract session replays identically", { s
   console.log(`  CORPUS: ${r.dispatches} dispatches, ${r.headings.size} distinct headings`);
 });
 
-test("EXHAUSTIVE: every heading against both halves of the bank flip", { skip }, () => {
+test("EXHAUSTIVE: every heading against both poses of the bank flip", { skip }, () => {
   assert.equal(sweepCaught(refreshSecondEraSpriteFromHeading), 0, "the rewrite diverged somewhere in the crafted space");
-  console.log(`  EXHAUSTIVE: ${SWEEP_SIZE} heading x half comparisons identical`);
+  console.log(`  EXHAUSTIVE: ${SWEEP_SIZE} heading x pose comparisons identical`);
 });
 
 test("THE BIASES LAND: both cells sit a fixed distance from the lookup's pair", { skip }, () => {

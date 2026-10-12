@@ -10,7 +10,7 @@
 0018	add the unsigned byte offset onto the address
 001A	no carry -- the address's high half stands
 001B	carry into the address's high byte
-0021	take thirty-two off the cursor's address: the next cell on along the column
+0021	take thirty-two off the cursor's address: one native row back, the next cell along the line
 0024	no borrow -- the cursor's high byte stands
 0025	borrow into the cursor's high byte
 0029	add thirty-two to the cursor's address: one cell back along the column
@@ -897,12 +897,12 @@
 11B7	sweep the era-2-and-up object bank
 11BA	another sprite-doubling pass
 11BD	service the era-1 bomber
-11C0	service the era-1 fixed object slot
+11C0	in era 1, fly era-object slot 2 along its stored velocity, retiring it at a line
 11C3	step the four actor slots
 11C6	another sprite-doubling pass
 11C9	service the era-0 ballistic object bank
 11CC	run the collision pass for this era
-11CF	from the third era on, on a pass whose frame tick is a multiple of 32, ask for a sound unless a record of the era-2-and-up bank is live
+11CF	from the third era on, on a pass whose frame tick is a multiple of 32, ask for sound 6 to stop unless a record of the era-2-and-up bank is live
 11D2	another sprite-doubling pass
 11D5	grant a bonus life at the score mark
 11D8	expire the hit chain
@@ -1023,7 +1023,7 @@
 1312	fold the stepped address's high byte into its low byte
 1313	subtract the bias -- on an untouched image this comes out zero
 1315	write the inner step a second time -- agrees with the clear on an intact ROM, diverges if it was altered
-1319	step of -32 -- one cell up the column per write
+1319	step of -32 -- one native row back per write
 131C	thirteen cells to fill
 131E	write the fill byte into this cell
 131F	back up one native row (32 cells)
@@ -1162,10 +1162,10 @@
 145A	row stride 32
 145D	point at the cell beside the column, row 15
 1460	nudge it up
-1462	nudge the cell one row below too
+1462	nudge the cell one native row on too
 1463	point at the cell on the column's other side, row 15
 1466	nudge it up
-1468	nudge the cell one row below too
+1468	nudge the cell one native row on too
 1469	load the cursor
 146C	read the next script byte
 146D	take its low bit
@@ -1174,17 +1174,17 @@
 1475	row stride 32
 1478	point at the column's centre cell, row 15
 147B	nudge it up
-147D	nudge the centre cell one row below too
-147E	direction bits 2 -- shapes step forward, cells climb the plane
+147D	nudge the centre cell one native row on too
+147E	direction bits 2 -- shapes step forward, cells step back toward native row zero
 1480	column of glyph cells
-1483	step thirteen scripted glyph cells forward a shape, climbing the column from row 14
+1483	step thirteen scripted glyph cells forward a shape, walking back from native row 14
 1486	load the cursor
 1489	step of -13...
 148C	...rewind the cursor thirteen bytes
 148D	save it
-1490	direction bits 0 -- shapes step forward, cells descend the plane
-1492	the same column, three rows below the first run's start
-1495	step those thirteen glyph cells forward a shape, descending the column
+1490	direction bits 0 -- shapes step forward, cells step one native row on each
+1492	the same column, three native rows on from the first run's start
+1495	step those thirteen glyph cells forward a shape, walking on along the column
 1498	gather the column back into its saved run
 149B	on to the decrement
 149D	the blank tile
@@ -1194,13 +1194,13 @@
 14A8	blank it too
 14AB	point at a lead cell
 14AE	blank it
-14B0	blank the cell one row above it
+14B0	blank the cell one native row back
 14B1	next lead cell
 14B4	blank it
-14B6	blank the cell one row above it
+14B6	blank the cell one native row back
 14B7	last lead cell
 14BA	blank it
-14BC	blank the cell one row above it
+14BC	blank the cell one native row back
 14BD	read the pass countdown
 14C0	step it down
 14C1	store it
@@ -1219,16 +1219,16 @@
 14E1	reload the cursor
 14E5	step the cursor on -- ending early
 14E9	restore the working column from its saved run
-14EC	direction bits 1 -- shapes step back, cells descend the plane
+14EC	direction bits 1 -- shapes step back, cells step one native row on each
 14EE	column of glyph cells
-14F1	step thirteen scripted glyph cells back a shape, walking down the column
+14F1	step thirteen scripted glyph cells back a shape, walking on from native row 2
 14F4	load the cursor
 14F7	step of +13...
 14FA	...skip the cursor thirteen bytes forward
 14FB	save it
-14FE	direction bits 3 -- shapes step back, cells climb the plane
-1500	the same column's bottom visible cell, row 29
-1503	step those thirteen glyph cells back a shape, climbing the column
+14FE	direction bits 3 -- shapes step back, cells step back toward native row zero
+1500	the same column's last visible cell, native row 29
+1503	step those thirteen glyph cells back a shape, walking back toward native row zero
 1506	load the cursor
 1509	read the next script byte
 150A	take its low bit
@@ -1237,7 +1237,7 @@
 1512	row stride 32
 1515	point at the column's centre cell, row 15
 1518	lower it
-151A	lower the centre cell one row below too
+151A	lower the centre cell one native row on too
 151B	load the cursor
 151E	read the next script byte
 151F	take its low bit
@@ -1246,10 +1246,10 @@
 1527	row stride 32
 152A	point at the cell beside the column, row 15
 152D	lower it
-152F	lower the cell one row below too
+152F	lower the cell one native row on too
 1530	point at the cell on the column's other side, row 15
 1533	lower it
-1535	lower the cell one row below too
+1535	lower the cell one native row on too
 1536	gather the column back into its saved run
 1539	on to the decrement
 153B	the blank tile
@@ -1259,13 +1259,13 @@
 1546	blank it too
 1549	point at a lead cell
 154C	blank it
-154E	blank the cell one row above it
+154E	blank the cell one native row back
 154F	next lead cell
 1552	blank it
-1554	blank the cell one row above it
+1554	blank the cell one native row back
 1555	last lead cell
 1558	blank it
-155A	blank the cell one row above it
+155A	blank the cell one native row back
 155B	read the pass countdown
 155E	step it down
 155F	store it
@@ -2085,7 +2085,7 @@
 28A7	service object slot 2
 28AA	service object slot 3
 28AD	service object slot 4
-28B0	service the mother-ship slot -- skipped while its cell is armed
+28B0	service object slot 5 -- skipped while the mother-ship cell is armed
 28B3	service object slot 6 -- skipped while the mother-ship cell is armed
 28B7	point at slot 0's object record
 28BB	point at slot 0's sprite entry
@@ -2104,7 +2104,7 @@
 28EB	run the era-keyed handler over it
 28EE	read the mother-ship armed cell
 28F2	armed -- leave this slot unserviced this pass
-28F3	point at the mother-ship object record
+28F3	point at slot 5's object record
 28F7	point at its sprite entry
 28FB	run the era-keyed handler over it
 28FE	read the mother-ship armed cell
@@ -3717,10 +3717,10 @@
 4274	stash its paired entry pointer
 4278	read the spawn-window half-width
 427C	double it to the full window width
-427E	how far the spawner sits from the fixed line 0x78, offset into the window
+427E	how far the spawner sits from the player's pinned native Y 0x78, offset into the window
 4284	inside the window in Y?
 4285	far enough in Y: go ahead and launch
-4287	else measure its X distance from the fixed line 0x84
+4287	else measure its X distance from the player's pinned native X 0x84
 428D	inside that window too?
 428E	too close on both axes: abandon the launch
 428F	hand the spawner's facing to the launcher
@@ -3730,10 +3730,10 @@
 4299	else launch with the heading-follows path
 429C	read the aim-window half-width
 42A0	double it to the full window width
-42A2	how far the spawner sits from the fixed line 0x84, offset into the window
+42A2	how far the spawner sits from the player's pinned native X 0x84, offset into the window
 42A8	inside the window in X?
 42A9	outside: abandon the launch
-42AA	measure its Y distance from the fixed line 0x78
+42AA	measure its Y distance from the player's pinned native Y 0x78
 42AF	past the line one way: mark the mirror flag
 42B1	the other way: mirror flag clear
 42B3	go commission the launch
@@ -3906,19 +3906,19 @@
 44A2	read the object's remaining hit count
 44A6	still at the full seven hits?
 44A8	undamaged: steady colour, then dress the flutter
-44AB	step the wind-down counter
+44AB	step the damage-flash counter
 44AE	read it
 44B1	is its top marker bit set?
 44B3	marked: take the second-colour arm, which restarts the counter once it reaches three
 44B5	has the counter passed the hit count plus two?
 44B9	not yet: dress the flutter
-44BB	mark the counter closed out
+44BB	start the second-colour phase (top marker bit set)
 44BF	set the flutter colour code in both slots
 44C7	go dress the flutter's two shapes
 44C9	drop the top marker bit from the counter
 44CC	reached three?
 44CE	below three: leave the counter alone
-44D0	at three or more: restart the wind-down counter
+44D0	at three or more: restart the damage-flash counter
 44D4	set the sprite's attribute code in both slots
 44DC	the step between the two flutter shape pairs
 44DF	the first shape pair
@@ -3979,9 +3979,9 @@
 45D3	carry on to the shape step
 45D5	blank the sprite's two shapes -- off-screen
 45DD	read the sequence counter
-45E0	is this the flash-trigger step?
-45E2	the trigger step: fire the flash
-45E4	below the trigger: skip the shape step
+45E0	is this the award-label step?
+45E2	the label step: swap the wreck for the 3000 label
+45E4	below the label step: skip the shape step
 45E6	turn the sequence count into a 0-7 shape index
 45EE	point at the eight-entry wreck shape table
 45F1	read this frame's shape
@@ -3995,11 +3995,11 @@
 460E	point at the watched video cell
 4611	read it
 4613	compare against the mirror cell
-4617	they disagree: fall into the wreck-flash stores
+4617	they disagree: fall into the award-label stores
 461B	eight wreck shape codes -- also run off as harmless register churn when the mismatch path jumps here and drops into 0x4623
 4623	step the sequence counter
-4626	set the flash shapes
-462E	set the flash colour in both slots
+4626	set the 3000 label shapes
+462E	set the label colour in both slots
 4636	is the player alive (PLAYER_STATE reads 0xFF)?
 4639	if so, sound the mother-ship award
 463D	the scoring command -- entry 13, 3,000 points
@@ -4198,7 +4198,7 @@
 4932	compare the raised accumulator against it
 4933	ratio not yet reached -- wait for more
 4935	carry the whole ratio byte for crediting
-4936	take its coins-per-credit high nibble
+4936	take its high nibble -- one less than the coins per credit
 4938	plus one coin's worth
 493B	negate
 493D	pull the accumulator back by that much, carrying the overshoot forward
@@ -4219,7 +4219,7 @@
 4961	compare the raised accumulator against it
 4962	still short of a credit
 4964	carry the coinage byte for crediting -- its low nibble is the credits awarded
-4965	take the coins-per-credit high nibble
+4965	take the high nibble -- one less than the coins per credit
 4967	plus one coin's worth
 496A	negate
 496C	pull the accumulator back, carrying the overshoot past the threshold forward
@@ -4292,7 +4292,7 @@
 4A3B	lay one character cell
 4A3D	fill all thirteen
 4A41	then one 0x00 cell
-4A43	lay the lead byte over one cell
+4A43	and a second 0x00 cell
 4A45	a thirteen-cell run
 4A47	fill each with the body byte
 4A4B	the tail byte
@@ -4310,21 +4310,21 @@
 4A70	fold to colour RAM
 4A74	base plus an offset
 4A75	colour one cell
-4A76	step one row up
+4A76	step one native row back
 4A79	base plus an offset
-4A7A	colour the cell above it
+4A7A	colour that cell
 4A7E	fold to colour RAM
 4A82	base plus an offset
 4A83	colour a cell
-4A84	step one row up
+4A84	step one native row back
 4A87	base plus an offset
-4A88	colour the cell above it
+4A88	colour that cell
 4A8C	fold to colour RAM
 4A90	base plus an offset
 4A91	colour a cell
-4A92	step one row up
+4A92	step one native row back
 4A95	base plus an offset
-4A96	colour the cell above it
+4A96	colour that cell
 4A97	seed the active player's saved pen from its era
 4A9A	step the sequence sub-step on
 4A9D	thirteen cells to step
@@ -4338,9 +4338,9 @@
 4AAE	backward -- step the shape down instead
 4AAF	write the stepped shape back
 4AB0	the row-direction bit
-4AB2	one row down
+4AB2	one native row on
 4AB5	forward
-4AB7	or one row up
+4AB7	or one native row back
 4ABA	move to the next plane cell
 4ABC	reload the script cursor
 4ABF	step the script forward...
@@ -4417,7 +4417,7 @@
 4BDC	first score record
 4BDF	its cursor cell in the tile plane
 4BE2	pen colour for this readout
-4BE4	paint it as an upward column
+4BE4	paint it, running back toward native row zero
 4BE7	second score record
 4BEA	its cursor cell
 4BED	pen colour
@@ -4446,7 +4446,7 @@
 4C2B	write the colour
 4C2C	back to the tile cell
 4C2E	next label tile
-4C2F	step the cursor up one cell
+4C2F	step the cursor one native row back -- the next cell of the line
 4C30	read the tile
 4C31	stamp it
 4C32	drop to the colour cell
@@ -4454,19 +4454,19 @@
 4C35	write the colour
 4C36	back to the tile cell
 4C38	next label tile
-4C39	step the cursor up one cell
+4C39	step the cursor one native row back -- the next cell of the line
 4C3A	read the label's third tile
 4C3B	stamp it
 4C3C	drop to the colour cell
 4C3E	pen colour
 4C3F	write the colour
 4C40	back to the tile cell
-4C42	move the cursor 0x80 further up -- four cells -- to the six-digit field
+4C42	move the cursor four native rows further up (0x80) to the six-digit field
 4C47	restore the source record pointer
 4C48	step the source to the digit field's high byte
 4C4B	paint the six-digit score field, leading zeros suppressed
 4C4E	save the source record pointer
-4C4F	move the cursor 0x60 further up -- three cells -- to the suffix
+4C4F	move the cursor three native rows further up (0x60) to the suffix
 4C54	restore the source pointer
 4C55	step the source to the suffix bytes
 4C58	read the first suffix tile
@@ -4476,7 +4476,7 @@
 4C5D	write the colour
 4C5E	back to the tile cell
 4C60	next suffix tile
-4C61	step the cursor up one cell
+4C61	step the cursor one native row back -- the next cell of the line
 4C62	read the tile
 4C63	stamp it
 4C64	drop to the colour cell
@@ -4484,7 +4484,7 @@
 4C67	write the colour
 4C68	back to the tile cell
 4C6A	next suffix tile
-4C6B	step the cursor up one cell
+4C6B	step the cursor one native row back -- the next cell of the line
 4C6C	read the third suffix tile
 4C6D	stamp it
 4C6E	drop to the colour cell
@@ -4709,7 +4709,7 @@
 4EDF	collision box near bound
 4EE1	collision box far bound
 4EE3	destroy the slots and the player on contact
-4EE6	destroy the era-object slot-0 object the player has reached
+4EE6	destroy the player and the bomber on contact
 4EE9	one object
 4EEB	point the record cursor at era-object slot 2
 4EEE	point the entry cursor at era-object slot 2
@@ -4725,7 +4725,7 @@
 4F06	collision box far bound
 4F08	destroy the slots and the player on contact
 4F0B	the mother-ship mutual-kill box
-4F0E	destroy the era-object slot-0 object the player has reached
+4F0E	destroy the player and the bomber on contact
 4F11	one object
 4F13	point the record cursor at era-object slot 2
 4F16	point the entry cursor at era-object slot 2

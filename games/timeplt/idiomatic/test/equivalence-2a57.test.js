@@ -17,8 +17,8 @@
  *      outside those two scratch bytes AND the register pair the callers consume.
  *   3. The FIRST dispatch the tape reaches is blind to HALF the twins below. It arrives on the
  *      captured record, on a heading where rounding to the nearest sector and truncating to it
- *      agree and where the circle does not wrap, while the counter is in the far half of the
- *      animation. unitEquivalence clones the first entry, not the first informative one, so no
+ *      agree and where the circle does not wrap, while the counter selects the alternate pose.
+ *      unitEquivalence clones the first entry, not the first informative one, so no
  *      frame budget fixes that; the DEGENERATE arm names the four survivors and pins them.
  *   4. The routine reads its object through a caller-supplied record pointer, so a single
  *      captured dispatch pins ONE slot. The fixed-slot twin is the discriminating case: it
@@ -47,8 +47,8 @@
  *      dispatch's own stack pointer. HOLE: every dispatch arrives at one depth, so the window
  *      has one sample; it is measured rather than assumed, but it is not measured deep.
  *   7. EXHAUSTIVE — every record the session presents, every heading of the circle, and four
- *      counter values covering both animation halves and both of the neighbouring bits.
- *   8. COUNTER — all 256 counter values, to show the animation half is decided by exactly one
+ *      counter values covering both poses and both of the neighbouring bits.
+ *   8. COUNTER — all 256 counter values, to show the pose is decided by exactly one
  *      bit of it rather than by the low bits generally.
  *   9. ANTIPODE — the fixed-slot twin's predicate re-derived from the table data, so a gate
  *      agreeing with a wrong theory of why that twin fails would break here instead of passing.
@@ -96,10 +96,10 @@ const EXCLUDED = ["a", "f", "d", "e", "h", "l", "sp"];
 /** A poison pair, so a twin that delivers nothing is caught rather than accidentally right. */
 const POISON = 0xdead;
 
-/** Counter values for the crafted sweep: both animation halves, both neighbouring bits. */
+/** Counter values for the crafted sweep: both poses, both neighbouring bits. */
 const COUNTERS = [0, 1, 2, 3];
 
-/** The oracle's T-state total, which branches only on the animation half. */
+/** The oracle's T-state total, which branches only on the pose. */
 const STRAIGHT_LINE = 145;
 const ALTERNATE_POSE_TAIL = 30;
 const BASE_POSE_TAIL = 11;
@@ -333,8 +333,8 @@ const caughtInPlay = (label) => {
 
 /** The oracle's own total. Its one branch costs more when it steps the shape on. */
 function oracleTStates(m) {
-  const far = (m.mem8[FRAME_TICK] & ALTERNATE_POSE_BIT) !== 0;
-  return STRAIGHT_LINE + (far ? ALTERNATE_POSE_TAIL : BASE_POSE_TAIL);
+  const inAlternatePose = (m.mem8[FRAME_TICK] & ALTERNATE_POSE_BIT) !== 0;
+  return STRAIGHT_LINE + (inAlternatePose ? ALTERNATE_POSE_TAIL : BASE_POSE_TAIL);
 }
 
 /**
@@ -507,7 +507,7 @@ test("WINDOW: the excluded scratch is MEASURED at every dispatch, not assumed", 
 
 // ── the crafted space ───────────────────────────────────────────────────────────────────────
 
-test("EXHAUSTIVE: every record, every heading, both animation halves", { skip }, () => {
+test("EXHAUSTIVE: every record, every heading, both poses", { skip }, () => {
   const r = sweep(rewrite);
   assert.deepEqual(r.strayed, [], `RAM moved outside the scratch window — ${show(r.strayed[0])}`);
   assert.equal(r.caught, 0, `${r.caught} of ${spaceSize()} crafted inputs diverged`);
@@ -515,7 +515,7 @@ test("EXHAUSTIVE: every record, every heading, both animation halves", { skip },
   console.log(`  EXHAUSTIVE: ${spaceSize()} crafted inputs identical, shim total included`);
 });
 
-test("COUNTER: exactly one bit of the counter decides the animation half", { skip }, () => {
+test("COUNTER: exactly one bit of the counter decides the pose", { skip }, () => {
   const a = entryState().clone();
   const sp = a.regs.sp;
   const pc = a.pc;
@@ -529,9 +529,9 @@ test("COUNTER: exactly one bit of the counter decides the animation half", { ski
       a.mem8[u16(a.regs.ix + HEADING)] = sector * STEPS_PER_SECTOR;
       a.mem8[FRAME_TICK] = counter;
       oracle(a);
-      const far = a.regs.b === shapeAt(sector) + ALTERNATE_POSE_SHAPE_STEP;
-      assert.ok(far || a.regs.b === shapeAt(sector), `counter ${counter}: neither half was chosen`);
-      if (far && sector === 0) stepped.push(counter);
+      const inAlternatePose = a.regs.b === shapeAt(sector) + ALTERNATE_POSE_SHAPE_STEP;
+      assert.ok(inAlternatePose || a.regs.b === shapeAt(sector), `counter ${counter}: neither pose was chosen`);
+      if (inAlternatePose && sector === 0) stepped.push(counter);
     }
   }
   assert.deepEqual(
@@ -601,12 +601,12 @@ function brokenPastEnd(m) {
   deliver(m, Math.floor((headingOf(m) + STEPS_PER_SECTOR / 2) / STEPS_PER_SECTOR), alternatePoseStep(m));
 }
 
-/** BUG: never steps the shape on, so every direction is frozen on its near shape. */
+/** BUG: never steps the shape on, so every direction is frozen on its base pose. */
 function brokenBasePoseAlways(m) {
   deliver(m, sectorOf(headingOf(m)), 0);
 }
 
-/** BUG: always steps the shape on, so every direction is frozen on its far shape. */
+/** BUG: always steps the shape on, so every direction is frozen on its alternate pose. */
 function brokenAlternatePoseAlways(m) {
   deliver(m, sectorOf(headingOf(m)), ALTERNATE_POSE_SHAPE_STEP);
 }
@@ -690,13 +690,13 @@ for (const [label, twin, pred] of TWINS) {
   });
 }
 
-test("TEETH: the near and far half twins PARTITION every real dispatch", { skip }, () => {
+test("TEETH: the base- and alternate-pose twins PARTITION every real dispatch", { skip }, () => {
   const s = drivenSession();
   assert.equal(
     caughtInPlay("base-pose-always") + caughtInPlay("alternate-pose-always"),
     s.dispatches,
-    "exactly one of the two frozen-half twins must be wrong at every dispatch; if they now " +
-      "overlap or leave a gap, the animation half is not a two-way choice",
+    "exactly one of the two frozen-pose twins must be wrong at every dispatch; if they now " +
+      "overlap or leave a gap, the pose is not a two-way choice",
   );
   console.log(
     `  TEETH: ${caughtInPlay("base-pose-always")} + ${caughtInPlay("alternate-pose-always")} = ` +

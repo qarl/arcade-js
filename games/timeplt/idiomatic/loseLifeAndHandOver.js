@@ -37,10 +37,10 @@ const STAMP_VALUE = 90;
 export function loseLifeAndHandOver(m) {
   const { mem8 } = m;
 
-  /* Step 1 -- clear the stage (0x11ED-0x11FA). hideAllSprites parks every sprite above the
-   * visible screen. If ROUND_TRANSITION_HOLD 0xACC6 [seen] is raised the round was already won
-   * (the Mother-Ship's closing sequence raised it), so startNextRound banks it first: the next
-   * life starts in the next era. Then the fixed transition sound stops are queued. */
+  /* Step 1 -- clear the stage (0x11ED-0x11FA). hideAllSprites parks every sprite off the visible screen
+   * by zeroing its native-Y byte. If ROUND_TRANSITION_HOLD 0xACC6 [seen] is raised the round was
+   * already won (the Mother-Ship's closing sequence raised it), so startNextRound banks it first: the
+   * next life starts in the next era. Then the fixed transition sound stops are queued. */
   hideAllSprites(m);
   if (mem8[ROUND_TRANSITION_HOLD] !== 0) startNextRound(m);
   enqueueTransitionSoundStops(m);

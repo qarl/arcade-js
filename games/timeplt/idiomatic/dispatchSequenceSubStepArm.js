@@ -48,14 +48,14 @@ export function dispatchSequenceSubStepArm(m) {
   // Select this frame's arm from the sub-step's low nibble and run it.
   switch (m.mem8[SEQUENCE_SUBSTEP] & ARM_MASK) {
     // The new-game arm, the caption pen seated from the era, the kill-meter blank and pen-run step,
-    // the active player's turn set up with the round HUD, the life-start captions, the flashing era
-    // year, the enemy-free lead-in, then the round engine itself; after it the post-game-over filing,
+    // the active player's turn set up with the round HUD, the life-start captions, the life-start
+    // hold, the enemy-free lead-in, then the round engine itself; after it the post-game-over filing,
     // the pen-route erase that opens initials entry, the initials entry step, a delay countdown, the
     // attract restart, the arm that sets up the round-won band animation, that animation's per-frame
     // step, and an arm that does nothing.
     //
-    // Arms 0-7: getting a round going, up to and including the round engine (arm 7), which runs the
-    // game's subsystem services in a fixed order and then reads the player's state.
+    // Arms 0-7: getting a game and each of its lives going, up to and including the round engine (arm
+    // 7), which runs the game's subsystem services in a fixed order and then reads the player's state.
     case 0: armNewGameThenStepSequence(m); break;
     case 1: seatCaptionPenFromEraFoldingTamperIntoPhase(m); break;
     case 2: blankKillMeterThenAdvancePenRunStep(m); break;

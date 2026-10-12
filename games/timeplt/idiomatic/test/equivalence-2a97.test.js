@@ -7,7 +7,7 @@
  *   this address zero times between them. So the entry state is CRAFTED: a machine captured at a
  *   real dispatch of a different per-slot routine, which arrives with both cursors pointing at a
  *   live actor, and then the cells this entry reads are forced. That is a real state with a
- *   surgical nudge, not a fabrication, and the arm below reports both halves.
+ *   surgical nudge, not a fabrication, and the arm below reports the base's two cursors.
  *
  * GATE: EXHAUSTIVE over the routine's entire input space, from that crafted base. It reads exactly
  *   two cells — the heading in the object's record and one bit of a free-running counter — so 256
@@ -232,18 +232,18 @@ test("THE SWEEP DISCRIMINATES: several shapes, and the counter bit moves them", 
   assert.ok(shapes.size > 1, "every heading gave the same shape, so the sweep discriminates nothing");
   assert.ok(beside.size > 1, "every heading gave the same second byte");
 
-  const near = craft(0, 0);
-  const far = craft(0, ALTERNATE_POSE_BIT);
-  oracle(near);
-  oracle(far);
+  const basePoseRun = craft(0, 0);
+  const alternatePoseRun = craft(0, ALTERNATE_POSE_BIT);
+  oracle(basePoseRun);
+  oracle(alternatePoseRun);
   assert.equal(
-    u8(far.mem8[entry + SHAPE_IN_ENTRY] - near.mem8[entry + SHAPE_IN_ENTRY]),
+    u8(alternatePoseRun.mem8[entry + SHAPE_IN_ENTRY] - basePoseRun.mem8[entry + SHAPE_IN_ENTRY]),
     ALTERNATE_POSE_SHAPE_STEP,
     "the counter bit no longer moves the shape by the amount this file records",
   );
   assert.equal(
-    far.mem8[entry + BESIDE_IT_IN_ENTRY],
-    near.mem8[entry + BESIDE_IT_IN_ENTRY],
+    alternatePoseRun.mem8[entry + BESIDE_IT_IN_ENTRY],
+    basePoseRun.mem8[entry + BESIDE_IT_IN_ENTRY],
     "the counter bit now moves the second byte too",
   );
   console.log(

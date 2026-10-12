@@ -43,7 +43,7 @@ whose role is only partly pinned, carry a terse caveat.
 | a8d6 | attackerSpawnWindowHalf | Half-width of the proximity window deciding WHETHER the era attacker bank spawns or the era-1 bomber fires its shot (doubled into a window). |
 | a8dc | bomberHitsToAbsorb | How many more hits the big two-slot object can absorb before it dies. |
 | a8e0 | eraObjectRecordSlot2 | Era-object bank slot 2's record head; also doubles as the bomber shot's "bank B" record seat (fireBomberShotWhenClearOfPlayer). |
-| a8e6 | attackerSpawnAimWindowHalf | Half-width of the final launch-position window for the attacker spawn (and, at 0x3F9E, for a craft's shot), tested on the X axis only. |
+| a8e6 | attackerSpawnAimWindowHalf | Half-width of the final launch-position window for the era-0 attacker spawn, tested on the X axis only; in era 4 it seeds the spawned record's countdown byte instead (a third read, at 0x3F9E, sits behind a branch never taken). |
 | a8f0 | parachutistRecord | The parachutist's record head (array slot 15); its +7 is PARACHUTIST_RUNG 0xa8f7. |
 | a8f4 | attackerSpawnCooldown | Live shared cooldown for the era attacker-bank spawn arms, wound down every vblank and also by launchAttackerIntoFreeSlot. |
 | a8f6 | attackerSpawnCooldownPeriod | Reload period (interval constant) for ATTACKER_SPAWN_COOLDOWN; never decremented. |

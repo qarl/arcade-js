@@ -5,7 +5,8 @@
  * rewound, so a caller wanting those thirteen bytes again must put it back itself. Two bits of
  * one incoming byte set the directions independently: the low bit turns the walk round, so the
  * script is read backwards and the shape steps DOWN instead of up, and the next bit decides
- * whether the plane cells are taken a row down or a row up from the one given.
+ * whether the plane cells are taken a native row on or a native row back (toward row zero; on the
+ * glass that steps right) from the one given.
  *
  * ROM 0x4A9D-0x4ACB (frozen lift translated/loc_4a9d.js). Grounding: [seen].
  *
@@ -15,7 +16,7 @@
  * which is why the cursor is not rewound here.
  *
  * `firstCell` is the plane address of the first cell of the run (DE on the Z80); `directions` is
- * the incoming byte (C on the Z80): bit 0 = backwards/down, bit 1 = up the plane.
+ * the incoming byte (C on the Z80): bit 0 = backwards/down, bit 1 = toward native row zero.
  *
  * LIVE-OUT: memory-only. */
 
@@ -35,7 +36,7 @@ export function stepThirteenScriptedGlyphCells(m, firstCell = m.regs.de, directi
   // Bit 0 sets both the shape step and the script's walking direction to the same sign: the ROM
   // turns its +1 into a net -1 for the shape (`dec a` twice) and for the cursor (`dec hl` twice).
   const shapeStep = (directions & BACKWARDS) !== 0 ? -1 : 1;
-  // Bit 1 alone chooses whether the run climbs the plane or descends it.
+  // Bit 1 alone chooses whether the run steps back toward native row zero or on away from it.
   const rowStep = (directions & TOWARD_ROW_ZERO) !== 0 ? -ROW : ROW;
   let cell = firstCell;
   for (let i = 0; i < CELLS; i++) {
@@ -44,7 +45,7 @@ export function stepThirteenScriptedGlyphCells(m, firstCell = m.regs.de, directi
     // glyph shown there advances (or retreats) one shape; zero leaves it alone.
     const cursor = mem16[BAND_SCRIPT_CURSOR];
     if (mem8[cursor] !== 0) mem8[cell] = u8(mem8[cell] + shapeStep);
-    // Move to the next cell of the run, a row down or up.
+    // Move to the next cell of the run, one native row on or back.
     cell = u16(cell + rowStep);
     // Advance the script cursor one byte in the walking direction and store it back, so it is left
     // where the walk ended.

@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
-/** loc_307f — tail of a per-slot sprite-entry fill: store a coordinate through the pointer and fold
- * it into the byte handed in, then hand the slot to the straight placer while the counter holds. On
- * the last slot the original indexes a word table by the fold, bumps the byte past the entry, and then
- * pops two stack bytes it never pushed, dropping its caller's return word so control unwinds a level
- * out of step. This layer lays no return words, so that unwind has no faithful transcription and the
- * arm raises at the pop. It is never taken: the one way in (the scenery seed's guard-fail divert) always
- * arrives with the attribute loop's spent count of zero, which counts down to 255, the straight placer.
+/** loc_307f — caption record 2 (word 2 of CAPTION_RECORD_TABLE 0x0C50) run as code: store a coordinate
+ * through the pointer and fold it into the byte handed in, then hand the slot to the straight placer
+ * while the counter holds. On the last slot the original indexes a word table by the fold, bumps the
+ * byte past the entry, and then pops two stack bytes it never pushed, dropping its caller's return word
+ * so control unwinds a level out of step. This layer lays no return words, so that unwind has no
+ * faithful transcription and the arm raises at the pop. It is never taken: the one way in (the scenery
+ * seed's guard-fail divert) always arrives with the attribute loop's spent count of zero, which counts
+ * down to 255, the straight placer.
  * PARAMETERS: pointer, coordinate, foldByte, slotsLeft, entry, offset; record = the record cursor,
  * which the placer steps on with the entry.
  * LIVE-OUT: memory, and the placer's cursors.

@@ -99,10 +99,10 @@ function craftLoseLife() {
 }
 
 const CRAFTS = [
-  ["below-trigger", () => craft(0x30)],
-  ["at-trigger", () => craft(0xb4)],
-  ["at-trigger+warp", () => craft(0xb4, (c) => { c.mem8[0xa800] = 0xff; })],
-  ["above-trigger", () => craft(0xc4)],
+  ["below-label-step", () => craft(0x30)],
+  ["at-label-step", () => craft(0xb4)],
+  ["at-label-step+warp", () => craft(0xb4, (c) => { c.mem8[0xa800] = 0xff; })],
+  ["above-label-step", () => craft(0xc4)],
   ["spends-to-idle", () => craft(0x01)],
   ["down-to-0x5a", () => craft(0x5b)],
   ["life-loss", craftLoseLife],

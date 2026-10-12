@@ -8,8 +8,8 @@
  * bank (records from ERA_OBJECT_RECORD_SLOT0 0xA8C0, sprite entries from ERA_OBJECT_ENTRY_SLOT0
  * 0xAA28). This is the gate in front of that launch. It runs for the craft whose slot the caller is
  * servicing, but acts only on that craft's own turn of an eight-frame round, only once a shared spawn
- * cooldown has run out, only when a bank slot is free, and not when the craft is close to both of
- * two fixed lines (0x78 on one sprite coordinate, 0x84 on the other).
+ * cooldown has run out, only when a bank slot is free, and not when the craft is close to the
+ * player's pinned position on both coordinates (native Y 0x78 at +0x31, native X 0x84 at +0x00).
  *
  * ROLE IN THE MACHINE. Called from the per-slot enemy-craft services of eras 0, 2, 3 and 4
  * (serviceEra0/2/3/4EnemyCraftSlot). Once a free slot is found it stashes the free slot's record and sprite-entry
@@ -32,7 +32,7 @@ import { ATTACKER_SPAWN_COOLDOWN, ATTACKER_SPAWN_SLOT_COUNT, ATTACKER_SPAWN_WIND
 const PHASE_BIAS = 5;
 // One object record is sixteen bytes.
 const RECORD_STRIDE = 0x10;
-// The two fixed lines the proximity window is centred on (one per sprite coordinate).
+// The player's pinned position the proximity window is centred on: native Y (+0x31), native X (+0x00).
 const PLAYER_PINNED_Y = 0x78;
 const PLAYER_PINNED_X = 0x84;
 
@@ -72,8 +72,8 @@ export function launchAttackerIntoFreeSlot(m, craftRecord = m.regs.ix, craftEntr
   m.mem16[SCRATCH_PTR_A] = record;
   m.mem16[SCRATCH_PTR_B] = entry;
 
-  // Proximity test. With margin = ATTACKER_SPAWN_WINDOW_HALF (0xA8D6), (line - coordinate + margin)
-  // is below 2 * margin exactly when the coordinate lies within the margin of the line (eight-bit
+  // Proximity test. With margin = ATTACKER_SPAWN_WINDOW_HALF (0xA8D6), (pinned - coordinate + margin)
+  // is below 2 * margin exactly when the coordinate lies within the margin of the pinned value (eight-bit
   // wrap makes one unsigned compare do both sides). The craft is refused only when it is inside
   // the window on BOTH coordinates: sprite-entry +0x31 against 0x78, then +0x00 against 0x84.
   const margin = mem8[ATTACKER_SPAWN_WINDOW_HALF];

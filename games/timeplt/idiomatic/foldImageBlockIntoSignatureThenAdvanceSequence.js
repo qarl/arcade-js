@@ -6,11 +6,13 @@
  * code byte to all bits, folds a fixed block of the program image into a running total seeded from an image byte,
  * banks the result, and steps the inner sequence index on.
  *
- * ROLE IN THE MACHINE: an anti-tamper check. The banked total, TAMPER_IMAGE_SIGNATURE (0xAA6F), is read
- * once, by the sequence arm at ROM 0x2730 as `cp 0x76`, which jumps off the genuine path (to 0x2530) on
- * a mismatch; 0x76 is what the thirty ROM bytes at 0x335E sum to on a genuine image (names.js, the cell
- * and foldBlockIntoTotal's "why", which puts that read three frames after this one). So a modified
- * image sends the game off its genuine path a few frames later.
+ * ROLE IN THE MACHINE: an anti-tamper check. The banked total, TAMPER_IMAGE_SIGNATURE (0xAA6F), is
+ * tested once, by the sequence arm at ROM 0x2730 as `cp 0x76`, which jumps off the genuine path (to
+ * 0x2530) on a mismatch; 0x76 is what the thirty ROM bytes at 0x335E sum to on a genuine image
+ * (names.js, the cell and foldBlockIntoTotal's "why", which puts that read three frames after this
+ * one). So a modified image sends the game off its genuine path a few frames later. The same cell is
+ * also sprite entry 23's Y byte (scenery slot 7's): the scenery placement writes it (0x3102, 0x313B)
+ * and every frame's publish copies it out.
  *
  * SCENERY_SPRITE_CODE_SLOT7 (0xAA3F) is scenery slot 7's sprite code byte: the era scenery fill seats it
  * and every frame's publish copies it to sprite RAM, so the 0xFF stands until the next playfield reset

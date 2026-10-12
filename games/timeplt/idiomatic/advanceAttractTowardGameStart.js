@@ -49,9 +49,9 @@ export function advanceAttractTowardGameStart(m) {
   if ((mem8[IN0_MIRROR] & 0x18) === 0) return;
 
   // hide the sprites, then start the game; the start is the tail, so its return is this arm's.
-  // hideAllSprites (0x15B6) parks every sprite above the visible picture so the demo's craft
-  // vanish; startGameOnFreePlay (0x1690, reached by a tail jump) stocks the player block(s) for
-  // one or two players by which button is held, charging no credit.
+  // hideAllSprites (0x15B6) parks every sprite off the visible picture (native-Y bytes zeroed) so the
+  // demo's craft vanish; startGameOnFreePlay (0x1690, reached by a tail jump) stocks the player
+  // block(s) for one or two players by which button is held, charging no credit.
   hideAllSprites(m);
   return startGameOnFreePlay(m);
 }

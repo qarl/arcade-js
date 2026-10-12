@@ -12,7 +12,7 @@
  * two equal. Under MAME both held 0x7C at every captured two-player start, so the routine returned
  * without acting (mechanisms.md). What the acting arm is for -- which counter and which slot the
  * caller's pointers name there -- is recorded as open in mechanisms.md; mechanisms.md reads it as
- * stamping a Mother-Ship flash into whatever slot is at hand and paying a Mother-Ship award.
+ * stamping the Mother-Ship's '3000' label into whatever slot is at hand and paying a Mother-Ship award.
  *
  * PARAMETERS: counterBase, slotBase = the pointers the acting arm steps and seats through (the ROM's
  * IX and IY). The ROM's caller (startTwoPlayerGame) loads neither, so they hold whatever earlier
@@ -28,7 +28,8 @@ import { NotImplemented } from "../../../boards/timeplt/io.js";
 
 // Offsets into the slot the caller's IY points at. Read as a sprite entry, +0x01 and +0x03 are the
 // two tiles' shape codes and +0x30 and +0x32 their attribute bytes -- the same four stores, with the
-// same values (0xFE/0xFD, 0x6C/0x6C), as the Mother-Ship's flash at 0x4623, where this arm lands.
+// same values (0xFE/0xFD, 0x6C/0x6C), as the Mother-Ship's '3000' label step at 0x4623,
+// where this arm lands.
 const SLOT_SHAPE_A = 0x01;
 const SLOT_SHAPE_B = 0x03;
 const SLOT_ATTRIBUTE_A = 0x30;
