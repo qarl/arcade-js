@@ -171,7 +171,7 @@ Generated from `games/registry.js`, each game's `manifest.js` and its `DONE.md` 
 | [Donkey Kong](games/dkong/) | `dkong` | z80 | idiomatic | not declared | [DONE.md](games/dkong/DONE.md) |
 | [The Pit](games/thepit/) | `thepit` | z80 | idiomatic | not declared | [DONE.md](games/thepit/DONE.md) |
 | [Frogger](games/frogger/) | `frogger` | z80 | idiomatic | yes | [DONE.md](games/frogger/DONE.md) |
-| [Time Pilot](games/timeplt/) | `timeplt` | z80 | idiomatic | yes | — |
+| [Time Pilot](games/timeplt/) | `timeplt` | z80 | idiomatic | yes | [DONE.md](games/timeplt/DONE.md) |
 | [Pooyan](games/pooyan/) | `pooyan` | z80 | idiomatic | yes | [DONE.md](games/pooyan/DONE.md) |
 | [Space Invaders](games/invaders/) | `invaders` | 8080 | idiomatic | yes | [DONE.md](games/invaders/DONE.md) |
 | [Galaxian](games/galaxian/) | `galaxian` | z80 | idiomatic | yes | [DONE.md](games/galaxian/DONE.md) |
