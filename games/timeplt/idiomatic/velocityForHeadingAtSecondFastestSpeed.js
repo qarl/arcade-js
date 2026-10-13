@@ -22,8 +22,8 @@
  * names.js), about 1.2 pixels per step in 8.8 fixed point -- the pace mechanisms.md gives the second
  * and third eras (1940, 1970). The same bytes are also a jump target on the anti-tamper path; on a
  * genuine image they are only ever read as data. Its siblings velocityForHeadingAtSlowestSpeed
- * (0x59D7, peak 206), loc_594e (0x5E00, peak 256) and velocityForHeadingAtFastestSpeed (0x08FA,
- * peak 331) are the same shim with the other live rungs.
+ * (0x5942, table at 0x59D7, peak 206), loc_594e (0x594E, table at 0x5E00, peak 256) and
+ * velocityForHeadingAtFastestSpeed (0x596B, table at 0x08FA, peak 331) are the same shim with the other live rungs.
  *
  * Whatever pointer the caller had in HL is overwritten by the table base before the jump, which is
  * why no incoming pointer survives.

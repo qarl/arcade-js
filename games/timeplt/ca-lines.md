@@ -2489,7 +2489,7 @@
 2E28	isolate the next bit -- the bonus-life setting
 2E2A	store it in its own cell
 2E2D	hand the remaining bits on...
-2E2E	...to the continuation that peels the rest and cold-starts
+2E2E	...to the continuation that peels the rest and finishes the boot
 2E31	copy the displacement aside to take a quarter of it
 2E33	halve it, keeping its sign...
 2E37	...and halve again: a quarter of the displacement
@@ -4264,7 +4264,7 @@
 49CC	over all 256 bytes
 49CE	compare the sum against its expected total (0xC5)
 49D0	a tampered total runs the frame handler once out of turn, then carries on
-49D3	cold-start the machine either way -- this does not return
+49D3	either way, on into the startup delay and then the foreground loop -- this does not return
 49D6	read how many coins slot 2 still owes its mechanical counter
 49DA	nothing owed -- do nothing
 49DB	point at the slot-2 pulse timer

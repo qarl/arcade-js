@@ -2820,12 +2820,16 @@ loc_10f8:
 10F8: 3A 37 B4        LD      A,($B437)           ; read the next slot's Y byte
 10FB: CB 7F           BIT     7,A                 ; test its request bit
 
-; subroutine entry into the five-slot sprite split pass (slots 19-23),
-; joined inside slot 19 with the caller's held byte and test: when the
-; test is set and the held byte plus SCANLINE_COUNTER ($C000) carries,
-; trade slot 19 from the held byte; without the carry, rejoin the pass at
-; slot 19 (0x10F8) and re-read all five slots from memory instead; after a
-; trade or a clear test, trade slots 20-23 wherever their top bit is set
+; an entry into the five-slot sprite split pass (slots 19-23) at slot 19's
+; `jr z` (0x10FD): multiplexSpriteSlots runs through these bytes each time
+; it is called, and the image's one CALL to the entry (0x15D9) lies in
+; caption record 5, whose bytes run as code only after the tamper derail
+; at 0x17A6. Joined inside slot 19 with the caller's held byte and test:
+; when the test is set and the held byte plus SCANLINE_COUNTER ($C000)
+; carries, trade slot 19 from the held byte; without the carry, rejoin the
+; pass at slot 19 (0x10F8) and re-read all five slots from memory instead;
+; after a trade or a clear test, trade slots 20-23 wherever their top bit
+; is set
 spinRemainingSpriteMultiplexSlots:
 10FD: 28 19           JR      Z,$1118             ; {code.loc_1118} clear -- skip ahead to the following slot
 10FF: 4F              LD      C,A                 
@@ -6130,10 +6134,10 @@ hasReachedRetireLine:
 
 ; per-object state-machine step: dispatch on the object's state byte —
 ; 0xf0 (the collision sweeps' just-hit mark) starts the death countdown at
-; 0x3b, 0x3c begins the death then counts the byte down one and flies it
-; on, above 0x3c counts it down one and flies it on, below 0x3c counts the
-; byte down, retiring the slot at zero else moving the object for the
-; frame
+; 0x3b and counts the kill, 0x3c counts the kill too, then counts the byte
+; down one and flies it on, above 0x3c counts it down one and flies it on,
+; below 0x3c counts the byte down, retiring the slot at zero else moving
+; the object for the frame
 stepDyingObjectState:
 2B93: DD 7E 00        LD      A,(IX+$00)          ; read the object's state byte
 2B96: FE F0           CP      $F0                 ; the just-hit mark 0xf0?
@@ -6575,7 +6579,7 @@ unpackTheFirstThreeSwitchSettings:
 2E28: E6 01           AND     $01                 ; isolate the next bit -- the bonus-life setting
 2E2A: 32 C3 A9        LD      ($A9C3),A           ; {hard.workRam+1C3} store it in its own cell
 2E2D: 79              LD      A,C                 ; hand the remaining bits on...
-2E2E: C3 A8 49        JP      $49A8               ; {code.finishBootSelfTestAndColdStart} ...to the continuation that peels the rest and cold-starts
+2E2E: C3 A8 49        JP      $49A8               ; {code.finishBootSelfTestAndColdStart} ...to the continuation that peels the rest and finishes the boot
 
 ; move a coordinate by a displacement and a further quarter of it, so what
 ; it carries leads what moves by the whole of it; the quarter rounds down
@@ -9552,8 +9556,8 @@ loc_45f9:
 ; shape-table bytes that run as code and fall into 0x4623, which on
 ; whatever IX/IY the caller left decrements the counter at (IX+0), seats
 ; 0xFE/0xFD and 0x6C/0x6C into the object slot at (IY+1/+3/+0x30/+0x32),
-; requests sound 0x580B when 0xA800 is 0xFF, and queues ring command
-; 0x04/0x0D
+; calls the sound request at 0x580B (sound code from the byte at 0x49EE)
+; when 0xA800 is 0xFF, and queues ring command 0x04/0x0D
 checkTamperGlyphCopyElseRunAwardLabelStep:
 460E: 21 7C A6        LD      HL,$A67C            ; point at the watched video cell
 4611: 7E              LD      A,(HL)              ; read it
@@ -10119,8 +10123,9 @@ loc_49a3:
 ; bits, then one bit) of the rolled config byte into work-RAM
 ; 0xa9c4/0xa9c6, kicks the watchdog, drives LS259 line 1 from ROM byte
 ; 0x0c3e, tiles the character plane, sums the 256-byte ROM block at 0x27de
-; and runs the frame handler out of band on a tampered total, then cold-
-; starts either way
+; and runs the frame handler out of band on a tampered total, then either
+; way jumps into the watchdog-kicked startup delay at 0x32EB, which ends
+; in the foreground loop
 finishBootSelfTestAndColdStart:
 49A8: 0F              RRCA                        ; rotate the decoded configuration byte
 49A9: 4F              LD      C,A                 
@@ -10146,7 +10151,7 @@ loc_49ca:
 49CC: 10 FC           DJNZ    $49CA               ; {code.loc_49ca} over all 256 bytes
 49CE: D6 C5           SUB     $C5                 ; compare the sum against its expected total (0xC5)
 49D0: C4 D8 00        CALL    NZ,$00D8            ; {code.enterVerticalBlankService} a tampered total runs the frame handler once out of turn, then carries on
-49D3: C3 EB 32        JP      $32EB               ; {code.petWatchdogThroughStartupDelayThenStartMachine} cold-start the machine either way -- this does not return
+49D3: C3 EB 32        JP      $32EB               ; {code.petWatchdogThroughStartupDelayThenStartMachine} either way, on into the startup delay and then the foreground loop -- this does not return
 
 ; drive coin slot 2's mechanical counter through one pulse for each coin
 ; the machine still owes it -- energise the line, release it at the half-

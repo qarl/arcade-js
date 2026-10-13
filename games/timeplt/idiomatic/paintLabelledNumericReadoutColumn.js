@@ -3,7 +3,7 @@
  * the tile plane: a three-tile rank label taken from a record table by the source's lead byte (the
  * rank), a six-digit field after it, and a three-tile suffix, every cell paired with the caller's pen
  * colour in the colour plane. The column is walked one native row back (toward row zero) a cell at a
- * time and the source is read forward past its lead byte, its digit bytes and its suffix bytes.
+ * time; the source's lead byte is read first, then its digit bytes from the last one back to the first, then its suffix bytes forward from the byte after the digits.
  * LIVE-OUT: memory only — the cursor, source pointer and scratch bytes the body leaves in registers
  * are all re-seated by the sole caller before its next column, so they are dead after return. */
 //

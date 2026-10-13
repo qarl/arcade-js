@@ -15,7 +15,7 @@
  * Role in the machine: the table here is OPENING_ERA_VELOCITY_TABLE 0x5E00, the velocity ladder rung
  * that peaks at 256 (1.0 pixel per step in 8.8 fixed point) — the pace of the opening era (1910)
  * according to mechanisms.md's velocity ladder. Its siblings velocityForHeadingAtSecondFastestSpeed
- * (0x2E3E, peak 306) and velocityForHeadingAtFastestSpeed (0x08FA, peak 331) are the same shim with
+ * (0x5965, table at 0x2E3E, peak 306) and velocityForHeadingAtFastestSpeed (0x596B, table at 0x08FA, peak 331) are the same shim with
  * the other two rungs the ship uses.
  *
  * Why it keeps a hex name: it is the twin of loc_5854, and its rank is count-dependent the same way --

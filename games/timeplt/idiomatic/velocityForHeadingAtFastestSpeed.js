@@ -22,8 +22,9 @@
  * Role in the machine: the table here is the one at 0x08FA (VELOCITY_TABLE_08FA in names.js), about
  * 1.3 pixels per step in 8.8 fixed point — the pace mechanisms.md gives the fourth and fifth eras
  * (1982, 2001). The same bytes double as the anti-tamper checksum-failure landing (loc_08fa); on a
- * genuine image they are only read as data. Its siblings velocityForHeadingAtSlowestSpeed (0x59D7,
- * peak 206), loc_594e (0x5E00, peak 256) and velocityForHeadingAtSecondFastestSpeed (0x2E3E, peak 306)
+ * genuine image they are only read as data. Its siblings velocityForHeadingAtSlowestSpeed (0x5942,
+ * table at 0x59D7, peak 206), loc_594e (0x594E, table at 0x5E00, peak 256) and
+ * velocityForHeadingAtSecondFastestSpeed (0x5965, table at 0x2E3E, peak 306)
  * are the same shim with the other live rungs.
  *
  * Whatever pointer the caller had in HL is overwritten by the table base, which is why no incoming

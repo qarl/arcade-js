@@ -17,7 +17,7 @@
  *
  * THE SELF-TEST. Time Pilot scatters program-image checks through the whole game. This one sums
  * the 256 bytes at BOOT_SELFTEST_CHECKSUM_BASE (ROM 0x27DE); a genuine image totals 0xC5. It does not
- * refuse to boot: a mismatch runs one frame service out of band and then the machine cold-starts
+ * refuse to boot: a mismatch runs one frame service out of band and then the boot carries on
  * anyway. On a genuine image that arm is never taken.
  *
  * LIVE-OUT: the two settings cells, the watchdog write, FLIPSCREEN_LATCH, the painted character
@@ -65,7 +65,7 @@ export function finishBootSelfTestAndColdStart(m, switches = m.regs.a) {
   }
   // Zero on a genuine image (0x49CE `sub 0xc5`).
   const status = (total - CHECKSUM_TOTAL) & 0xff;
-  // A tampered image runs the frame handler out of band first and then cold-starts anyway; either
+  // A tampered image runs the frame handler out of band first and then carries on anyway; either
   // way the status goes on as the startup delay's watchdog value.
   // (ROM 0x49D0 `call nz,0x00D8` into enterVerticalBlankService [seen], then 0x49D3
   // `jp 0x32EB` — a jump, so nothing returns here.)
