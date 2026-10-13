@@ -924,7 +924,7 @@ It then does two things to the character plane.
 
 First, it fills the invisible row 0 at CHAR_PLANE_BASE with a 32-byte saved picture: thirteen 0x14 glyphs, two 0x00, thirteen more 0x14, and four 0x0E.
 
-Second, it colours the cells that picture belongs to. The 28 visible cells of native column 0x11, from CHAR_PLANE_COLUMN_BASE 0xA451 (row 2) to CHAR_PLANE_LEFT_RUN_OUTER 0xA7B1 (row 29), form a line across the screen. names.js gives the on-glass mapping as display_y = native_x. The line is made of three parts:
+Second, it colours the cells that picture belongs to. The 28 visible cells of native column 0x11, from CHAR_PLANE_COLUMN_BASE 0xA451 (row 2) to CHAR_PLANE_LEFT_RUN_OUTER 0xA7B1 (row 29), form a line across the screen. On the glass, display_y = native_x. The line is made of three parts:
 - a right-hand run of thirteen (native rows 2-14), ending at its inner cell CHAR_PLANE_RIGHT_RUN_INNER 0xA5D1;
 - two centre cells, CHAR_PLANE_COLUMN_MID_RIGHT 0xA5F1 and CHAR_PLANE_COLUMN_MID_LEFT 0xA611;
 - a left-hand run of thirteen (native rows 17-29), starting at its inner cell CHAR_PLANE_LEFT_RUN_INNER 0xA631.

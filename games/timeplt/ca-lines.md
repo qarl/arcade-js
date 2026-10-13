@@ -3988,8 +3988,8 @@
 45F1	read this frame's shape
 45F2	seat it as one shape
 45F5	seat the next code as the other shape
-45F9	count the sequence down one step
-45FC	sequence spent: end it
+45F9	count the wreck countdown down one step
+45FC	countdown spent: end it
 45FF	reached the halfway mark?
 4604	not yet: leave
 4605	blank its shapes at the halfway point
@@ -3998,7 +3998,7 @@
 4613	compare against the mirror cell
 4617	they disagree: fall into the award-label stores
 461B	eight wreck shape codes -- also run off as harmless register churn when the mismatch path jumps here and drops into 0x4623
-4623	step the sequence counter
+4623	count the wreck countdown down one step
 4626	set the 3000 label shapes
 462E	set the label colour in both slots
 4636	is the player alive (PLAYER_STATE reads 0xFF)?

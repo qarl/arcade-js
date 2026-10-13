@@ -680,7 +680,7 @@ export const ROUND_NUMBER = 0xad01;
  */
 /**
  * Two routines retire an object without arming its delay -- retireSlot and retireSlotAndSubPixel -- and a third site inlines
- * the same stores. No file calls more than one, so they are per-family helpers rather than versions
+ * the same stores. No routine calls both helpers, so they are per-family helpers rather than versions
  * of one. The difference is that retireSlotAndSubPixel also clears the sub-pixel remainders. Whether
  * that is observable depends on the spawn path: some reinitialise those cells immediately after
  * marking a slot live, others have not been shown to.
@@ -3606,7 +3606,7 @@ export const ROUTINES = {
     name: "enqueueSoundUnconditional",
     role: "queue a sound code with no permission test, so it is queued whether or not a game is being played",
     cert: "seen",
-    why: "it is the unconditional way into the enqueue body at 0x562A: its own two pushes (HL, then the code in AF) fall straight into that body, which pops them back, steps SOUND_QUEUE_COUNT on and stores the code at the slot the new count selects. Under MAME (attract, a state enqueueSoundIfGameInProgress would drop) every fetch at 0x5628 was followed by exactly one count bump at pc 0x562D and exactly one store at pc 0x5631 of the A value held at entry, with no test between; the fetches came from the six call sites in enqueueTransitionSoundStops 0x5634 and from that routine's tail-jump carrying its last code. The enqueue body 0x562A has no ROUTINES entry: no call, jump or table word anywhere in the ROM holds its address (a byte scan finds none); it is entered only by falling through from this entry or by the relative jr nz branches at 0x5612, 0x561D and 0x5623 in the two gated entries, always with the caller's HL and the code already pushed. So this entry is grounded on the pairing of its own fetches with those writes",
+    why: "it is the unconditional way into the enqueue body at 0x562A: its own two pushes (HL, then the code in AF) fall straight into that body, which pops them back, steps SOUND_QUEUE_COUNT on and stores the code at the slot the new count selects. Under MAME (attract, a state enqueueSoundIfGameInProgress would drop) every fetch at 0x5628 was followed by exactly one count bump at pc 0x562D and exactly one store at pc 0x5631 of the A value held at entry, with no test between; the fetches came from the six call sites in enqueueTransitionSoundStops 0x5634 and from that routine's tail-jump carrying its last code; the one other entrant in the ROM is requestCoinSound's `jp 0x5628` at 0x57F4. The enqueue body 0x562A has no ROUTINES entry: no call, jump or table word anywhere in the ROM holds its address (a byte scan finds none); it is entered only by falling through from this entry or by the relative jr nz branches at 0x5612, 0x561D and 0x5623 in the two gated entries, always with the caller's HL and the code already pushed. So this entry is grounded on the pairing of its own fetches with those writes",
   },
   0x5617: {
     name: "enqueueSoundIfGameOrDemoSoundsOn",

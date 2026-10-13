@@ -9541,8 +9541,8 @@ loc_45dd:
 45F6: FD 77 01        LD      (IY+$01),A          
 
 loc_45f9:
-45F9: DD 35 00        DEC     (IX+$00)            ; count the sequence down one step
-45FC: CA 46 46        JP      Z,$4646             ; {code.loc_4646} sequence spent: end it
+45F9: DD 35 00        DEC     (IX+$00)            ; count the wreck countdown down one step
+45FC: CA 46 46        JP      Z,$4646             ; {code.loc_4646} countdown spent: end it
 45FF: DD 7E 00        LD      A,(IX+$00)          ; reached the halfway mark?
 4602: FE 5A           CP      $5A                 
 4604: C0              RET     NZ                  ; not yet: leave
@@ -9578,7 +9578,7 @@ loc_461b:
 4622: 94              SUB     H                   
 
 loc_4623:
-4623: DD 35 00        DEC     (IX+$00)            ; step the sequence counter
+4623: DD 35 00        DEC     (IX+$00)            ; count the wreck countdown down one step
 4626: FD 36 01 FE     LD      (IY+$01),$FE        ; set the 3000 label shapes
 462A: FD 36 03 FD     LD      (IY+$03),$FD        
 462E: FD 36 30 6C     LD      (IY+$30),$6C        ; set the label colour in both slots
