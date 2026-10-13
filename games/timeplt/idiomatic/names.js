@@ -3649,7 +3649,7 @@ export const ROUTINES = {
   },
   0x2afc: {
     name: "dressSpriteForCoarseHeading",
-    role: "point an object's sprite the way it is heading, by rounding its heading byte to the nearest of sixteen sectors and taking a shape pair from two parallel tables",
+    role: "point an object's sprite the way it is heading, by rounding its heading byte to the nearest of sixteen sectors and taking a shape and its attribute byte from two parallel tables",
     cert: "seen",
   },
   0x2b38: {

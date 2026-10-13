@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /** dressSpriteForCoarseHeading — show an object pointing the way it is heading: its heading byte is rounded to one of
- * sixteen sectors, and that sector picks a shape and the byte beside it out of two parallel tables
- * in the program image, sixteen entries apart. The pair goes into the object's sprite entry, the
- * shape in one slot and the other byte in a slot further on. Rounding adds half a sector before
+ * sixteen sectors, and that sector picks a shape and its attribute byte out of two parallel tables
+ * in the program image, sixteen entries apart. Both go into the object's sprite entry, the
+ * shape in one slot and the attribute byte in a slot further on. Rounding adds half a sector before
  * taking the top nibble, so a heading is snapped to the NEAREST sector rather than truncated, and
  * that addition wraps, which is what closes the circle of sectors. LIVE-OUT: memory, two bytes.
  *

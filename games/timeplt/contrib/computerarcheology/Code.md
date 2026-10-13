@@ -6043,8 +6043,8 @@ loc_2ab8:
 2AEC: 84 DC 84 DC 83 DC 82 DC 81 DC 81 DC 80 DC 80 DC
 
 ; point an object's sprite the way it is heading, by rounding its heading
-; byte to the nearest of sixteen sectors and taking a shape pair from two
-; parallel tables
+; byte to the nearest of sixteen sectors and taking a shape and its
+; attribute byte from two parallel tables
 dressSpriteForCoarseHeading:
 2AFC: 11 10 00        LD      DE,$0010            ; the second table sits sixteen past the first
 2AFF: DD 7E 02        LD      A,(IX+$02)          ; read the object's heading
