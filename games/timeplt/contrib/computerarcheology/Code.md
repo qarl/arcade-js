@@ -2507,7 +2507,7 @@ advanceSequencePhase:
 
 ; step the jump-table sequence index on by one; usually reached as a tail
 ; jump so the caller's own return carries it, though three sites also call
-; it just before that jump
+; it on the way to that jump, two of them only when the zero flag is set
 advanceSequenceSubStep:
 0F1A: 21 AC A9        LD      HL,$A9AC            ; point at the sequence sub-step
 0F1D: 34              INC     (HL)                ; step it on by one

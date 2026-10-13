@@ -10,8 +10,9 @@
  * comes here so that the next frame's dispatch runs the following arm.
  *
  * Role in the machine: most callers reach it as a tail jump, so the caller's own return is carried by
- * this one; a few (at 0x076E, 0x1864 and 0x3393) also call it just before that jump, so on that path
- * the index steps twice. It is the inner half of the pair whose outer half is advanceSequencePhase, which
+ * this one; a few also call it on the way to that jump (0x1864 always, 0x076E and 0x3393 only when
+ * the zero flag is set, and 0x3393 with another call in between), so when that call runs the index
+ * steps twice. It is the inner half of the pair whose outer half is advanceSequencePhase, which
  * steps the phase and zeroes this index in one breath — so this step is the one that gets
  * discarded whenever the sequence really changes mode.
  *
