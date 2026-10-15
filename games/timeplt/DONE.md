@@ -103,3 +103,23 @@ Residual 1 above was fixed after this audit in `47ac7de6` (prose only, independe
 without citing names.js, the 0x5628 why names requestCoinSound's `jp 0x5628` at 0x57F4, and the retire-helper
 comment says no routine calls both helpers. Residuals 2 and 3 stand as recorded. The R40 reviewer of this file
 re-audited the game at the commit that lands it.
+
+## Lead note — 2026-10-15 (R40 reviewer minors carried)
+
+The R40 reviewer of this file (`opus-r40-timeplt-auditor-2ad`) judged nine further minors non-blocking, none ROM-false in a
+way that misleads about a mechanism. They are carried here as residual 4, verbatim from that review (line numbers as of
+`47ac7de6`):
+
+1. `mechanisms.md:676`: the era-4 weapon's "within 16 on both axes" early end is tested only inside the 1-in-16 re-aim block (0x41BE `jr nz,0x41df` skips 0x41D0–0x41D8). The sentence is also grammatically garbled.
+2. `mechanisms.md:143`/`:794`: "an image fold that lands on zero" is three program bytes combined (0x130B–0x1313), not a span fold. The result, 0, is correct.
+3. `mechanisms.md:738`: "award glyph" is really a sprite shape code written to +1.
+4. `mechanisms.md:8, 822, 967, 977`: the text still names repo files (names.js, grounding-debt.txt) as bookkeeping. `mechanisms.md:179` prints the identifier `advancePenRunAnimationStep_ADDR`.
+5. `names.js:199` (unpublished): the CHAIN_WINDOW comment "Reloaded to 30 by every scoring post" is true only of postChainedHitScore's posts (stores at 0x51F6/0x5201). The 3,000, 2,000, 1,500 and parachutist awards post command 4 without touching 0xA99D. mechanisms.md:151/650 states this correctly.
+6. `names.js:3892` (unpublished): the 0x3215 why says "this entry alone"; 0x18B2 also has an insert, and 0x3234 includes `call 0x4b30`.
+7. 0x28EE `seatMotherShipSlot…` versus its sibling `seatCraftSlot6…`: the naming styles are inconsistent. The role strings are correct.
+8. CA pages:
+   - Code.md:4835 has a `loc_1f99` header cut mid-clause.
+   - RAMUse.md:72/177 names `INITIALS_LETTER_GLYPH_TABLE`/`WITNESS_SEED_TABLE` without an address. WITNESS_SEED_TABLE (0x163F) has no address on any page.
+   - `trampolineToLoc_307f` is a public label carrying a `loc_` placeholder.
+   - Code.md uses SNAKE_CASE names that RAMUse lists only in camelCase.
+9. A stale gitignored `cmd_31.wav` sits in `audio/samples`, although index.json marks cmd_31 silent. It is not shipped.
