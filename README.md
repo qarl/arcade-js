@@ -7,19 +7,19 @@ the testbed, chosen for one reason: **you can prove whether the port is correct.
 Most porting work has no oracle. You rewrite something, it looks right, and "faithful" stays
 a matter of opinion. An arcade ROM doesn't have that problem — MAME already runs it, so there
 is a reference implementation emitting exact expected output. Correctness becomes falsifiable
-and frame-by-frame: did our JavaScript produce the same pixels as the original machine code,
+and frame-by-frame: did our JavaScript produce the same pixels as the original machine code, within a measured tolerance,
 or did it not?
 
 Concretely, then: arcade games **translated from their original machine code to JavaScript**,
-validated **pixel-exact against MAME**. Not a re-implementation from observation — the ROM is
+checked **frame by frame against MAME**. Not a re-implementation from observation — the ROM is
 disassembled and translated instruction by instruction, then checked frame against frame until
-the pixels match.
+the rendered output matches MAME's within a measured pixel tolerance.
 
 That falsifiable translation is the foundation. What's built on top of it is the part worth looking at.
 
 ## The ROM comes back as readable code
 
-A pixel-exact translation is still machine code wearing a JavaScript costume — correct, and nearly
+A translation that matches MAME is still machine code wearing a JavaScript costume — correct, and nearly
 as opaque as the bytes it came from. So every routine is **decompiled again**, into idiomatic
 JavaScript with **English names and comments that explain what the code is for**.
 
@@ -140,11 +140,11 @@ readability is never bought with correctness. Where each game stands in that swe
 [status table](#games) below.
 
 Alongside the code, the game's **mechanics** are written up in the same way: *grounded by playing it
-in MAME*, not guessed from the source. The same oracle does double duty — a **gate** that proves the
-pixels match, and a **probe** we drive to learn what the game means. The whole method is one page:
+in MAME*, not guessed from the source. The same oracle does double duty — a **gate** that checks the
+pixels against MAME's within a measured tolerance, and a **probe** we drive to learn what the game means. The whole method is one page:
 [docs/README.md](docs/README.md).
 
-**Donkey Kong** is the first subject, and its port is complete — pixel-exact and fully playable.
+**Donkey Kong** is the first subject, and its port is complete — matched to MAME within the pixel gate's tolerance, and fully playable.
 **The Pit** (Zilec/Centuri, 1982) is
 the second, and it was chosen deliberately: **no public disassembly of it exists**, so there was
 nothing for a model to have memorized — the agents had to recover it from the raw ROM. That makes
@@ -158,7 +158,7 @@ what the tooling had to do about them — is written up in
 
 > **Status — Donkey Kong:** plays. All four boards, natural board-to-board progression, and the
 > level loop all work — finish 100m and it wraps back to 25m at the next level, indefinitely —
-> and the rendering is pixel-validated frame-by-frame against MAME 0.288.
+> and the rendering is checked frame by frame against MAME 0.288, within a measured pixel tolerance.
 
 ## Games
 
@@ -311,7 +311,7 @@ decoder for `make verify`), and — for regenerating MAME goldens — MAME 0.288
 
 See **[docs/README.md](docs/README.md)** — the whole method — and [`docs/`](docs/) for the
 technique guides. In short: pick (or write) the CPU and board, translate the ROM into
-`games/<name>/`, prove it pixel-exact against MAME, then decompile it to idiomatic JS and *ground*
+`games/<name>/`, prove it against MAME with the pixel gate, then decompile it to idiomatic JS and *ground*
 its mechanics by playing it under MAME.
 
 ## License

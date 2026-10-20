@@ -40,7 +40,7 @@ See `games/dkong/manifest.js` for the reference shape.
 
 ## Bringing a validated game up in the browser — the web contract
 
-A game that renders **pixel-exact offline** still will not run in the web player until it meets the
+A game that passes the pixel gate offline still will not run in the web player until it meets the
 live-worker contract. `web/worker.js` + `web/player.html` drive every game the same way, but that
 "same way" is a real interface the game's Machine, board, and manifest must satisfy. Here they are as
 a checklist so the next game is right the first time:

@@ -1056,7 +1056,7 @@ import { SLOTS, snapshotFrame } from "./frame-ring.js";
       romMsg.append(el("div", "That looks like a different romset or revision.", "#ff8f8f"));
       romMsg.append(el("div",
         `arcade-js is pinned to exactly one ${manifest.title} set — the "expected" hashes above — ` +
-        `because the translation was validated pixel-exact against it. Your zip's hashes are on ` +
+        `because the translation was validated against MAME running that set. Your zip's hashes are on ` +
         `the "yours" line, so you can see which set you have.`, "#8a8aa5"));
     }
     return null;

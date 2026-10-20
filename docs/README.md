@@ -7,7 +7,7 @@ technique; read them in any order the work needs — the model below is the map,
 
 > **Don't reimplement the game from observation — translate its actual machine code.**
 > Disassemble the original ROM, translate every routine to JavaScript that mirrors the original
-> instruction-for-instruction, and prove the result **pixel-exact against MAME**.
+> instruction-for-instruction, and prove the result **against MAME, frame by frame**.
 
 Reimplementing an arcade game by watching it and guessing the rules *diverges*: every behaviour you
 didn't observe is a bug waiting to happen. Translating the ROM *converges*: the JavaScript does what
@@ -43,7 +43,7 @@ MECHANISMS, so the map is re-derived, not inherited).
 
 The reference emulator runs the real ROM. It has two faces, and we use both:
 
-- **gate** — *is our JS correct?* Frame-exact pixels, and per-routine memory-equivalence against the
+- **gate** — *is our JS correct?* Frame-by-frame pixels within a measured tolerance, and per-routine memory-equivalence against the
   frozen faithful translation. Correctness is falsifiable frame-by-frame.
 - **probe** — *what does the game mean?* Play it, poke it, watch RAM and frames. Meaning is
   falsifiable experiment-by-experiment.

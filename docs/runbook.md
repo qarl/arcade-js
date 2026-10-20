@@ -2,7 +2,7 @@
 
 **This is the authoritative, self-contained procedure.** Execute it top to bottom. Where it conflicts
 with any other `docs/` file, **this runbook wins**, and it is where the process is tweaked going
-forward. The goal: turn a ROM into validated, *understood* JavaScript that renders pixel-exact against
+forward. The goal: turn a ROM into validated, *understood* JavaScript that renders within the pixel gate's measured tolerance of
 MAME — with no decision kicked to a human.
 
 ## The two governing rules

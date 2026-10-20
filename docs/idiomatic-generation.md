@@ -509,7 +509,7 @@ Per routine, the gate is **memory-equivalence, not byte-exactness**:
 - Validate by **unit-capture at real dispatches**, plus a **reachability sweep** over natural
   dispatches, plus **crafted identical-both-sides entries** for arms attract never reaches.
 
-Over the whole game the check stays **pixel-exact vs pinned MAME**. Per-routine memory-equivalence
+Over the whole game the check stays the pinned-MAME pixel gate ([pixel-gate.md](pixel-gate.md)). Per-routine memory-equivalence
 is the fast local proxy; MAME pixels are the falsifiable ground truth. **That gate runs from day
 zero, not at the end** — see item 7 above and [the pixel gate](pixel-gate.md). Calling it the
 capstone is how it came to be left off for a whole day of batches.
