@@ -179,6 +179,28 @@ Generated from `games/registry.js`, each game's `manifest.js` and its `DONE.md` 
 | [Tempest](games/tempest/) | `tempest` | 6502 | idiomatic | yes | [DONE.md](games/tempest/DONE.md) |
 <!-- END GENERATED -->
 
+### How close to MAME
+
+Each game's done-audit records how its shipped (idiomatic) layer compares with MAME. No game is
+pixel-identical on every frame checked; some segments are. As recorded in each `DONE.md`:
+
+- **Donkey Kong:** nearest-frame worst 1.45% of pixels in attract, 0.89% in gameplay.
+- **The Pit:** nearest-frame worst 0.67% in attract, 0.56% in gameplay.
+- **Frogger:** nearest-frame worst 0.22% in attract, 3.35% in gameplay.
+- **Time Pilot:** RAM byte-exact against MAME on every compared frame of 10-minute attract and
+  gameplay runs; pixels worst 449 px (attract) and 2261 px (gameplay), with a pinned cap on how many
+  frames may exceed the per-frame band.
+- **Pooyan:** title and story frames byte-identical (3506 of 4900 attract frames); the attract demo
+  drifts by at most 21 px; gameplay nearest-frame worst 5.13%.
+- **Space Invaders:** 10 s of attract byte-exact (0.00%); gameplay nearest-frame worst 0.22%; the attract demo
+  drifts up to about 13.6% (a documented residual).
+- **Galaxian:** nearest-frame worst 0.45% in attract, 0.78% in gameplay; a 120 s attract run nearest-frame worst 1.34%.
+- **Centipede:** 600 s attract nearest-frame pixel difference average 0.000%, worst 0.078% (bounded to
+  frame 33000); gameplay is not compared with MAME directly (the trackball input model differs) — the shipped
+  layer is checked against the oracle layer by machine state, and the oracle against MAME.
+- **Tempest:** byte-exact on 59.8% of attract frames and 19.7% of gameplay frames; 99.3% and 98.6%
+  within a 1% band.
+
 ## What's here (and what isn't)
 
 This repo ships our **tools**, our **translation** (the JavaScript — our own expression of the

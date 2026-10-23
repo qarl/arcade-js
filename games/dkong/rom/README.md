@@ -23,7 +23,7 @@ rather than silently producing a wrong translation.
 ## The exact romset
 
 The pinned set is MAME's **`dkong`** (Donkey Kong, US set 1) — `dkong.zip`. The engine was
-validated pixel-exact against this set only; a different revision will not match these
+validated against MAME running this set only; a different revision will not match these
 hashes. The assembled images must be:
 
 | file | what | size | sha256 |
