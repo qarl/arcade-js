@@ -182,24 +182,39 @@ Generated from `games/registry.js`, each game's `manifest.js` and its `DONE.md` 
 ### How close to MAME
 
 Each game's done-audit records how its shipped (idiomatic) layer compares with MAME. No game is
-pixel-identical on every frame checked; some segments are. As recorded in each `DONE.md`:
+pixel-identical on every frame checked; some segments are. Two kinds of measurement appear below:
 
-- **Donkey Kong:** nearest-frame worst 1.45% of pixels in attract, 0.89% in gameplay.
-- **The Pit:** nearest-frame worst 0.67% in attract, 0.56% in gameplay.
-- **Frogger:** nearest-frame worst 0.22% in attract, 3.35% in gameplay.
+- **Sampled** (the drift-tolerant rule in `tools/convergence.mjs`): every 15th rendered frame is scored
+  against whichever MAME frame in the whole golden it is closest to, on a grid of every 8th pixel in x
+  and y (about 1 pixel in 64). The figure is the percentage of grid points that differ, and the gate
+  fails past 5% (Pooyan's gameplay gate allows up to 8 scored frames over 5%). A difference
+  smaller than about a sprite can fall between grid points, so a sampled figure bounds drift; it
+  does not show byte parity.
+- **Full resolution:** every pixel is compared, as described per game.
+
+As recorded in each `DONE.md`:
+
+- **Donkey Kong:** sampled worst 1.45% in attract, 0.89% in gameplay.
+- **The Pit:** sampled worst 0.67% in attract, 0.56% in gameplay.
+- **Frogger:** sampled worst 0.22% in attract, 3.35% in gameplay.
 - **Time Pilot:** RAM byte-exact against MAME on every compared frame of 10-minute attract and
-  gameplay runs; pixels worst 449 px (attract) and 2261 px (gameplay), with a pinned cap on how many
-  frames may exceed the per-frame band.
-- **Pooyan:** title and story frames byte-identical (3506 of 4900 attract frames); the attract demo
-  drifts by at most 21 px; gameplay nearest-frame worst 5.13%.
-- **Space Invaders:** 10 s of attract byte-exact (0.00%); gameplay nearest-frame worst 0.22%; the attract demo
-  drifts up to about 13.6% (a documented residual).
-- **Galaxian:** nearest-frame worst 0.45% in attract, 0.78% in gameplay; a 120 s attract run nearest-frame worst 1.34%.
-- **Centipede:** 600 s attract nearest-frame pixel difference average 0.000%, worst 0.078% (bounded to
-  frame 33000); gameplay is not compared with MAME directly (the trackball input model differs) — the shipped
-  layer is checked against the oracle layer by machine state, and the oracle against MAME.
-- **Tempest:** byte-exact on 59.8% of attract frames and 19.7% of gameplay frames; 99.3% and 98.6%
-  within a 1% band.
+  gameplay runs; full resolution, every frame at a fixed alignment: pixels worst 449 px (attract) and
+  2261 px (gameplay), with a pinned cap on how many frames may differ in the top rows above the
+  per-frame band.
+- **Pooyan:** attract at full resolution, every frame: 3506 of 4900 attract frames (title and story)
+  are byte-identical to a MAME frame, and each remaining demo frame is within 21 px of the closest MAME
+  frame within 25 frames of its expected position. Gameplay sampled worst 5.13% (one scored frame over
+  5%, within an allowance of 8).
+- **Space Invaders:** 10 s of attract sampled 0.00%; gameplay sampled worst 0.22%; the attract demo
+  drifts up to about 13.6% sampled (a documented residual).
+- **Galaxian:** sampled worst 0.45% in attract, 0.78% in gameplay; a 120 s attract run sampled worst 1.34%.
+- **Centipede:** 600 s attract at full resolution, every frame against the nearest MAME frame in a
+  small window: average 0.000% of RGB bytes differing, worst 0.078% (bounded to frame 33000).
+  Gameplay is not compared with MAME directly (the trackball input model differs) — the shipped layer is checked
+  against the oracle layer by machine state, and the oracle against MAME.
+- **Tempest:** the vector output rasterized at full resolution; every other MAME frame with content
+  is matched to the nearest rendered frame: byte-exact on 59.8% of those attract frames and 19.7% of
+  gameplay frames; 99.3% and 98.6% within a 1%-of-pixels band.
 
 ## What's here (and what isn't)
 
@@ -229,7 +244,9 @@ expression of the logic and it ships; the original data is Nintendo's and it nev
 
 If the question is whether agents can port software faithfully, the answer is only worth as
 much as what could have proven it wrong. These gates are the experiment's instrumentation,
-and every one of them runs from a clean checkout:
+and every one of them runs from a clean checkout. The pixel gates also need live MAME 0.288 and
+your own ROMs; without them they print SKIP instead of a verdict (some suites exit 0 on a skip, others
+exit nonzero so a skip never counts as a pass):
 
 ![MAME 0.288 and arcade-js running the same frames side by side](docs/media/intro-sidebyside.gif)
 

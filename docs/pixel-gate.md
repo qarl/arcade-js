@@ -43,13 +43,13 @@ in `games/dkong/tapes/`.
 
 Attract is the easy half — it takes no input, so a golden captures itself. The gate that matters
 runs the game. `games/thepit/tools/pixel_suite.py` drives **coin → start → dig** into both MAME
-(the oracle) and the JS renderer on the *same* entropy-pinned input, and asserts the JS frame
-buffer is byte-identical to MAME's, pixel-for-pixel, through the tunnelling gameplay — result:
-every gameplay frame clean, 0 px. `render.js --pin` freezes the RNG the same way MAME's
-`--pin-entropy` does, so the two stay in lock-step instead of drifting on random actor content.
-It renders the *translated* layer; the idiomatic coroutine layer is separately proven byte-identical
-to it over video RAM, so one gate covers both. BYO-ROM: the golden is captured live from your own
-romset (never committed), and the gate SKIPs green if MAME can't verify it.
+and the JS renderer on the *same* entropy-pinned input. With `--layer oracle` it asserts the
+translated layer's frame buffer is byte-identical to MAME's, pixel-for-pixel, through the
+tunnelling gameplay. The shipped idiomatic layer (the default `--layer`) drifts a few frames at
+each collapsed busy-wait, so it gets a drift-tolerant comparison instead, which is not byte
+parity. `render.js --pin` freezes the RNG the same way MAME's `--pin-entropy` does, so random
+actor content never adds to the difference on either layer. BYO-ROM: the golden is captured live
+from your own romset (never committed), and the gate SKIPs green if MAME can't verify it.
 
 Two artifacts are handled in the open, not papered over — both instances of "the reading is the
 instrument first":
