@@ -77,8 +77,9 @@
   <h1>arcade-js<small>ROMs translated to JavaScript, checked frame by frame against MAME — pick a game</small></h1>
   <div id="grid"><div id="empty">loading…</div></div>
   <footer>
-    Games list their own ROMs, which are copyrighted and not included. Build yours locally with
-    <code>make -C games/&lt;id&gt; rom</code>, then serve with <code>python3 web/server.py</code>.
+    Games list their own ROMs, which are copyrighted and not included. Drop your romset zip on a
+    game's page, or build it locally with <code>node tools/build-rom.mjs &lt;id&gt;</code> and serve
+    with <code>python3 web/server.py</code>.
   </footer>
 
 <script type="module">

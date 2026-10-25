@@ -1,7 +1,7 @@
 {
   "name": "arcade-js",
   "version": "0.0.0",
-  "description": "Arcade ROMs translated from machine code to JavaScript, checked frame by frame against MAME. Donkey Kong first; built to host more games, CPUs, and boards.",
+  "description": "Arcade ROMs translated from machine code to JavaScript, checked frame by frame against MAME. Nine games across the Z80, 8080 and 6502, one board each.",
   "license": "GPL-3.0-only",
   "type": "module",
   "private": true,

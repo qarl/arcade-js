@@ -144,13 +144,19 @@ in MAME*, not guessed from the source. The same oracle does double duty — a **
 pixels against MAME's within a measured tolerance, and a **probe** we drive to learn what the game means. The whole method is one page:
 [docs/README.md](docs/README.md).
 
-**Donkey Kong** is the first subject, and its port is complete — matched to MAME within the pixel gate's tolerance, and fully playable.
-**The Pit** (Zilec/Centuri, 1982) is
-the second, and it was chosen deliberately: **no public disassembly of it exists**, so there was
-nothing for a model to have memorized — the agents had to recover it from the raw ROM. That makes
-it the sharper test of the thesis, and the same falsifiable pixel gate keeps it honest. The repo
-is structured to host many: multiple CPUs, multiple arcade boards, and multiple game romsets,
-sharing what they genuinely share.
+Nine games are ported, across three CPUs (Z80, Intel 8080, 6502), each on its own board:
+**Donkey Kong**, **The Pit**, **Frogger**, **Time Pilot**, **Pooyan**, **Space Invaders**,
+**Galaxian**, **Centipede** and **Tempest** — see the [table](#games) below. Each one runs in the
+browser on its readable idiomatic layer and has a committed done-audit (`DONE.md`).
+
+**Donkey Kong** was the first subject. **The Pit** (Zilec/Centuri, 1982) was the second, and it
+was chosen deliberately: **no public disassembly of it exists**, so there was nothing for a model
+to have memorized — the agents had to recover it from the raw ROM. That makes it the sharper test
+of the thesis, and the same falsifiable pixel gate keeps it honest. The repo is structured to host
+many: multiple CPUs, multiple arcade boards, and multiple game romsets, sharing what they
+genuinely share.
+
+A live build runs at **[www.qarl.com/arcade-js](https://www.qarl.com/arcade-js/)**.
 
 How the agents were organised — the division of labour, the failure modes we actually hit, and
 what the tooling had to do about them — is written up in
@@ -163,20 +169,22 @@ what the tooling had to do about them — is written up in
 ## Games
 
 Generated from `games/registry.js`, each game's `manifest.js` and its `DONE.md` by
-`node tools/gen_readme.mjs --write`; `npm test` fails when it is stale.
+`node tools/gen_readme.mjs --write`; `npm test` fails when it is stale. "not declared" means the
+manifest does not set the `idiomaticComplete` flag; it is not a statement that the game is
+unfinished — every game listed has a committed done-audit.
 
 <!-- BEGIN GENERATED: game status -->
-| Game | Board (MAME machine config) | CPU | Runtime | Idiomatic layer complete (`idiomaticComplete`) | Done audit |
-|---|---|---|---|---|---|
-| [Donkey Kong](games/dkong/) | `dkong` | z80 | idiomatic | not declared | [DONE.md](games/dkong/DONE.md) |
-| [The Pit](games/thepit/) | `thepit` | z80 | idiomatic | not declared | [DONE.md](games/thepit/DONE.md) |
-| [Frogger](games/frogger/) | `frogger` | z80 | idiomatic | yes | [DONE.md](games/frogger/DONE.md) |
-| [Time Pilot](games/timeplt/) | `timeplt` | z80 | idiomatic | yes | [DONE.md](games/timeplt/DONE.md) |
-| [Pooyan](games/pooyan/) | `pooyan` | z80 | idiomatic | yes | [DONE.md](games/pooyan/DONE.md) |
-| [Space Invaders](games/invaders/) | `invaders` | 8080 | idiomatic | yes | [DONE.md](games/invaders/DONE.md) |
-| [Galaxian](games/galaxian/) | `galaxian` | z80 | idiomatic | yes | [DONE.md](games/galaxian/DONE.md) |
-| [Centipede](games/centiped/) | `centiped` | 6502 | idiomatic | yes | [DONE.md](games/centiped/DONE.md) |
-| [Tempest](games/tempest/) | `tempest` | 6502 | idiomatic | yes | [DONE.md](games/tempest/DONE.md) |
+| Game | Year | Maker | Board (MAME machine config) | CPU | Runtime | Idiomatic layer complete (`idiomaticComplete`) | Done audit |
+|---|---|---|---|---|---|---|---|
+| [Donkey Kong](games/dkong/) | 1981 | Nintendo | `dkong` | z80 | idiomatic | not declared | [DONE.md](games/dkong/DONE.md) |
+| [The Pit](games/thepit/) | 1982 | Zilec Electronics | `thepit` | z80 | idiomatic | not declared | [DONE.md](games/thepit/DONE.md) |
+| [Frogger](games/frogger/) | 1981 | Konami | `frogger` | z80 | idiomatic | yes | [DONE.md](games/frogger/DONE.md) |
+| [Time Pilot](games/timeplt/) | 1982 | Konami | `timeplt` | z80 | idiomatic | yes | [DONE.md](games/timeplt/DONE.md) |
+| [Pooyan](games/pooyan/) | 1982 | Konami | `pooyan` | z80 | idiomatic | yes | [DONE.md](games/pooyan/DONE.md) |
+| [Space Invaders](games/invaders/) | 1978 | Taito / Midway | `invaders` | 8080 | idiomatic | yes | [DONE.md](games/invaders/DONE.md) |
+| [Galaxian](games/galaxian/) | 1979 | Namco | `galaxian` | z80 | idiomatic | yes | [DONE.md](games/galaxian/DONE.md) |
+| [Centipede](games/centiped/) | 1981 | Atari | `centiped` | 6502 | idiomatic | yes | [DONE.md](games/centiped/DONE.md) |
+| [Tempest](games/tempest/) | 1981 | Atari | `tempest` | 6502 | idiomatic | yes | [DONE.md](games/tempest/DONE.md) |
 <!-- END GENERATED -->
 
 ### How close to MAME
@@ -223,22 +231,24 @@ ROM's logic), and our **understanding** — each game's `gameplay.md` (how it's 
 research) and `mechanisms.md` (the code-grounded model of how it works). It does **not** ship the
 copyrighted ROM data, nor the gitignored **build metadata** — `dk.asm`, `coverage.json`,
 `blocks.def`, `unreached.txt` under `games/dkong/out/` (regenerate locally with `make trace`). You
-supply your own ROM; `make rom-dkong` assembles and **sha256-verifies** it locally. See
+supply your own ROM: drop your romset zip on the game's page, or run `node tools/build-rom.mjs <id>`
+(`make rom-dkong` for Donkey Kong); either way it is assembled and **sha256-verified** locally. See
 [`games/dkong/rom/README.md`](games/dkong/rom/README.md).
 
 ### You still need the ROM — here's why
 
 The translation replaces the ROM's **logic**, not its **contents**. A ROM is not only code:
 
-- **Graphics and palette are pure data.** `gfx1` (8×8 tiles), `gfx2` (16×16 sprites) and the
-  colour `proms` have no code in them at all. Without them there is nothing to draw.
+- **Graphics and palette are pure data.** In Donkey Kong, `gfx1` (8×8 tiles), `gfx2` (16×16
+  sprites) and the colour `proms` have no code in them at all. Without them there is nothing to draw.
 - **The code reads the ROM as data.** Donkey Kong's first game-state handler runs
   `ld hl,0x01ba` / `ldir`, copying a table straight out of ROM. So the engine still maps the
   ROM into the address space and reads from it — our JavaScript is what *executes*, the ROM
   is still what it *reads*.
 
 Which is exactly why the copyright line falls where it does: the JavaScript is our own
-expression of the logic and it ships; the original data is Nintendo's and it never does.
+expression of the logic and it ships; the original data belongs to its rights holders
+(Nintendo, Konami, Atari and the rest) and it never does.
 
 ## How we know it's right
 
@@ -273,7 +283,7 @@ at 2× speed; over this 35-second run the largest single-frame difference is 0.1
   target it never decoded is reported as **unresolved rather than excused** — either the step is
   wrong, or the tracer is missing an entry point and the map is simply incomplete. Both are work;
   neither is a pass. Treating them as gaps hid 836 bytes of live code for two weeks.
-- **Several thousand unit tests** (`npm test`), with mutation patches recorded next to the
+- **Thousands of unit tests** (`npm test`), with mutation patches recorded next to the
   assertions they justify, so a test that cannot fail is visible as such. Each idiomatic rewrite
   additionally carries a memory-equivalence test against the frozen oracle, with deliberately-broken
   twins it must catch.
@@ -288,23 +298,30 @@ core/                 game-agnostic engine
   cpu/8080.js         the Intel 8080 processor
   cpu/6502.js         the MOS 6502 processor
   cpu/test/           unit tests for the CPU core
+  frame-stepped.js    the cycle-free (frame-stepped) engines; the idiomatic layer runs on these
   audio.js            sample-player abstraction (audio lives ABOVE emulation)
-boards/               arcade hardware, named by MAME driver (a "board")
-  dkong/              memory map · i8257/watchdog/latches · video/palette/geometry
+boards/               arcade hardware, named by MAME machine config (a "board"), one per game:
+                      dkong · thepit · frogger · timeplt · pooyan · invaders · galaxian ·
+                      centiped · tempest
+  dkong/              for example: memory map · i8257/watchdog/latches · video/palette/geometry
   dkong/hardware.json the same, as JSON: the single source the shared Python gate
                       tools read via --hardware, instead of hardcoding DK addresses
   dkong/test/         unit tests for the board
 games/                one directory per romset, listed in games/registry.js (status: see Games above)
   dkong/              for example:
     manifest.js       declares its cpu + board + rom set + inputs + metadata
+    machine.js        wires the board to the ROM images and the routine layer
     translated/       the assembly-JS translation of the ROM (the frozen oracle)
     idiomatic/        readable-JS rewrites, each gated memory-equivalent to the oracle
-    audio/            sound-command → sample trigger map
+    gameplay.md       how the game is played (public research)
+    mechanisms.md     how it works, grounded against MAME
+    DONE.md           the done-audit
+    audio/            sound-command map, and a synth where the sound is synthesised
     rom/              gitignored — `make rom-dkong` builds it locally
     tapes/            test input tapes (published)
     test/             unit + integration tests for the translation
     entrypoints.json  disassembly entry points (folded into the trace)
-    tools/            per-game gate runners (emit.js · move_suite.py · prize_suite.py)
+    tools/            per-game gate runners (pixel_suite.py · move_suite.py · prize_suite.py · …)
 web/                  browser front-end: pick a game and play it
 tools/                disassembler · tracer · MAME golden capture · pixel/state diff ·
                        gate runner (verdict.sh) — shared, game-agnostic
@@ -331,7 +348,9 @@ without it can't be played in the browser.
 
 ## Quickstart
 
-Bring your own `dkong.zip` and you'll be playing in about a minute:
+Bring your own MAME romset zip and you'll be playing in about a minute. In the browser:
+`make serve`, open the printed URL, pick a game and drop its zip on the page. From the
+command line, for Donkey Kong:
 
 ```sh
 make rom-dkong     # assemble your ROM locally (sha256-checked)

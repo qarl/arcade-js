@@ -21,14 +21,14 @@ function listing(path) {
 async function gameStatus() {
   const { GAMES } = await import(pathToFileURL(join(REPO, "games", "registry.js")).href);
   const rows = [
-    "| Game | Board (MAME machine config) | CPU | Runtime | Idiomatic layer complete (`idiomaticComplete`) | Done audit |",
-    "|---|---|---|---|---|---|",
+    "| Game | Year | Maker | Board (MAME machine config) | CPU | Runtime | Idiomatic layer complete (`idiomaticComplete`) | Done audit |",
+    "|---|---|---|---|---|---|---|---|",
   ];
   for (const id of GAMES) {
     const m = (await import(pathToFileURL(join(REPO, "games", id, "manifest.js")).href)).default;
     const done = existsSync(join(REPO, "games", id, "DONE.md")) ? `[DONE.md](games/${id}/DONE.md)` : "—";
     const complete = m.idiomaticComplete === true ? "yes" : "not declared";
-    rows.push(`| [${m.title}](games/${id}/) | \`${m.board}\` | ${m.cpu} | ${m.runtime ?? "translated"} | ${complete} | ${done} |`);
+    rows.push(`| [${m.title}](games/${id}/) | ${m.year} | ${m.manufacturer} | \`${m.board}\` | ${m.cpu} | ${m.runtime ?? "translated"} | ${complete} | ${done} |`);
   }
   return rows.join("\n") + "\n";
 }

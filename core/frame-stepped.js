@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Cycle-free ("frame-stepped") engines: fire the vblank NMI at the game's vblank yield, not on a cycle
-// count. runCycleFree (poll-PC, translated), runWatchdogGame (watchdog read), runIdiomaticGame (coroutine,
-// the model for a new game). TEST seams; the shipped game stays cycle-driven. Coroutine-generator traps and poll-PC
-// choice: docs/idiomatic-generation.md and docs/integration-testing.md "The generator engine". Validate via convergence.mjs.
+// Cycle-free ("frame-stepped") engines: fire the frame's interrupt (vblank NMI, or scanline IRQs) at the game's
+// vblank yield, not on a cycle count. runCycleFree (poll-PC, translated), runWatchdogGame (watchdog read),
+// runIdiomaticGame (coroutine, NMI games; the model for a new game), runIdiomaticIrqGame (coroutine, scanline-IRQ
+// games: centiped, tempest). web/worker.js runs every shipped game on one of the two coroutine engines.
+// Coroutine-generator traps and poll-PC choice: docs/idiomatic-generation.md and docs/integration-testing.md
+// "The generator engine". Validate via convergence.mjs.
 
 // Unwinds out of the call tree when a run is done; boot + main loop never return. Not an error.
 class RunComplete extends Error {
