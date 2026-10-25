@@ -257,9 +257,14 @@ at 2× speed; over this 35-second run the largest single-frame difference is 0.1
 
 - **Pixel gate.** Capture a golden from **live MAME 0.288** under a pinned, determinism-
   controlled command line, run the same input tape through our engine, and diff the frames.
-  Movement 6/6 and bonus-item 9/9 scenarios pass across all four board types. Those scenarios
-  poke the board state to start on a given board, which keeps each one short and deterministic
-  — that's a property of the fixtures, not a limit of the game, which progresses on its own.
+  For Donkey Kong, the movement suite passes 6/6 (walk, climb and jump on board 1; walking on
+  boards 3 and 4) and the bonus-item suite passes 9/9 (hat, parasol and purse on boards 2, 3 and
+  4), so between them they touch all four board types. Both suites render the translated oracle
+  layer, not the shipped idiomatic one. The shipped layer is pixel-checked only by the pixel
+  suite's `--layer idiomatic` runs, which cover attract and a board-1 walk; boards 2–4 and the
+  bonus-item pickups are not pixel-checked on it. Scenarios past board 1 poke the board state to
+  start on that board, which keeps each one short and deterministic — that's a property of the
+  fixtures, not a limit of the game, which progresses on its own.
 - **Decoder cross-check.** Our Z80 decoder is checked against `z80dasm` over the code the
   tracer decodes in Donkey Kong's ROM: 6411 instruction boundaries,
   zero disagreements in either direction (`make verify`).
