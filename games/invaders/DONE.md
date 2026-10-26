@@ -99,3 +99,14 @@ a demo-only cosmetic surface, not an open criterion. invaders is DONE at commit 
 `equivalence-<addr>.test.js` of its own. The invaders entries without one are listed in
 `tools/equivalence-debt.txt`, which `tools/test/equivalence-coverage.test.js` holds so the list can only
 shrink. This note does not re-run or change the row's test result.
+
+## Correction — 2026-10-26 (oracle stack)
+
+The frozen oracle's vblank ISR ran its register-restore epilogue twice whenever the 0x0abb arm, reached
+from `call 0x0abf` at ROM 0x0057, discarded that call's return and finished the ISR itself: translated
+`loc_0010` resumed after the call. Each hit raised SP by 10, so the cycle-driven oracle's SP drifted out of
+the stack into VRAM. MAME holds SP in 0x23DE-0x2400 over attract and over the coin_start_move tape; the fixed
+oracle holds the same range over attract (`test/oracle-stack.test.js`). The oracle's attract timeline before the fix was
+not MAME's, so the equivalence gates that captured entries from it (0x0a80, 0x0acf, 0x0aea, 0x0b89, 0x1815,
+0x1837, 0x183a, 0x184c, 0x189e, 0x18df) now capture from the corrected run. This note does not re-run the
+rows above.

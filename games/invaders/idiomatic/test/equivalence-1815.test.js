@@ -4,8 +4,8 @@
 // real ISR pair (m.fireNmi, pc seated at the 0x0a9e wait head) + a RAM dump; the oracle fires it on each taken
 // back-edge of the 0x0a9e vblank wait, the idiomatic arm at each yield (as runIdiomaticGame does). Cycle IRQs are
 // off; the run ends at the tail's `rc` / generator done. Compared: every per-frame dump + final RAM, minus only
-// the cells the oracle's push16 wrote (entry SP 0x23fe or 0x2732, the latter in VRAM), whose last non-push stores
-// are compared instead. Inputs are ROM data, prior VRAM and the ISR's RAM.
+// the cells the oracle's push16 wrote (entry SP 0x23fe on both captures), whose last non-push stores are compared
+// instead. Inputs are ROM data, prior VRAM and the ISR's RAM.
 // Also compared: the port/INTE log (port 6 aside) and the watchdog kick count, exactly. SP is asserted:
 // the idiomatic arm leaves it untouched, the oracle ends at entry SP + 2 (its ret).
 // LIVE-OUT: none. Sole caller 0x0b11 continues at 0x0b14 `call 0ab6` (mvi a / sta / lda): no register read.
@@ -43,8 +43,8 @@ function capture(K, frames) {
   for (const c of caps) c.routines = pristine;
   return caps;
 }
-// Two real 0x0b11 dispatches: SP 0x23fe (first attract pass) and SP 0x2732 (VRAM stack after the demo game).
-const CAPS = ROM_PRESENT ? capture(2, 1500) : [];
+// Two real 0x0b11 dispatches, both at SP 0x23fe: frame 251 (first attract pass) and 2064 (after the demo game).
+const CAPS = ROM_PRESENT ? capture(2, 2100) : [];
 
 // A body that spins without ever reaching a frame fails here instead of hanging until the runner's timeout.
 const SPIN_READS = 1 << 20;
@@ -92,8 +92,8 @@ const runOracle = (e) => run(e, (m) => oracle(m));
 const runModule = (e, fn = drawScoreAdvanceTable) => run(e, (m) => fn(m));
 
 // Excluded from the RAM diff: only the cells the ORACLE's push16 wrote this run (return addresses and ISR-accepted
-// PCs, which the idiomatic arm keeps in JS). At a VRAM entry SP these cells are displayed pixels, so each one's
-// last non-push store is shadowed on both arms and compared instead: a plain store there cannot hide.
+// PCs, which the idiomatic arm keeps in JS). Each one's last non-push store is shadowed on both arms and compared
+// instead: a plain store there cannot hide behind the exclusion.
 function divergence(o, c) {
   const cells = [...o.pushed], span = cells.length ? Math.max(...cells) - Math.min(...cells) + 1 : 0;
   assert.ok(span <= 0x20, `oracle stack ghosts span ${span} bytes`);
@@ -136,7 +136,8 @@ function assertEqual(entry, label) {
 }
 
 test("CAPTURE: real 0x1815 dispatches -- per-frame RAM == oracle", () => {
-  assert.equal(CAPS.length, 2, "expected two 0x0b11 dispatches within 1500 frames");
+  assert.equal(CAPS.length, 2, "expected two 0x0b11 dispatches within 2100 frames");
+  assert.ok(CAPS.every((c) => c.regs.sp === 0x23fe), "both 0x0b11 dispatches enter at SP 0x23fe");
   assert.ok(CAPS.every((c) => c.mem.read8(TYPE_PACE_COUNT) !== 0x0a), "entry count differs from the seated 0x0a");
   CAPS.forEach((cap, i) => assertEqual(cap, `cap ${i}`));
 });

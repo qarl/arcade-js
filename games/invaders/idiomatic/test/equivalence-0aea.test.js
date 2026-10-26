@@ -10,8 +10,7 @@
 // (its final `out 6` poll has no module twin) -- measured: toggle 1 equal, toggle 0 +1 on three frames.
 // The kick VALUE is not compared: port 6 is a strobe, and the module writes updateFleetAndDrawCopyright's
 // (often undefined) result where the ROM writes A.
-// An entry SP seated in the framebuffer makes the oracle push return words into VRAM; each cell push16
-// dirtied shows, in the oracle snapshot, its last NON-stack write (or entry value), so it is compared, not masked.
+// Every real entry seats SP at 0x2400, so the oracle's pushes stay inside STACK_SCRATCH (asserted).
 // SP: the module leaves SP untouched (a moved SP is a diff); the oracle, bounded inside 0x0a93's 0x0a9e spin,
 // sits at entry-6 (MEASURED on every entry). No register live-out: it never returns.
 // Run: node --test games/invaders/idiomatic/test/equivalence-0aea.test.js
@@ -60,23 +59,7 @@ function logIo(m, io) {
   m.io.setInte = (on) => { io.push(`${io.frame}:inte=${!!on}`); return inte(on); };
 }
 function service(m) { idiomaticMidNmi(m); idiomaticVblankNmi(m); }
-const ramAddr = (a) => { a &= 0x7fff; if (a >= 0x6000) a -= 0x4000; return a >= 0x2000 && a < 0x4000 ? a : -1; };
 const inScratch = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-/** Oracle-side push16 shadow: cell -> the oracle's last non-stack value, for every cell outside STACK_SCRATCH
- * that a push16 wrote (the ISR bodies and hooks write through write8 too, so they update it). */
-function shadowStackWrites(m) {
-  const shadow = new Map(), w8 = m.mem.write8.bind(m.mem), push = m.push16.bind(m);
-  let pushing = false;
-  m.mem.write8 = (addr, v, bus) => {
-    const a = ramAddr(addr);
-    if (a >= 0 && !inScratch(a)) {
-      if (pushing) { if (!shadow.has(a)) shadow.set(a, m.mem.read8(a)); } else if (shadow.has(a)) shadow.set(a, v & 0xff);
-    }
-    return w8(addr, v, bus);
-  };
-  m.push16 = (v) => { pushing = true; try { push(v); } finally { pushing = false; } };
-  return shadow;
-}
 
 /** Oracle under the frame model; bound = landmark arrival + EXTRA. onStep may throw BOUND; hook = crafted poke after
  * each service, applied identically by runIdiomatic. */
@@ -85,8 +68,7 @@ function runOracle(e, { routines, onStep, hook, fn = oracle, mark = LANDMARK } =
   let limit = MAX_FRAMES, landmark = null, minSp = m.regs.sp;
   const animExits = new Set(); // frames where 0x0a80 left its poll loop (its last poll's kick has no module twin)
   logIo(m, io);
-  const shadow = shadowStackWrites(m);
-  const snap = () => { const s = m.dumpState(); for (const [a, v] of shadow) s[a - 0x2000] = v; return s; };
+  const snap = () => m.dumpState();
   const real = m.step.bind(m);
   m.step = (next, cyc) => {
     const from = m.pc;
@@ -104,7 +86,7 @@ function runOracle(e, { routines, onStep, hook, fn = oracle, mark = LANDMARK } =
   };
   let bounded = false, returned = false;
   try { fn(m); returned = true; snaps.push(snap()); } catch (x) { if (x !== BOUND) throw x; bounded = true; }
-  return { m, snaps, io, landmark, minSp, bounded, returned, shadow, animExits };
+  return { m, snaps, io, landmark, minSp, bounded, returned, animExits };
 }
 function runIdiomatic(e, gen, frames, hook) {
   const m = fresh(e), snaps = [], io = []; io.frame = 0;
@@ -143,7 +125,7 @@ function compare(e, gen = idiomatic, opts = {}) {
   const o = runOracle(e, opts);
   assert.ok(o.returned || (o.bounded && o.landmark !== null), `oracle neither returned nor reached the landmark in ${MAX_FRAMES} frames`);
   assert.ok(o.minSp >= e.regs.sp - STACK_DEPTH, `oracle stack ${hx(o.minSp)} ran deeper than ${hx(STACK_DEPTH)}`);
-  for (const a of o.shadow.keys()) assert.ok(a >= o.minSp && a < e.regs.sp, `shadowed ${hx(a)} lies outside the stack span`);
+  assert.ok(o.minSp >= STACK_SCRATCH.lo && e.regs.sp <= STACK_SCRATCH.hi, `oracle stack ${hx(o.minSp)}..${hx(e.regs.sp)} leaves STACK_SCRATCH`);
   assert.equal(o.m.regs.sp, (e.regs.sp - 6) & 0xffff, "oracle SP at the bound (inside 0x0a93, 0x0a9e spin) is entry-6");
   const c = runIdiomatic(e, gen, o.snaps.length, opts.hook);
   const moved = c.m.regs.sp !== e.regs.sp && { frame: -1, what: `idiomatic SP ${hx(e.regs.sp)} -> ${hx(c.m.regs.sp)}` };
@@ -155,23 +137,21 @@ function compare(e, gen = idiomatic, opts = {}) {
 function capture() {
   const base = buildRoutines(), caps = [];
   const routines = new Map(base).set(TARGET, (mm) => { if (caps.length < 2) caps.push(mm.clone()); return base.get(TARGET)(mm); });
-  new Machine(ROM, routines).runFrames(1300);
+  new Machine(ROM, routines).runFrames(1900);
   return caps;
 }
 const ENTRIES = ROM_PRESENT ? capture() : [];
 const withShips = (e, v) => { const x = e.clone(); x.mem.write8(PLAYER1_SHIP_COUNT, v); return x; };
-// The toggle-0 entry inherits SP 0x2734 from the boot's SP drift; this twin seats it at the stack top instead.
-const seated = (e) => { const x = e.clone(); x.regs.sp = 0x2400; return x; };
 
-test("CAPTURE: both real dispatches (+ the toggle-0 one SP-seated) -- runAttractCycle == oracle, every frame", () => {
+test("CAPTURE: both real dispatches -- runAttractCycle == oracle, every frame", () => {
   assert.equal(ENTRIES.length, 2, "expected two real 0x0aea dispatches");
   assert.deepEqual(ENTRIES.map((e) => e.mem.read8(SCREEN_MODE_TOGGLE)), [1, 0], "entries must cover both screen toggles");
-  for (const e of [...ENTRIES, seated(ENTRIES[1])]) {
+  for (const e of ENTRIES) {
     const { o, c, d } = compare(e);
     assert.equal(d, null, d && `frame ${d.frame}: ${d.what}`);
     assert.equal(o.animExits.size, e.mem.read8(SCREEN_MODE_TOGGLE) ? 0 : 3, "the 0x0a80 watchdog allowance is not the measured one");
     assert.equal(c.m.mem.read8(TASK_FLAGS), 0x00, "the teardown never ran");
-    console.log(`  toggle=${e.mem.read8(SCREEN_MODE_TOGGLE)} ships=${e.mem.read8(PLAYER1_SHIP_COUNT)} sp=${hx(e.regs.sp)}: ${o.snaps.length} frames identical (demo ended at ${o.landmark}, ${o.shadow.size} VRAM cells push-shadowed)`);
+    console.log(`  toggle=${e.mem.read8(SCREEN_MODE_TOGGLE)} ships=${e.mem.read8(PLAYER1_SHIP_COUNT)} sp=${hx(e.regs.sp)}: ${o.snaps.length} frames identical (demo ended at ${o.landmark})`);
   }
 });
 
@@ -220,10 +200,10 @@ test("TEETH: broken twins are caught", () => {
       const it = idiomatic(m);
       while (!it.next().done) { if (++k === 300) m.mem8[TASK_FLAGS] ^= 0x01; yield; }
     },
-    "VRAM 0x2730 (in the entry SP's push span) flipped at frame 300": function* (m) {
+    "0x2400 (first cell above the masked STACK_SCRATCH) flipped at frame 300": function* (m) {
       let k = 0;
       const it = idiomatic(m);
-      while (!it.next().done) { if (++k === 300) m.mem8[0x2730] ^= 0xff; yield; }
+      while (!it.next().done) { if (++k === 300) m.mem8[STACK_SCRATCH.hi] ^= 0xff; yield; }
     },
     "one extra frame": function* (m) { yield; yield* idiomatic(m); },
     "one extra watchdog kick at frame 300": function* (m) {

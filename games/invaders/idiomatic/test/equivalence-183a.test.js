@@ -42,7 +42,7 @@ function capture(K, frames) {
   return caps;
 }
 // [0] = the 0x1837 fall-in (BC 0x1dcf, 4 records), [1] = finishAttractCycle 0x0bc0 (BC 0x1fa0, 2 records, count 0x12).
-const CAPS = ROM_PRESENT ? capture(2, 1000) : [];
+const CAPS = ROM_PRESENT ? capture(2, 1500) : []; // ~frames 252 and 1467
 
 // A body that spins without ever reaching a frame fails here instead of hanging until the runner's timeout.
 const SPIN_READS = 1 << 20;
@@ -90,8 +90,8 @@ const runOracle = (e) => run(e, (m) => oracle(m));
 const runModule = (e, fn = typeDrawScript) => run(e, (m) => fn(m, m.regs.bc));
 
 // Excluded from the RAM diff: only the cells the ORACLE's push16 wrote this run (return addresses and ISR-accepted
-// PCs, which the idiomatic arm keeps in JS). At a VRAM entry SP these cells are displayed pixels, so each one's
-// last non-push store is shadowed on both arms and compared instead: a plain store there cannot hide.
+// PCs, which the idiomatic arm keeps in JS). Each one's last non-push store is shadowed on both arms and compared
+// instead, so a plain store into an excluded cell cannot hide.
 function divergence(o, c) {
   const cells = [...o.pushed], span = cells.length ? Math.max(...cells) - Math.min(...cells) + 1 : 0;
   assert.ok(span <= 0x20, `oracle stack ghosts span ${span} bytes`);

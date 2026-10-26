@@ -42,7 +42,7 @@ function capture(K, frames) {
   new Machine(ROM, { overrides: hook }).runFrames(frames);
   return caps;
 }
-const CAPS = ROM_PRESENT ? capture(6, 2400) : [];
+const CAPS = ROM_PRESENT ? capture(6, 2700) : []; // the reveals dispatch ~frames 2432, 2528, 2695
 
 function prep(cap) {
   const m = cap.clone();
@@ -184,7 +184,7 @@ test("TEETH: broken twins are caught", () => {
   assert.doesNotThrow(() => check(base, undefined, "faithful", twin(0x02, true)));
   for (const [name, fn] of [["arm 0x04", twin(0x04, true)], ["arm 0x03", twin(0x03, true)], ["no disarm", twin(0x02, false)]]) {
     assert.throws(() => check(base, undefined, name, fn), assert.AssertionError, `twin "${name}" not caught`);
-  }  // A plain store into an excluded stack cell (live VRAM at sp=0x2732) must show on the data view.
+  }  // A plain store into an excluded stack cell must show on the data view.
   for (const cap of CAPS) for (const k of [2, 4]) {
     const plant = function* (m) { yield* runAttractAnimTask(m); m.mem8[(cap.regs.sp - k) & 0xffff] ^= 0xa5; };
     assert.throws(() => check(cap, undefined, `store sp-${k}`, plant), assert.AssertionError,

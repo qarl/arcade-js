@@ -7,8 +7,7 @@
 // every frame and the final state must agree.
 // CONTRACT: per-frame RAM minus STACK_SCRATCH, plus the IO log (every port write including watchdog port 6,
 // and INTE).
-// An entry SP seated in the framebuffer makes the oracle push return words into VRAM; each cell push16
-// dirtied shows, in the oracle snapshot, its last NON-stack write (or entry value), so it is compared, not masked.
+// The real entry seats SP at 0x23fe, so the oracle's pushes stay inside STACK_SCRATCH (asserted).
 // SP: the module leaves SP untouched (a moved SP is a diff); the oracle's ret leaves it at entry+2.
 // LIVE-OUT: memory only, MEASURED: the sole caller 0x0bd7 (finishAttractCycle) runs on unchanged with every
 // value register poisoned at the return (and a poison at 0x1856's return, whose DE/HL are read, is heard).
@@ -21,7 +20,6 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_189e as oracle } from "../../translated/loc_189e.js";
 import { loc_0b89 } from "../../translated/loc_0b89.js";
 import { loc_1856 } from "../../translated/loc_1856.js";
-import { loc_0aea } from "../../translated/loc_0aea.js";
 import { runHandshakedAttractAnim as idiomatic } from "../runHandshakedAttractAnim.js";
 import { blockCopy } from "../blockCopy.js";
 import { drawSprite8x8 } from "../drawSprite8x8.js";
@@ -60,23 +58,7 @@ function logIo(m, io) {
   m.io.setInte = (on) => { io.push(`${io.frame}:inte=${!!on}`); return inte(on); };
 }
 function service(m) { idiomaticMidNmi(m); idiomaticVblankNmi(m); }
-const ramAddr = (a) => { a &= 0x7fff; if (a >= 0x6000) a -= 0x4000; return a >= 0x2000 && a < 0x4000 ? a : -1; };
 const inScratch = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-/** Oracle-side push16 shadow: cell -> the oracle's last non-stack value, for every cell outside STACK_SCRATCH
- * that a push16 wrote (the ISR bodies and hooks write through write8 too, so they update it). */
-function shadowStackWrites(m) {
-  const shadow = new Map(), w8 = m.mem.write8.bind(m.mem), push = m.push16.bind(m);
-  let pushing = false;
-  m.mem.write8 = (addr, v, bus) => {
-    const a = ramAddr(addr);
-    if (a >= 0 && !inScratch(a)) {
-      if (pushing) { if (!shadow.has(a)) shadow.set(a, m.mem.read8(a)); } else if (shadow.has(a)) shadow.set(a, v & 0xff);
-    }
-    return w8(addr, v, bus);
-  };
-  m.push16 = (v) => { pushing = true; try { push(v); } finally { pushing = false; } };
-  return shadow;
-}
 
 /** Oracle under the frame model; bound = landmark arrival + EXTRA. onStep may throw BOUND; hook = crafted poke after
  * each service, applied identically by runIdiomatic. */
@@ -84,8 +66,7 @@ function runOracle(e, { routines, onStep, hook, fn = oracle, mark = LANDMARK } =
   const m = fresh(e, routines), snaps = [], io = []; io.frame = 0;
   let limit = MAX_FRAMES, landmark = null, minSp = m.regs.sp;
   logIo(m, io);
-  const shadow = shadowStackWrites(m);
-  const snap = () => { const s = m.dumpState(); for (const [a, v] of shadow) s[a - 0x2000] = v; return s; };
+  const snap = () => m.dumpState();
   const real = m.step.bind(m);
   m.step = (next, cyc) => {
     const from = m.pc;
@@ -102,7 +83,7 @@ function runOracle(e, { routines, onStep, hook, fn = oracle, mark = LANDMARK } =
   };
   let bounded = false, returned = false;
   try { fn(m); returned = true; snaps.push(snap()); } catch (x) { if (x !== BOUND) throw x; bounded = true; }
-  return { m, snaps, io, landmark, minSp, bounded, returned, shadow };
+  return { m, snaps, io, landmark, minSp, bounded, returned };
 }
 function runIdiomatic(e, gen, frames, hook) {
   const m = fresh(e), snaps = [], io = []; io.frame = 0;
@@ -135,7 +116,7 @@ function compare(e, gen = idiomatic, opts = {}) {
   const o = runOracle(e, opts);
   assert.ok(o.returned || (o.bounded && o.landmark !== null), `oracle neither returned nor reached the landmark in ${MAX_FRAMES} frames`);
   assert.ok(o.minSp >= e.regs.sp - STACK_DEPTH, `oracle stack ${hx(o.minSp)} ran deeper than ${hx(STACK_DEPTH)}`);
-  for (const a of o.shadow.keys()) assert.ok(a >= o.minSp && a < e.regs.sp, `shadowed ${hx(a)} lies outside the stack span`);
+  assert.ok(o.minSp >= STACK_SCRATCH.lo && e.regs.sp <= STACK_SCRATCH.hi, `oracle stack ${hx(o.minSp)}..${hx(e.regs.sp)} leaves STACK_SCRATCH`);
   assert.equal(o.m.regs.sp, (e.regs.sp + 2) & 0xffff, "oracle SP popped by its ret");
   const c = runIdiomatic(e, gen, o.snaps.length, opts.hook);
   const moved = c.m.regs.sp !== e.regs.sp && { frame: -1, what: `idiomatic SP ${hx(e.regs.sp)} -> ${hx(c.m.regs.sp)}` };
@@ -143,23 +124,20 @@ function compare(e, gen = idiomatic, opts = {}) {
 }
 
 
-// No cycle-driven boot dispatches 0x189e (it warm-restarts before its toggle-0 teardown), so the entry is the
-// dispatch the oracle 0x0aea makes under this frame model from its real toggle-0 entry; the 0x0b89 entry on
-// the way is kept for the live-out arm.
+// The first real 0x189e dispatch of a cycle-driven boot (the toggle-0 teardown), plus the real toggle-0 0x0b89
+// dispatch before it for the live-out arm.
 function capture() {
-  const base = buildRoutines(), aea = [];
-  const routines = new Map(base).set(0x0aea, (mm) => { if (aea.length < 2) aea.push(mm.clone()); return base.get(0x0aea)(mm); });
-  new Machine(ROM, routines).runFrames(1300);
+  const base = buildRoutines();
   let at189e = null, at0b89 = null;
-  runOracle(aea[1], { fn: loc_0aea, onStep: (m, next) => {
-    if (next === 0x0b89 && !at0b89) at0b89 = m.clone();
-    if (next === TARGET) { at189e = m.clone(); throw BOUND; }
-  } });
+  const routines = new Map(base)
+    .set(TARGET, (mm) => { at189e ??= mm.clone(); return base.get(TARGET)(mm); })
+    .set(0x0b89, (mm) => { if (mm.mem.read8(SCREEN_MODE_TOGGLE) === 0) at0b89 ??= mm.clone(); return base.get(0x0b89)(mm); });
+  new Machine(ROM, routines).runFrames(4000);
   return { at189e, at0b89 };
 }
 const { at189e: ENTRY, at0b89: CALLER } = ROM_PRESENT ? capture() : {};
 // The sole caller clears TASK_FLAGS first; a nonzero entry value makes a read-modify-write of it heard. Likewise
-// loc_2080 (the 0x0072 ISR latch, measured 1 or 2 at real 0x0b89 entries) at 0x01 makes an |= of its seed heard.
+// loc_2080 (the 0x0072 ISR latch, measured 0 then 1 at real 0x0b89 entries, 1 here) at 0x01 makes an |= of its seed heard.
 const dirtyTaskFlags = () => { const x = ENTRY.clone(); x.mem.write8(TASK_FLAGS, 0x03); return x; };
 const dirtyTable = () => { const x = ENTRY.clone(); for (let i = 0; i < 0x10; i++) x.mem.write8(ATTRACT_OBJECT_TABLE + i, x.mem.read8(ATTRACT_OBJECT_TABLE + i) ^ 0xff); return x; };
 const poisonAfter = (addr, fn) => new Map(buildRoutines()).set(addr, (mm) => {
@@ -174,7 +152,7 @@ test("CAPTURE: the toggle-0 teardown dispatch -- runHandshakedAttractAnim == ora
   assert.equal(d, null, d && `frame ${d.frame}: ${d.what}`);
   assert.ok(o.returned && o.snaps.length > 0x80, "the oracle did not run the handshake + long settle");
   assert.equal(c.m.mem.read8(TASK_FLAGS), 0x04, "the anim task was not armed");
-  console.log(`  sp=${hx(ENTRY.regs.sp)}: ${o.snaps.length - 1} frames + final state identical (${o.shadow.size} VRAM cells push-shadowed)`);
+  console.log(`  sp=${hx(ENTRY.regs.sp)}: ${o.snaps.length - 1} frames + final state identical`);
 });
 
 // The entry blockCopy overwrites the ack byte (0x2055 = table+5), so craft it AFTER each service instead.
@@ -208,11 +186,11 @@ test("TEETH: broken twins are caught", () => {
     yield* waitLongDelay(m);
   };
   assert.equal(compare(ENTRY, twin(0x04, true, 0x26)).d, null, "the faithful twin must pass");
-  const poke2730 = function* (m) { let k = 0; const it = idiomatic(m); while (!it.next().done) { if (++k === 100) m.mem8[0x2730] ^= 0xff; yield; } };
+  const poke2400 = function* (m) { let k = 0; const it = idiomatic(m); while (!it.next().done) { if (++k === 100) m.mem8[STACK_SCRATCH.hi] ^= 0xff; yield; } };
   const kick = function* (m) { m.io.portOut(0x06, 0x26); yield* idiomatic(m); };
   const sp2 = function* (m) { m.regs.sp = (m.regs.sp - 2) & 0xffff; yield* idiomatic(m); };
   const port3 = function* (m) { m.io.portOut(0x03, 0x00); yield* idiomatic(m); };
-  for (const [name, gen] of [["extra watchdog kick", kick], ["SP moved by -2", sp2], ["extra port 3 write", port3], ["task 0x02", twin(0x02, true, 0x26)], ["no clear wait", twin(0x04, false, 0x26)], ["sprite 0x27", twin(0x04, true, 0x27)], ["VRAM 0x2730 (in the entry SP's push span) flipped at frame 100", poke2730]]) {
+  for (const [name, gen] of [["extra watchdog kick", kick], ["SP moved by -2", sp2], ["extra port 3 write", port3], ["task 0x02", twin(0x02, true, 0x26)], ["no clear wait", twin(0x04, false, 0x26)], ["sprite 0x27", twin(0x04, true, 0x27)], ["0x2400 (first cell above the masked STACK_SCRATCH) flipped at frame 100", poke2400]]) {
     assert.notEqual(compare(ENTRY, gen).d, null, `twin "${name}" escaped the gate`);
   }
 });

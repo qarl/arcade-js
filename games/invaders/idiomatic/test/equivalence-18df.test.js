@@ -153,7 +153,7 @@ function compare(e, gen = idiomatic, opts = {}) {
 function capture() {
   const base = buildRoutines(), caps = [];
   const routines = new Map(base).set(TARGET, (mm) => { if (caps.length < 2) caps.push(mm.clone()); return base.get(TARGET)(mm); });
-  new Machine(ROM, routines).runFrames(1300);
+  new Machine(ROM, routines).runFrames(1900);
   return caps;
 }
 const ENTRIES = ROM_PRESENT ? capture() : [];
@@ -190,7 +190,7 @@ test("TEETH: broken twins are caught", () => {
     const ent = ENTRIES[0].clone();
     ent.mem.write8(loc_20cf, 0x00); // so a dropped seed is visible
     assert.notEqual(compare(ent, gen).d, null, `twin "${name}" escaped the gate`);
-  }  // A plain store into a cell the oracle's stack shadows (live VRAM at a leaked SP) must show on its data view.
+  }  // A plain store into a cell the oracle's stack writes must show on its data view.
   const plant = (addr, at) => function* (m) {
     let n = 0;
     for (const it = idiomatic(m); ;) { if (it.next().done) return; if (++n === at) m.mem8[addr] ^= 0xa5; yield; }

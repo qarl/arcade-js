@@ -4,7 +4,7 @@
 // the 0x0a9e wait head) + a RAM dump; the oracle fires it on each taken back-edge of the 0x0a9e vblank wait, the
 // idiomatic arm at each yield (as runIdiomaticGame does). Cycle IRQs are off; the run ends at loc_183a's `rc` /
 // generator done. Compared: every per-frame dump + final RAM, minus only the cells the oracle's push16 wrote
-// (entry SP 0x23fe or 0x2732), whose last non-push stores are compared instead. The entry BC is the dead 0x1dce
+// (entry SP 0x23fe on both captures), whose last non-push stores are compared instead. The entry BC is the dead 0x1dce
 // cursor 0x1856 left; the routine must ignore it.
 // Also compared: the port/INTE log (port 6 aside) and the watchdog kick count, exactly. SP is asserted:
 // the idiomatic arm leaves it untouched, the oracle ends at entry SP + 2 (its ret).
@@ -40,8 +40,8 @@ function capture(K, frames) {
   for (const c of caps) c.routines = pristine;
   return caps;
 }
-// Two real 0x182b tails: SP 0x23fe (first attract pass) and SP 0x2732 (VRAM stack after the demo game).
-const CAPS = ROM_PRESENT ? capture(2, 1500) : [];
+// Two real 0x182b tails, both at SP 0x23fe: frame 252 (first attract pass) and 2065 (after the demo game).
+const CAPS = ROM_PRESENT ? capture(2, 2100) : [];
 
 // A body that spins without ever reaching a frame fails here instead of hanging until the runner's timeout.
 const SPIN_READS = 1 << 20;
@@ -89,8 +89,8 @@ const runOracle = (e) => run(e, (m) => oracle(m));
 const runModule = (e, fn = typeSecondDrawScript) => run(e, (m) => fn(m));
 
 // Excluded from the RAM diff: only the cells the ORACLE's push16 wrote this run (return addresses and ISR-accepted
-// PCs, which the idiomatic arm keeps in JS). At a VRAM entry SP these cells are displayed pixels, so each one's
-// last non-push store is shadowed on both arms and compared instead: a plain store there cannot hide.
+// PCs, which the idiomatic arm keeps in JS). Each one's last non-push store is shadowed on both arms and compared
+// instead: a plain store there cannot hide behind the exclusion.
 function divergence(o, c) {
   const cells = [...o.pushed], span = cells.length ? Math.max(...cells) - Math.min(...cells) + 1 : 0;
   assert.ok(span <= 0x20, `oracle stack ghosts span ${span} bytes`);
@@ -133,7 +133,8 @@ function assertEqual(entry, label) {
 }
 
 test("CAPTURE: real 0x1837 tails -- per-frame RAM == oracle", () => {
-  assert.equal(CAPS.length, 2, "expected two 0x182b tails within 1500 frames");
+  assert.equal(CAPS.length, 2, "expected two 0x182b tails within 2100 frames");
+  assert.ok(CAPS.every((c) => c.regs.sp === 0x23fe), "both 0x182b tails enter at SP 0x23fe");
   CAPS.forEach((cap, i) => assertEqual(cap, `cap ${i}`));
 });
 

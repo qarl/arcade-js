@@ -36,16 +36,13 @@ const ORACLE_ROUTINES = buildRoutines(); // the frame tick runs the translated I
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
 function capture(K, frames) {
-  const caps = [], keys = new Set();
-  const hook = new Map([[TARGET, (mm) => {
-    const key = `${mm.regs.sp}:${mm.regs.de}:${mm.regs.c}:${mm.regs.hl}:${mm.mem.read16(mm.regs.sp)}`;
-    if (caps.length < K && !keys.has(key)) { keys.add(key); caps.push(mm.clone()); }
-    return oracle(mm);
-  }]]);
+  const caps = [];
+  const hook = new Map([[TARGET, (mm) => { if (caps.length < K) caps.push(mm.clone()); return oracle(mm); }]]);
   new Machine(ROM, { overrides: hook }).runFrames(frames);
   return caps;
 }
-const CAPS = ROM_PRESENT ? capture(4, 2400) : [];
+// One dispatch per attract cycle (~frames 97 and 1910): same SP/regs, different work RAM and VRAM.
+const CAPS = ROM_PRESENT ? capture(2, 2400) : [];
 
 function prep(cap) {
   const m = cap.clone();
@@ -153,9 +150,9 @@ function check(cap, r, label, fn) {
 }
 
 test("CAPTURE: real 0x0acf dispatches -- typeAttractBlock == oracle (RAM -stack, frames)", () => {
-  assert.ok(CAPS.length >= 2, "expected the attract body block to dispatch 0x0acf at two stack depths");
-  for (const cap of CAPS) {
-    const o = check(cap, regsOf(cap), `de=${hx(cap.regs.de)} sp=${hx(cap.regs.sp)}`);
+  assert.equal(CAPS.length, 2, "expected the attract body block to dispatch 0x0acf in both attract cycles");
+  for (const [i, cap] of CAPS.entries()) {
+    const o = check(cap, regsOf(cap), `cap ${i} de=${hx(cap.regs.de)} sp=${hx(cap.regs.sp)}`);
     assert.equal(o.frames, 6 * 0x0f, "oracle typed 0x0f glyphs at 6 frames each");
   }
 });
@@ -177,7 +174,7 @@ test("TEETH: broken twins are caught", () => {
     ["fixed source", twin(SPACE_INVADERS_TITLE_TEXT + 1, 0x0f, ATTRACT_BODY_SCREEN_ADDR)],
   ]) {
     assert.throws(() => check(base, r, name, fn), assert.AssertionError, `twin "${name}" not caught`);
-  }  // A plain store into an excluded stack cell (live VRAM at sp=0x2732) must show on the data view.
+  }  // A plain store into an excluded stack cell must show on the data view.
   for (const cap of CAPS) for (const k of [2, 4]) {
     const plant = function* (m, src) { yield* typeAttractBlock(m, src); m.mem8[(cap.regs.sp - k) & 0xffff] ^= 0xa5; };
     assert.throws(() => check(cap, regsOf(cap), `store sp-${k}`, plant), assert.AssertionError,

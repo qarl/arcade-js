@@ -74,5 +74,6 @@ export function loc_0010(m) {
   }
   m.step(0x0057, 10);
   m.push16(0x005a); m.step(0x0abf, 17); m.call(0x0abf); // 0057  call 0x0abf
+  if (m.pc !== 0x005a) return; // the bit-0 arm (0x0abb) popped this return and finished the ISR itself
   m.step(0x0082, 10); return m.call(0x0082); // 005a  jmp 0x0082
 }

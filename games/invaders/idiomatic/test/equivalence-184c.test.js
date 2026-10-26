@@ -4,8 +4,8 @@
 // the 0x0a9e wait head) + a RAM dump; the oracle fires it on each taken back-edge of the 0x0a9e vblank wait, the
 // idiomatic arm at each yield (as runIdiomaticGame does). Cycle IRQs are off, so frames happen only there; the
 // run ends at the oracle's ret / generator done. Compared: every per-frame dump + the final RAM, minus only the
-// cells the oracle's push16 wrote (call/ISR ghosts; entry SP 0x23fc, 0x2730 or 0x2732, the last two in VRAM),
-// whose last non-push stores are compared instead.
+// cells the oracle's push16 wrote (call/ISR ghosts; entry SP 0x23fc or 0x23fe), whose last non-push stores are
+// compared instead.
 // Also compared: the port/INTE log (port 6 aside) and the watchdog kick count, exactly. SP is asserted:
 // the idiomatic arm leaves it untouched, the oracle ends at entry SP + 2 (its ret).
 // LIVE-OUT: none. Callers: 0x0bb7 `in 2` (A) then 0ab6 `mvi a` or `lxi b`; typeDrawScript's loop reads only BC,
@@ -41,7 +41,7 @@ function capture(K, frames) {
   return caps;
 }
 // First 4 = typeDrawScript's loop (BC 0x1dd3..), 5th = finishAttractCycle 0x0bb4 (count 0x12), 6-7 = 0x0bc0 script.
-const CAPS = ROM_PRESENT ? capture(7, 1100) : [];
+const CAPS = ROM_PRESENT ? capture(7, 1600) : []; // ~frames 252-431, 1359, 1467, 1575
 
 // A body that spins without ever reaching a frame fails here instead of hanging until the runner's timeout.
 const SPIN_READS = 1 << 20;
@@ -89,8 +89,8 @@ const runOracle = (e) => run(e, (m) => oracle(m));
 const runModule = (e, fn = typeDrawScriptRecord) => run(e, (m) => fn(m, m.regs.de, m.regs.hl));
 
 // Excluded from the RAM diff: only the cells the ORACLE's push16 wrote this run (return addresses and ISR-accepted
-// PCs, which the idiomatic arm keeps in JS). At a VRAM entry SP these cells are displayed pixels, so each one's
-// last non-push store is shadowed on both arms and compared instead: a plain store there cannot hide.
+// PCs, which the idiomatic arm keeps in JS). Each one's last non-push store is shadowed on both arms and compared
+// instead, so a plain store into an excluded cell cannot hide.
 function divergence(o, c) {
   const cells = [...o.pushed], span = cells.length ? Math.max(...cells) - Math.min(...cells) + 1 : 0;
   assert.ok(span <= 0x20, `oracle stack ghosts span ${span} bytes`);
@@ -140,7 +140,8 @@ function crafted(base, { count, de, hl }) {
 }
 
 test("CAPTURE: real 0x184c dispatches -- per-frame RAM == oracle", () => {
-  assert.equal(CAPS.length, 7, "expected the 0x183a, 0x0bb4 and 0x0bc0 dispatches within 1100 frames");
+  assert.equal(CAPS.length, 7, "expected the 0x183a, 0x0bb4 and 0x0bc0 dispatches within 1600 frames");
+  assert.ok(CAPS.every((c) => c.regs.sp === 0x23fc || c.regs.sp === 0x23fe), "every entry SP is 0x23fc or 0x23fe");
   assert.ok(CAPS.some((c) => c.mem.read8(TYPE_PACE_COUNT) !== 0x0a), "a real entry with a non-0x0a count");
   CAPS.forEach((cap, i) => assertEqual(cap, `cap ${i}`));
 });
