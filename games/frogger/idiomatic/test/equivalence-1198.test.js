@@ -12,15 +12,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
+import { makeMachine, ENTRY_FRAMES, romsPresent, STACK_SCRATCH } from "./_harness.js";
 import { computeVramColumnIndex } from "../computeVramColumnIndex.js";
 import { loc_1198 as oracle } from "../../translated/loc_1198.js";
-import manifest from "../../manifest.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 
 const VRAM_BASE = 0xa800;
 const CARRY_BIT = 0x01;
-const [STACK_LO, STACK_HI] = manifest.convergence.stateExclude.stack;
 const skip = romsPresent() ? false : "ROM images are gitignored; none assembled";
 
 let seed = null;
@@ -42,12 +40,13 @@ function entryWith(hl, carry) {
 
 // null == equivalent on the live-out: RAM untouched (dead stack window neutralized) AND register C.
 function unitDiff(cand, machine) {
+  const dead = deadStackBelow(STACK_SCRATCH, machine.regs.sp);
   const a = machine.clone(); oracle(a);
   const b = machine.clone(); cand(b);
   const da = a.dumpState(), db = b.dumpState();
   for (let off = 0; off < db.length; off++) {
     const addr = a.stateOffsetToAddr(off);
-    if (addr >= STACK_LO && addr < STACK_HI) db[off] = da[off];
+    if (dead(addr)) db[off] = da[off];
   }
   const ram = firstStateDiff(da, db, (o) => a.stateOffsetToAddr(o));
   if (ram) return `RAM 0x${(ram.addr ?? 0).toString(16)}: ${ram.a} vs ${ram.b}`;

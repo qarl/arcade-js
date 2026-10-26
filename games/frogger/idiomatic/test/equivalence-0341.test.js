@@ -7,7 +7,7 @@
  * the generator's yield, and the oracle's third pass-start (step to 0x0341, or a jp 0x0368 = step 10
  * cycles). At each boundary BOTH sides snapshot RAM, then get the SAME service: the tape inputs for the
  * next frame and one NMI fired as runIdiomaticGame does (pc = 0x0368). After F frames a sentinel unwinds
- * the oracle. Per frame: RAM (stack scratch [0x87e0,0x8800) masked); SP, asserted 0x8800 on both sides
+ * the oracle. Per frame: RAM (minus stack scratch below the entry SP 0x8800); SP, asserted 0x8800 on both sides
  * (measured: the oracle is balanced at every boundary; the generator must not move it); and the port log,
  * every latch/PPI write (AddressSpace.isHardwareWrite) and every watchdog read (0x8800 mirror) in program
  * order, the service's own excluded, compared exactly.
@@ -21,7 +21,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { makeMachine, romsPresent, isStackScratch } from "./_harness.js";
+import { makeMachine, romsPresent, STACK_SCRATCH } from "./_harness.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 import { AddressSpace } from "../../../../boards/frogger/memory.js";
 import { Machine, resolveAllIdiomatic } from "../../machine.js";
 import { buildRoutines } from "../../routines.js";
@@ -142,10 +143,11 @@ function diff(arm, gen = cand, frames = F) {
     if (A.sp !== 0x8800) return `${arm.name} frame ${k + 1}: oracle SP ${hx(A.sp)}`;
     if (B.sp !== 0x8800) return `${arm.name} frame ${k + 1}: candidate moved SP to ${hx(B.sp)}`;
     if (A.log !== B.log) return `${arm.name} frame ${k + 1}: port log oracle=[${A.log}] cand=[${B.log}]`;
+    const dead = deadStackBelow(STACK_SCRATCH, 0x8800); // each span starts at the seated/asserted SP
     for (let i = 0; i < A.length; i++) {
       if (A[i] === B[i]) continue;
       const addr = o.m.stateOffsetToAddr(i);
-      if (isStackScratch(addr)) continue;
+      if (dead(addr)) continue;
       return `${arm.name} frame ${k + 1} ${hx(addr)}: oracle=${A[i]} cand=${B[i]}`;
     }
   }

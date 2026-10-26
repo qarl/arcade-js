@@ -5,14 +5,14 @@
  * isolated oracle/cand runs severs that sink with an empty generator; each routine then stops at its
  * transfer point and the compared state is the boot init's own work. A post-attract seed is cloned, SP
  * seated at 0x8800 (where the reset vector leaves it), and cells poked; live-out is memory-only, so RAM
- * is compared with the dead stack scratch [0x87e0,0x8800) masked.
+ * is compared minus the dead stack scratch below the seated SP, [0x87e0,0x8800).
  */
-import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
+import { makeMachine, ENTRY_FRAMES, romsPresent, STACK_SCRATCH } from "./_harness.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 import { buildRoutines } from "../../routines.js";
 
 export { romsPresent };
 
-const STACK_LO = 0x87e0, STACK_HI = 0x8800;
 const MAIN_LOOP_HEAD = 0x0341;
 
 // The routines map with the main-loop sink severed, shared by every crafted run.
@@ -33,13 +33,14 @@ function seedMachine() {
 export function craft(mut) {
   const e = seedMachine().clone();
   e.routines = STUBS;
-  e.regs.sp = STACK_HI;
+  e.regs.sp = STACK_SCRATCH.hi;
   if (mut) mut(e.mem8, e);
   return e;
 }
 
 // null == RAM-equivalent (dead stack scratch masked); else a string naming the first differing address.
 export function ramDiff(oracle, cand, entry) {
+  const dead = deadStackBelow(STACK_SCRATCH, entry.regs.sp);
   const a = entry.clone(); a.routines = STUBS; oracle(a);
   const b = entry.clone(); b.routines = STUBS; cand(b);
   const A = a.dumpState(), B = b.dumpState();
@@ -47,7 +48,7 @@ export function ramDiff(oracle, cand, entry) {
   for (let i = 0; i < n; i++) {
     if (A[i] === B[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_LO && addr < STACK_HI) continue;
+    if (dead(addr)) continue;
     return `0x${(addr ?? 0).toString(16)}: ${A[i]} vs ${B[i]}`;
   }
   return null;

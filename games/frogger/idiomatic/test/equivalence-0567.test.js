@@ -11,14 +11,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
+import { makeMachine, ENTRY_FRAMES, romsPresent, STACK_SCRATCH } from "./_harness.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 import { buildRoutines } from "../../routines.js";
 import { coldStartClearPlayRamAndSetMode as cand } from "../coldStartClearPlayRamAndSetMode.js";
 import { loc_0567 as oracle } from "../../translated/loc_0547.js";
 
 const skip = romsPresent() ? false : "ROM images are gitignored; none assembled";
 
-const STACK_LO = 0x87e0, STACK_HI = 0x8800;
 const GAME_MODE = 0x83d6, PLAY_FLAG = 0x83fe;
 const LDIR_LO = 0x8100, LDIR_HI = 0x825f, OBJ0 = 0x8000, OBJ0_END = 0x8004, OBJP = 0x800c, OBJP_END = 0x803a;
 const DIFF_LO = 0x8293, DIFF_HI = 0x8294;
@@ -43,7 +43,7 @@ function seedMachine() {
 function craft(mut) {
   const e = seedMachine().clone();
   e.routines = MAP;
-  e.regs.sp = STACK_HI;
+  e.regs.sp = STACK_SCRATCH.hi;
   e.io.setFlipX(1); e.io.setFlipY(1);
   e.mem8[GAME_MODE] = 0xff;
   e.mem8[PLAY_FLAG] = 0; // attract; the early 0x07e6 takes its clear arm
@@ -53,6 +53,7 @@ function craft(mut) {
 }
 
 function ramDiff(orc, cnd, entry) {
+  const dead = deadStackBelow(STACK_SCRATCH, entry.regs.sp);
   const a = entry.clone(); a.routines = MAP; orc(a);
   const b = entry.clone(); b.routines = MAP; cnd(b);
   const A = a.dumpState(), B = b.dumpState();
@@ -60,7 +61,7 @@ function ramDiff(orc, cnd, entry) {
   for (let i = 0; i < n; i++) {
     if (A[i] === B[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_LO && addr < STACK_HI) continue;
+    if (dead(addr)) continue;
     return `0x${(addr ?? 0).toString(16)}: ${A[i]} vs ${B[i]}`;
   }
   return null;

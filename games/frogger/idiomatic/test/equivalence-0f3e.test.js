@@ -13,12 +13,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
+import { makeMachine, ENTRY_FRAMES, romsPresent, STACK_SCRATCH } from "./_harness.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 import { tickAttractCellFrameClock } from "../tickAttractCellFrameClock.js";
 import { loc_0f3e as oracle } from "../../translated/loc_0f3e.js";
 import { u8 } from "../../../../core/int.js";
 
-const STACK_LO = 0x87e0, STACK_HI = 0x8800; // dead stack scratch: the oracle pushes here, the boolean does not
 
 const FRAME_TIMER = 0x83bd;
 const FRAME_INDEX = 0x83be;
@@ -59,6 +59,7 @@ function entry({ path, timer, index }) {
 // RAM (stack masked), the boolean return, and — on the normal exit only — the register live-out A and HL.
 // SP/PC are not part of the dissolved contract.
 function contractDiffs(e, fn, regLive) {
+  const dead = deadStackBelow(STACK_SCRATCH, e.regs.sp);
   const a = e.clone();
   const b = e.clone();
   const ra = oracle(a);
@@ -68,7 +69,7 @@ function contractDiffs(e, fn, regLive) {
   for (let off = 0; off < A.length; off++) {
     if (A[off] === B[off]) continue;
     const addr = a.stateOffsetToAddr(off);
-    if (addr >= STACK_LO && addr < STACK_HI) continue; // mask dead stack scratch
+    if (dead(addr)) continue; // mask dead stack scratch
     out.push(`RAM 0x${(addr ?? 0).toString(16)}: ${A[off]} vs ${B[off]}`);
     break;
   }

@@ -35,9 +35,9 @@ function romImages() {
 /** Frames of attract to run for a healthy dispatch corpus. */
 export const ENTRY_FRAMES = 900;
 
-/** Seam's transient pushed-return stack window — dead scratch (matches the pixel manifest's
- * stateExclude.stack); a dissolved m.call skips the push, so exclude it from the state diff. */
-export const isStackScratch = (addr) => addr >= 0x87e0 && addr < 0x8800;
+/** The Z80 stack window (the pixel manifest's stateExclude.stack). Gates exclude only the part below the
+ * entry SP — deadStackBelow(STACK_SCRATCH, entry.regs.sp) — where a dissolved m.call skips the push. */
+export const STACK_SCRATCH = { lo: 0x87e0, hi: 0x8800 };
 
 /** A frogger Machine with `overrides` (a Map addr->fn) wired over the translated base; plain attract. */
 export function makeMachine(overrides) {

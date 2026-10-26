@@ -9,13 +9,14 @@
  * still-frozen callees on its own clone, so the callee writes are part of the compared live-out.
  * Live-out is memory-only, so RAM is compared and registers/SP are not; the dissolved dispatcher
  * issues direct JS calls where the frozen oracle still pushes, so the dead stack scratch
- * [0x87e0,0x8800) below the entry SP is masked from the diff. Teeth: three twins — no-op, a wrong-branch
+ * below the entry SP is masked from the diff. Teeth: three twins — no-op, a wrong-branch
  * twin (always the idle arm), and a skip-a-call twin (omits the reset call the middle band makes).
  */
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
+import { makeMachine, ENTRY_FRAMES, romsPresent, STACK_SCRATCH } from "./_harness.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 import { driveDiveAnimByLevel } from "../driveDiveAnimByLevel.js";
 import { loc_27ea as oracle } from "../../translated/loc_27ea.js";
 
@@ -23,7 +24,6 @@ const DIVE_PHASE = 0x83b7;
 const SECONDARY = 0x8101;
 const BUSY_LATCH = 0x814f;
 const IDLE_ARM = 0x2873;
-const STACK_LO = 0x87e0, STACK_HI = 0x8800;
 const skip = romsPresent() ? false : "ROM images are gitignored; none assembled";
 
 let seed = null;
@@ -44,8 +44,10 @@ function craft(pokes) {
 }
 
 // null == RAM-equivalent (dead stack scratch masked). Memory-only live-out: compare RAM, not
-// registers or SP; the dissolved direct calls leave [0x87e0,0x8800) unpushed where the oracle scribbles.
+// registers or SP; the dissolved direct calls leave unpushed the stack below the entry SP that the
+// oracle scribbles.
 function ramDiff(cand, machine) {
+  const dead = deadStackBelow(STACK_SCRATCH, machine.regs.sp);
   const a = machine.clone(); oracle(a);
   const b = machine.clone(); cand(b);
   const A = a.dumpState(), B = b.dumpState();
@@ -53,7 +55,7 @@ function ramDiff(cand, machine) {
   for (let i = 0; i < n; i++) {
     if (A[i] === B[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_LO && addr < STACK_HI) continue;
+    if (dead(addr)) continue;
     return `0x${(addr ?? 0).toString(16)}: ${A[i]} vs ${B[i]}`;
   }
   return null;

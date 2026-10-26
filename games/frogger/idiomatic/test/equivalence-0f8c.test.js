@@ -6,25 +6,23 @@
  * drive the blit path (several non-zero triggers) and the clear-trigger early-return (trigger 0).
  * The 8-row destination column is pre-cleared so the blit is observable. The routine reads no live
  * register and its live-out is memory-only, so registers/SP are not compared — but the oracle's
- * internal push/pop dirties the dead [0x87e0,0x8800) stack window, which is neutralized in both
+ * internal push/pop dirties the dead stack window below the entry SP, which is neutralized in both
  * dumps before the first-difference scan so a stack ghost cannot mask a real VRAM divergence.
  * Teeth: three broken RAM twins.
  */
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
+import { makeMachine, ENTRY_FRAMES, romsPresent, STACK_SCRATCH } from "./_harness.js";
 import { blitFrogAnimColumnOnTrigger } from "../blitFrogAnimColumnOnTrigger.js";
 import { loc_0f8c as oracle } from "../../translated/loc_0f8c.js";
-import manifest from "../../manifest.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 
 const TRIGGER = 0x8118;
 const DEST_BASE = 0xa806;
 const SRC_BASE = 0x1413;
 const ROWS = 8;
 const ROW_STRIDE = 32;
-const [STACK_LO, STACK_HI] = manifest.convergence.stateExclude.stack;
 const skip = romsPresent() ? false : "ROM images are gitignored; none assembled";
 
 let seed = null;
@@ -52,12 +50,13 @@ function entryWithTrigger(trigger) {
 // null == RAM-equivalent. The dead stack window is equalized in both dumps FIRST, because
 // firstStateDiff returns only the first divergence and the oracle's push/pop lives there.
 function ramDiff(cand, machine) {
+  const dead = deadStackBelow(STACK_SCRATCH, machine.regs.sp);
   const a = machine.clone(); oracle(a);
   const b = machine.clone(); cand(b);
   const da = a.dumpState(), db = b.dumpState();
   for (let off = 0; off < db.length; off++) {
     const addr = a.stateOffsetToAddr(off);
-    if (addr >= STACK_LO && addr < STACK_HI) db[off] = da[off];
+    if (dead(addr)) db[off] = da[off];
   }
   const d = firstStateDiff(da, db, (o) => a.stateOffsetToAddr(o));
   return d ? `0x${(d.addr ?? 0).toString(16)}: ${d.a} vs ${d.b}` : null;

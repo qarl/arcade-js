@@ -9,15 +9,15 @@
  * executes identically and its side effects are part of the compared live-out. The ride VRAM quad is
  * pre-dirtied. The one caller makes another call immediately, so LIVE-OUT is memory-only: RAM is
  * compared, registers/SP are not. The kill path's dissolved balanced trampoline is excluded from the RAM
- * diff (isStackScratch, detailed below). Teeth: three broken twins.
+ * diff (stack scratch below the entry SP, detailed below). Teeth: three broken twins.
  */
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { makeMachine, ENTRY_FRAMES, romsPresent, isStackScratch } from "./_harness.js";
+import { makeMachine, ENTRY_FRAMES, romsPresent, STACK_SCRATCH } from "./_harness.js";
 import { mountOrKillFrogOnTwoPairFigure } from "../mountOrKillFrogOnTwoPairFigure.js";
 import { loc_28bb as oracle } from "../../translated/loc_28bb.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 
 const ARM = 0x8150, PHASE = 0x83b7;
 const FROG_Y = 0x8047, FROG_X = 0x8044, DIVER_X = 0x8101;
@@ -47,12 +47,13 @@ function craft({ arm, phase, y, fx, dx, dirty }) {
 
 // null == RAM-equivalent. Memory-only live-out: compare RAM, not registers or SP. The kill path
 // dissolves the ROM's balanced push16(0x28ee)/call(0x12d0) trampoline into a direct killFrogAtLane
-// call, so the candidate no longer writes the sentinel into the dead stack scratch [0x87e0,0x8800);
-// exclude that region (isStackScratch) — the same class the pixel manifest's stateExclude.stack drops.
+// call, so the candidate no longer writes the sentinel into the dead stack scratch below the entry SP;
+// exclude that region — the same class the pixel manifest's stateExclude.stack drops.
 function ramDiff(cand, machine) {
+  const dead = deadStackBelow(STACK_SCRATCH, machine.regs.sp);
   const a = machine.clone(); oracle(a);
   const b = machine.clone(); cand(b);
-  const d = firstStateDiff(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), isStackScratch);
+  const d = firstStateDiff(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), dead);
   return d ? `0x${(d.addr ?? 0).toString(16)}: ${d.a} vs ${d.b}` : null;
 }
 

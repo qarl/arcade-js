@@ -11,20 +11,20 @@
  * sprites from live play; crafted variants derived from a real base drive the frog-carry, ride-off,
  * mid-loop-entry, phase-countdown and 256-byte-run paths the stationary-frog captures do not reach.
  * Live-out is memory-only: the oracle's only stack use is one net `ret` (a pop, no write), the rewrite
- * is a for-loop, so RAM is byte-identical; the dead stack window [0x87E0,0x8800) is masked anyway.
+ * is a for-loop, so RAM is byte-identical; the dead stack below the entry SP is masked anyway.
  * Teeth: three broken RAM twins, plus a positive control that the carry path actually fires.
  */
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { makeMachine, romsPresent } from "./_harness.js";
+import { makeMachine, romsPresent, STACK_SCRATCH } from "./_harness.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 import { moveLaneObjectsAndCarryFrog } from "../moveLaneObjectsAndCarryFrog.js";
 import { loc_14b7 as oracle } from "../../translated/loc_14b7.js";
 
 const skip = romsPresent() ? false : "ROM images are gitignored; none assembled";
 
 const INDEX = 0x80ff, FROG_X = 0x8044, FROG_Y = 0x8047, HOLD = 0x8004;
-const STACK_LO = 0x87e0, STACK_HI = 0x8800; // dead stack scratch, masked
 const COIN_FRAME = 150, START_FRAME = 210, PLAY_FLAG = 0x83fe;
 
 class StopCapture extends Error {}
@@ -58,6 +58,7 @@ function realEntries() {
 
 // null == RAM-equivalent. Memory-only live-out: compare RAM, mask the dead stack scratch.
 function ramDiff(cand, entry) {
+  const dead = deadStackBelow(STACK_SCRATCH, entry.regs.sp);
   const a = entry.clone();
   oracle(a);
   const b = entry.clone();
@@ -67,7 +68,7 @@ function ramDiff(cand, entry) {
   for (let i = 0; i < n; i++) {
     if (A[i] === B[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_LO && addr < STACK_HI) continue;
+    if (dead(addr)) continue;
     return `0x${(addr ?? 0).toString(16)}: ${A[i]} vs ${B[i]}`;
   }
   return null;

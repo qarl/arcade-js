@@ -5,29 +5,31 @@
  * column stride at 0x81B1 and the tile source at 0x8001, then calls the shared render loop directly.
  * Both sides run the real render loop with the anim index parked at 0x0a so only this arm renders (its
  * tail advances to 0x0b and wraps, no re-cascade); the oracle reaches it with a Z80 call and the rewrite
- * with a direct call, so the only divergence is dead stack scratch [0x87e0,0x8800), masked. Teeth: a
+ * with a direct call, so the only divergence is dead stack scratch below the entry SP, masked. Teeth: a
  * no-op and a twin that skips the 0x81B1 stash. Live-out memory-only.
  */
 import test from "node:test";
 import assert from "node:assert/strict";
 
 import { romsPresent, craft } from "./_frogHop.js";
+import { STACK_SCRATCH } from "./_harness.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 import { renderFrogAnimArm10 as cand } from "../renderFrogAnimArm10.js";
 import { loc_1178 as oracle } from "../../translated/loc_10f8.js";
 
 const skip = romsPresent() ? false : "ROM images are gitignored; none assembled";
-const STACK_LO = 0x87e0, STACK_HI = 0x8800;
 const ANIM_INDEX = 0x8000;
 const BLOCK = 0x828e, ROWADV = 0x81b1, SRC_PTR = 0x8001;
 
 function diff(entry, candFn = cand) {
+  const dead = deadStackBelow(STACK_SCRATCH, entry.regs.sp);
   const a = entry.clone(); oracle(a);
   const b = entry.clone(); candFn(b);
   const A = a.dumpState(), B = b.dumpState();
   for (let i = 0; i < Math.min(A.length, B.length); i++) {
     if (A[i] === B[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_LO && addr < STACK_HI) continue;
+    if (dead(addr)) continue;
     return `0x${addr.toString(16)}: ${A[i]} vs ${B[i]}`;
   }
   return null;

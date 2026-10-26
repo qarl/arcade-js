@@ -7,18 +7,18 @@
  * is a valid entry; each is nudged so the arm's sprite triple renders a small, bounded, observable
  * block (the anim index is parked one below its wrap so only this arm draws). The rewrite enters the
  * lifted render loop with a direct call where the oracle uses a Z80 call to 0x0ff1, so the only
- * divergence is the seam's transient pushed return address in dead stack scratch (isStackScratch),
+ * divergence is the seam's transient pushed return address in dead stack scratch below the entry SP,
  * excluded from the RAM compare. Live-out is memory-only, so RAM is compared and registers/SP are not.
  * Teeth: three broken twins (no-op, wrong plot cursor, skip the render call).
  */
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { makeMachine, ENTRY_FRAMES, romsPresent, isStackScratch } from "./_harness.js";
+import { makeMachine, ENTRY_FRAMES, romsPresent, STACK_SCRATCH } from "./_harness.js";
 import { ROUTINES as TRANSLATED } from "../../routines.js";
 import { renderFrogAnimArm6 } from "../renderFrogAnimArm6.js";
 import { loc_10f8 as oracle } from "../../translated/loc_10f8.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 
 const NEIGHBOUR = 0x0b1f; // per-frame score redraw; a source of coherent post-boot states
 const ANIM_INDEX = 0x8000; // parked one below the wrap so only this arm renders
@@ -54,9 +54,10 @@ function craft(machine) {
 
 // null == RAM-equivalent. Memory-only live-out: compare RAM, not registers or SP.
 function ramDiff(cand, machine) {
+  const dead = deadStackBelow(STACK_SCRATCH, machine.regs.sp);
   const a = machine.clone(); oracle(a);
   const b = machine.clone(); cand(b);
-  const d = firstStateDiff(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), isStackScratch);
+  const d = firstStateDiff(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), dead);
   return d ? `0x${(d.addr ?? 0).toString(16)}: ${d.a} vs ${d.b}` : null;
 }
 

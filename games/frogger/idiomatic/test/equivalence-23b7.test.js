@@ -8,14 +8,15 @@
  * the routine hands off to that direction's advance handler (0x1bba/0x1c0d/0x1c76/0x1cd5), with the frog X/Y
  * cursors armed and run on a fresh clone: the oracle reaches the frozen handlers via m.call, the rewrite
  * calls the lifted handlers directly. Live-out is memory-only, so RAM is compared and registers/SP are
- * not; the dead stack scratch [0x87e0,0x8800) is masked, since the lifted handlers no longer model the
+ * not; the dead stack scratch below the entry SP is masked, since the lifted handlers no longer model the
  * oracle's internal return-address push (e.g. the UP-hop slot-cursor call). Teeth: three broken twins
  * (no-op, wrong mirror value, skip the DOWN advance call).
  */
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
+import { makeMachine, ENTRY_FRAMES, romsPresent, STACK_SCRATCH } from "./_harness.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 import { ROUTINES as TRANSLATED } from "../../routines.js";
 import { advanceAttractDemoFrogHop } from "../advanceAttractDemoFrogHop.js";
 import { loc_23b7 as oracle } from "../../translated/loc_23b7.js";
@@ -56,10 +57,10 @@ function craftDirection(dir) {
   return c;
 }
 
-const STACK_LO = 0x87e0, STACK_HI = 0x8800; // dead stack scratch, masked
 
 // null == RAM-equivalent. Memory-only live-out: compare RAM, mask the dead stack scratch.
 function ramDiff(cand, machine) {
+  const dead = deadStackBelow(STACK_SCRATCH, machine.regs.sp);
   const a = machine.clone(); oracle(a);
   const b = machine.clone(); cand(b);
   const A = a.dumpState(), B = b.dumpState();
@@ -67,7 +68,7 @@ function ramDiff(cand, machine) {
   for (let i = 0; i < n; i++) {
     if (A[i] === B[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_LO && addr < STACK_HI) continue;
+    if (dead(addr)) continue;
     return `0x${(addr ?? 0).toString(16)}: ${A[i]} vs ${B[i]}`;
   }
   return null;

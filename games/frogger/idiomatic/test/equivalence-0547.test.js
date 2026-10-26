@@ -14,7 +14,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
+import { makeMachine, ENTRY_FRAMES, romsPresent, STACK_SCRATCH } from "./_harness.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 import { buildRoutines } from "../../routines.js";
 import { coldStartClearSlotGates as cand } from "../coldStartClearSlotGates.js";
 import { coldStartClearAltSlotGates } from "../coldStartClearAltSlotGates.js";
@@ -23,7 +24,6 @@ import { loc_0547 as oracle } from "../../translated/loc_0547.js";
 
 const skip = romsPresent() ? false : "ROM images are gitignored; none assembled";
 
-const STACK_LO = 0x87e0, STACK_HI = 0x8800;
 const SLOT = 0x825c, GATE0 = 0x825e, GATE4 = 0x8262, SURV = 0x8262, GAME_MODE = 0x83d6, PLAY_FLAG = 0x83fe;
 
 const balCall = (mm) => { mm.regs.sp = (mm.regs.sp + 2) & 0xffff; };
@@ -50,7 +50,7 @@ function seedMachine() {
 function craft(mut) {
   const e = seedMachine().clone();
   e.routines = MAP;
-  e.regs.sp = STACK_HI;
+  e.regs.sp = STACK_SCRATCH.hi;
   e.mem8[PLAY_FLAG] = 0;
   e.mem8[SLOT] = 0x09;
   e.mem8[GATE0] = 0x07; e.mem8[GATE0 + 1] = 0x07; e.mem8[GATE0 + 2] = 0x07; e.mem8[GATE0 + 3] = 0x07; e.mem8[GATE4] = 0x07;
@@ -60,6 +60,7 @@ function craft(mut) {
 }
 
 function ramDiff(orc, cnd, entry) {
+  const dead = deadStackBelow(STACK_SCRATCH, entry.regs.sp);
   const a = entry.clone(); a.routines = MAP; orc(a);
   const b = entry.clone(); b.routines = MAP; cnd(b);
   const A = a.dumpState(), B = b.dumpState();
@@ -67,7 +68,7 @@ function ramDiff(orc, cnd, entry) {
   for (let i = 0; i < n; i++) {
     if (A[i] === B[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_LO && addr < STACK_HI) continue;
+    if (dead(addr)) continue;
     return `0x${(addr ?? 0).toString(16)}: ${A[i]} vs ${B[i]}`;
   }
   return null;

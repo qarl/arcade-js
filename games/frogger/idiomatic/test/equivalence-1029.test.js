@@ -12,13 +12,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { makeMachine, ENTRY_FRAMES, romsPresent, isStackScratch } from "./_harness.js";
+import { makeMachine, ENTRY_FRAMES, romsPresent, STACK_SCRATCH } from "./_harness.js";
 import { ROUTINES as TRANSLATED } from "../../routines.js";
 import { advanceFrogAnimIndexAndRedispatch as cand } from "../advanceFrogAnimIndexAndRedispatch.js";
 import { dispatchFrogAnimationArm } from "../dispatchFrogAnimationArm.js";
 import { loc_1029 as oracle } from "../../translated/loc_0fd4.js";
 import { loc_0942 } from "../../translated/loc_0942.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 
 const skip = romsPresent() ? false : "ROM images are gitignored; none assembled";
 const ANIM_INDEX = 0x8000, STRIDE = 0x81b1, ARM10_BLOCK = 0x828e;
@@ -50,11 +50,12 @@ const byIndex = (k) => captures().caps.find((c) => c.mem8[ANIM_INDEX] === k);
 
 // null == RAM-equivalent (stack scratch masked). A throwing twin is still diffed on the state it left.
 function diff(entry, candFn = cand) {
+  const dead = deadStackBelow(STACK_SCRATCH, entry.regs.sp);
   const a = entry.clone(); oracle(a);
   const b = entry.clone();
   let threw = "";
   try { candFn(b); } catch (e) { threw = ` (candidate threw: ${e.message})`; }
-  const d = firstStateDiff(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), isStackScratch);
+  const d = firstStateDiff(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), dead);
   if (d) return `0x${(d.addr ?? 0).toString(16)}: ${d.a} vs ${d.b}${threw}`;
   return threw || null;
 }

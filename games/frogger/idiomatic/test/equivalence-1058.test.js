@@ -7,16 +7,16 @@
  * pre-blit trigger 0x8118 driven both off and on. The oracle runs the pre-blit and render loop via Z80
  * calls (0x0f8c, 0x0ff1); the rewrite calls the lifted pre-blit and direct-calls the lifted render loop,
  * so the only divergence is the seam's transient pushed return address in dead stack scratch
- * (isStackScratch), masked. Live-out is memory-only, so RAM is compared, not registers/SP. Teeth: four
+ * (below the entry SP), masked. Live-out is memory-only, so RAM is compared, not registers/SP. Teeth: four
  * broken twins.
  */
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { makeMachine, ENTRY_FRAMES, romsPresent, isStackScratch } from "./_harness.js";
+import { makeMachine, ENTRY_FRAMES, romsPresent, STACK_SCRATCH } from "./_harness.js";
 import { renderFrogAnimArm1 } from "../renderFrogAnimArm1.js";
 import { loc_1058 as oracle } from "../../translated/loc_1058.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 
 const ANIM_INDEX = 0x8000;
 const SPRITE_TRIPLE = 0x8273;
@@ -47,9 +47,10 @@ function entry(preblitTrigger) {
 
 // null == RAM-equivalent. Memory-only live-out: compare RAM, not registers or SP.
 function ramDiff(cand, machine) {
+  const dead = deadStackBelow(STACK_SCRATCH, machine.regs.sp);
   const a = machine.clone(); oracle(a);
   const b = machine.clone(); cand(b);
-  const d = firstStateDiff(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), isStackScratch);
+  const d = firstStateDiff(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), dead);
   return d ? `0x${(d.addr ?? 0).toString(16)}: ${d.a} vs ${d.b}` : null;
 }
 

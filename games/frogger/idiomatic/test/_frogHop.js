@@ -4,10 +4,11 @@
  * the frog is mid-hop, which plain attract never reaches, so a coherent post-boot state is captured at
  * the per-frame score-header redraw (0x0b1f) and the hop cells are poked to drive each branch. Both
  * sides run on a fresh clone with the frog X/Y cursors armed (HL=FROG_X, DE=FROG_Y), as the real callers
- * arm them; live-out is memory-only so RAM is compared with the dead stack scratch [0x87e0,0x8800) masked.
+ * arm them; live-out is memory-only so RAM is compared minus the dead stack scratch below the entry SP.
  */
 import assert from "node:assert/strict";
-import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
+import { makeMachine, ENTRY_FRAMES, romsPresent, STACK_SCRATCH } from "./_harness.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 import { ROUTINES as TRANSLATED } from "../../routines.js";
 
 export { romsPresent };
@@ -23,7 +24,6 @@ export const RELOAD = [0x8256, 0x8257, 0x8258, 0x8259];
 export const VDELTA = 0x8254, HDELTA = 0x8255;
 
 const NEIGHBOUR = 0x0b1f;
-const STACK_LO = 0x87e0, STACK_HI = 0x8800;
 
 let seed = null;
 export function seedState() {
@@ -50,6 +50,7 @@ export function craft(mut) {
 
 // null == RAM-equivalent (dead stack scratch masked); else a string naming the first differing address.
 export function ramDiff(oracle, cand, entry) {
+  const dead = deadStackBelow(STACK_SCRATCH, entry.regs.sp);
   const a = entry.clone(); oracle(a);
   const b = entry.clone(); cand(b);
   const A = a.dumpState(), B = b.dumpState();
@@ -57,7 +58,7 @@ export function ramDiff(oracle, cand, entry) {
   for (let i = 0; i < n; i++) {
     if (A[i] === B[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_LO && addr < STACK_HI) continue;
+    if (dead(addr)) continue;
     return `0x${(addr ?? 0).toString(16)}: ${A[i]} vs ${B[i]}`;
   }
   return null;

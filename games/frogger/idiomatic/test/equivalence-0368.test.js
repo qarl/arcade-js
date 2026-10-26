@@ -7,7 +7,7 @@
  * oracle loc_0368 runs to its next pass-start (step to 0x0341, or a jp 0x0368), cycle NMI disarmed;
  * the candidate calls the module (must return an iterator, write nothing, and finish on .next() writing
  * nothing — the `function* () {}` stub the sibling spine gates sever 0x0368 with), then runs the tail
- * pass. Compared: RAM (stack [0x87e0,0x8800) masked), the next entry kind (head vs tail), SP (asserted
+ * pass. Compared: RAM (minus stack scratch below the entry SP), the next entry kind (head vs tail), SP (asserted
  * 0x8800 on both sides: the oracle's at its next pass-start, measured balanced; the candidate's after the
  * tail), and the port log: every latch/PPI write (AddressSpace.isHardwareWrite) and every watchdog read
  * (0x8800 mirror) in program order, compared exactly.
@@ -24,7 +24,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { makeMachine, romsPresent, isStackScratch } from "./_harness.js";
+import { makeMachine, romsPresent, STACK_SCRATCH } from "./_harness.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 import { AddressSpace } from "../../../../boards/frogger/memory.js";
 import { Machine, resolveAllIdiomatic, withOmittedRet } from "../../machine.js";
 import { buildRoutines } from "../../routines.js";
@@ -156,8 +157,9 @@ function runOracle(e, poke) {
   return { m, next };
 }
 
-const same = (A, B, m) => {
-  for (let i = 0; i < A.length; i++) if (A[i] !== B[i] && !isStackScratch(m.stateOffsetToAddr(i))) return hx(m.stateOffsetToAddr(i));
+const same = (A, B, m, floor) => {
+  const dead = deadStackBelow(STACK_SCRATCH, floor);
+  for (let i = 0; i < A.length; i++) if (A[i] !== B[i] && !dead(m.stateOffsetToAddr(i))) return hx(m.stateOffsetToAddr(i));
   return null;
 };
 
@@ -167,9 +169,9 @@ function runCand(e, poke, fn = cand) {
   const s0 = m.mem.dumpState();
   const r = fn(m);
   assert.ok(r && typeof r.next === "function" && typeof r.throw === "function", `${e.name}: no iterator hand-off`);
-  assert.equal(same(s0, m.mem.dumpState(), m), null, `${e.name}: the call wrote RAM`);
+  assert.equal(same(s0, m.mem.dumpState(), m, e.src.regs.sp), null, `${e.name}: the call wrote RAM`);
   assert.equal(r.next().done, true, `${e.name}: the hand-off does not finish at once`);
-  assert.equal(same(s0, m.mem.dumpState(), m), null, `${e.name}: advancing the hand-off wrote RAM`);
+  assert.equal(same(s0, m.mem.dumpState(), m, e.src.regs.sp), null, `${e.name}: advancing the hand-off wrote RAM`);
   return { m, next: runOneForegroundPass(m, PACE_TAIL) };
 }
 
@@ -181,7 +183,7 @@ function diff(e, poke, fn = cand, tail = runCand) {
   if (o.m.regs.sp !== 0x8800) return `${e.name}: oracle SP ${hx(o.m.regs.sp)} at its next pass-start`;
   if (c.m.regs.sp !== 0x8800) return `${e.name}: candidate moved SP to ${hx(c.m.regs.sp)}`;
   if (o.m.hwLog.join() !== c.m.hwLog.join()) return `${e.name}: port log oracle=[${o.m.hwLog}] cand=[${c.m.hwLog}]`;
-  const d = same(o.m.mem.dumpState(), c.m.mem.dumpState(), o.m);
+  const d = same(o.m.mem.dumpState(), c.m.mem.dumpState(), o.m, e.src.regs.sp);
   return d && `${e.name}: RAM differs at ${d}`;
 }
 

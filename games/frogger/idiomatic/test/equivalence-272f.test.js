@@ -7,18 +7,18 @@
  * The timer (0x833E) and direction/step byte (0x833D) are poked to reach every path: countdown
  * re-render, midpoint sprite (both directions), step advance forward/backward, endpoint wrap, and
  * hold. The routine pushes a transient return slot for a folded add helper, so the diff masks the
- * dead [0x87E0,0x8800) stack scratch. Live-out is memory-only; registers/SP are not compared.
+ * dead stack scratch below the entry SP. Live-out is memory-only; registers/SP are not compared.
  * Teeth: four broken twins (no-op, no lane-base add, midpoint drops the flip bit, wrap drops the
  * direction flip).
  */
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
+import { makeMachine, ENTRY_FRAMES, romsPresent, STACK_SCRATCH } from "./_harness.js";
 import { ROUTINES as TRANSLATED } from "../../routines.js";
 import { driveFlyPatrol } from "../driveFlyPatrol.js";
 import { loc_272f as oracle } from "../../translated/loc_272f.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 
 const TIMER = 0x833e;
 const DIR = 0x833d;
@@ -27,7 +27,6 @@ const SPRITE = 0x8041;
 const LANE = 0x811c;
 const HARVEST = 0x0028;
 const CAP = 40;
-const STACK = [0x87e0, 0x8800]; // dead Z80 stack scratch below the seated SP
 const skip = romsPresent() ? false : "ROM images are gitignored; none assembled";
 
 let captured = null;
@@ -48,12 +47,13 @@ function capture() {
 // RAM diff that neutralizes the dead stack window in both dumps, so the first-diff-only helper
 // reports the first REAL divergence rather than the transient push residue.
 function ramDiff(cand, machine) {
+  const dead = deadStackBelow(STACK_SCRATCH, machine.regs.sp);
   const a = machine.clone(); oracle(a);
   const b = machine.clone(); cand(b);
   const da = a.dumpState(), db = b.dumpState();
   for (let off = 0; off < db.length; off++) {
     const addr = a.stateOffsetToAddr(off);
-    if (addr != null && addr >= STACK[0] && addr < STACK[1]) db[off] = da[off];
+    if (dead(addr)) db[off] = da[off];
   }
   const d = firstStateDiff(da, db, (o) => a.stateOffsetToAddr(o));
   return d ? `0x${(d.addr ?? 0).toString(16)}: ${d.a} vs ${d.b}` : null;

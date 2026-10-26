@@ -10,11 +10,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { romsPresent, craft } from "./_frogHop.js";
+import { STACK_SCRATCH } from "./_harness.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 import { renderFrogAnimTileColumns as cand } from "../renderFrogAnimTileColumns.js";
 import { loc_0ff1 as oracle } from "../../translated/loc_0fd4.js";
 
 const skip = romsPresent() ? false : "ROM images are gitignored; none assembled";
-const STACK_LO = 0x87e0, STACK_HI = 0x8800;
 
 const ANIM_INDEX = 0x8000, PLOT_SUPPRESS = 0x825b, ROW_ADVANCE = 0x81b1, SRC_PTR = 0x8001, ROW_COUNT = 0x8003;
 const DEST = 0xa843, SOURCE = 0x1403, SPR = 0x8100;
@@ -40,13 +41,14 @@ function seeded(suppress = 0) {
 }
 
 function diff(entry, candFn = cand) {
+  const dead = deadStackBelow(STACK_SCRATCH, entry.regs.sp);
   const a = entry.clone(); oracle(a);
   const b = entry.clone(); candFn(b);
   const A = a.dumpState(), B = b.dumpState();
   for (let i = 0; i < Math.min(A.length, B.length); i++) {
     if (A[i] === B[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_LO && addr < STACK_HI) continue;
+    if (dead(addr)) continue;
     return `0x${addr.toString(16)}: ${A[i]} vs ${B[i]}`;
   }
   return null;
