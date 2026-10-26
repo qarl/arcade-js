@@ -2,19 +2,21 @@
 // Memory-equivalence for drawSpriteColumn16 -- preserve BC, force a 0x10 row count, and delegate a sprite-column
 // draw (dissolved into drawSpriteColumn). Live-out: the drawn column RAM PLUS the advanced HL; BC is
 // left untouched. DE/A/flags the delegate leaves stale are DEAD -- the script walker re-derives them via
-// fetchNextDrawRecord before any read -- so only RAM (minus STACK_SCRATCH), HL, and the preserved BC are asserted.
+// fetchNextDrawRecord before any read -- so only RAM (minus stack scratch below the entry SP), HL, and the preserved BC are asserted.
 // Run: node --test games/invaders/idiomatic/test/equivalence-1844.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_1844 as oracle } from "../../translated/loc_1844.js";
+import { loc_1844 as oracleBody } from "../../translated/loc_1844.js";
 import { drawSpriteColumn16 } from "../drawSpriteColumn16.js";
 import { drawSpriteColumn } from "../drawSpriteColumn.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -23,9 +25,6 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0x1844;
 const CALLER_RET = 0xabcd;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

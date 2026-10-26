@@ -10,12 +10,14 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_15d3 as oracle } from "../../translated/loc_15d3.js";
+import { loc_15d3 as oracleBody } from "../../translated/loc_15d3.js";
 import { blitShiftedSprite } from "../blitShiftedSprite.js";
 import { seatBlitPosition } from "../seatBlitPosition.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -24,9 +26,6 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0x15d3;
 const CALLER_RET = 0xabcd;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 // coordToScreenAddr replica: HL >> 3, high byte forced into the 0x2000 video window.
 const screenAddr = (hl) => { const s = hl >> 3; return ((((((s >> 8) & 0x3f) | 0x20) << 8) | (s & 0xff))) & 0xffff; };

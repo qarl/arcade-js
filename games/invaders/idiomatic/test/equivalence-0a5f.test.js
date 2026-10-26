@@ -10,13 +10,16 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_0a5f as oracle } from "../../translated/loc_0a5f.js";
+import { loc_0a5f as oracleBody } from "../../translated/loc_0a5f.js";
 import { queueInvaderKillScore } from "../queueInvaderKillScore.js";
 import { startSound } from "../startSound.js";
 import { invaderScoreEntryPtr } from "../invaderScoreEntryPtr.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
+import { entered, ramDiff } from "./_liveStack.js";
 import { STACK_SCRATCH, GAME_IN_PROGRESS, SCORE_ADD_PENDING, SCORE_ADD_VALUE, SCORE_ADD_VALUE_HI, ALIEN_EXPLOSION_SPRITE_DESC } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -25,9 +28,6 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0x0a5f;
 const CALLER_RET = 0xabcd;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];
@@ -44,7 +44,7 @@ test("CAPTURE: real 0x0a5f dispatches -- queueInvaderKillScore == oracle in RAM 
     const sp = cap.regs.sp;
     const capDiff = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(),
       (off) => ma.stateOffsetToAddr(off),
-      (a) => inDeadStack(a) || (a != null && a >= sp - 0x10 && a < sp));
+      (a) => deadStackBelow(STACK_SCRATCH, sp)(a) || (a != null && a >= sp - 0x10 && a < sp));
     const o = cap.clone(), c = cap.clone();
     o.io.setInte(false); c.io.setInte(false);
     oracle(o); queueInvaderKillScore(c);

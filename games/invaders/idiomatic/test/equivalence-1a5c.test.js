@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for clearScreen (ROM 0x1a5c) -- "zero video RAM 0x2400..0x3fff". Live-out is memory
-// only: the caller (redrawScorePanel) reseats HL/A before reading them, so RAM (dumpState, minus STACK_SCRATCH)
+// only: the caller (redrawScorePanel) reseats HL/A before reading them, so RAM (dumpState, minus stack scratch below the entry SP)
 // is the whole contract. Interrupts are disabled on each clone so the oracle's per-instruction tick
 // (this loop spans several frames of cycles) cannot fire a handler that writes RAM only on its side.
 // Run: node --test games/invaders/idiomatic/test/equivalence-1a5c.test.js
@@ -9,11 +9,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_1a5c as oracle } from "../../translated/loc_1a5c.js";
+import { loc_1a5c as oracleBody } from "../../translated/loc_1a5c.js";
 import { clearScreen } from "../clearScreen.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, VIDEO_RAM_BASE, VIDEO_RAM_END } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+import { VIDEO_RAM_BASE, VIDEO_RAM_END } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -22,9 +24,6 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0x1a5c;
 const CALLER_RET = 0xabcd;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

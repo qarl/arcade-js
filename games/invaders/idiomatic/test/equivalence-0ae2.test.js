@@ -2,18 +2,21 @@
 // Memory-equivalence for loadDrawSequenceBlock (ROM 0x0ae2) -- seat HL=0x20c2, B=0x0c, tail-jump into blockCopy
 // (0x1a32): copy 12 bytes from (DE) to 0x20c2. The 0x1a32 m.call is DISSOLVED into a direct blockCopy.
 // Input register DE (source); live-out is memory only (blockCopy's HL/DE/B advances are dead across its
-// callers), so each side runs on its own machine and the contract is RAM (dumpState, minus STACK_SCRATCH).
+// callers), so each side runs on its own machine and the contract is RAM (dumpState, minus stack scratch below the entry SP).
 // Run: node --test games/invaders/idiomatic/test/equivalence-0ae2.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_0ae2 as oracle } from "../../translated/loc_0ae2.js";
+import { loc_0ae2 as oracleBody } from "../../translated/loc_0ae2.js";
 import { loadDrawSequenceBlock } from "../loadDrawSequenceBlock.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
+import { entered, ramDiff } from "./_liveStack.js";
 import { STACK_SCRATCH, ANIM_FRAME_COUNTER as DEST } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -23,9 +26,6 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 const TARGET = 0x0ae2;
 const N = 0x0c; // bytes copied
 const CALLER_RET = 0xabcd;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];
@@ -42,7 +42,7 @@ test("CAPTURE: real 0x0ae2 dispatches -- loadDrawSequenceBlock == oracle in RAM 
     const sp = cap.regs.sp;
     const capDiff = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(),
       (off) => ma.stateOffsetToAddr(off),
-      (a) => inDeadStack(a) || (a != null && a >= sp - 0x10 && a < sp));
+      (a) => deadStackBelow(STACK_SCRATCH, sp)(a) || (a != null && a >= sp - 0x10 && a < sp));
     const o = cap.clone(), c = cap.clone();
     o.io.setInte(false); c.io.setInte(false);
     oracle(o); loadDrawSequenceBlock(c);

@@ -20,18 +20,24 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_03bb as oracle } from "../../translated/loc_03bb.js";
+import { loc_03bb as oracleBody } from "../../translated/loc_03bb.js";
 import { playerShotHandler } from "../playerShotHandler.js";
 import { u8 } from "../../../../core/int.js";
 import { loadPlayerShotDescriptor } from "../loadPlayerShotDescriptor.js";
 import { eraseShiftedSprite } from "../eraseShiftedSprite.js";
 import { drawSpriteWithCollision } from "../drawSpriteWithCollision.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
+import { entered, entryFloor, ramDiff as liveRamDiff } from "./_liveStack.js";
 import {
   STACK_SCRATCH, PLAYER_SHOT_STATUS, PLAYER_SHOT_DESC, PLAYER_SHOT_RETIRE_TIMER, loc_2029, loc_202a, PLAYER_SHOT_ROW_COUNT, PLAYER_SHOT_Y_STEP,
   PLAYER_SHIP_X, COLLISION_FLAG, PLAYER_SHOT_HIT, DRAW_PHASE_FLAG, SAUCER_SCORE_KEY_PTR, SAUCER_DIR_SEQ_PTR, SAUCER_ACTIVE,
 } from "../names.js";
+
+const oracle = entered(oracleBody);
+// The `pop h` at 0x03c1 consumes the walker's record word at [SP]; the oracle's later pushes reuse that dead cell.
+const POPPED_ARG = 2;
+const ramDiff = (o, c) => liveRamDiff(o, c, entryFloor(o, c) + POPPED_ARG);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -39,9 +45,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x03bb;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];
@@ -56,7 +59,7 @@ test("CAPTURE: real 0x03bb dispatches -- playerShotHandler == oracle in RAM (-st
   for (const cap of CAPS) {
     const sp = cap.regs.sp;
     const capDiff = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(),
-      (off) => ma.stateOffsetToAddr(off), (a) => a != null && ((a >= sp - 0x40 && a < sp + 2) || inDeadStack(a)));
+      (off) => ma.stateOffsetToAddr(off), (a) => a != null && ((a >= sp - 0x40 && a < sp + POPPED_ARG) || deadStackBelow(STACK_SCRATCH, sp + POPPED_ARG)(a)));
     const o = cap.clone(), c = cap.clone();
     o.io.setInte(false); c.io.setInte(false);
     oracle(o); playerShotHandler(c);

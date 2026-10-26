@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for markAllAliensAlive (ROM 0x01c3) -- HL-relative fill: writes 0x01 to 0x37 bytes from HL
 // up, then ret. Input register HL, live-out memory only (HL and B are clobbered by every caller before
-// a read), so each side runs on a fresh clone and the contract is RAM (dumpState, minus STACK_SCRATCH).
+// a read), so each side runs on a fresh clone and the contract is RAM (dumpState, minus stack scratch below the entry SP).
 // Run: node --test games/invaders/idiomatic/test/equivalence-01c3.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_01c3 as oracle } from "../../translated/loc_01c3.js";
+import { loc_01c3 as oracleBody } from "../../translated/loc_01c3.js";
 import { markAllAliensAlive } from "../markAllAliensAlive.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -21,9 +22,6 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0x01c3;
 const FILL_LEN = 0x37;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

@@ -3,7 +3,7 @@
 // the real reset dispatch (Machine.reset's m.call(0x0000)) on a fresh Machine. BOUND: the oracle runs the
 // translated boot through to 0x18df (the never-returning attract loop), where a registry hook records
 // (pc, SP) and throws a sentinel; the idiomatic side returns bootInit's unstarted generator. Compared: RAM
-// minus STACK_SCRATCH at that hand-off; SP is not compared (stack-free idiomatic spine, gated whole-game).
+// minus stack scratch below the boot-seated SP at that hand-off; SP is not compared (stack-free idiomatic spine, gated whole-game).
 // HAND-OFF: the return is an enterAttractCycle generator. TEETH: a twin that jumps straight to the attract
 // join (no boot init) is caught in work RAM; a twin that drops the hand-off fails the hand-off check.
 // Run: node --test games/invaders/idiomatic/test/equivalence-0000.test.js
@@ -12,13 +12,15 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_0000 as oracle } from "../../translated/loc_0000.js";
+import { loc_0000 as oracleBody } from "../../translated/loc_0000.js";
 import { resetEntry } from "../resetEntry.js";
 import { bootInit } from "../bootInit.js";
 import { enterAttractCycle } from "../enterAttractCycle.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { entered, ramDiff } from "./_liveStack.js";
 import { STACK_SCRATCH, ALIEN_DRAW_PENDING, loc_20cf } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -27,12 +29,9 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0x0000;
 const HANDOFF = 0x18df;
-const BOOT_SP = 0x2400;
+const BOOT_SP = 0x2400; // the boot's own `lxi sp`: reset has no caller frame, so this is the live floor
 const STOP = Symbol("resetEntry-bound");
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 // Clone at the real dispatch, then stop the boot. The registry is shared by every clone, so the 0x18df
 // hook also bounds each oracle replay (0x18d4 stays the translated oracle).
@@ -72,7 +71,7 @@ test("EQUAL: resetEntry == oracle in RAM (-stack) at the 0x18df hand-off; return
   const { o } = runOracle();
   const c = ENTRY.clone();
   const g = resetEntry(c);
-  const d = ramDiff(o, c);
+  const d = ramDiff(o, c, BOOT_SP);
   assert.equal(d, null, d && `RAM diverged at ${hx(d.addr ?? 0)} (oracle=${d.a} idiomatic=${d.b})`);
   assert.ok(isAttractJoin(g), "resetEntry did not hand off to enterAttractCycle");
   assert.notEqual(c.mem.read8(loc_20cf), 0x08, "the attract join ran eagerly (0x20cf seeded before hand-off)");
@@ -83,7 +82,7 @@ test("TEETH: a twin that jumps straight to the attract join (no boot init) is ca
   const { o } = runOracle();
   const c = ENTRY.clone();
   assert.ok(isAttractJoin(twin(c)), "control: the twin's hand-off is right, so only the RAM diff can catch it");
-  const d = ramDiff(o, c);
+  const d = ramDiff(o, c, BOOT_SP);
   assert.notEqual(d, null, "the gate FAILED to catch a skipped boot init");
   assert.ok(d.addr >= ALIEN_DRAW_PENDING && d.addr < ALIEN_DRAW_PENDING + 0x100, `caught at ${hx(d.addr ?? 0)}`);
 });
@@ -93,6 +92,6 @@ test("TEETH: a twin that runs boot init but drops the hand-off fails the hand-of
   const { o } = runOracle();
   const c = ENTRY.clone();
   const g = twin(c);
-  assert.equal(ramDiff(o, c), null, "control: the twin's RAM matches, so only the hand-off check can catch it");
+  assert.equal(ramDiff(o, c, BOOT_SP), null, "control: the twin's RAM matches, so only the hand-off check can catch it");
   assert.equal(isAttractJoin(g), false, "the hand-off check FAILED to catch the dropped hand-off");
 });

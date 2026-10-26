@@ -2,18 +2,19 @@
 // Memory-equivalence for captureScreenRect -- block-copy a rectangle: for B rows copy C bytes from [HL] to a
 // contiguous [DE] stream, dropping the source base one screen row between rows. Live-out is memory
 // PLUS the two carried pointers DE (stream end) and HL (advanced source base) -- the sole caller
-// threads both across passes -- so each check diffs RAM (minus STACK_SCRATCH) AND asserts DE and HL.
+// threads both across passes -- so each check diffs RAM (minus stack scratch below the entry SP) AND asserts DE and HL.
 // Run: node --test games/invaders/idiomatic/test/equivalence-147c.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_147c as oracle } from "../../translated/loc_147c.js";
+import { loc_147c as oracleBody } from "../../translated/loc_147c.js";
 import { captureScreenRect } from "../captureScreenRect.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -21,9 +22,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x147c;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

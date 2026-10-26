@@ -9,12 +9,15 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_01ef as oracle } from "../../translated/loc_01ef.js";
+import { loc_01ef as oracleBody } from "../../translated/loc_01ef.js";
 import { initPlayer1ShieldBuffers } from "../initPlayer1ShieldBuffers.js";
 import { initShieldBuffers } from "../initShieldBuffers.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, SHIELD_TEMPLATE } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+import { SHIELD_TEMPLATE } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -25,9 +28,6 @@ const TARGET = 0x01ef;
 const BASE = 0x2142;
 const BLOCK = 0x2c;
 const endHl = (hl) => (hl + 4 * BLOCK) & 0xffff;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

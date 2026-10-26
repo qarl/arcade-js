@@ -9,11 +9,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_1581 as oracle } from "../../translated/loc_1581.js";
+import { loc_1581 as oracleBody } from "../../translated/loc_1581.js";
 import { alienGridCellPtr } from "../alienGridCellPtr.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, ACTIVE_PLAYER_PAGE } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+import { ACTIVE_PLAYER_PAGE } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -21,9 +23,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x1581;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 // The record pointer the routine builds in HL.
 const expectHl = (page, b, c) => {

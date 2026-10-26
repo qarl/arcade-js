@@ -4,20 +4,22 @@
 // advancing the id pointer per sprite until the count drains. The incoming C is IGNORED (forced to 3).
 // Live-out: the blitted cells (RAM), HL (advanced 0x100 per sprite), DE (= entry DE + 3), C (= 0). The
 // oracle push/pops DE (and the delegate's HL/BC) through the stack scratch below the entry SP; the module
-// keeps its walk in locals, so CAPTURE excludes relative to that SP and CRAFTED excludes STACK_SCRATCH.
+// keeps its walk in locals, so CAPTURE excludes relative to that SP and CRAFTED excludes STACK_SCRATCH below the entry SP.
 // Run: node --test games/invaders/idiomatic/test/equivalence-08f1.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_08f1 as oracle } from "../../translated/loc_08f1.js";
+import { loc_08f1 as oracleBody } from "../../translated/loc_08f1.js";
 import { drawThreeSprites } from "../drawThreeSprites.js";
 import { drawSpriteList } from "../drawSpriteList.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
 import { u16 } from "../../../../core/int.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -27,9 +29,6 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 const TARGET = 0x08f1;
 const CALLER_RET = 0xabcd;
 const COUNT = 3;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

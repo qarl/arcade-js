@@ -8,16 +8,18 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_1618 as oracle } from "../../translated/loc_1618.js";
+import { loc_1618 as oracleBody } from "../../translated/loc_1618.js";
 import { advanceRoundState } from "../advanceRoundState.js";
 import { readActivePlayerInput } from "../readActivePlayerInput.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { entered, ramDiff } from "./_liveStack.js";
 import { u16 } from "../../../../core/int.js";
 import {
-  STACK_SCRATCH, ACTIVE_PLAYER_PAGE,
+  ACTIVE_PLAYER_PAGE,
   GAME_OBJECT_TABLE, loc_2011, loc_2015, DEMO_SHIP_DIR, PLAYER_SHOT_STATUS, FIRE_BUTTON_LATCH, ATTRACT_DEMO_PTR, GAME_IN_PROGRESS,
 } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -25,9 +27,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x1618;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 // A module-mutating broken twin: never wrap the march pointer's low byte back into the window.
 function brokenLoc_1618(m) {

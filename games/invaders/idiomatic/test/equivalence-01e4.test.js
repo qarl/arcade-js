@@ -6,7 +6,7 @@
 // itself cannot be reused because it reads B from the caller (bootInit passes B=0x00 => 256), and the count
 // must be forced. Live-out is memory only: the oracle advances DE/HL and zeroes B, but no caller (loc_02f8,
 // advanceToNextRound, runAttractCycle, startGameFlow) reads them back -- each re-seats HL/DE or saves A/flags across the call. So
-// each side runs on its own machine and the contract is RAM (dumpState, minus STACK_SCRATCH -- the oracle's
+// each side runs on its own machine and the contract is RAM (dumpState, minus stack scratch below the entry SP -- the oracle's
 // tail chain rets, popping one word).
 // Run: node --test games/invaders/idiomatic/test/equivalence-01e4.test.js
 
@@ -14,11 +14,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_01e4 as oracle } from "../../translated/loc_01e4.js";
+import { loc_01e4 as oracleBody } from "../../translated/loc_01e4.js";
 import { seedWorkRamImage } from "../seedWorkRamImage.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, WORKRAM_INIT_IMAGE, ALIEN_DRAW_PENDING } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+import { WORKRAM_INIT_IMAGE, ALIEN_DRAW_PENDING } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -27,9 +29,6 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0x01e4;
 const COUNT = 0xc0;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

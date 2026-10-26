@@ -10,12 +10,15 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_01f8 as oracle } from "../../translated/loc_01f8.js";
+import { loc_01f8 as oracleBody } from "../../translated/loc_01f8.js";
 import { initShieldBuffers } from "../initShieldBuffers.js";
 import { blockCopy } from "../blockCopy.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, SHIELD_TEMPLATE } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+import { SHIELD_TEMPLATE } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -24,9 +27,6 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0x01f8;
 const BLOCK = 0x2c;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 // End pointer the loop leaves in HL: start + 4 passes * 0x2c, wrapped to 16 bits.
 const endHl = (hl) => (hl + 4 * BLOCK) & 0xffff;

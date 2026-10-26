@@ -15,7 +15,7 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_04b6 as oracle } from "../../translated/loc_04b6.js";
+import { loc_04b6 as oracleBody } from "../../translated/loc_04b6.js";
 import { alienShotSlot3Handler } from "../alienShotSlot3Handler.js";
 import { copyRecordToWorkBuffer } from "../copyRecordToWorkBuffer.js";
 import { stepAlienShot } from "../stepAlienShot.js";
@@ -23,11 +23,17 @@ import { copyWorkBufferToRecord } from "../copyWorkBufferToRecord.js";
 import { blockCopy } from "../blockCopy.js";
 import { loc_067e } from "../loc_067e.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
+import { entered, entryFloor, ramDiff as liveRamDiff } from "./_liveStack.js";
 import {
   STACK_SCRATCH, ALIEN_SHOT_SLOT3_DISABLE_FLAG, loc_2080, ALIEN_SHOT_SLOT3_DESC, loc_2036, ALIEN_SHOT_RATE_GATE0, loc_2056, ALIEN_SHOT_RATE_GATE_1, ALIEN_SHOT_COLUMN_CURSOR,
   ALIEN_SHOT_COLUMN_CURSOR_RESET, ALIEN_SHOT_BLOWUP_TIMER, ALIEN_SHOT_SLOT3_RECORD, ALIEN_SHOT_SLOT3_TEMPLATE, ALIEN_COUNT, SHIP_READY_FLAG, TASK_FLAGS,
 } from "../names.js";
+
+const oracle = entered(oracleBody);
+// The entry `pop h` consumes the walker's record word at [SP]; the oracle's later pushes reuse that dead cell.
+const POPPED_ARG = 2;
+const ramDiff = (o, c) => liveRamDiff(o, c, entryFloor(o, c) + POPPED_ARG);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -35,9 +41,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x04b6;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];
@@ -52,7 +55,7 @@ test("CAPTURE: real 0x04b6 dispatches -- alienShotSlot3Handler == oracle in RAM 
   for (const cap of CAPS) {
     const sp = cap.regs.sp;
     const capDiff = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(),
-      (off) => ma.stateOffsetToAddr(off), (a) => a != null && ((a >= sp - 0x40 && a < sp + 2) || inDeadStack(a)));
+      (off) => ma.stateOffsetToAddr(off), (a) => a != null && ((a >= sp - 0x40 && a < sp + POPPED_ARG) || deadStackBelow(STACK_SCRATCH, sp + POPPED_ARG)(a)));
     const o = cap.clone(), c = cap.clone();
     o.io.setInte(false); c.io.setInte(false);
     oracle(o); alienShotSlot3Handler(c);

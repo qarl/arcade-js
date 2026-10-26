@@ -22,18 +22,21 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_050f as oracle } from "../../translated/loc_050f.js";
+import { loc_050f as oracleBody } from "../../translated/loc_050f.js";
 import { attractAnimHandler } from "../attractAnimHandler.js";
 import { walkObjectTable } from "../walkObjectTable.js";
 import { copyRecordToWorkBuffer } from "../copyRecordToWorkBuffer.js";
 import { stepAlienShot } from "../stepAlienShot.js";
 import { blockCopy } from "../blockCopy.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
+import { entered, ramDiff } from "./_liveStack.js";
 import {
   STACK_SCRATCH, ATTRACT_ANIM_ACK, ATTRACT_ANIM_HANDLER_ADDR, loc_2046, ALIEN_SHOT_RATE_GATE0, loc_2036, ALIEN_SHOT_RATE_GATE_1,
   SHIP_READY_FLAG, TASK_FLAGS, ALIEN_SHOT_COLUMN_CURSOR, loc_1b58, ALIEN_SHOT_BLOWUP_TIMER, ALIEN_SHOT_RECORD_TEMPLATE, ATTRACT_OBJECT_TABLE, ALIEN_SHOT4_COLUMN_CURSOR,
 } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -44,9 +47,6 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 // body reached by the walker's pchl. Capture real dispatch STATES at 0x050f (valid runtime state for the
 // body attractAnimHandler runs) and compare the handler against the oracle there.
 const BODY = 0x050f;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureBodyDispatches(K, maxFrames) {
   const caps = [];
@@ -63,7 +63,7 @@ test("CAPTURE: real body dispatches -- attractAnimHandler == oracle in RAM (-sta
     // These object-walk dispatches run with SP high (into video RAM); the record-pointer slot the walker
     // pushes lands at [sp, sp+1] and is dead once the handler consumes it, so the mask spans past sp.
     const capDiff = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(),
-      (off) => ma.stateOffsetToAddr(off), (a) => a != null && ((a >= sp - 0x40 && a < sp + 2) || inDeadStack(a)));
+      (off) => ma.stateOffsetToAddr(off), (a) => a != null && ((a >= sp - 0x40 && a < sp) || deadStackBelow(STACK_SCRATCH, sp)(a)));
     const o = cap.clone(), c = cap.clone();
     o.io.setInte(false); c.io.setInte(false);
     oracle(o); attractAnimHandler(c);

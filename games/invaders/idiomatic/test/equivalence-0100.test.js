@@ -14,13 +14,15 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_0100 as oracle } from "../../translated/loc_0100.js";
+import { loc_0100 as oracleBody } from "../../translated/loc_0100.js";
 import { drawPendingAlien } from "../drawPendingAlien.js";
 import { blitShiftedSprite } from "../blitShiftedSprite.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
 import { u8 } from "../../../../core/int.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -31,9 +33,6 @@ const TARGET = 0x0100;
 const CALLER_RET = 0xabcd;
 const PLAYER_SHOT_HIT = 0x2002, DESPAWN_TIMER = 0x2003, SPRITE_ID = 0x2004, FRAME_FLAG = 0x2005;
 const OBJ_LOW = 0x2006, OBJ_PAGE = 0x2067, DRAW_ADDR = 0x200b, DRAW_PENDING = 0x2000;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

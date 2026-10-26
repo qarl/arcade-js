@@ -13,7 +13,7 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_1956 as oracle } from "../../translated/loc_1956.js";
+import { loc_1956 as oracleBody } from "../../translated/loc_1956.js";
 import { redrawScorePanel } from "../redrawScorePanel.js";
 import { clearScreen } from "../clearScreen.js";
 import { drawScoreHeader } from "../drawScoreHeader.js";
@@ -23,9 +23,12 @@ import { drawHighScore } from "../drawHighScore.js";
 import { drawCreditLabel } from "../drawCreditLabel.js";
 import { drawCreditCount } from "../drawCreditCount.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { firstStateDiff, seamPlaceable, deadStackBelow } from "../../../../core/equivalence.js";
+import { entered, ramDiff } from "./_liveStack.js";
 import { STACK_SCRATCH, CREDIT_COUNT, CREDIT_COUNT_SCREEN_ADDR,
          CREDIT_LABEL_SCREEN_ADDR, PLAYER1_OBJ_DESC, PLAYER2_OBJ_DESC, HIGH_SCORE_OBJ_DESC } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -34,9 +37,6 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0x1956;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 // Sum a run of screen bytes down a sprite column (stride 0x20) to prove a limb actually painted.
 function drawn(m, base, cols) {
@@ -78,7 +78,7 @@ test("CAPTURE: real 0x1956 dispatches -- redrawScorePanel == oracle in RAM (-sta
     // The oracle's draw-chain call/ret residue sits just below the ENTRY SP.
     const sp = cap.regs.sp;
     const capDiff = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(),
-      (off) => ma.stateOffsetToAddr(off), (a) => inDeadStack(a) || (a != null && a >= sp - 0x20 && a < sp));
+      (off) => ma.stateOffsetToAddr(off), (a) => deadStackBelow(STACK_SCRATCH, sp)(a) || (a != null && a >= sp - 0x20 && a < sp));
     const o = cap.clone(), c = cap.clone();
     o.io.setInte(false); c.io.setInte(false);
     oracle(o); redrawScorePanel(c);

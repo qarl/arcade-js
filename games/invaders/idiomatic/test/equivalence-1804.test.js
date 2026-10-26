@@ -11,11 +11,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_1804 as oracle } from "../../translated/loc_1804.js";
+import { loc_1804 as oracleBody } from "../../translated/loc_1804.js";
 import { updateSaucerSound } from "../updateSaucerSound.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, SOUND_PORT3_SHADOW } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+import { SOUND_PORT3_SHADOW } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -25,9 +27,6 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 const TARGET = 0x1804;
 const FLAG0 = 0x2084; // the primary gate flag (0 => silence the saucer)
 const FLAG1 = 0x2085; // the secondary gate flag (nonzero => leave the sound alone)
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

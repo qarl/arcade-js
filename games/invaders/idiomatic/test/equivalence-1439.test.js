@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for drawSpriteColumn -- copy B bytes into a vertical column ([dst] <- [src], dst steps
 // one screen row, src steps one byte). Live-out is memory PLUS the advanced destination pointer HL
-// (a caller carries it across passes), so each check diffs RAM (minus STACK_SCRATCH) AND asserts HL.
+// (a caller carries it across passes), so each check diffs RAM (minus stack scratch below the entry SP) AND asserts HL.
 // Run: node --test games/invaders/idiomatic/test/equivalence-1439.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_1439 as oracle } from "../../translated/loc_1439.js";
+import { loc_1439 as oracleBody } from "../../translated/loc_1439.js";
 import { drawSpriteColumn } from "../drawSpriteColumn.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -20,9 +21,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x1439;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

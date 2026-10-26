@@ -3,19 +3,21 @@
 // otherwise it blanks a fixed 0x20-column screen strip from 0x391c (dissolved into clearScreenStrip ->
 // fillScreenRow). Live-out: the cleared cells (RAM) AND HL (the strip's end pointer, or entry HL when the
 // guard short-circuits). The oracle push/pops BC through the stack scratch below the entry SP; the module
-// drops the save/restore, so CAPTURE excludes relative to that SP and CRAFTED excludes STACK_SCRATCH.
+// drops the save/restore, so CAPTURE excludes relative to that SP and CRAFTED excludes STACK_SCRATCH below the entry SP.
 // Run: node --test games/invaders/idiomatic/test/equivalence-08e4.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_08e4 as oracle } from "../../translated/loc_08e4.js";
+import { loc_08e4 as oracleBody } from "../../translated/loc_08e4.js";
 import { blankScreenStrip } from "../blankScreenStrip.js";
 import { clearScreenStrip } from "../clearScreenStrip.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -27,9 +29,6 @@ const GUARD = 0x20ce;
 const STRIP = 0x391c;
 const STRIP_END = (STRIP + 0x20 * 0x20) & 0xffff; // 0x391c + 0x20 columns * 0x20 stride
 const CALLER_RET = 0xabcd;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

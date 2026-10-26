@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for readActivePlayerInput (ROM 0x17c0-0x17cc) -- "flag ACTIVE_PLAYER_PAGE bit0 (via rrc->carry) selects
 // the input port: set -> IN 1, clear -> IN 2; returns A". Input is the flag cell; live-out is register A
-// (the port read value); no RAM write. Contract: RAM (minus STACK_SCRATCH) PLUS the returned A.
+// (the port read value); no RAM write. Contract: RAM (minus stack scratch below the entry SP) PLUS the returned A.
 // Run: node --test games/invaders/idiomatic/test/equivalence-17c0.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_17c0 as oracle } from "../../translated/loc_17c0.js";
+import { loc_17c0 as oracleBody } from "../../translated/loc_17c0.js";
 import { readActivePlayerInput } from "../readActivePlayerInput.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, ACTIVE_PLAYER_PAGE } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+import { ACTIVE_PLAYER_PAGE } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -20,9 +22,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x17c0;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 // Distinct sentinels on the two read ports so the returned-A assertion has teeth (IN1 != IN2).
 const IN1 = 0x5a, IN2 = 0xa5;

@@ -5,7 +5,7 @@
 // regs saved/restored there as the RST push/pop does.
 // BOUND: the oracle's fall into finishAttractCycle (0x0b89) + EXTRA frames of teardown; the idiomatic run
 // stops at the same frame count.
-// CONTRACT: per-frame RAM minus STACK_SCRATCH, plus the IO log (every port write but watchdog port 6, and INTE),
+// CONTRACT: per-frame RAM minus stack scratch below the entry SP, plus the IO log (every port write but watchdog port 6, and INTE),
 // plus per-frame watchdog kick COUNTS: equal, except oracle = module+1 on each frame 0x0a80 leaves its poll loop
 // (its final `out 6` poll has no module twin) -- measured: toggle 1 equal, toggle 0 +1 on three frames.
 // The kick VALUE is not compared: port 6 is a strobe, and the module writes updateFleetAndDrawCopyright's
@@ -24,6 +24,7 @@ import { runAttractCycle as idiomatic } from "../runAttractCycle.js";
 import { STACK_SCRATCH, SCREEN_MODE_TOGGLE, PLAYER1_SHIP_COUNT, TASK_FLAGS, loc_2015, INPUT_CODE_STAGE_FLAG, TAITO_COPYRIGHT_SCREEN_ADDR } from "../names.js";
 import { idiomaticMidNmi } from "../idiomaticMidNmi.js";
 import { idiomaticVblankNmi } from "../idiomaticVblankNmi.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 import { Machine } from "../../machine.js";
 import { buildRoutines } from "../../routines.js";
 
@@ -59,13 +60,13 @@ function logIo(m, io) {
   m.io.setInte = (on) => { io.push(`${io.frame}:inte=${!!on}`); return inte(on); };
 }
 function service(m) { idiomaticMidNmi(m); idiomaticVblankNmi(m); }
-const inScratch = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /** Oracle under the frame model; bound = landmark arrival + EXTRA. onStep may throw BOUND; hook = crafted poke after
  * each service, applied identically by runIdiomatic. */
 function runOracle(e, { routines, onStep, hook, fn = oracle, mark = LANDMARK } = {}) {
   const m = fresh(e, routines), snaps = [], io = []; io.frame = 0;
   let limit = MAX_FRAMES, landmark = null, minSp = m.regs.sp;
+  const floor = m.regs.sp; // the entry SP: cells from it up are the caller's live frame
   const animExits = new Set(); // frames where 0x0a80 left its poll loop (its last poll's kick has no module twin)
   logIo(m, io);
   const snap = () => m.dumpState();
@@ -86,7 +87,7 @@ function runOracle(e, { routines, onStep, hook, fn = oracle, mark = LANDMARK } =
   };
   let bounded = false, returned = false;
   try { fn(m); returned = true; snaps.push(snap()); } catch (x) { if (x !== BOUND) throw x; bounded = true; }
-  return { m, snaps, io, landmark, minSp, bounded, returned, animExits };
+  return { m, snaps, io, landmark, minSp, floor, bounded, returned, animExits };
 }
 function runIdiomatic(e, gen, frames, hook) {
   const m = fresh(e), snaps = [], io = []; io.frame = 0;
@@ -102,7 +103,7 @@ function runIdiomatic(e, gen, frames, hook) {
 }
 function firstDiff(o, c) {
   if (o.returned !== c.done) return { frame: -1, what: `oracle returned=${o.returned}, module done=${c.done}` };
-  const skip = inScratch;
+  const skip = deadStackBelow(STACK_SCRATCH, o.floor);
   if (o.snaps.length !== c.snaps.length) return { frame: Math.min(o.snaps.length, c.snaps.length), what: `frames ${o.snaps.length} vs ${c.snaps.length}` };
   for (let f = 0; f < o.snaps.length; f++) {
     const a = o.snaps[f], b = c.snaps[f];

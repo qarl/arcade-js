@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for silenceFleetMarchNote (ROM 0x176d) -- "OUT 5 := mem[0x2098] & 0x30" (sound-off helper). No
 // input register (the source byte lives in RAM); no memory is written, so the contract is the port-5
-// write (captured by wrapping io.portOut) plus a RAM sanity diff, minus STACK_SCRATCH. A/flags are dead
+// write (captured by wrapping io.portOut) plus a RAM sanity diff, minus stack scratch below the entry SP. A/flags are dead
 // (every caller path overwrites A before reading it), so only the port write is asserted.
 // Run: node --test games/invaders/idiomatic/test/equivalence-176d.test.js
 
@@ -9,11 +9,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_176d as oracle } from "../../translated/loc_176d.js";
+import { loc_176d as oracleBody } from "../../translated/loc_176d.js";
 import { silenceFleetMarchNote } from "../silenceFleetMarchNote.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, SOUND_PORT5_SHADOW } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+import { SOUND_PORT5_SHADOW } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -21,9 +23,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x176d;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 // Capture the port writes a routine performs against a machine (the routine's real live-out).
 function portWritesOf(mm, fn) {

@@ -3,19 +3,22 @@
 // force the low byte to 0xff, and load A from that top-of-page status byte. No input register (the page
 // byte lives in RAM); writes NO game RAM. Live-out: HL = (page<<8)|0xff AND A = mem[HL]. The oracle's
 // call to 0x1611 leaves a return-address residue in the stack scratch below the entry SP -- CAPTURE
-// excludes relative to that SP, CRAFTED excludes the fixed STACK_SCRATCH window.
+// excludes relative to that SP, CRAFTED excludes STACK_SCRATCH below the entry SP.
 // Run: node --test games/invaders/idiomatic/test/equivalence-092e.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_092e as oracle } from "../../translated/loc_092e.js";
+import { loc_092e as oracleBody } from "../../translated/loc_092e.js";
 import { readActivePlayerPageTopByte } from "../readActivePlayerPageTopByte.js";
 import { activePlayerPageBase } from "../activePlayerPageBase.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, ACTIVE_PLAYER_PAGE } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+import { ACTIVE_PLAYER_PAGE } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -23,9 +26,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x092e;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

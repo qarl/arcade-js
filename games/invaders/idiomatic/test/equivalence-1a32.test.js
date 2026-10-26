@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for blockCopy (ROM 0x1a32) -- block-copy of B bytes from (DE) to (HL), both
 // advancing. Live-out is memory only (every caller overwrites HL/DE/B/A and none reads a flag), so
-// each side runs on its own machine and the contract is RAM (dumpState, minus STACK_SCRATCH).
+// each side runs on its own machine and the contract is RAM (dumpState, minus stack scratch below the entry SP).
 // Run: node --test games/invaders/idiomatic/test/equivalence-1a32.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_1a32 as oracle } from "../../translated/loc_1a32.js";
+import { loc_1a32 as oracleBody } from "../../translated/loc_1a32.js";
 import { blockCopy } from "../blockCopy.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -20,9 +21,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x1a32;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

@@ -13,14 +13,17 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_0644 as oracle } from "../../translated/loc_0644.js";
+import { loc_0644 as oracleBody } from "../../translated/loc_0644.js";
 import { stepAlienShotBlowup } from "../stepAlienShotBlowup.js";
 import { eraseAlienShot } from "../eraseAlienShot.js";
 import { drawAlienShotWithCollision } from "../drawAlienShotWithCollision.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
+import { entered, entryFloor } from "./_liveStack.js";
 import { COLLISION_FLAG } from "../names.js";
 import { u8 } from "../../../../core/int.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -30,10 +33,10 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 const TARGET = 0x0644;
 const CALLER_RET = 0xabcd;
 const COUNTER = 0x2078, SHOT_PTR = 0x2079, TIMER_C = 0x207c, TIMER_B = 0x207b, ROWS = 0x207d;
-// The ==3 arm runs two sprite routines sequentially below the entry SP; exclude a generous dead-stack window.
-const inDeadStack = (a) => a != null && a >= 0x23c0 && a < 0x2400;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+// The ==3 arm runs two sprite routines sequentially below the entry SP; exclude a generous window below it.
+const DEAD_STACK = { lo: 0x23c0, hi: 0x2400 };
+const ramDiff = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off),
+  deadStackBelow(DEAD_STACK, entryFloor(ma, mb)));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

@@ -17,7 +17,7 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_0476 as oracle } from "../../translated/loc_0476.js";
+import { loc_0476 as oracleBody } from "../../translated/loc_0476.js";
 import { alienShotSlot2Handler } from "../alienShotSlot2Handler.js";
 import { u16 } from "../../../../core/int.js";
 import { copyRecordToWorkBuffer } from "../copyRecordToWorkBuffer.js";
@@ -25,11 +25,17 @@ import { stepAlienShot } from "../stepAlienShot.js";
 import { copyWorkBufferToRecord } from "../copyWorkBufferToRecord.js";
 import { blockCopy } from "../blockCopy.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
+import { entered, entryFloor, ramDiff as liveRamDiff } from "./_liveStack.js";
 import {
   STACK_SCRATCH, loc_1b32, loc_2032, ALIEN_SHOT2_STEP_GATE, loc_2035, loc_2046, ALIEN_SHOT_RATE_GATE0, loc_2056, ALIEN_SHOT_RATE_GATE_1,
   SHIP_READY_FLAG, TASK_FLAGS, ALIEN_SHOT_BLOWUP_TIMER, ALIEN_SHOT_SLOT2_RECORD, ALIEN_SHOT_SLOT2_TEMPLATE,
 } from "../names.js";
+
+const oracle = entered(oracleBody);
+// The entry `pop h` consumes the walker's record word at [SP]; the oracle's later pushes reuse that dead cell.
+const POPPED_ARG = 2;
+const ramDiff = (o, c) => liveRamDiff(o, c, entryFloor(o, c) + POPPED_ARG);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -37,9 +43,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x0476;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];
@@ -57,7 +60,7 @@ test("CAPTURE: real 0x0476 dispatches -- alienShotSlot2Handler == oracle in RAM 
     // scratch there), the idiom leaves it -- dead either way, so the mask spans past sp. SP runs high (into
     // video RAM) during these object-walk dispatches.
     const capDiff = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(),
-      (off) => ma.stateOffsetToAddr(off), (a) => a != null && ((a >= sp - 0x40 && a < sp + 2) || inDeadStack(a)));
+      (off) => ma.stateOffsetToAddr(off), (a) => a != null && ((a >= sp - 0x40 && a < sp + POPPED_ARG) || deadStackBelow(STACK_SCRATCH, sp + POPPED_ARG)(a)));
     const o = cap.clone(), c = cap.clone();
     o.io.setInte(false); c.io.setInte(false);
     oracle(o); alienShotSlot2Handler(c);

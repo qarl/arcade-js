@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for setAlienShotStepWhenFew (ROM 0x08d8) -- "if mem[0x2082] < 9: mem[0x207e] = 0xfb". Input is the
 // counter cell 0x2082; live-out is memory (0x207e), so the contract is RAM (dumpState, minus
-// STACK_SCRATCH). Crafts span the threshold and pre-seed 0x207e to a sentinel to see both branches.
+// stack scratch below the entry SP). Crafts span the threshold and pre-seed 0x207e to a sentinel to see both branches.
 // Run: node --test games/invaders/idiomatic/test/equivalence-08d8.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_08d8 as oracle } from "../../translated/loc_08d8.js";
+import { loc_08d8 as oracleBody } from "../../translated/loc_08d8.js";
 import { setAlienShotStepWhenFew } from "../setAlienShotStepWhenFew.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, ALIEN_COUNT, ALIEN_SHOT_STEP } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+import { ALIEN_COUNT, ALIEN_SHOT_STEP } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -21,9 +23,6 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0x08d8;
 const SENTINEL = 0x11; // a non-0xfb marker so "not written" is distinguishable from "written 0xfb"
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

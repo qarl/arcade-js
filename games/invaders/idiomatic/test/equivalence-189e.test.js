@@ -5,7 +5,7 @@
 // regs saved/restored there as the RST push/pop does.
 // BOUND: it returns (oracle: tail 0x0ab6 -> 0x0ad7 ret), so both sides run to completion; the frame count,
 // every frame and the final state must agree.
-// CONTRACT: per-frame RAM minus STACK_SCRATCH, plus the IO log (every port write including watchdog port 6,
+// CONTRACT: per-frame RAM minus stack scratch below the entry SP, plus the IO log (every port write including watchdog port 6,
 // and INTE).
 // The real entry seats SP at 0x23fe, so the oracle's pushes stay inside STACK_SCRATCH (asserted).
 // SP: the module leaves SP untouched (a moved SP is a diff); the oracle's ret leaves it at entry+2.
@@ -27,6 +27,7 @@ import { waitLongDelay } from "../waitLongDelay.js";
 import { STACK_SCRATCH, SCREEN_MODE_TOGGLE, TASK_FLAGS, ATTRACT_ANIM_ACK, ATTRACT_OBJECT_TABLE, ATTRACT_ANIM_OBJ_TEMPLATE, ALIEN_SHOT_STEP, loc_2080, loc_3311 } from "../names.js";
 import { idiomaticMidNmi } from "../idiomaticMidNmi.js";
 import { idiomaticVblankNmi } from "../idiomaticVblankNmi.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 import { Machine } from "../../machine.js";
 import { buildRoutines } from "../../routines.js";
 
@@ -58,13 +59,13 @@ function logIo(m, io) {
   m.io.setInte = (on) => { io.push(`${io.frame}:inte=${!!on}`); return inte(on); };
 }
 function service(m) { idiomaticMidNmi(m); idiomaticVblankNmi(m); }
-const inScratch = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /** Oracle under the frame model; bound = landmark arrival + EXTRA. onStep may throw BOUND; hook = crafted poke after
  * each service, applied identically by runIdiomatic. */
 function runOracle(e, { routines, onStep, hook, fn = oracle, mark = LANDMARK } = {}) {
   const m = fresh(e, routines), snaps = [], io = []; io.frame = 0;
   let limit = MAX_FRAMES, landmark = null, minSp = m.regs.sp;
+  const floor = m.regs.sp; // the entry SP: cells from it up are the caller's live frame
   logIo(m, io);
   const snap = () => m.dumpState();
   const real = m.step.bind(m);
@@ -83,7 +84,7 @@ function runOracle(e, { routines, onStep, hook, fn = oracle, mark = LANDMARK } =
   };
   let bounded = false, returned = false;
   try { fn(m); returned = true; snaps.push(snap()); } catch (x) { if (x !== BOUND) throw x; bounded = true; }
-  return { m, snaps, io, landmark, minSp, bounded, returned };
+  return { m, snaps, io, landmark, minSp, floor, bounded, returned };
 }
 function runIdiomatic(e, gen, frames, hook) {
   const m = fresh(e), snaps = [], io = []; io.frame = 0;
@@ -99,7 +100,7 @@ function runIdiomatic(e, gen, frames, hook) {
 }
 function firstDiff(o, c) {
   if (o.returned !== c.done) return { frame: -1, what: `oracle returned=${o.returned}, module done=${c.done}` };
-  const skip = inScratch;
+  const skip = deadStackBelow(STACK_SCRATCH, o.floor);
   if (o.snaps.length !== c.snaps.length) return { frame: Math.min(o.snaps.length, c.snaps.length), what: `frames ${o.snaps.length} vs ${c.snaps.length}` };
   for (let f = 0; f < o.snaps.length; f++) {
     const a = o.snaps[f], b = c.snaps[f];
@@ -190,7 +191,7 @@ test("TEETH: broken twins are caught", () => {
   const kick = function* (m) { m.io.portOut(0x06, 0x26); yield* idiomatic(m); };
   const sp2 = function* (m) { m.regs.sp = (m.regs.sp - 2) & 0xffff; yield* idiomatic(m); };
   const port3 = function* (m) { m.io.portOut(0x03, 0x00); yield* idiomatic(m); };
-  for (const [name, gen] of [["extra watchdog kick", kick], ["SP moved by -2", sp2], ["extra port 3 write", port3], ["task 0x02", twin(0x02, true, 0x26)], ["no clear wait", twin(0x04, false, 0x26)], ["sprite 0x27", twin(0x04, true, 0x27)], ["0x2400 (first cell above the masked STACK_SCRATCH) flipped at frame 100", poke2400]]) {
+  for (const [name, gen] of [["extra watchdog kick", kick], ["SP moved by -2", sp2], ["extra port 3 write", port3], ["task 0x02", twin(0x02, true, 0x26)], ["no clear wait", twin(0x04, false, 0x26)], ["sprite 0x27", twin(0x04, true, 0x27)], ["0x2400 (first cell above STACK_SCRATCH) flipped at frame 100", poke2400]]) {
     assert.notEqual(compare(ENTRY, gen).d, null, `twin "${name}" escaped the gate`);
   }
 });

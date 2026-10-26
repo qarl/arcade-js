@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for activePlayerPageBase (ROM 0x1611) -- "HL := mem[0x2067] << 8". No input register (the
 // page byte lives in RAM); no memory is written, so the contract is the HL live-out (plus a RAM sanity
-// diff, minus STACK_SCRATCH). Each side runs on a fresh clone.
+// diff, minus stack scratch below the entry SP). Each side runs on a fresh clone.
 // Run: node --test games/invaders/idiomatic/test/equivalence-1611.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_1611 as oracle } from "../../translated/loc_1611.js";
+import { loc_1611 as oracleBody } from "../../translated/loc_1611.js";
 import { activePlayerPageBase } from "../activePlayerPageBase.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, ACTIVE_PLAYER_PAGE } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+import { ACTIVE_PLAYER_PAGE } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -20,9 +22,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x1611;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 // A broken twin of activePlayerPageBase: drops the high-byte shift, so HL is wrong for any non-zero page byte.
 function loc_1611_broken(m) {

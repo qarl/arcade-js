@@ -2,7 +2,7 @@
 // Memory-equivalence for markAllAliensAliveP2 -- seat the second alien array's base and delegate a mark-all-alive fill
 // (dissolved into markAllAliensAlive). Input: none (the base is a constant); live-out: memory only (every
 // caller overwrites HL before a read), so each side runs on a fresh clone and the contract is RAM
-// (dumpState, minus STACK_SCRATCH). Interrupts are disabled so the oracle's per-instruction tick cannot
+// (dumpState, minus stack scratch below the entry SP). Interrupts are disabled so the oracle's per-instruction tick cannot
 // fire a handler that writes RAM only on its side.
 // Run: node --test games/invaders/idiomatic/test/equivalence-1904.test.js
 
@@ -10,12 +10,14 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_1904 as oracle } from "../../translated/loc_1904.js";
+import { loc_1904 as oracleBody } from "../../translated/loc_1904.js";
 import { markAllAliensAliveP2 } from "../markAllAliensAliveP2.js";
 import { markAllAliensAlive } from "../markAllAliensAlive.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, ALIEN_FIELD_P2 } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+import { ALIEN_FIELD_P2 } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -24,9 +26,6 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0x1904;
 const FILL_LEN = 0x37;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

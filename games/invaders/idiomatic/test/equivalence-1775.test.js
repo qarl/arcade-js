@@ -10,11 +10,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_1775 as oracle } from "../../translated/loc_1775.js";
+import { loc_1775 as oracleBody } from "../../translated/loc_1775.js";
 import { advanceFleetMarchSound } from "../advanceFleetMarchSound.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, FLEET_SOUND_STEP, FLEET_SOUND_PERIOD, SFX_OFF_TIMER, SOUND_PORT5_SHADOW, ALIEN_COUNT } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+import { FLEET_SOUND_STEP, FLEET_SOUND_PERIOD, SFX_OFF_TIMER, SOUND_PORT5_SHADOW, ALIEN_COUNT } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -22,9 +24,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x1775;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 // Expected stepped SOUND_PORT5_SHADOW for a seed byte (independent of the ROM tables).
 const steppedPitch = (s) => { const x = (s & 0x0f) << 1; return (s & 0x30) | (x === 0x10 ? 0x01 : x); };

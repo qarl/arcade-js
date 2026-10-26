@@ -10,12 +10,14 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_1a8b as oracle } from "../../translated/loc_1a8b.js";
+import { loc_1a8b as oracleBody } from "../../translated/loc_1a8b.js";
 import { drawLivesDigit } from "../drawLivesDigit.js";
 import { drawDigit } from "../drawDigit.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -23,9 +25,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x1a8b;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];
@@ -66,7 +65,7 @@ test("CRAFTED: the low nibble selects the glyph plotted at 0x2501 (high nibble d
     assert.equal(ramDiff(o, c), null, "A=0xf5 (masks to 0x05)");
     const c5 = new Machine(ROM); c5.io.setInte(false); c5.regs.sp = 0x2400; c5.regs.a = 0x05;
     drawLivesDigit(c5);
-    assert.equal(ramDiff(c, c5), null, "A=0xf5 draws the same glyph as A=0x05");
+    assert.equal(ramDiff(c, c5, 0x2400), null, "A=0xf5 draws the same glyph as A=0x05");
   }
 });
 

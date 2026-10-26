@@ -10,11 +10,14 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_1597 as oracle } from "../../translated/loc_1597.js";
+import { loc_1597 as oracleBody } from "../../translated/loc_1597.js";
 import { reverseFleetAtEdge } from "../reverseFleetAtEdge.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, FLEET_MOVE_DIR, loc_2008, ALIEN_COUNT } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+import { FLEET_MOVE_DIR, loc_2008, ALIEN_COUNT } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -27,9 +30,6 @@ const SCAN_LEFT = 0x3ea4;  // FLEET_MOVE_DIR == 0 arm scans here
 const CELL_2007 = 0x2007;
 const CELL_200E = 0x200e;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

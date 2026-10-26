@@ -3,20 +3,23 @@
 // (dissolved into drawSprite8x8). Inputs A (nibble), HL (destination). Live-out: the blitted cells (RAM)
 // AND HL (advanced by 0x20*8). A is left stale (callers restore or overwrite it), so it is not compared.
 // The oracle push/pops HL through the stack scratch below the entry SP; the module drops the save/restore,
-// so CAPTURE excludes relative to that SP and CRAFTED excludes STACK_SCRATCH.
+// so CAPTURE excludes relative to that SP and CRAFTED excludes STACK_SCRATCH below the entry SP.
 // Run: node --test games/invaders/idiomatic/test/equivalence-09c5.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_09c5 as oracle } from "../../translated/loc_09c5.js";
+import { loc_09c5 as oracleBody } from "../../translated/loc_09c5.js";
 import { drawDigit } from "../drawDigit.js";
 import { drawSprite8x8 } from "../drawSprite8x8.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, SPRITE_BITMAP_TABLE } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+import { SPRITE_BITMAP_TABLE } from "../names.js";
 import { u16 } from "../../../../core/int.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -25,9 +28,6 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0x09c5;
 const GLYPH_BASE = 0x1a; // nibble -> glyph id offset
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

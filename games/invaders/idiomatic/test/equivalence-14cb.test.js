@@ -3,18 +3,20 @@
 // fill B rows with 0, stepping 0x20 per pass, leaving HL one stride past. The 0x14cc fall-through is
 // DISSOLVED into a direct fillScreenRow(m, 0). Inputs B (row count; 0 => 256), HL (start); A at entry is
 // dead (zeroed). Live-out: the filled cells (RAM) AND HL. Each side runs on a fresh clone; the contract
-// is RAM (dumpState, minus STACK_SCRATCH -- the oracle transiently push/pops BC) plus the HL live-out.
+// is RAM (dumpState, minus stack scratch below the entry SP -- the oracle transiently push/pops BC) plus the HL live-out.
 // Run: node --test games/invaders/idiomatic/test/equivalence-14cb.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_14cb as oracle } from "../../translated/loc_14cb.js";
+import { loc_14cb as oracleBody } from "../../translated/loc_14cb.js";
 import { clearScreenStrip } from "../clearScreenStrip.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -22,9 +24,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x14cb;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 // End pointer left in HL: start + (B or 256)*0x20, wrapped to 16 bits.
 const endHl = (hl, rows) => (hl + (rows === 0 ? 256 : rows) * 0x20) & 0xffff;

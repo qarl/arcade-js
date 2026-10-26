@@ -2,18 +2,20 @@
 // Equivalence for copyTemplateToRecord (ROM 0x075f) -- seat the source pointer at the ROM template SAUCER_RECORD_TEMPLATE, then
 // block-copy B bytes into (HL) (blockCopy). Live-out is MEMORY only: the oracle's blockCopy advances
 // HL/DE and zeroes B, but every caller of 0x075f overwrites those before reading (blockCopy's own
-// contract), so the contract is RAM (dumpState, minus STACK_SCRATCH). B and HL come from the caller.
+// contract), so the contract is RAM (dumpState, minus stack scratch below the entry SP). B and HL come from the caller.
 // Run: node --test games/invaders/idiomatic/test/equivalence-075f.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_075f as oracle } from "../../translated/loc_075f.js";
+import { loc_075f as oracleBody } from "../../translated/loc_075f.js";
 import { copyTemplateToRecord } from "../copyTemplateToRecord.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, SAUCER_RECORD_TEMPLATE } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+import { SAUCER_RECORD_TEMPLATE } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -22,9 +24,6 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0x075f;
 const CALLER_RET = 0xabcd;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

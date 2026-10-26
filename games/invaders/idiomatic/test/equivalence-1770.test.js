@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for latchSoundPort5 (ROM 0x1770-0x1774) -- "mask caller's A to 0x30, OUT sound port 5".
 // Input register A; live-out is the sound-port latch (io.soundData[1]), no RAM write. Each side runs on
-// a fresh clone and the contract is RAM (minus STACK_SCRATCH) PLUS the latched sound byte.
+// a fresh clone and the contract is RAM (minus stack scratch below the entry SP) PLUS the latched sound byte.
 // Run: node --test games/invaders/idiomatic/test/equivalence-1770.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_1770 as oracle } from "../../translated/loc_1770.js";
+import { loc_1770 as oracleBody } from "../../translated/loc_1770.js";
 import { latchSoundPort5 } from "../latchSoundPort5.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -20,9 +21,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x1770;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

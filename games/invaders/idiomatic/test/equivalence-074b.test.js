@@ -12,13 +12,16 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_074b as oracle } from "../../translated/loc_074b.js";
+import { loc_074b as oracleBody } from "../../translated/loc_074b.js";
 import { playSaucerHitSoundAndDrawSprite } from "../playSaucerHitSoundAndDrawSprite.js";
 import { latchSoundPort5 } from "../latchSoundPort5.js";
 import { drawSaucerSprite } from "../drawSaucerSprite.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, SOUND_PORT5_SHADOW, loc_2087, SAUCER_HIT_SPRITE } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+import { SOUND_PORT5_SHADOW, loc_2087, SAUCER_HIT_SPRITE } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -27,9 +30,6 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0x074b;
 const CALLER_RET = 0xabcd;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for loc_1988 -- an unconditional tail-jump dissolved into clearPlayfield. Input: none;
 // live-out: MEMORY ONLY (the caller overwrites C right after), so each side runs on a fresh clone and the
-// contract is RAM (dumpState, minus STACK_SCRATCH). Interrupts are disabled so the oracle's cycle-driven
+// contract is RAM (dumpState, minus stack scratch below the entry SP). Interrupts are disabled so the oracle's cycle-driven
 // clear runs atomically like the module (mid-clear RST ISRs are an emulation artifact the module elides).
 // RAM is pre-filled 0xAA so cleared cells are distinguishable from the skipped 6-byte column margins.
 // Run: node --test games/invaders/idiomatic/test/equivalence-1988.test.js
@@ -10,11 +10,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_1988 as oracle } from "../../translated/loc_1988.js";
+import { loc_1988 as oracleBody } from "../../translated/loc_1988.js";
 import { loc_1988 } from "../loc_1988.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, PLAYFIELD_VRAM_BASE } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+import { PLAYFIELD_VRAM_BASE } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -22,9 +24,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x1988;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 const fillVideo = (mm, v) => { for (let a = 0x2400; a <= 0x3fff; a++) mm.mem.write8(a, v); };
 const noInt = (mm) => { mm.io.inte = false; return mm; };

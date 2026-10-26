@@ -11,7 +11,7 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_0563 as oracle } from "../../translated/loc_0563.js";
+import { loc_0563 as oracleBody } from "../../translated/loc_0563.js";
 import { stepAlienShot } from "../stepAlienShot.js";
 import { objectMatchesDrawPhase } from "../objectMatchesDrawPhase.js";
 import { stepAlienShotBlowup } from "../stepAlienShotBlowup.js";
@@ -19,13 +19,16 @@ import { eraseAlienShot } from "../eraseAlienShot.js";
 import { drawAlienShotWithCollision } from "../drawAlienShotWithCollision.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { entered, ramDiff } from "./_liveStack.js";
 import { u8 } from "../../../../core/int.js";
 import {
-  STACK_SCRATCH, ACTIVE_PLAYER_PAGE, DRAW_PHASE_FLAG,
+  ACTIVE_PLAYER_PAGE, DRAW_PHASE_FLAG,
   OBJECT_WORK_BUFFER, TASK_FLAGS, SHIP_READY_FLAG, ALIEN_SHOT_RATE_GATE0, ALIEN_SHOT_RATE_GATE_1, loc_2074, loc_2075, ALIEN_SHOT_COLUMN_CURSOR,
   PLAYER_SHIP_X, loc_2009, loc_200a, loc_20cf, ALIEN_SHOT_COORD, loc_207c, ALIEN_SHOT_STEP, ALIEN_SHOT_SPRITE_FRAME_CEILING,
   ALIEN_SHOT_SPRITE_PTR, ALIEN_SHOT_ROW_COUNT, COLLISION_FLAG, loc_2015, GAME_OBJECT_TABLE,
 } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -33,9 +36,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x0563;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 // Seed a fresh machine: SP at the stack top (so the oracle's nested m.call pushes land in the dead
 // scratch the diff excludes), interrupts off, and a small bounded shot descriptor so the draw helpers

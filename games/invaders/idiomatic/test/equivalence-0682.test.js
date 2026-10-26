@@ -20,7 +20,7 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_0682 as oracle } from "../../translated/loc_0682.js";
+import { loc_0682 as oracleBody } from "../../translated/loc_0682.js";
 import { saucerHandler } from "../saucerHandler.js";
 import { u8 } from "../../../../core/int.js";
 import { objectMatchesDrawPhase } from "../objectMatchesDrawPhase.js";
@@ -30,11 +30,17 @@ import { clearSoundPort3Bit } from "../clearSoundPort3Bit.js";
 import { playSaucerHitSoundAndDrawSprite } from "../playSaucerHitSoundAndDrawSprite.js";
 import { awardSaucerScore } from "../awardSaucerScore.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
+import { entered, entryFloor, ramDiff as liveRamDiff } from "./_liveStack.js";
 import {
   STACK_SCRATCH, loc_2080, loc_2083, loc_2056, SAUCER_ACTIVE, ALIEN_COUNT, loc_208a, SAUCER_STEP_DX,
   SAUCER_HIT, loc_2086, loc_2087, DRAW_PHASE_FLAG, SAUCER_SCORE_KEY_PTR, SHIP_READY_FLAG, TASK_FLAGS,
 } from "../names.js";
+
+const oracle = entered(oracleBody);
+// The entry `pop h` consumes the walker's record word at [SP]; the oracle's later pushes reuse that dead cell.
+const POPPED_ARG = 2;
+const ramDiff = (o, c) => liveRamDiff(o, c, entryFloor(o, c) + POPPED_ARG);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -42,9 +48,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x0682;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];
@@ -59,7 +62,7 @@ test("CAPTURE: real 0x0682 dispatches -- saucerHandler == oracle in RAM (-stack)
   for (const cap of CAPS) {
     const sp = cap.regs.sp;
     const capDiff = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(),
-      (off) => ma.stateOffsetToAddr(off), (a) => a != null && ((a >= sp - 0x40 && a < sp + 2) || inDeadStack(a)));
+      (off) => ma.stateOffsetToAddr(off), (a) => a != null && ((a >= sp - 0x40 && a < sp + POPPED_ARG) || deadStackBelow(STACK_SCRATCH, sp + POPPED_ARG)(a)));
     const o = cap.clone(), c = cap.clone();
     o.io.setInte(false); c.io.setInte(false);
     oracle(o); saucerHandler(c);

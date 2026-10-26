@@ -12,18 +12,21 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_050f as oracle } from "../../translated/loc_050f.js";
+import { loc_050f as oracleBody } from "../../translated/loc_050f.js";
 import { alienShotSlot4Handler } from "../alienShotSlot4Handler.js";
 import { copyRecordToWorkBuffer } from "../copyRecordToWorkBuffer.js";
 import { stepAlienShot } from "../stepAlienShot.js";
 import { copyWorkBufferToRecord } from "../copyWorkBufferToRecord.js";
 import { blockCopy } from "../blockCopy.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { firstStateDiff, seamPlaceable, deadStackBelow } from "../../../../core/equivalence.js";
+import { entered, ramDiff } from "./_liveStack.js";
 import {
   STACK_SCRATCH, ATTRACT_ANIM_ACK, loc_2046, ALIEN_SHOT_RATE_GATE0, loc_2036, ALIEN_SHOT_RATE_GATE_1,
   SHIP_READY_FLAG, TASK_FLAGS, ALIEN_SHOT_COLUMN_CURSOR, loc_1b58, ALIEN_SHOT_BLOWUP_TIMER, ALIEN_SHOT_RECORD_TEMPLATE, ATTRACT_OBJECT_TABLE, ALIEN_SHOT4_COLUMN_CURSOR,
 } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -31,9 +34,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x050f;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];
@@ -50,7 +50,7 @@ test("CAPTURE: real 0x050f dispatches -- alienShotSlot4Handler == oracle in RAM 
     // These object-walk dispatches run with SP high (into video RAM); the record-pointer slot the walker
     // pushes lands at [sp, sp+1] and is dead once the handler consumes it, so the mask spans past sp.
     const capDiff = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(),
-      (off) => ma.stateOffsetToAddr(off), (a) => a != null && ((a >= sp - 0x40 && a < sp + 2) || inDeadStack(a)));
+      (off) => ma.stateOffsetToAddr(off), (a) => a != null && ((a >= sp - 0x40 && a < sp) || deadStackBelow(STACK_SCRATCH, sp)(a)));
     const o = cap.clone(), c = cap.clone();
     o.io.setInte(false); c.io.setInte(false);
     oracle(o); alienShotSlot4Handler(c);

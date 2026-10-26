@@ -3,7 +3,7 @@
 // (0x1956) / fall into enterAttractCycle (0x18df). Entry is CAPTURED at the real reset dispatch (loc_0000's
 // m.call(0x18d4)) on a fresh Machine. BOUND: 0x18df is the never-returning attract loop, so a registry hook
 // there records (pc, SP) and throws a sentinel; the idiomatic side returns its unstarted generator. Compared:
-// RAM minus STACK_SCRATCH at that hand-off. SP (oracle seats 0x2400) is not compared: the idiomatic spine is
+// RAM minus stack scratch below the seated SP at that hand-off. SP (oracle seats 0x2400) is not compared: the idiomatic spine is
 // stack-free and the whole-game tape gates it. HAND-OFF: the return is an enterAttractCycle generator.
 // CRAFTED: B poisoned at entry on both sides (the ROM seats B=0 itself). TEETH: twins skipping initWorkRam /
 // redrawScorePanel diverge at real cells; a twin handing to runAttractCycle fails the hand-off check.
@@ -20,7 +20,7 @@ import { redrawScorePanel } from "../redrawScorePanel.js";
 import { enterAttractCycle } from "../enterAttractCycle.js";
 import { runAttractCycle } from "../runAttractCycle.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ALIEN_DRAW_PENDING, VIDEO_RAM_BASE, VIDEO_RAM_END, loc_20cf } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -30,10 +30,10 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0x18d4;
 const HANDOFF = 0x18df;
-const BOOT_SP = 0x2400;
+const BOOT_SP = 0x2400; // the routine's own `lxi sp`: no caller frame survives it, so this is the live floor
 const STOP = Symbol("bootInit-bound");
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, BOOT_SP);
 const ramDiff = (ma, mb) =>
   firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 

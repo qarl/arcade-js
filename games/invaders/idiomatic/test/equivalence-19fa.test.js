@@ -13,12 +13,14 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_19fa as oracle } from "../../translated/loc_19fa.js";
+import { loc_19fa as oracleBody } from "../../translated/loc_19fa.js";
 import { clearScreenRegion } from "../clearScreenRegion.js";
 import { clearScreenStrip } from "../clearScreenStrip.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -26,9 +28,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x19fa;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 // End pointer left in HL: advance 0x200 per pass until the high byte is 0x35.
 const endHl = (hl) => { let c = hl & 0xffff; do { c = (c + 0x200) & 0xffff; } while (((c >> 8) & 0xff) !== 0x35); return c; };

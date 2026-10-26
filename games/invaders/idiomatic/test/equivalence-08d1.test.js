@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for readStartingShips (ROM 0x08d1) -- "A = (portIn(2) & 3) + 3". Input is IN2 (io.in2 idle,
 // no active-low bits); live-out is the register A (not RAM), so each craft seeds IN2 and asserts A
-// directly, while RAM (dumpState, minus STACK_SCRATCH) must stay identical between oracle and module.
+// directly, while RAM (dumpState, minus stack scratch below the entry SP) must stay identical between oracle and module.
 // Run: node --test games/invaders/idiomatic/test/equivalence-08d1.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_08d1 as oracle } from "../../translated/loc_08d1.js";
+import { loc_08d1 as oracleBody } from "../../translated/loc_08d1.js";
 import { readStartingShips } from "../readStartingShips.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -20,9 +21,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x08d1;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

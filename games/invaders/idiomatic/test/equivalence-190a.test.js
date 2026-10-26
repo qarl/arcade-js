@@ -10,12 +10,15 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_190a as oracle } from "../../translated/loc_190a.js";
+import { loc_190a as oracleBody } from "../../translated/loc_190a.js";
 import { resolveShotAndFleetEdge } from "../resolveShotAndFleetEdge.js";
 import { resolvePlayerShotHit } from "../resolvePlayerShotHit.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { firstStateDiff, seamPlaceable, deadStackBelow } from "../../../../core/equivalence.js";
+import { entered, entryFloor } from "./_liveStack.js";
 import { STACK_SCRATCH, FLEET_MOVE_DIR, PLAYER_SHOT_STATUS } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -25,8 +28,7 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 const TARGET = 0x190a;
 const SCAN_RIGHT = 0x2524, SCAN_LEFT = 0x3ea4, CELL_200E = 0x200e;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb, excl = inDeadStack) =>
+const ramDiff = (ma, mb, excl = deadStackBelow(STACK_SCRATCH, entryFloor(ma, mb))) =>
   firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), excl);
 
 function captureDispatches(K, maxFrames) {

@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory+register equivalence for otherPlayerFlagPtr -- HL := base + bit0 of the select byte; the caller reads
 // [HL]. Neither side writes RAM, so the observable live-out is HL: each side runs on a clone and the
-// contract is RAM (dumpState, minus STACK_SCRATCH) AND the returned HL.
+// contract is RAM (dumpState, minus stack scratch below the entry SP) AND the returned HL.
 // Run: node --test games/invaders/idiomatic/test/equivalence-18e7.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_18e7 as oracle } from "../../translated/loc_18e7.js";
+import { loc_18e7 as oracleBody } from "../../translated/loc_18e7.js";
 import { otherPlayerFlagPtr } from "../otherPlayerFlagPtr.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, ACTIVE_PLAYER_PAGE, loc_20e7 } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+import { ACTIVE_PLAYER_PAGE, loc_20e7 } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -20,9 +22,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x18e7;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

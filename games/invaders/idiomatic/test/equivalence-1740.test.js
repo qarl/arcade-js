@@ -4,18 +4,21 @@
 // FLEET_SOUND_TIMER, emits SOUND_PORT5_SHADOW to port 5, and when ALIEN_COUNT is set re-seeds FLEET_SOUND_TIMER from
 // FLEET_SOUND_PERIOD and reloads FLEET_SOUND_OFF_TIMER=4. A and flags are dead (serviceVblankObjects reloads A on fall-through), so the
 // live-out is memory + the port-5 writes. silenceFleetMarchNote is a dissolved direct call. The oracle's `cz` pushes
-// a return word into stack scratch; that residue is excluded (STACK_SCRATCH / entry-SP relative).
+// a return word into stack scratch; that residue is excluded (below the entry SP, in STACK_SCRATCH or entry-SP relative).
 // Run: node --test games/invaders/idiomatic/test/equivalence-1740.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_1740 as oracle } from "../../translated/loc_1740.js";
+import { loc_1740 as oracleBody } from "../../translated/loc_1740.js";
 import { stepFleetMarchSound } from "../stepFleetMarchSound.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, FLEET_SOUND_OFF_TIMER, FLEET_MARCH_ENABLE, FLEET_SOUND_TIMER, FLEET_SOUND_PERIOD, FLEET_SOUND_STEP, SOUND_PORT5_SHADOW, ALIEN_COUNT } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+import { FLEET_SOUND_OFF_TIMER, FLEET_MARCH_ENABLE, FLEET_SOUND_TIMER, FLEET_SOUND_PERIOD, FLEET_SOUND_STEP, SOUND_PORT5_SHADOW, ALIEN_COUNT } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -23,9 +26,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x1740;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 // The port writes a routine performs (stepFleetMarchSound's real sound live-out).
 function portWritesOf(mm, fn) {

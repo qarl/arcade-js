@@ -13,7 +13,7 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_0935 as oracle } from "../../translated/loc_0935.js";
+import { loc_0935 as oracleBody } from "../../translated/loc_0935.js";
 import { awardExtraShip } from "../awardExtraShip.js";
 import { u8 } from "../../../../core/int.js";
 import { activePlayerFlagPtr } from "../activePlayerFlagPtr.js";
@@ -24,8 +24,11 @@ import { drawLivesDigit } from "../drawLivesDigit.js";
 import { startSound } from "../startSound.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_20e7, PLAYER1_OBJ_DESC, ACTIVE_PLAYER_PAGE,
+import { entered, ramDiff } from "./_liveStack.js";
+import { loc_20e7, PLAYER1_OBJ_DESC, ACTIVE_PLAYER_PAGE,
   SFX_OFF_TIMER, SOUND_PORT3_SHADOW, LIVES_DIGIT_SCREEN_ADDR, RESERVE_SHIP_SPRITE } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -34,9 +37,6 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0x0935;
 const CALLER_RET = 0xabcd;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 // Player-1 record page 0x21: bit0 set -> activePlayerFlagPtr = loc_20e7, currentPlayerRecordPtr = PLAYER1_OBJ_DESC,
 // active-page base 0x2100 (top byte at 0x21ff). Flag byte the routine tests sits at loc_20e7 - 2.

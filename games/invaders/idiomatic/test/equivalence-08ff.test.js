@@ -3,20 +3,23 @@
 // 0x1e00+8*A, latch the shift count to port 6, then tail-blit 8 columns (dissolved into drawSpriteColumn).
 // Inputs A (sprite id), HL (destination). Live-out: the blitted cells (RAM) AND HL (advanced by 0x20*8).
 // The oracle push/pops HL through the stack scratch below the entry SP; the module drops the save/restore,
-// so CAPTURE excludes relative to that SP and CRAFTED excludes the fixed STACK_SCRATCH window.
+// so CAPTURE excludes relative to that SP and CRAFTED excludes STACK_SCRATCH below the entry SP.
 // Run: node --test games/invaders/idiomatic/test/equivalence-08ff.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_08ff as oracle } from "../../translated/loc_08ff.js";
+import { loc_08ff as oracleBody } from "../../translated/loc_08ff.js";
 import { drawSprite8x8 } from "../drawSprite8x8.js";
 import { drawSpriteColumn } from "../drawSpriteColumn.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, SPRITE_BITMAP_TABLE } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+import { SPRITE_BITMAP_TABLE } from "../names.js";
 import { u16 } from "../../../../core/int.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -24,9 +27,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x08ff;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

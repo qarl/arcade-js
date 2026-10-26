@@ -10,12 +10,15 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_0214 as oracle } from "../../translated/loc_0214.js";
+import { loc_0214 as oracleBody } from "../../translated/loc_0214.js";
 import { saveOrRestorePlayer2Shields } from "../saveOrRestorePlayer2Shields.js";
 import { drawOrSaveShields } from "../drawOrSaveShields.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, SHIELD_SAVE_RESTORE_MODE } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+import { SHIELD_SAVE_RESTORE_MODE } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -25,9 +28,6 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 const TARGET = 0x0214;
 const BASE = 0x2242;
 const CALLER_RET = 0xabcd;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

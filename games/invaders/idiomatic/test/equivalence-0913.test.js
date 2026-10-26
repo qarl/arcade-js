@@ -2,18 +2,20 @@
 // Memory-equivalence for tickSaucerSpawnTimer -- gate a 16-bit countdown timer: if the gate cell is high, do
 // nothing; else decrement the counter, and when it was zero reload it and raise a wrap flag. Inputs
 // and live-out are all memory, so each side runs on a fresh clone and the contract is RAM
-// (dumpState, minus STACK_SCRATCH).
+// (dumpState, minus stack scratch below the entry SP).
 // Run: node --test games/invaders/idiomatic/test/equivalence-0913.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_0913 as oracle } from "../../translated/loc_0913.js";
+import { loc_0913 as oracleBody } from "../../translated/loc_0913.js";
 import { tickSaucerSpawnTimer } from "../tickSaucerSpawnTimer.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_2009, SAUCER_TIMER, loc_2083, TIMER_RELOAD } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+import { loc_2009, SAUCER_TIMER, loc_2083, TIMER_RELOAD } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -21,9 +23,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x0913;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

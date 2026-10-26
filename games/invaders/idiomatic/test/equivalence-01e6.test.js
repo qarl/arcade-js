@@ -3,17 +3,19 @@
 // and delegate to the block-copy (0x1a32, lifted as blockCopy), copying the caller's B bytes. Live-out
 // is memory only (the oracle advances DE/HL past the copy, but no caller reads them back -- every path
 // re-seats HL/DE or reads A/flags), so each side runs on its own machine and the contract is RAM
-// (dumpState, minus STACK_SCRATCH). Run: node --test games/invaders/idiomatic/test/equivalence-01e6.test.js
+// (dumpState, minus stack scratch below the entry SP). Run: node --test games/invaders/idiomatic/test/equivalence-01e6.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_01e6 as oracle } from "../../translated/loc_01e6.js";
+import { loc_01e6 as oracleBody } from "../../translated/loc_01e6.js";
 import { initWorkRam } from "../initWorkRam.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, WORKRAM_INIT_IMAGE, ALIEN_DRAW_PENDING } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+import { WORKRAM_INIT_IMAGE, ALIEN_DRAW_PENDING } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -21,9 +23,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x01e6;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

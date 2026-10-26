@@ -2,18 +2,19 @@
 // Memory+value equivalence for advanceRecordTotals (ROM 0x01d9) -- with HL just before a 4-byte record, fold C into
 // [HL+2] and the record's delta byte [HL+1] into [HL+3], leaving the second total in A. Input registers
 // HL and C; live-out = the two stores (RAM) AND A (read back as B by the 0x186e caller). Each side runs
-// on a fresh clone; the contract is RAM (dumpState, minus STACK_SCRATCH) plus the A value assertion.
+// on a fresh clone; the contract is RAM (dumpState, minus stack scratch below the entry SP) plus the A value assertion.
 // Run: node --test games/invaders/idiomatic/test/equivalence-01d9.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_01d9 as oracle } from "../../translated/loc_01d9.js";
+import { loc_01d9 as oracleBody } from "../../translated/loc_01d9.js";
 import { advanceRecordTotals } from "../advanceRecordTotals.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -21,9 +22,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x01d9;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

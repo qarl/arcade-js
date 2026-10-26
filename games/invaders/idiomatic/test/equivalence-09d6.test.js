@@ -2,7 +2,7 @@
 // Memory-equivalence for clearPlayfield (ROM 0x09d6) -- clear the play-field framebuffer from 0x2402, skip
 // the 6-byte column margin whenever (L & 0x1f) >= 0x1c, loop until H==0x40. The routine takes NO input
 // register and its live-out is MEMORY ONLY (no caller reads back HL/A/DE/flags -- verified against every
-// call site), so each side runs on a fresh clone and the contract is RAM (dumpState, minus STACK_SCRATCH).
+// call site), so each side runs on a fresh clone and the contract is RAM (dumpState, minus stack scratch below the entry SP).
 // Interrupts are disabled on the oracle clone so its cycle-driven clear runs atomically like the idiomatic
 // module (the mid-clear RST ISRs are an emulation artifact the idiomatic layer elides; they touch RAM the
 // module never does). RAM is pre-filled 0xAA so cleared cells are distinguishable from skipped ones.
@@ -12,11 +12,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_09d6 as oracle } from "../../translated/loc_09d6.js";
+import { loc_09d6 as oracleBody } from "../../translated/loc_09d6.js";
 import { clearPlayfield } from "../clearPlayfield.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, PLAYFIELD_VRAM_BASE } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+import { PLAYFIELD_VRAM_BASE } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -24,9 +26,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x09d6;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 // Pre-fill the framebuffer with a non-zero pattern so a cleared cell (0x00) is distinguishable from a
 // skipped one (still the pattern).

@@ -13,13 +13,15 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_070c as oracle } from "../../translated/loc_070c.js";
+import { loc_070c as oracleBody } from "../../translated/loc_070c.js";
 import { awardSaucerScore } from "../awardSaucerScore.js";
 import { resolveSpriteScreenAddr } from "../resolveSpriteScreenAddr.js";
 import { drawThreeSprites } from "../drawThreeSprites.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -29,9 +31,6 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 const TARGET = 0x070c;
 const CALLER_RET = 0xabcd;
 const SCORE_FLAG = 0x20f1, SCORE_VALUE = 0x20f2, KEY_PTR = 0x208d, RECORD = 0x2087;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 // Live-out data registers (B = key and A are dead).
 const OUT = ["hl", "de", "c"];

@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory+register+port equivalence for startSound -- (SOUND_PORT3_SHADOW) |= B, mirror the result to the sound
 // port, A := result. Input register B; live-out is RAM (SOUND_PORT3_SHADOW), the sound-port latch, and A. Each
-// side runs on a clone and the contract is RAM (dumpState, minus STACK_SCRATCH) plus the port + A.
+// side runs on a clone and the contract is RAM (dumpState, minus stack scratch below the entry SP) plus the port + A.
 // Run: node --test games/invaders/idiomatic/test/equivalence-18fa.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_18fa as oracle } from "../../translated/loc_18fa.js";
+import { loc_18fa as oracleBody } from "../../translated/loc_18fa.js";
 import { startSound } from "../startSound.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, SOUND_PORT3_SHADOW } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+import { SOUND_PORT3_SHADOW } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -20,9 +22,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x18fa;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

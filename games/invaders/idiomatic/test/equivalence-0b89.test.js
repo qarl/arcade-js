@@ -5,7 +5,7 @@
 // regs saved/restored there as the RST push/pop does.
 // BOUND: the oracle's tail into enterAttractCycle (0x18df) + EXTRA frames of the next cycle; the idiomatic
 // run stops at the same frame count.
-// CONTRACT: per-frame RAM minus STACK_SCRATCH, plus the IO log (every port write and INTE), plus the watchdog
+// CONTRACT: per-frame RAM minus stack scratch below the entry SP, plus the IO log (every port write and INTE), plus the watchdog
 // port-6 log (frame and value). On the toggle-0 path runAttractAnimTask's kicks differ from 0x0a80's in value
 // and count, MEASURED and asserted exactly: inside each 0x0a85 spin the oracle kicks A (0x02, then the 0x00 it
 // read from 0x20cb) and kicks once more on the frame it exits; the module kicks 0x02 and skips that last kick.
@@ -25,6 +25,7 @@ import { finishAttractCycle as idiomatic } from "../finishAttractCycle.js";
 import { STACK_SCRATCH, SCREEN_MODE_TOGGLE, TASK_FLAGS } from "../names.js";
 import { idiomaticMidNmi } from "../idiomaticMidNmi.js";
 import { idiomaticVblankNmi } from "../idiomaticVblankNmi.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 import { Machine } from "../../machine.js";
 import { buildRoutines } from "../../routines.js";
 
@@ -70,13 +71,13 @@ function logIo(m, io) {
   m.io.setInte = (on) => { io.push(`${io.frame}:inte=${!!on}`); return inte(on); };
 }
 function service(m) { idiomaticMidNmi(m); idiomaticVblankNmi(m); }
-const inScratch = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /** Oracle under the frame model; bound = landmark arrival + EXTRA. onStep may throw BOUND; hook = crafted poke after
  * each service, applied identically by runIdiomatic. */
 function runOracle(e, { routines, onStep, hook, fn = oracle, mark = LANDMARK } = {}) {
   const m = fresh(e, routines), snaps = [], io = []; io.frame = 0;
   let limit = MAX_FRAMES, landmark = null, minSp = m.regs.sp;
+  const floor = m.regs.sp; // the entry SP: cells from it up are the caller's live frame
   logIo(m, io);
   const snap = () => m.dumpState();
   const real = m.step.bind(m);
@@ -95,7 +96,7 @@ function runOracle(e, { routines, onStep, hook, fn = oracle, mark = LANDMARK } =
   };
   let bounded = false, returned = false;
   try { fn(m); returned = true; snaps.push(snap()); } catch (x) { if (x !== BOUND) throw x; bounded = true; }
-  return { m, snaps, io, landmark, minSp, bounded, returned };
+  return { m, snaps, io, landmark, minSp, floor, bounded, returned };
 }
 function runIdiomatic(e, gen, frames, hook) {
   const m = fresh(e), snaps = [], io = []; io.frame = 0;
@@ -111,7 +112,7 @@ function runIdiomatic(e, gen, frames, hook) {
 }
 function firstDiff(o, c) {
   if (o.returned !== c.done) return { frame: -1, what: `oracle returned=${o.returned}, module done=${c.done}` };
-  const skip = inScratch;
+  const skip = deadStackBelow(STACK_SCRATCH, o.floor);
   if (o.snaps.length !== c.snaps.length) return { frame: Math.min(o.snaps.length, c.snaps.length), what: `frames ${o.snaps.length} vs ${c.snaps.length}` };
   for (let f = 0; f < o.snaps.length; f++) {
     const a = o.snaps[f], b = c.snaps[f];

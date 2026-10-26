@@ -7,12 +7,14 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_170e as oracle } from "../../translated/loc_170e.js";
+import { loc_170e as oracleBody } from "../../translated/loc_170e.js";
 import { selectAlienShotRate } from "../selectAlienShotRate.js";
 import { currentPlayerRecordPtr } from "../currentPlayerRecordPtr.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, ACTIVE_PLAYER_PAGE, PLAYER1_OBJ_DESC, ALIEN_SHOT_RATE_TABLE, ALIEN_SHOT_RATE_THRESHOLDS, loc_20cf } from "../names.js";
+import { entered, ramDiff } from "./_liveStack.js";
+import { ACTIVE_PLAYER_PAGE, PLAYER1_OBJ_DESC, ALIEN_SHOT_RATE_TABLE, ALIEN_SHOT_RATE_THRESHOLDS, loc_20cf } from "../names.js";
+
+const oracle = entered(oracleBody);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -20,9 +22,6 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x170e;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 
 // A module-mutating broken twin: never scan -- always take the first table entry.
 function brokenLoc_170e(m) {

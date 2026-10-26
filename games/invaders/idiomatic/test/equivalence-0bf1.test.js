@@ -16,7 +16,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0bf1 as oracle } from "../../translated/loc_0bf1.js";
 import { updateFleetAndDrawCopyright } from "../updateFleetAndDrawCopyright.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { firstStateDiff, seamPlaceable, deadStackBelow } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, INPUT_CODE_STAGE_FLAG, TAITO_COPYRIGHT_SCREEN_ADDR } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -26,11 +26,9 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0x0bf1;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-
-// Exclude the fixed scratch AND the call/ret residue just below the entry SP.
+// Exclude stack scratch below the entry SP (the fixed window AND the call/ret residue just below SP).
 const diffBelow = (sp) => (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(),
-  (off) => ma.stateOffsetToAddr(off), (a) => inDeadStack(a) || (a != null && a >= sp - 0x20 && a < sp));
+  (off) => ma.stateOffsetToAddr(off), (a) => deadStackBelow(STACK_SCRATCH, sp)(a) || (a != null && a >= sp - 0x20 && a < sp));
 
 // Sum a run of screen bytes down a sprite column (stride 0x20) to prove the copyright limb painted.
 function drawn(m, base, cols) {
