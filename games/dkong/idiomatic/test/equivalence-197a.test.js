@@ -42,7 +42,9 @@
  *      shipping map (resolveAllIdiomatic), entered through the in-game dispatcher — the one live
  *      entry that still goes through the installed override (attract reaches it by a direct call
  *      from runAttractDemoFrame). The control is the same run with the frozen oracle behind the
- *      same override, its callee subtree frozen with it; every live cell must match, the dispatch
+ *      same override; in BOTH runs every callee runs whatever the shipping map gives it (minus
+ *      TARGET_SUBTREE, removed in both by liveRun; each callee has its own gate), so this arm checks
+ *      the routine's own order and gates, not its callees. Every live cell must match, the dispatch
  *      counts must match, and the rewrite must never move the guest SP.
  *
  *   4. TEETH — five broken twins, and the arm that catches each is asserted, not assumed. One is
@@ -307,11 +309,14 @@ test("CRAFTED ARMS: the two abandons attract never reaches, and the death hand-o
 
 // -- 3. LIVE-WIRE -------------------------------------------------------------
 
-// The 0x197A gameplay-frame subtree's barrel/object callees. The frozen control's oracle calls these
-// through the registry; left wired, their idiomatic bodies never consume the call brackets the oracle
-// opens -- a HALF-WIRED stack artifact, not a routine defect. So both arms freeze the whole subtree
-// together. 0x1F72 is not in the list: the rewrite calls update25mBarrels directly, and the frozen
-// control's call to it is bracketed and consumed like any other wired override.
+// The 0x197A gameplay-frame subtree's barrel/object callees; liveRun deletes them from the override map
+// in both runs (0x1F8D has no override, so its delete is a no-op). Entered through the registry from the
+// frozen oracle, an idiomatic body would not consume the call bracket the oracle opens -- a HALF-WIRED
+// stack artifact, not a routine defect. In the LIVE-WIRE run no registry call reaches any of them: the
+// others' idiomatic callers reach them by direct import, and 0x1F8D's callers (ROM 0x1F72, 0x1F83,
+// 0x21BA) run as idiomatic overrides that never call it. 0x1F72 is not in the list: the rewrite calls
+// update25mBarrels directly, and the frozen control's call to it is bracketed and consumed like any
+// other wired override.
 const TARGET_SUBTREE = [
   0x062a, 0x1c05, 0x1f8d, 0x1fac, 0x2053, 0x2101, 0x2118, 0x2146, 0x2153, 0x215f, 0x2b1c,
 ];

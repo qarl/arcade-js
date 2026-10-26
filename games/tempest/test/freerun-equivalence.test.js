@@ -52,8 +52,14 @@ function copyStateInto(d, s) {
   d.io.flipY = s.io.flipY;
   d.io.earom = s.io.earom.clone();
   d.io.mathbox = s.io.mathbox.clone();
-  d.io.pokeys = s.io.pokeys.map((p) => p.clone());
-  if (d.io.avg) { d.io.avg.flipX = s.io.flipX; d.io.avg.flipY = s.io.flipY; }
+  d.io.pokeys = s.io.pokeys.map((p, i) => p.clone(d.io.pokeys[i].potBits, d.io.pokeys[i].onWrite));
+  d.io.knob = s.io.knob;
+  d.io.inputAssert = structuredClone(s.io.inputAssert);
+  d.io.dsw1 = s.io.dsw1;
+  d.io.dsw2 = s.io.dsw2;
+  d.io.cabinet = s.io.cabinet;
+  d.io.playerSelect = s.io.playerSelect;
+  if (d.io.avg) Object.assign(d.io.avg, { flipX: s.io.flipX, flipY: s.io.flipY, doneFlag: s.io.avg?.doneFlag, goPending: s.io.avg?.goPending });
   d.regs.copyFrom(s.regs);
   d.cycles = s.cycles;
   d.pc = s.pc;

@@ -157,8 +157,9 @@ export class Pokey {
     }
   }
 
-  clone() {
-    const p = new Pokey(this.potBits, this.onWrite);
+  // A machine clone passes its own io's pot inputs and sound seam; the defaults keep the source's.
+  clone(potBits = this.potBits, onWrite = this.onWrite) {
+    const p = new Pokey(potBits, onWrite);
     p.audf.set(this.audf); p.audc.set(this.audc); p.pot.set(this.pot);
     p.audctl = this.audctl; p.skctl = this.skctl; p.skstat = this.skstat;
     p.irqst = this.irqst; p.irqen = this.irqen; p.kbcode = this.kbcode;

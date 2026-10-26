@@ -230,8 +230,14 @@ export class Machine {
     c.io.flipY = this.io.flipY;
     c.io.earom = this.io.earom.clone();
     c.io.mathbox = this.io.mathbox.clone();
-    c.io.pokeys = this.io.pokeys.map((p) => p.clone());
-    if (c.io.avg) { c.io.avg.flipX = this.io.flipX; c.io.avg.flipY = this.io.flipY; }
+    c.io.pokeys = this.io.pokeys.map((p, i) => p.clone(c.io.pokeys[i].potBits, c.io.pokeys[i].onWrite));
+    c.io.knob = this.io.knob;
+    c.io.inputAssert = structuredClone(this.io.inputAssert);
+    c.io.dsw1 = this.io.dsw1;
+    c.io.dsw2 = this.io.dsw2;
+    c.io.cabinet = this.io.cabinet;
+    c.io.playerSelect = this.io.playerSelect;
+    if (c.io.avg) Object.assign(c.io.avg, { flipX: this.io.flipX, flipY: this.io.flipY, doneFlag: this.io.avg?.doneFlag, goPending: this.io.avg?.goPending });
     c.regs.copyFrom(this.regs);
     c.cycles = this.cycles;
     c.pc = this.pc;

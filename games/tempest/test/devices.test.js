@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { Er2055, Io } from "../../../boards/tempest/io.js";
 import { Pokey } from "../../../boards/tempest/pokey.js";
 import { Mathbox } from "../../../boards/tempest/mathbox.js";
+import { Machine } from "../machine.js";
 
 test("ER2055: erase-before-write then read round-trips a byte", () => {
   const e = new Er2055();
@@ -87,4 +88,24 @@ test("POKEY pot ADC: active line reads 0 instantly, inactive ramps to 228; ALLPO
   // advance 228 fast-paddle clocks -> inactive pot 1 completes and reads 228.
   assert.equal(p.read(0x01, 300), 228, "inactive pot 1 reads 228 after the ramp");
   assert.equal(p.read(0x08, 300) & 0x02, 0, "ALLPOT bit1 = 0 after pot1 conversion done");
+});
+
+test("Machine.clone: each POKEY reads the clone's own inputs and writes to the clone's own sound seam", () => {
+  const src = new Machine(new Uint8Array(0x5000), {});
+  src.io.knob = 3;
+  src.io.inputAssert = { 2: 0x10 };
+  src.io.avg.doneFlag = true;
+  const c = src.clone();
+  assert.equal(c.io.avg.doneFlag, true, "the AVG done flag (IN0 bit6) carried over");
+  assert.deepEqual(c.io.pokeys.map((p) => p.potBits()), src.io.pokeys.map((p) => p.potBits()), "inputs carried over");
+  const before = c.io.pokeys.map((p) => p.potBits());
+  src.io.knob = 9;
+  src.io.inputAssert = { 2: 0x04 };
+  assert.deepEqual(c.io.pokeys.map((p) => p.potBits()), before, "a later source input change must not reach the clone");
+  assert.notDeepEqual(src.io.pokeys.map((p) => p.potBits()), before, "control: the source did change");
+  const heard = { src: 0, clone: 0 };
+  src.io.onPokeyWrite = () => heard.src++;
+  c.io.onPokeyWrite = () => heard.clone++;
+  c.io.pokeyWrite(0, 0x0, 0x55, 0);
+  assert.deepEqual(heard, { src: 0, clone: 1 }, "the clone's sound write reaches only its own seam");
 });
