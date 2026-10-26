@@ -58,6 +58,7 @@ import { boardBitGate } from "../boardBitGate.js";
 import { addToSpriteObjectColumn } from "../addToSpriteObjectColumn.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, SUBSTATE_TIMER, SPRITE_OBJ_BLOCK, BOARD, SND_PRIORITY } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -79,7 +80,6 @@ const BLINK_SPRITE_CODE = 0x6905; // seeded to 0x13
 const SP_CRAFT = 0x6bf8; // inside STACK_SCRATCH; headroom for the oracle's nested rst/call pushes
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 // The oracle's tail applies the -4 Y subtract only when boardBitGate(A=1) reports bit0 set:
 // carry after `rrca × BOARD` holds bit (BOARD-1) of A=1, so it opens iff (BOARD-1)&7 == 0
@@ -89,16 +89,17 @@ const gateOpens = (board) => ((board - 1) & 7) === 0;
 
 /**
  * First game-visible differing RAM byte between two machines, EXCLUDING the dead
- * stack-scratch region (the memory-equivalence contract is RAM − STACK_SCRATCH).
+ * stack-scratch region (the memory-equivalence contract is RAM − the stack scratch below the entry SP).
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -135,11 +136,12 @@ function craftPair(board, step) {
 test("STRUCTURE: 25m — work RAM identical, salient outputs asserted, idiomatic touches no SP/pc", () => {
   // Gate OPEN (BOARD=1): full path incl. the -4 Y nudge.
   const [a, b] = craftPair(1, 0x40);
+  const aFloor = a.regs.sp;
   const inc0 = a.mem.read8(STEP_SELECTOR);
   const sp0 = b.regs.sp, pc0 = b.pc;
   oracle(a);
   idiomatic(b);
-  const { bad, stackDiffs } = ramDiffMinusStack(a, b);
+  const { bad, stackDiffs } = ramDiffMinusStack(a, b, aFloor);
   assert.equal(bad, null, bad && `game-visible RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
 
   // The oracle actually did the work — confirm salient outputs so EQUAL is not vacuous.
@@ -162,10 +164,11 @@ test("STRUCTURE: 25m — work RAM identical, salient outputs asserted, idiomatic
 
   // Gate CLOSED (BOARD=2): the Y column is copied but NOT nudged; the step still advances.
   const [c, d] = craftPair(2, 0x40);
+  const cFloor = c.regs.sp;
   const inc1 = c.mem.read8(STEP_SELECTOR);
   oracle(c);
   idiomatic(d);
-  const closed = ramDiffMinusStack(c, d);
+  const closed = ramDiffMinusStack(c, d, cFloor);
   assert.equal(closed.bad, null, closed.bad && `50m RAM diff at ${hx(closed.bad.addr)}`);
   assert.equal(c.mem.read8(Y_COLUMN), ROM[ANIM_FRAME_SRC + 3],
     "on a non-25m board the rst-0x30 gate is closed — the Y column must be the raw copied byte (no -4)");
@@ -181,9 +184,10 @@ test("BOARD (exhaustive): beginKongRecaptureInterlude == oracle through the rst-
   const nudgedVal = (raw - 4) & 0xff;
   for (let board = 0; board < 256 && !mismatch; board++) {
     const [a, b] = craftPair(board, 0x40);
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     count++;
     // Cross-check the oracle's gate decision against the copied-vs-nudged Y column.
     const nudged = a.mem.read8(Y_COLUMN) === nudgedVal;
@@ -210,9 +214,10 @@ test("STEP (wrap): beginKongRecaptureInterlude == oracle over seeded 0x6388 valu
   let wraps = 0, mismatch = null;
   for (const s of [0x00, 0x01, 0x7f, 0x80, 0xfe, 0xff]) {
     const [a, b] = craftPair(1, s); // BOARD=1 so the full tail runs
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     assert.equal(a.mem.read8(STEP_SELECTOR), (s + 1) & 0xff,
       `oracle must set 0x6388 to (step+1)&0xFF at step=${hx(s)}`);
     if (s === 0xff && a.mem.read8(STEP_SELECTOR) === 0x00) wraps++;
@@ -257,9 +262,10 @@ function brokenNoInc(m) {
 
 test("TEETH (unconditional gate): subtracting on a skip board (BOARD=2) is CAUGHT in the strided block", () => {
   const [a, b] = craftPair(2, 0x40); // non-25m — the oracle's gate is CLOSED here
+  const aFloor = a.regs.sp;
   oracle(a);
   brokenUnconditionalGate(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the crafted sweep FAILED to catch an ungated subtract — it is worthless");
   assert.ok(STRIDED.includes(bad.addr), `expected the caught diff in the strided block, got ${hx(bad.addr)}`);
   console.log(`  TEETH/unconditional: caught at ${hx(bad.addr)} (oracle=${bad.a} broken=${bad.b})`);
@@ -267,9 +273,10 @@ test("TEETH (unconditional gate): subtracting on a skip board (BOARD=2) is CAUGH
 
 test("TEETH (no-inc): dropping the 0x6388 inc is CAUGHT and names 0x6388", () => {
   const [a, b] = craftPair(1, 0x40);
+  const aFloor = a.regs.sp;
   oracle(a);
   brokenNoInc(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the crafted sweep FAILED to catch a dropped inc — it is worthless");
   assert.equal(bad.addr, STEP_SELECTOR, `expected the caught diff at 0x6388, got ${hx(bad.addr)}`);
   console.log(`  TEETH/no-inc: caught at 0x6388 (oracle=${bad.a} broken=${bad.b})`);
@@ -285,9 +292,10 @@ test("REALISM: replay any real 0x1654 dispatch; else record that attract never r
 
   for (const entry of caps) {
     const a = entry.clone(), b = entry.clone();
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     assert.equal(bad, null, bad && `real-dispatch RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
   }
   if (caps.length === 0) {

@@ -6,7 +6,7 @@
  * extra level up (`ret`), splicing past the probe's caller. In direct-call form that
  * non-local exit is a boolean; the idiomatic routine returns false, the caller-skip signal.
  *
- * It is gated on MEMORY-equivalence — RAM (minus STACK_SCRATCH) + pc + SP — plus the two
+ * It is gated on MEMORY-equivalence — RAM (minus the stack scratch below the entry SP) + pc + SP — plus the two
  * LIVE result registers A and B and the boolean unwind signal. The consumer past loc_2b1c
  * reads A (`dec a`) and B (`dec b`) straight after the unwind, so A/B are part of the
  * contract; HL and the flags are dead ABI and are NOT compared (see the routine header).
@@ -47,6 +47,7 @@ import { loc_2b74 as oracle } from "../../translated/loc_2b74.js";
 import { loc_2b74 } from "../loc_2b74.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -64,15 +65,15 @@ const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STA
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH (the dead
- *  stack region excluded by contract — the unwind's popped bytes live there). */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -97,13 +98,13 @@ function runCandidate(entry, fn) {
   return { c, ret };
 }
 
-/** Compare candidate vs oracle over the contract: RAM − STACK_SCRATCH, pc, SP, and the two
+/** Compare candidate vs oracle over the contract: RAM − the stack scratch below the entry SP, pc, SP, and the two
  *  LIVE result registers A + B. HL and the flags are dead ABI and are not compared. */
 function contractDiffs(entry, fn) {
   const { c: o } = runOracle(entry);
   const { c } = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=0x${(ram.a & 0xff).toString(16)} cand=0x${(ram.b & 0xff).toString(16)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=0x${o.pc.toString(16)} cand=0x${c.pc.toString(16)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=0x${o.regs.sp.toString(16)} cand=0x${c.regs.sp.toString(16)}`);
@@ -112,8 +113,7 @@ function contractDiffs(entry, fn) {
   return diffs;
 }
 
-// A real booted attract machine, built once and reused as the base for every crafted entry
-// (cloned per case, never mutated).
+// A real booted attract machine, built once and reused as the base for every crafted entry (cloned per case, never mutated).
 let _base = null;
 function base() {
   if (!_base) {

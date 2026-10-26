@@ -3,7 +3,7 @@
  * Equivalence test for armTwoPlayerBoardSetup (ROM 0x09D6) — the 2-player board-setup arm:
  * clear two latches, post two enqueueTask draw tasks, advance GAME_SUBSTATE, then tail-call the
  * draw2UpLabel column painter. Gated by capture / clone / replay on the memory-equivalence
- * contract (RAM − STACK_SCRATCH); pc/SP are NOT compared — the routine used to import the frozen
+ * contract (RAM − the stack scratch below the entry SP); pc/SP are NOT compared — the routine used to import the frozen
  * loc_09ee whose tail `ret` kept pc/SP aligned, but the idiomatic draw2UpLabel models no `ret`,
  * so the idiomatic side leaves pc/SP two apart from the oracle. A pure seam artifact (RAM is
  * byte-identical); the whole-game SP guards (idiomatic "FULL FLIP", barrel-jump-reset) back-stop.
@@ -29,6 +29,7 @@ import { enqueueTask } from "../enqueueTask.js";
 import { loc_09ee } from "../../translated/loc_09ee.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -43,21 +44,21 @@ const RING_LO = 0x60c0, RING_HI = 0x60ff; // 32 slots x 2 bytes
 const GAME_SUBSTATE = 0x600a;
 const VRAM_CELLS = [0x74e0, 0x74c0, 0x74a0]; // the 3-cell column loc_09ee paints
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
- * Diff two machines' RAM. Returns the first difference OUTSIDE STACK_SCRATCH
+ * Diff two machines' RAM. Returns the first difference OUTSIDE the stack scratch below the entry SP
  * (game-visible — a real failure) or null, plus how many bytes differed inside the
  * dead stack scratch (the tolerated push residue).
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -65,7 +66,7 @@ function ramDiffMinusStack(a, b) {
 
 /**
  * Replay one entry state through the oracle and a candidate on independent clones and
- * return the RAM diff (RAM − STACK_SCRATCH). Live-out is memory-only; pc/SP diverge as a seam
+ * return the RAM diff (RAM − the stack scratch below the entry SP). Live-out is memory-only; pc/SP diverge as a seam
  * artifact of the dissolved tail call (see the dissolution note) and are not compared.
  */
 function replay(entry, candidate) {
@@ -73,7 +74,7 @@ function replay(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return { a, b, ...ramDiffMinusStack(a, b) };
+  return { a, b, ...ramDiffMinusStack(a, b, entry.regs.sp) };
 }
 
 // A 2-coin + start-2 tape credits and starts a real 2-player game (attract is a 1-player
@@ -118,7 +119,7 @@ test("EQUAL (driven): armTwoPlayerBoardSetup == oracle on the real 2-player disp
     // Sanity: the routine really is reached in its 2-player board-setup context.
     assert.equal(entry.mem.read8(0x600f), 1, "TWO_PLAYER_GAME must be 1 at this dispatch");
     assert.equal(entry.mem.read8(GAME_SUBSTATE), 2, "GAME_SUBSTATE must be 2 at this dispatch");
-    // The oracle's push traffic must land in dead stack scratch, so excluding STACK_SCRATCH
+    // The oracle's push traffic must land in dead stack scratch, so excluding the stack scratch below the entry SP
     // cannot mask a real diff — the entry SP sits inside the region.
     assert.ok(
       entry.regs.sp > STACK_SCRATCH.lo && entry.regs.sp <= STACK_SCRATCH.hi,
@@ -144,10 +145,11 @@ test("EQUAL (crafted): CLEAN / FULL / WRAP ring arms match the oracle, exact foo
 
   for (const [label, craft] of [["CLEAN", CLEAN], ["FULL", FULL], ["WRAP", WRAP]]) {
     const a = entry.clone(), b = entry.clone();
+    const aFloor = a.regs.sp;
     craft(a); craft(b);
     oracle(a);
     armTwoPlayerBoardSetup(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     assert.equal(
       bad,
       null,
@@ -205,10 +207,11 @@ test("TEETH: the wrong-second-opcode twin is CAUGHT (real free-ring dispatch + d
 
   // Deterministic clean-ring catch, independent of whatever ring state the game minted.
   const a = caps[0].clone(), b = caps[0].clone();
+  const aFloor = a.regs.sp;
   CLEAN(a); CLEAN(b);
   oracle(a);
   brokenArmTwoPlayerBoardSetup(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "clean-ring sweep FAILED to catch the wrong-opcode twin");
   console.log(`  TEETH: caught at ${hx(caught.addr)} (captured) and ${hx(bad.addr)} (clean ring)`);
 });

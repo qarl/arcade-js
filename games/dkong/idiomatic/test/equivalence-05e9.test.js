@@ -40,6 +40,7 @@ import { loc_05e9 as oracle } from "../../translated/loc_05e9.js";
 import { drawStringVertical } from "../drawStringVertical.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -50,14 +51,14 @@ const test = ROM_PRESENT
 
 const TARGET = 0x05e9;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
- * Diff two machines' RAM. Returns the first difference OUTSIDE STACK_SCRATCH
+ * Diff two machines' RAM. Returns the first difference OUTSIDE the stack scratch below the entry SP
  * (game-visible — a real failure) or null, plus how many bytes differed inside the
  * dead stack scratch (the oracle's push-af / pop-hl residue the idiomatic side omits).
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0;
@@ -65,7 +66,7 @@ function ramDiffMinusStack(a, b) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -80,7 +81,7 @@ function replay(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return { a, b, ...ramDiffMinusStack(a, b) };
+  return { a, b, ...ramDiffMinusStack(a, b, entry.regs.sp) };
 }
 
 /**
@@ -154,7 +155,7 @@ test("EQUAL (crafted): the erase arm (payload bit 7) matches the oracle on real 
     b.regs.a = (entry.regs.a | 0x80) & 0xff;
     oracle(a);
     drawStringVertical(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, entry.regs.sp);
     assert.equal(
       bad,
       null,

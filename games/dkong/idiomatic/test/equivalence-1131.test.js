@@ -14,7 +14,7 @@
  * whole-machine one. The routine WRITES memory and reads only ROM (never pre-existing work
  * RAM), so every case runs on a FRESH clone per side and is compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) + pc + SP + the main registers a/b/c/d/e/h/l/ix.
+ *     RAM (dumpState, minus the stack scratch below the entry SP) + pc + SP + the main registers a/b/c/d/e/h/l/ix.
  *
  * The idiomatic routine models its four internal Z80 calls as direct JS calls (the callees
  * touch no stack) and drops its own terminal `ret`'s stack/PC bookkeeping, so the harness
@@ -64,6 +64,7 @@ import { copyBytePairsStrided } from "../copyBytePairsStrided.js";
 import { gatherSpriteRecords } from "../gatherSpriteRecords.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -75,33 +76,22 @@ const test = ROM_PRESENT
 const TARGET = 0x1131;
 const LIVE_REGS = ["a", "b", "c", "d", "e", "h", "l", "ix"]; // dead at the call site; verified as a free margin
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
-// -- comparison plumbing ------------------------------------------------------
 
-/**
- * First RAM byte that differs between two machines, skipping STACK_SCRATCH, or null. The
- * oracle transiently pushes into STACK_SCRATCH for its internal calls, and those dead bytes
- * — which the candidate never writes — must be excluded, not chased.
- */
-function ramDiffMinusStack(ma, mb) {
+function ramDiffMinusStack(ma, mb, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = ma.dumpState();
   const b = mb.dumpState();
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] === b[i]) continue;
     const addr = ma.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: a[i], b: b[i] };
   }
   return null;
 }
 
-/**
- * Run the oracle (rets internally) on one fresh clone and a candidate (+ one modelled
- * m.ret) on another, and diff the full contract. Returns a list of human-readable
- * mismatches (empty when equal).
- */
 function contractDiffs(entry, fn) {
   const o = entry.clone();
   oracle(o);
@@ -109,7 +99,7 @@ function contractDiffs(entry, fn) {
   fn(c);
   c.ret(); // model seed100mBoardObjects's own terminal `ret` so pc + SP line up
   const diffs = [];
-  const ram = ramDiffMinusStack(o, c);
+  const ram = ramDiffMinusStack(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr ?? 0)} oracle=${ram.a} cand=${ram.b}`);
   for (const r of LIVE_REGS) {
     if (o.regs[r] !== c.regs[r]) diffs.push(`${r.toUpperCase()} oracle=${hx(o.regs[r])} cand=${hx(c.regs[r])}`);
@@ -119,7 +109,6 @@ function contractDiffs(entry, fn) {
   return diffs;
 }
 
-// -- capture: force the BOARD=4 setup that dispatches 0x1131 -------------------
 
 const POKE_FRAME = 100;
 const FRAMES = 120; // the forced dispatch lands ~frame 102
@@ -130,11 +119,6 @@ const BOARD_POKE = [
   { addr: 0x6227, val: 0x04, frame: POKE_FRAME, dur: 1 }, // BOARD = 4 (rivets) -> 0x0FCD table entry 4
 ];
 
-/**
- * Force the real dispatch of 0x1131 via the board poke and clone the machine at up to K
- * true entries. The wrapper snapshots the entry state, then runs the oracle so the host
- * proceeds. A fresh copy of the poke keeps the run independent.
- */
 function captureDispatches(K) {
   const caps = [];
   const snap = new Map([[TARGET, (mm) => {
@@ -157,7 +141,6 @@ function craftPoison(entry) {
   return w;
 }
 
-// -- 1. EQUAL (real forced dispatch) ------------------------------------------
 
 test("EQUAL: real forced BOARD=4 dispatch matches the oracle, and the gather is permuting", () => {
   assert.ok(CAPS.length >= 1, `expected >=1 real 0x1131 dispatch after BOARD=4 poke, got ${CAPS.length}`);
@@ -186,7 +169,6 @@ test("EQUAL: real forced BOARD=4 dispatch matches the oracle, and the gather is 
   );
 });
 
-// -- 2. CRAFTED (write-footprint pin) -----------------------------------------
 
 test("CRAFTED: distinctive-poison footprint pin (identical both sides) matches the oracle", () => {
   const diffs = contractDiffs(craftPoison(CAPS[0]), seed100mBoardObjects);
@@ -194,7 +176,6 @@ test("CRAFTED: distinctive-poison footprint pin (identical both sides) matches t
   console.log("  CRAFTED: 0x6400–0x6AFF poison pin — oracle and candidate touch exactly the same bytes");
 });
 
-// -- 3. TEETH -----------------------------------------------------------------
 
 /**
  * Broken twin (a): SKIP-POSITION — omits step 4 (copyBytePairsStrided), so offsets +3/+5 of
@@ -214,10 +195,6 @@ function skipPositionTwin(m) {
   regs.hl = 0x6950; regs.b = 0x02; regs.de = 0x0020; gatherSpriteRecords(m);
 }
 
-/**
- * Broken twin (b): WRONG-DEST — faithful except the final gather targets 0x6900 instead of
- * 0x6950, so the sprite records land in the wrong place.
- */
 function wrongDestTwin(m) {
   const { regs, mem } = m;
   regs.hl = 0x3df0; regs.de = 0x6407; regs.bc = 0x051c; replicateGroupStrided(m);

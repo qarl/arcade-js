@@ -17,7 +17,7 @@
  * (never a reused machine). The oracle runs on one clone, spawnInterludeHeart on another, and
  * they are compared on the go-forward contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH)     [no live-out regs/flags]
+ *     RAM (dumpState, minus the stack scratch below the entry SP)     [no live-out regs/flags]
  *
  * SP/PC are deliberately NOT compared: the oracle's only SP/PC mutations are its
  * push16/step/ret stack + PC bookkeeping for the two `call`s and the terminal `ret`,
@@ -49,8 +49,6 @@
  *   4. CRAFTED (overwrites dirt) — pre-dirty the whole target set to 0xAA identically
  *      on both sides; oracle and spawnInterludeHeart leave identical RAM AND both overwrite the
  *      dirt with the correct constants (clear/seed semantics, not agreement-on-preset).
- *   5. TEETH — two broken twins MUST be caught: (a) a wrong sprite byte at 0x6A21,
- *      (b) a SKIPPED colour-column fill (0x75C4/0x75E4/0x7604 left dirty).
  *
  * Run: node --test games/dkong/idiomatic/test/equivalence-1708.test.js
  */
@@ -66,6 +64,7 @@ import { silenceSound } from "../silenceSound.js";
 import { fillDescendingColumn } from "../fillDescendingColumn.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, SND_PRIORITY, SND_PRIORITY_FRAMES } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -91,44 +90,39 @@ const EXPECTED = new Map([
   [0x75c4, 0x10], [0x75e4, 0x0f], [0x7604, 0x0e],
 ]);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
-
 /**
  * First RAM difference between two machines on the go-forward contract: the whole
- * state dump minus the STACK_SCRATCH region (dead scratch). This IS load-bearing
+ * state dump minus the stack scratch below the entry SP (dead scratch). This IS load-bearing
  * here — the oracle's two `call`s push16 into STACK_SCRATCH (0x6BFC/0x6BFD) while the
  * direct-call candidate never touches the stack, so those bytes legitimately differ
  * and MUST be masked. Single forward pass, skipping stack addresses inline. Returns
  * {addr,a,b} or null.
  */
-function ramDiffMinusStack(ma, mb) {
+function ramDiffMinusStack(ma, mb, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = ma.dumpState();
   const b = mb.dumpState();
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] === b[i]) continue;
     const addr = ma.stateOffsetToAddr(i);
-    if (inDeadStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: a[i], b: b[i] };
   }
   return null;
 }
 
-/** Run the oracle and `cand` on two FRESH clones of `entry` and diff (RAM − stack). */
 function diffAgainstOracle(entry, cand) {
-  const a = entry.clone(); // oracle
-  const b = entry.clone(); // candidate
+  const a = entry.clone();
+  const b = entry.clone();
   oracle(a);
   cand(b);
-  return ramDiffMinusStack(a, b);
+  return ramDiffMinusStack(a, b, entry.regs.sp);
 }
 
-/** Dirty every EXPECTED target address to `val` on machine `m`. */
 function dirtyTargets(m, val) {
   for (const addr of EXPECTED.keys()) m.mem.write8(addr, val);
 }
-
-// -- realistic entries: real attract machine states at several frames --------
 
 /**
  * A real attract-mode machine state at frame ~N. spawnInterludeHeart is never dispatched in
@@ -150,8 +144,6 @@ function attractState(nFrames) {
 
 const ENTRIES = ROM_PRESENT ? [350, 2000, 4500].map(attractState) : [];
 
-// -- 1. EQUAL (real attract states) -------------------------------------------
-
 test("EQUAL: real attract states as entries — spawnInterludeHeart == oracle in RAM (−stack)", () => {
   assert.ok(ENTRIES.length >= 1, "expected at least one attract entry state");
   for (const entry of ENTRIES) {
@@ -160,8 +152,6 @@ test("EQUAL: real attract states as entries — spawnInterludeHeart == oracle in
   }
   console.log(`  EQUAL: ${ENTRIES.length} real attract states — RAM (−stack) identical to the oracle`);
 });
-
-// -- 2. INPUT-INDEPENDENCE ----------------------------------------------------
 
 test("INPUT-INDEPENDENCE: oracle non-stack outputs are constant across differently-dirtied entries", () => {
   const base = ENTRIES[0];
@@ -180,8 +170,6 @@ test("INPUT-INDEPENDENCE: oracle non-stack outputs are constant across different
   console.log("  INPUT-INDEPENDENCE: identical non-stack outputs from 0x11- vs 0xEE-dirtied entries");
 });
 
-// -- 3. FOOTPRINT -------------------------------------------------------------
-
 test("FOOTPRINT: the oracle's only non-stack changes are the documented targets + constants", () => {
   const entry = ENTRIES[0].clone();
   dirtyTargets(entry, 0xaa); // so every target write shows as a change (0xAA != any target value)
@@ -191,10 +179,11 @@ test("FOOTPRINT: the oracle's only non-stack changes are the documented targets 
   const a1 = entry.dumpState();
 
   const seen = new Set();
+  const dead = deadStackBelow(STACK_SCRATCH, before.regs.sp);
   for (let off = 0; off < b0.length; off++) {
     if (b0[off] === a1[off]) continue;
     const addr = entry.stateOffsetToAddr(off);
-    if (inDeadStack(addr)) continue; // oracle push/ret scratch — excluded by contract
+    if (dead(addr)) continue;
     assert.ok(EXPECTED.has(addr), `oracle wrote an UNEXPECTED non-stack addr ${hx(addr)} (${b0[off]}->${a1[off]})`);
     assert.equal(a1[off], EXPECTED.get(addr), `oracle wrote wrong value at ${hx(addr)}`);
     seen.add(addr);
@@ -206,19 +195,17 @@ test("FOOTPRINT: the oracle's only non-stack changes are the documented targets 
   console.log(`  FOOTPRINT: ${seen.size} non-stack targets written, each to its documented constant`);
 });
 
-// -- 4. CRAFTED (overwrites dirt) ---------------------------------------------
-
 test("CRAFTED: pre-dirtied targets are overwritten identically by both sides", () => {
   const base = ENTRIES[0];
   const o = base.clone();
   const c = base.clone();
   dirtyTargets(o, 0xaa);
-  dirtyTargets(c, 0xaa); // identical surgical nudge on BOTH sides
+  dirtyTargets(c, 0xaa);
 
   oracle(o);
   candidate(c);
 
-  const d = ramDiffMinusStack(o, c);
+  const d = ramDiffMinusStack(o, c, base.regs.sp);
   assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} cand=${d.b}`);
   // ...and spawnInterludeHeart genuinely overwrote the dirt with the right constants.
   for (const [addr, val] of EXPECTED) {
@@ -226,8 +213,6 @@ test("CRAFTED: pre-dirtied targets are overwritten identically by both sides", (
   }
   console.log("  CRAFTED: whole target set dirtied to 0xAA -> both overwrite to the documented constants, RAM identical");
 });
-
-// -- 5. TEETH -----------------------------------------------------------------
 
 /** Twin (a): wrong sprite byte at 0x6A21 (0x77 instead of 0x76). */
 function brokenSpriteByte(m) {
@@ -253,7 +238,6 @@ function brokenNoColourColumn(m) {
   mem.write8(0x6a22, 0x09);
   mem.write8(0x6a23, 0x20);
   mem.write8(0x6905, 0x13);
-  // BUG: dropped the fillDescendingColumn colour-column paint.
   mem.write8(SND_PRIORITY, 0x07);
   mem.write8(SND_PRIORITY_FRAMES, 0x03);
 }

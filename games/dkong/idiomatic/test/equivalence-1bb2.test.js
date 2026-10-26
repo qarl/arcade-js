@@ -13,7 +13,7 @@
  * base the tails inherit wrong — surfaces as divergent RAM many routines later, not just
  * here. That also makes this an independent corroboration of the two tail routines.
  *
- * CONTRACT COMPARED: RAM − STACK_SCRATCH plus the routine's return value. The stack exclusion is
+ * CONTRACT COMPARED: RAM − the stack scratch below the entry SP plus the routine's return value. The stack exclusion is
  * the standard memory-equivalence contract — the oracle brackets its leaf calls with push16/ret
  * that the direct calls dissolve. pc, SP and the register file are NOT compared: the airborne
  * cascade's tail m.call(0x1C05) was dissolved to a direct loc_1c05 call, so the terminal ret
@@ -73,6 +73,7 @@ import {
   MARIO_FATAL_FALL,
   BOARD,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -85,57 +86,59 @@ const TARGET = 0x1bb2;
 const ATTRACT_FRAMES = 2000;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-/** First differing RAM byte outside the dead STACK_SCRATCH region, or null. */
-function firstRamDiff(a, b) {
+/** First differing RAM byte outside the stack scratch below the entry SP, or null. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
 /** EVERY differing live (non-stack) RAM address between two machines. */
-function ramDiffAddrs(a, b) {
+function ramDiffAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = new Set();
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (!inStack(addr)) out.add(addr);
+    if (!dead(addr)) out.add(addr);
   }
   return out;
 }
 
 /** Diffs inside the excluded stack region (diagnostic only — proves the exclusion is used). */
-function stackDiffCount(a, b) {
+function stackDiffCount(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   let c = 0;
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
-    if (da[i] !== db[i] && inStack(a.stateOffsetToAddr(i))) c++;
+    if (da[i] !== db[i] && dead(a.stateOffsetToAddr(i))) c++;
   }
   return c;
 }
 
 /**
  * Run the oracle and `fn` on two fresh clones of `entry` and report every contract
- * violation: RAM − STACK_SCRATCH and the forwarded return value (pc/SP/registers are seam artifacts, excluded).
+ * violation: RAM − the stack scratch below the entry SP and the forwarded return value (pc/SP/registers are seam artifacts, excluded).
  */
 function contractDiffs(entry, fn) {
   const a = entry.clone(); const wantRet = oracle(a);
   const b = entry.clone(); const gotRet = fn(b);
   const diffs = [];
-  const ram = firstRamDiff(a, b);
+  const ram = firstRamDiff(a, b, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   // pc/SP and the whole register file dropped: the tail m.call(0x1C05) was dissolved to a direct
   // loc_1c05 call in the airborne cascade, so pc, SP and the register file left by the terminal
   // ret are now seam artifacts. advanceMarioAirborneFrame's LIVE-OUT is memory-only (no register
-  // live-out), so RAM − STACK_SCRATCH + the return value is the whole contract; whole-game
+  // live-out), so RAM − the stack scratch below the entry SP + the return value is the whole contract; whole-game
   // SP-inertness tests guard SP.
   if (wantRet !== gotRet) diffs.push(`return oracle=${wantRet} cand=${gotRet}`);
   return diffs;
@@ -246,7 +249,7 @@ test("EQUAL (captured): advanceMarioAirborneFrame == oracle on every real attrac
     arms.set(arm, (arms.get(arm) ?? 0) + 1);
     const a = cap.clone(); oracle(a);
     const b = cap.clone(); candidate(b);
-    stackExcluded += stackDiffCount(a, b);
+    stackExcluded += stackDiffCount(a, b, cap.regs.sp);
   }
 
   // Honest reachability statement: attract only ever produces the gate's blocked verdict.
@@ -359,7 +362,7 @@ function teeth(entry, twin, label, mustTouch) {
   assert.ok(diffs.length > 0, `the ${label} twin escaped the gate entirely — the gate is worthless`);
   const a = entry.clone(); oracle(a);
   const b = entry.clone(); twin(b);
-  const addrs = ramDiffAddrs(a, b);
+  const addrs = ramDiffAddrs(a, b, entry.regs.sp);
   assert.ok(addrs.size > 0, `the ${label} twin diverged only outside RAM — not a live-cell catch`);
   if (mustTouch !== undefined) {
     assert.ok(

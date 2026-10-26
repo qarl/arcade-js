@@ -11,7 +11,7 @@
  * the reset carries state, so every case uses a FRESH clone per side and the two are compared
  * on the go-forward contract:
  *
- *     RAM (dumpState) minus STACK_SCRATCH.
+ *     RAM (dumpState) minus the stack scratch below the entry SP.
  *
  * pc and SP are deliberately NOT compared. The oracle models its control flow with the Z80
  * stack: the `rst 0x20` gate does a caller-skip (a double return) on the not-yet-expired
@@ -30,7 +30,7 @@
  *
  * Jobs:
  *   1. REACHABILITY — a plain attract run dispatches 0x0763, capturing skip and run entries.
- *   2. EQUAL (captured) — restartAttractDemoAt25m == oracle over RAM − STACK_SCRATCH on every real
+ *   2. EQUAL (captured) — restartAttractDemoAt25m == oracle over RAM − the stack scratch below the entry SP on every real
  *      dispatch; non-vacuous (the run entries genuinely build a board; the mask is load-bearing).
  *   3. EQUAL (crafted) — a run entry with the object-insert request + level preset nonzero
  *      matches the oracle (proving the reseed reproduces), plus a forced skip and a forced run.
@@ -53,7 +53,7 @@ import { restartAttractDemoAt25m as idiomatic } from "../restartAttractDemoAt25m
 import { tickSubstatePrescaler } from "../tickSubstatePrescaler.js";
 import { buildBoard } from "../buildBoard.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   BOARD,
@@ -75,31 +75,31 @@ const TARGET = 0x0763;
 const SCRATCH_6392 = 0x6392; // unnamed engine scratch cleared alongside the object-insert request
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
-
 /**
  * First RAM difference between two machines on the go-forward contract: the whole state
- * dump minus STACK_SCRATCH (dead scratch — the oracle's caller-skip / tail-jump / board-build
+ * dump minus the stack scratch below the entry SP (dead scratch — the oracle's caller-skip / tail-jump / board-build
  * brackets push return addresses there while the direct-call idiomatic side does not).
  * dumpState() returns a fresh array per call, so the dead bytes are masked (copied across)
  * before a single diff. Returns {addr,a,b,offset} or null.
  */
-function ramDiffMinusStack(ma, mb) {
+function ramDiffMinusStack(ma, mb, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = ma.dumpState();
   const b = mb.dumpState();
   for (let off = 0; off < a.length; off++) {
-    if (inDeadStack(ma.stateOffsetToAddr(off))) b[off] = a[off]; // mask dead scratch
+    if (dead(ma.stateOffsetToAddr(off))) b[off] = a[off]; // mask dead scratch
   }
   return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off));
 }
 
 /** How many masked-away diffs actually fell in the dead stack region (mask load-bearing?). */
-function stackDiffCount(ma, mb) {
+function stackDiffCount(ma, mb, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = ma.dumpState();
   const b = mb.dumpState();
   let n = 0;
   for (let off = 0; off < a.length; off++) {
-    if (a[off] !== b[off] && inDeadStack(ma.stateOffsetToAddr(off))) n++;
+    if (a[off] !== b[off] && dead(ma.stateOffsetToAddr(off))) n++;
   }
   return n;
 }
@@ -133,7 +133,7 @@ test("REACHABILITY: 0x0763 is dispatched during attract, spanning skip and run p
 
 // -- 1. EQUAL (captured) ------------------------------------------------------
 
-test("EQUAL (captured): restartAttractDemoAt25m == oracle over RAM − STACK_SCRATCH on every real dispatch", () => {
+test("EQUAL (captured): restartAttractDemoAt25m == oracle over RAM − the stack scratch below the entry SP on every real dispatch", () => {
   assert.ok(CAPS.length >= 1, "expected at least one real 0x0763 dispatch");
   let sawRun = 0, sawSkip = 0;
   for (const cap of CAPS) {
@@ -141,7 +141,7 @@ test("EQUAL (captured): restartAttractDemoAt25m == oracle over RAM − STACK_SCR
     const c = cap.clone();
     oracle(o);
     idiomatic(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, cap.regs.sp);
     assert.equal(d, null, d && `dispatch (run=${isRunEntry(cap)}): RAM diff at ${hx(d.addr ?? 0)} oracle=${d.a} idiomatic=${d.b}`);
     if (isRunEntry(cap)) sawRun++; else sawSkip++;
   }
@@ -156,7 +156,7 @@ test("EQUAL (captured): restartAttractDemoAt25m == oracle over RAM − STACK_SCR
   assert.equal(o.mem.read8(LIVES), 1, "run path must reseed LIVES = 1");
   const c = run.clone();
   idiomatic(c);
-  assert.ok(stackDiffCount(o, c) > 0, "the oracle's stack traffic must differ so the STACK_SCRATCH mask is load-bearing");
+  assert.ok(stackDiffCount(o, c, run.regs.sp) > 0, "the oracle's stack traffic must differ so the STACK_SCRATCH mask is load-bearing");
 
   console.log(`  EQUAL/captured: ${CAPS.length} real dispatches identical (${sawRun} run, ${sawSkip} skip)`);
 });
@@ -175,7 +175,7 @@ test("EQUAL (crafted): reset path with the object-insert request preset, plus fo
     o.mem.write8(LEVEL, 9);             c.mem.write8(LEVEL, 9);
     oracle(o);
     idiomatic(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, run.regs.sp);
     assert.equal(d, null, d && `preset-reset run: RAM diff at ${hx(d.addr ?? 0)} oracle=${d.a} idiomatic=${d.b}`);
     assert.equal(o.mem.read8(EVENT_REQ_313C), 0, "oracle must clear the object-insert request to 0");
     assert.equal(o.mem.read8(SCRATCH_6392), 0, "oracle must clear the paired scratch to 0");
@@ -189,7 +189,7 @@ test("EQUAL (crafted): reset path with the object-insert request preset, plus fo
     for (const m of [o, c]) { m.mem.write8(SUBSTATE_TIMER_LO, 1); m.mem.write8(SUBSTATE_TIMER, 1); }
     oracle(o); idiomatic(c);
     assert.equal(o.mem.read8(BOARD), 1, "forced-run oracle must reseed BOARD = 1");
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, base.regs.sp);
     assert.equal(d, null, d && `forced run: RAM diff at ${hx(d.addr ?? 0)} oracle=${d.a} idiomatic=${d.b}`);
   }
 
@@ -201,7 +201,7 @@ test("EQUAL (crafted): reset path with the object-insert request preset, plus fo
     oracle(o); idiomatic(c);
     // The skip path must NOT build a board: BOARD is untouched relative to entry.
     assert.equal(o.mem.read8(BOARD), base.mem.read8(BOARD), "forced-skip oracle must not reseed BOARD");
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, base.regs.sp);
     assert.equal(d, null, d && `forced skip: RAM diff at ${hx(d.addr ?? 0)} oracle=${d.a} idiomatic=${d.b}`);
   }
 
@@ -253,7 +253,7 @@ test("TEETH: wrong-life, dropped-level, and gate-not-enforced twins are all CAUG
     const run = RUN_CAPS[0];
     const o = run.clone(); const c = run.clone();
     oracle(o); brokenLives(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, run.regs.sp);
     assert.notEqual(d, null, "the wrong-life twin escaped — the gate is worthless");
     assert.equal(d.addr, LIVES, `expected the life diff at ${hx(LIVES)}, got ${hx(d.addr ?? 0)}`);
   }
@@ -264,7 +264,7 @@ test("TEETH: wrong-life, dropped-level, and gate-not-enforced twins are all CAUG
     const o = run.clone(); const c = run.clone();
     o.mem.write8(LEVEL, 7); c.mem.write8(LEVEL, 7);
     oracle(o); brokenDropLevel(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, run.regs.sp);
     assert.notEqual(d, null, "the dropped-level-reseed twin escaped — the gate is worthless");
     assert.equal(d.addr, LEVEL, `expected the level diff at ${hx(LEVEL)}, got ${hx(d.addr ?? 0)}`);
   }
@@ -274,7 +274,7 @@ test("TEETH: wrong-life, dropped-level, and gate-not-enforced twins are all CAUG
     const skip = SKIP_LO[0];
     const o = skip.clone(); const c = skip.clone();
     oracle(o); brokenNoGate(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, skip.regs.sp);
     assert.notEqual(d, null, "the gate-not-enforced twin escaped — the timer gate is untested");
   }
 

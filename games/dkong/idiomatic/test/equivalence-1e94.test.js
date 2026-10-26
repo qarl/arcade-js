@@ -5,7 +5,7 @@
  * entry_1e94 is a LEAF whose entire effect is control flow: it discards the caller's own
  * return frame and returns one level further up, so the routine that reached it is skipped.
  * It writes NO work RAM and depends on NO input — it always skips. The only memory-equivalence
- * observables are therefore pc + SP (RAM − STACK_SCRATCH is trivially unchanged on both sides).
+ * observables are therefore pc + SP (RAM − the stack scratch below the entry SP is trivially unchanged on both sides).
  *
  * The idiomatic loc_1e94 models no stack: it returns the caller-skip boolean (always false),
  * and a real caller consumes it as `if (!loc_1e94(m)) return;`. So this harness plays the
@@ -19,13 +19,13 @@
  *
  *   1. EQUAL (crafted) — over many crafted stacks (varied caller-caller return target and
  *      stack pointer, including 0x0000/0xFFFF/boundary targets), loc_1e94 == oracle on
- *      RAM − STACK_SCRATCH, pc, SP. A non-vacuity check confirms the oracle actually skipped
+ *      RAM − the stack scratch below the entry SP, pc, SP. A non-vacuity check confirms the oracle actually skipped
  *      (SP advanced by four, pc became the caller-caller target), so the match is not a
  *      two-no-ops coincidence.
  *
  *   2. TEETH — two broken twins, each MUST be caught:
  *      (a) proceeds instead of skipping (returns true) — caught on pc + SP.
- *      (b) scribbles a work-RAM byte — caught by the RAM − STACK_SCRATCH diff.
+ *      (b) scribbles a work-RAM byte — caught by the RAM − the stack scratch below the entry SP diff.
  *
  *   3. REACHABILITY — hook 0x1E94 across a real attract run; it is currently unreachable
  *      (its caller's 0x1E96 arm is untranslated), so the expected count is 0. Any dispatch
@@ -43,6 +43,7 @@ import { loc_1e94 as oracle } from "../../translated/loc_1e94.js";
 import { loc_1e94 } from "../loc_1e94.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -55,20 +56,18 @@ const TARGET = 0x1e94;
 // Top of the crafted stack: pops walk downward from here, staying inside work RAM (never I/O)
 // and inside STACK_SCRATCH so the setup bytes are excluded from the RAM diff.
 const SP_TOP = 0x6bfc;
-const SCRIBBLE = 0x6300; // an arbitrary work-RAM cell, outside STACK_SCRATCH, for the RAM tooth.
+const SCRIBBLE = 0x6300; // an arbitrary work-RAM cell, outside the stack scratch below the entry SP, for the RAM tooth.
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region
-// (the memory-equivalence contract is RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -81,13 +80,6 @@ function runOracle(entry) {
   return c;
 }
 
-/**
- * Run a candidate on a fresh clone, then play the caller consuming its boolean and apply
- * the matching stack effect so pc + SP line up with the oracle (the idiomatic routine
- * replaces the Z80 stack with the JS call stack, so it does not touch pc/SP itself):
- *   proceed -> one return (to the caller's continuation);
- *   skip    -> discard the caller's frame, then return past it (two pops).
- */
 function runCandidate(entry, fn) {
   const c = entry.clone();
   const proceed = fn(c);
@@ -100,12 +92,12 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Full contract diff: RAM − STACK_SCRATCH, pc, SP. Live-out is the control-flow skip. */
+/** Full contract diff: RAM − the stack scratch below the entry SP, pc, SP. Live-out is the control-flow skip. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);
@@ -132,7 +124,7 @@ function craft(base, { callerFrame, callerCaller, spTop = SP_TOP }) {
 
 // -- 1. EQUAL (crafted) -------------------------------------------------------
 
-test("EQUAL (crafted): loc_1e94 == oracle across varied stacks (RAM − STACK_SCRATCH, pc, SP)", () => {
+test("EQUAL (crafted): loc_1e94 == oracle across varied stacks (RAM − the stack scratch below the entry SP, pc, SP)", () => {
   const base = attractBase();
 
   const cases = [
@@ -187,7 +179,7 @@ test("TEETH: the proceed-instead-of-skip twin and the RAM-scribble twin are CAUG
     `expected pc + SP divergence, got: ${proceedDiffs.join("; ")}`,
   );
 
-  // (b) RAM scribble: a byte written outside STACK_SCRATCH must be caught by the RAM diff.
+  // (b) RAM scribble: a byte written outside the stack scratch below the entry SP must be caught by the RAM diff.
   const scribbleDiffs = contractDiffs(entry, brokenScribble);
   assert.ok(scribbleDiffs.length > 0, "the RAM-scribble twin escaped — the RAM check is worthless");
   assert.ok(

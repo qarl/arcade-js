@@ -6,7 +6,7 @@
  *
  * The dissolved dispatchBoardCollision takes { iy, c, bounds } and selects the board arm by BOARD
  * (a local switch), returning the arm's { overlap, residue, stride, base } tuple; it opens no guest
- * stack. It is validated by MEMORY-equivalence against the frozen oracle (RAM − STACK_SCRATCH) plus
+ * stack. It is validated by MEMORY-equivalence against the frozen oracle (RAM − the stack scratch below the entry SP) plus
  * that returned tuple against the four values the oracle leaves in A/B/E/IX. pc/SP are seam
  * artifacts of the oracle's rst-0x28 trampoline unwind and are not compared; the RAM diff excludes
  * the dead STACK_SCRATCH region. It IS reached in plain attract (BOARD holds 1, the 25m arm), so the
@@ -46,6 +46,7 @@ import { search75mObjectOverlap } from "../search75mObjectOverlap.js";
 import { search100mObjectOverlap } from "../search100mObjectOverlap.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, BOARD } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -65,20 +66,21 @@ function searchArgs(entry) {
 }
 
 // First differing RAM byte between two dumps, EXCLUDING the dead stack-scratch region (the
-// memory-equivalence contract is RAM − STACK_SCRATCH; the oracle leaves the trampoline's
+// memory-equivalence contract is RAM − the stack scratch below the entry SP; the oracle leaves the trampoline's
 // popped table-base word there and this routine does not). Returns { addr, a, b } or null.
-function firstRamDiffExStack(a, b, offToAddr) {
+function firstRamDiffExStack(a, b, offToAddr, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] === b[i]) continue;
     const addr = offToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { addr, a: a[i], b: b[i] };
   }
   return null;
 }
 
-// Full contract diff for a full-handler run: RAM − STACK_SCRATCH, plus the returned tuple
+// Full contract diff for a full-handler run: RAM − the stack scratch below the entry SP, plus the returned tuple
 // { overlap, residue, stride, base } against the four values the frozen oracle handler leaves in
 // A (overlap), B (residue), E (stride low byte) and IX (base). The full oracle handler runs on the
 // oracle side; the candidate runs the idiomatic arm and returns the tuple. pc/SP are NOT compared:
@@ -90,7 +92,7 @@ function contractDiffs(entry, fn) {
   oracle(a);
   const tuple = fn(b, searchArgs(entry));
   const diffs = [];
-  const ram = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o));
+  const ram = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (tuple.overlap !== a.regs.a) diffs.push(`overlap oracle=${hx(a.regs.a)} cand=${hx(tuple.overlap)}`);
   if (tuple.residue !== a.regs.b) diffs.push(`residue oracle=${hx(a.regs.b)} cand=${hx(tuple.residue)}`);

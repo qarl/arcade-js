@@ -16,7 +16,7 @@
  *   2. EQUAL + PURITY (captured) — hook 0x2B51 in a real attract run, clone at each
  *      dispatch, and for every real state confirm (a) the oracle writes NO RAM
  *      (licensing the memory-only contract), (b) the oracle returns false, and
- *      (c) loc_2b51 reproduces the oracle over RAM (minus the dead STACK_SCRATCH) and
+ *      (c) loc_2b51 reproduces the oracle over RAM (minus the stack scratch below the entry SP) and
  *      the boolean return.
  *
  *   3. EQUAL (crafted, state-independence) — vary the stack pointer, the popped
@@ -45,7 +45,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2b51 as oracle } from "../../translated/loc_2b51.js";
 import { loc_2b51 } from "../loc_2b51.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -56,20 +56,20 @@ const test = ROM_PRESENT
   : (name, fn) => nodeTest(name, { skip: "skipped: ROM not built — run 'make -C games/dkong rom'" }, fn);
 
 const TARGET = 0x2b51;
-const TWIN_CELL = 0x6229; // LEVEL — a live work-RAM cell (outside STACK_SCRATCH) for teeth (b)
+const TWIN_CELL = 0x6229; // LEVEL — a live work-RAM cell (outside the stack scratch below the entry SP) for teeth (b)
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH
-// region (the memory-equivalence contract is RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
+// region (the memory-equivalence contract is RAM − the stack scratch below the entry SP). { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -87,7 +87,7 @@ function contractDiffs(entry, fn) {
   const oRet = oracle(o);
   const cRet = fn(c);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (oRet !== cRet) diffs.push(`return oracle=${oRet} cand=${cRet}`);
   return diffs;
@@ -172,7 +172,7 @@ test("EQUAL + PURITY (captured): loc_2b51 == oracle on every real dispatch; orac
     );
     assert.equal(ret, false, "the oracle's caller-skip decision is always false");
 
-    // EQUAL: loc_2b51 reproduces the oracle over RAM − STACK_SCRATCH + the boolean.
+    // EQUAL: loc_2b51 reproduces the oracle over RAM − the stack scratch below the entry SP + the boolean.
     const diffs = contractDiffs(cap, loc_2b51);
     assert.equal(diffs.length, 0, `captured dispatch: ${diffs.join("; ")}`);
   }

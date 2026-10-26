@@ -18,11 +18,11 @@
  * the oracle (pc likewise at entry) on both the gate-closed skip and the gate-open body. That is a
  * pure seam artifact — the oracle's push/ret churn all lands in the dead STACK_SCRATCH
  * [0x6be0,0x6c00) which the RAM diff excludes, and the whole-game SP guards (idiomatic.test.js
- * "FULL FLIP", barrel-jump-reset) back-stop any stray push — so the contract is RAM − STACK_SCRATCH.
+ * "FULL FLIP", barrel-jump-reset) back-stop any stray push — so the contract is RAM − the stack scratch below the entry SP.
  *
  *   1. REACHABILITY — 0x25F2 dispatched (many x) in attract, but always on the 25m board so the
  *      gate is closed and the body never runs; documents why the body arm is crafted.
- *   2. EQUAL (captured) — real dispatches == oracle over RAM - STACK_SCRATCH, and
+ *   2. EQUAL (captured) — real dispatches == oracle over RAM - the stack scratch below the entry SP, and
  *      the arm taken is genuinely gate-closed (no object RAM written).
  *   3. EQUAL (crafted, 50m body) — BOARD=2 swept over FRAME x Mario Y-band x prior-X x timer
  *      config so the whole cascade runs; identical to the oracle. Non-vacuity: the body writes
@@ -61,6 +61,7 @@ import {
   M50_OBJ2_STEP_DIR,
   M50_OBJ3_STEP_DIR,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -73,31 +74,32 @@ const TARGET = 0x25f2;
 const RET_ADDR = 0x199d; // the site right after `call 0x25F2` @0x199A — the modelled `ret` target
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
 /** Every non-stack RAM address that changed between two machines (body ran / skipped check). */
-function changedAddrs(a, b) {
+function changedAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.push(addr);
   }
   return out;
@@ -129,13 +131,13 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Contract diff: RAM - STACK_SCRATCH. No pc/SP (a seam artifact of the dissolved calls — see the
+/** Contract diff: RAM - the stack scratch below the entry SP. No pc/SP (a seam artifact of the dissolved calls — see the
  *  header). Live-out is memory-only. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   return diffs;
 }
@@ -231,7 +233,7 @@ test("EQUAL (captured): loc_25f2 == oracle on every real (gate-closed) dispatch"
     assert.equal(diffs.length, 0, `captured dispatch (board ${entry.mem.read8(BOARD)}): ${diffs.join("; ")}`);
     // The arm taken is genuinely gate-closed: the oracle wrote no non-stack RAM (body skipped).
     assert.equal(gateOpen(entry), false, "captured attract dispatch should be gate-closed");
-    assert.deepEqual(changedAddrs(entry, runOracle(entry)), [], "gate-closed dispatch must not write object RAM");
+    assert.deepEqual(changedAddrs(entry, runOracle(entry), entry.regs.sp), [], "gate-closed dispatch must not write object RAM");
   }
   console.log(`  EQUAL/captured: ${caps.length} real dispatches identical to the oracle (all gate-closed, body skipped)`);
 });
@@ -255,7 +257,7 @@ test("EQUAL (crafted, 50m body): loc_25f2 == oracle over FRAME × Mario-Y × tim
         count++;
         if (diffs.length) { mismatch = { y, cfg, frame, diffs }; break outer; }
         const after = runOracle(entry);
-        if (changedAddrs(entry, after).length) bodyRan++;
+        if (changedAddrs(entry, after, entry.regs.sp).length) bodyRan++;
         if (after.mem.read8(MARIO_X) !== 0x80) marioMoved++;
       }
     }
@@ -292,7 +294,7 @@ test("EQUAL (crafted, gate-closed): boards 3 and 4 skip the 50m body and match t
     const entry = craft(base, { board, frame: 0x01, marioX: 0x80, marioY: 0x50 });
     const diffs = contractDiffs(entry, loc_25f2);
     assert.equal(diffs.length, 0, `board ${board}: ${diffs.join("; ")}`);
-    assert.deepEqual(changedAddrs(entry, runOracle(entry)), [], `board ${board}: gate should be closed, body must not run`);
+    assert.deepEqual(changedAddrs(entry, runOracle(entry), entry.regs.sp), [], `board ${board}: gate should be closed, body must not run`);
   }
   console.log(`  EQUAL/crafted-closed: boards 3 & 4 skip the body — identical to the oracle`);
 });
@@ -309,7 +311,7 @@ function ramDiffVsOracle(entry, fn) {
   const o = runOracle(entry);
   const c = entry.clone();
   fn(c);
-  return firstRamDiff(o, c);
+  return firstRamDiff(o, c, entry.regs.sp);
 }
 
 test("TEETH: wrong-mask, dropped-gate, and dropped-carry twins are CAUGHT", () => {
@@ -317,14 +319,14 @@ test("TEETH: wrong-mask, dropped-gate, and dropped-carry twins are CAUGHT", () =
 
   // (a) wrong mask: on the 50m board the correct routine runs the body, the twin skips it.
   const a = craft(base, { board: 0x02, frame: 0x01, marioX: 0x80, marioY: 0x50 });
-  assert.ok(changedAddrs(a, runOracle(a)).length > 0, "the 50m body must write object RAM on this entry");
+  assert.ok(changedAddrs(a, runOracle(a), a.regs.sp).length > 0, "the 50m body must write object RAM on this entry");
   const aDiff = ramDiffVsOracle(a, brokenWrongMask);
   assert.notEqual(aDiff, null, "the wrong-mask twin escaped — the gate is worthless");
   assert.equal(contractDiffs(a, loc_25f2).length, 0, "loc_25f2 must still pass this entry");
 
   // (b) dropped gate: on the 25m board the correct routine skips the body, the twin runs it.
   const b = craft(base, { board: 0x01, frame: 0x01, marioX: 0x80, marioY: 0x50 });
-  assert.deepEqual(changedAddrs(b, runOracle(b)), [], "the 25m board must skip the body (no object RAM)");
+  assert.deepEqual(changedAddrs(b, runOracle(b), b.regs.sp), [], "the 25m board must skip the body (no object RAM)");
   const bDiff = ramDiffVsOracle(b, brokenNoGate);
   assert.notEqual(bDiff, null, "the dropped-gate twin escaped — the gate is worthless");
   assert.equal(contractDiffs(b, loc_25f2).length, 0, "loc_25f2 must still pass this entry");

@@ -10,7 +10,7 @@
  * effects are those three record fields (indexed off the object pointer); it leaves no
  * live register (the sole caller's tail swaps the bank and overwrites the accumulator),
  * so the contract is memory-only:
- *   - RAM identical minus STACK_SCRATCH. The oracle's `call 0x236e` push, findOppositeLadderEnd's
+ *   - RAM identical minus the stack scratch below the entry SP. The oracle's `call 0x236e` push, findOppositeLadderEnd's
  *     internal push/pop, and startBarrelDescentAtLadder's `ret`/double-unwind all churn the stack; the
  *     idiomatic routine dissolves them (direct call + JS returns), so the dead stack
  *     region is the one exclusion this gate needs. No register or pc/SP is compared —
@@ -20,7 +20,7 @@
  *      25m demo; ~600 dispatches / 4000 frames).
  *
  *   2. EQUAL (captured) — hook 0x216D in a real attract run, clone at each dispatch, and
- *      confirm startBarrelDescentAtLadder == oracle on RAM − STACK_SCRATCH over every real state. Real runs
+ *      confirm startBarrelDescentAtLadder == oracle on RAM − the stack scratch below the entry SP over every real state. Real runs
  *      span the clear/set spawn-gate arms and the advance path.
  *
  *   3. EQUAL (crafted) — plant a controlled table + pokes in a real attract base to hit
@@ -54,6 +54,7 @@ import {
   RANDOM,
   P1_INPUT,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -81,29 +82,30 @@ const PRE07 = 0x40;             // record +0x07 pre-value (advance bumps it to 0
 const PRE02 = 0x00;             // record +0x02 pre-value (advance sets bit0 -> 0x01)
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs, skipping the dead STACK_SCRATCH region. { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs, skipping the stack scratch below the entry SP. { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
 // All non-stack RAM addresses that changed between two machines (for non-vacuity checks).
-function changedAddrs(a, b) {
+function changedAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.push(addr);
   }
   return out;
@@ -112,7 +114,7 @@ function changedAddrs(a, b) {
 /**
  * Run the oracle and a candidate on two fresh, byte-identical clones (frame machinery
  * neutralised so a stray NMI cannot masquerade as a side effect) and return the memory
- * contract diffs: RAM − STACK_SCRATCH. Live-out is memory-only, so no register/pc/SP.
+ * contract diffs: RAM − the stack scratch below the entry SP. Live-out is memory-only, so no register/pc/SP.
  */
 function contractDiffs(entry, candidate) {
   const a = entry.clone(); a.nextNmi = Infinity; a.nextBoundary = Infinity;
@@ -120,7 +122,7 @@ function contractDiffs(entry, candidate) {
   oracle(a);
   candidate(b);
   const diffs = [];
-  const ram = firstRamDiff(a, b);
+  const ram = firstRamDiff(a, b, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   return diffs;
 }
@@ -254,13 +256,13 @@ test("EQUAL (crafted): every miss/reject/advance arm matches the oracle", () => 
     // Non-vacuity: confirm the oracle really took the arm this case is meant to cover.
     const after = runOracle(entry);
     if (expect === "none") {
-      assert.deepEqual(changedAddrs(entry, after), [], `${name}: expected no non-stack write`);
+      assert.deepEqual(changedAddrs(entry, after, entry.regs.sp), [], `${name}: expected no non-stack write`);
     } else {
       assert.equal(after.mem.read8(rec(0x17)), STAMP, `${name}: +0x17 not stamped`);
       if (expect === "stamp") {
         assert.equal(after.mem.read8(rec(0x07)), PRE07, `${name}: +0x07 changed but should not have`);
         assert.equal(after.mem.read8(rec(0x02)), PRE02, `${name}: +0x02 changed but should not have`);
-        assert.deepEqual(changedAddrs(entry, after), [rec(0x17)], `${name}: expected ONLY +0x17 written`);
+        assert.deepEqual(changedAddrs(entry, after, entry.regs.sp), [rec(0x17)], `${name}: expected ONLY +0x17 written`);
       } else { // advance
         assert.equal(after.mem.read8(rec(0x07)), u8(PRE07 + 1), `${name}: +0x07 not bumped`);
         assert.equal(after.mem.read8(rec(0x02)), PRE02 | 0x01, `${name}: +0x02 bit0 not set`);

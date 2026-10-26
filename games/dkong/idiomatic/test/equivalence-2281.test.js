@@ -14,7 +14,7 @@
  * LIVE-OUT is memory-only: 0x2281 is tail-reached from slide50mObjectDown -> dispatch50mObjectState's dispatcher,
  * which returns into loc_197a at 0x199E, whose next statement issues a fresh `call`
  * without reading any register the descend leaves. So no register/flag is a live-out; the
- * gate compares RAM (minus STACK_SCRATCH) + pc + SP after modelling the terminal `ret`.
+ * gate compares RAM (minus the stack scratch below the entry SP) + pc + SP after modelling the terminal `ret`.
  *
  * 0x2281 is NOT dispatched during attract (its only caller is the still-translated,
  * unwired slide50mObjectDown), so capture yields nothing. That is fine here: the routine's effect
@@ -25,7 +25,7 @@
  * else (outside stack scratch) moves.
  *
  *   1. EQUAL (adversarial grid) — loc_2281 == oracle across base states × pre-poked
- *      {marioY, code, attr, y}. RAM − STACK_SCRATCH, pc, SP identical; and the specific
+ *      {marioY, code, attr, y}. RAM − the stack scratch below the entry SP, pc, SP identical; and the specific
  *      invariants pinned: 0x6205 stepped, 0x694D == 3, 0x694E untouched, 0x694F stepped.
  *
  *   2. TEETH — three broken twins, each MUST be caught:
@@ -57,6 +57,7 @@ import {
   SPRITE_Y,
   STACK_SCRATCH,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -73,17 +74,15 @@ const ATTR_CELL = MARIO_SPRITE_RECORD + SPRITE_ATTR; // 0x694E — stepped over,
 const Y_CELL = MARIO_SPRITE_RECORD + SPRITE_Y;       // 0x694F — the sprite Y that gets stepped
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region
-// (the memory-equivalence contract is RAM − STACK_SCRATCH). Returns { addr, a, b } | null.
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -106,12 +105,6 @@ function craft(base, { marioY = 0x40, code = 0x00, attr = 0xaa, y = 0x55, sp = 0
   return m;
 }
 
-/**
- * Run the oracle and a candidate on two fresh, byte-identical clones of `entry`, then
- * diff the memory-equivalence contract: RAM − STACK_SCRATCH + pc + SP. The oracle performs
- * its own terminal `ret`; the candidate models no stack, so one modelled `ret` after it
- * lines up pc + SP.
- */
 function contractDiffs(entry, candidate) {
   const o = entry.clone();
   oracle(o); // inc MARIO_Y, call 0x3FC0 (pose->3), inc sprite Y, then ret
@@ -121,7 +114,7 @@ function contractDiffs(entry, candidate) {
   c.ret();      // model the terminal ret to align pc + SP with the oracle
 
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);

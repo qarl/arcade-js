@@ -6,7 +6,7 @@
  * sub_30e4 WRITES memory (B bytes of 0x00 at stride 4, the low address byte wrapping
  * 8-bit within its page) and reads HL + B. Its declared LIVE-OUT is memory + A / HL /
  * B (A = final low byte, HL = page carrying it with H preserved, B = 0); flags are
- * dead. So it is validated on RAM (minus STACK_SCRATCH) + pc + SP + those three
+ * dead. So it is validated on RAM (minus the stack scratch below the entry SP) + pc + SP + those three
  * registers via capture/clone/replay — NEVER the full register file, NEVER cycles.
  *
  * The idiomatic routine models the Z80 `ret` as a JS return (no stack modelling), so
@@ -50,6 +50,7 @@ import { loc_30e4 as oracle } from "../../translated/loc_30e4.js";
 import { clearStridedBytes } from "../clearStridedBytes.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -61,18 +62,16 @@ const test = ROM_PRESENT
 const TARGET = 0x30e4;
 const CAP_FRAMES = 4500; // first 0x30e4 dispatch lands ~frame 3000; 4500 covers one full set of 5
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
-// -- the memory-equivalence contract ------------------------------------------
-
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH, or null. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP, or null. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -98,7 +97,7 @@ function runCandidate(entry, fn) {
 }
 
 /**
- * Compare candidate vs oracle over the full contract: RAM − STACK_SCRATCH, pc, SP, and
+ * Compare candidate vs oracle over the full contract: RAM − the stack scratch below the entry SP, pc, SP, and
  * the declared live-out registers A / HL / B. The rest of the register file and the
  * flags are deliberately NOT compared — that is the memory-equivalence gate. Returns a
  * list of human-readable mismatches (empty when equal).
@@ -107,7 +106,7 @@ function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);
@@ -116,8 +115,6 @@ function contractDiffs(entry, fn) {
   if ((o.regs.b & 0xff) !== (c.regs.b & 0xff)) diffs.push(`B oracle=${hx(o.regs.b & 0xff)} cand=${hx(c.regs.b & 0xff)}`);
   return diffs;
 }
-
-// -- capture ------------------------------------------------------------------
 
 /**
  * Hook 0x30e4 in a real attract run and clone the machine at up to K real dispatches.
@@ -136,8 +133,6 @@ function captureDispatches(K, maxFrames) {
   return caps;
 }
 
-// -- crafted-entry builders ---------------------------------------------------
-
 /** Clone `base` and pose HL/B — a real state with a surgical register nudge. */
 function poseRegs(base, { hl, b }) {
   const w = base.clone();
@@ -150,8 +145,6 @@ function poseRegs(base, { hl, b }) {
 function paintPage(w, page, val) {
   for (let lo = 0; lo < 0x100; lo++) w.mem.write8(((page << 8) | lo) & 0xffff, val);
 }
-
-// -- broken twins -------------------------------------------------------------
 
 /** BUG: steps +2 instead of +4 — writes 0 to the wrong (denser) set of addresses. */
 function teethStride2(m) {
@@ -182,20 +175,16 @@ function teeth16bitCarry(m) {
   regs.b = 0;
 }
 
-// -- 1. EQUAL (real captured dispatches) --------------------------------------
-
 test("EQUAL (real dispatches): clearStridedBytes == oracle on every captured 0x30e4 entry", () => {
   const caps = captureDispatches(64, CAP_FRAMES);
   assert.ok(caps.length >= 1, "expected at least one real 0x30e4 dispatch during attract");
   for (const cap of caps) {
-    const diffs = contractDiffs(cap, clearStridedBytes); // FRESH clones inside — cap untouched
+    const diffs = contractDiffs(cap, clearStridedBytes);
     assert.equal(diffs.length, 0, diffs.join("; "));
   }
   const shapes = [...new Set(caps.map((c) => `HL=${hx(c.regs.hl)} B=${c.regs.b}`))];
   console.log(`  EQUAL/real: ${caps.length} captured dispatches identical; distinct shapes:\n    ` + shapes.join("\n    "));
 });
-
-// -- 2. EQUAL (call-site shapes) ----------------------------------------------
 
 test("EQUAL (call-site shapes): all five real caller shapes match the oracle", () => {
   const [base] = captureDispatches(1, CAP_FRAMES);
@@ -215,8 +204,6 @@ test("EQUAL (call-site shapes): all five real caller shapes match the oracle", (
   }
   console.log(`  EQUAL/shapes: ${shapes.length} caller shapes — identical RAM + pc + SP + A/HL/B`);
 });
-
-// -- 3. EQUAL (crafted edges) -------------------------------------------------
 
 test("EQUAL (crafted edges): B=0 256-pass and the in-page L-wrap match the oracle", () => {
   const [base] = captureDispatches(1, CAP_FRAMES);
@@ -245,8 +232,6 @@ test("EQUAL (crafted edges): B=0 256-pass and the in-page L-wrap match the oracl
 
   console.log("  EQUAL/edges: B=0 256-pass and the in-page L-wrap — identical to the oracle");
 });
-
-// -- 4. TEETH -----------------------------------------------------------------
 
 test("TEETH: the wrong-stride twin and the 16-bit-carry twin are CAUGHT", () => {
   const [base] = captureDispatches(1, CAP_FRAMES);

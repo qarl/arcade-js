@@ -10,7 +10,7 @@
  * a FRESH clone per side. The oracle runs on one clone, stamp50mBoardTiles on another,
  * and they are compared on the go-forward contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) only.
+ *     RAM (dumpState, minus the stack scratch below the entry SP) only.
  *
  * pc and SP are deliberately NOT compared. The oracle uses m.step/m.push16/m.call/
  * m.ret, so it advances pc to the return target and moves SP; both are the modelled
@@ -58,6 +58,7 @@ import { stamp50mBoardTiles } from "../stamp50mBoardTiles.js";
 import { boardBitGate } from "../boardBitGate.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, BOARD } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -78,25 +79,24 @@ const WRITES = [
 ];
 const CELLS = WRITES.map(([a]) => a);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
-
 /**
  * First RAM difference between two machines on the go-forward contract: the whole
- * state dump minus the STACK_SCRATCH region (dead scratch — masked per the contract).
+ * state dump minus the stack scratch below the entry SP (dead scratch — masked per the contract).
  * The closed-arm gate's `pop hl` and the open-arm `ret`'s pops land there, so masking
  * it is what lets the boolean-gate rewrite match the stack-manipulating oracle — and,
  * unlike the closed-arm-free routines, this routine ALWAYS leaves a dead-stack diff, so
  * the mask must genuinely be exercised. A single absolute-offset pass (no relative-
  * offset recursion) so the scan can never revisit a masked byte. Returns {addr,a,b} or null.
  */
-function ramDiffMinusStack(ma, mb) {
+function ramDiffMinusStack(ma, mb, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = ma.dumpState();
   const b = mb.dumpState();
   const n = Math.min(a.length, b.length);
   for (let off = 0; off < n; off++) {
     if (a[off] === b[off]) continue;
     const addr = ma.stateOffsetToAddr(off);
-    if (inDeadStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: a[off], b: b[off], offset: off };
   }
   return null;
@@ -106,13 +106,14 @@ function ramDiffMinusStack(ma, mb) {
 function changedMinusStack(m, fn) {
   const c = m.clone();
   const before = c.dumpState();
+  const dead = deadStackBelow(STACK_SCRATCH, m.regs.sp);
   fn(c);
   const after = c.dumpState();
   const changed = [];
   for (let off = 0; off < before.length; off++) {
     if (before[off] === after[off]) continue;
     const addr = c.stateOffsetToAddr(off);
-    if (inDeadStack(addr)) continue;
+    if (dead(addr)) continue;
     changed.push({ addr, from: before[off], to: after[off] });
   }
   return changed;
@@ -163,7 +164,7 @@ test("EQUAL (closed arm): real board-1 attract dispatch — writes nothing, RAM 
     const c = cap.clone();
     oracle(o);
     stamp50mBoardTiles(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, cap.regs.sp);
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} stamp=${d.b}`);
 
     // The closed arm stamps nothing: the oracle's only writes are dead stack.
@@ -186,7 +187,7 @@ test("EQUAL (open arm): real forced board-2 dispatch — stamp == oracle in RAM 
     const c = cap.clone();
     oracle(o);
     stamp50mBoardTiles(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, cap.regs.sp);
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} stamp=${d.b}`);
 
     for (const [addr, val] of WRITES) {
@@ -223,7 +224,7 @@ test("CRAFTED: gate poked open on a board-1 entry — pre-dirtied cells stamped 
   }
   oracle(o);
   stamp50mBoardTiles(c);
-  const d = ramDiffMinusStack(o, c);
+  const d = ramDiffMinusStack(o, c, base.regs.sp);
   assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} stamp=${d.b}`);
   for (const [addr, val] of WRITES) {
     assert.equal(c.mem.read8(addr), val, `stamp left ${hx(addr)} = ${hx(c.mem.read8(addr))} (expected ${hx(val)})`);
@@ -243,7 +244,7 @@ test("CRAFTED: unrelated entry state (registers + far RAM) does not change the o
   }
   oracle(o);
   stamp50mBoardTiles(c);
-  const d = ramDiffMinusStack(o, c);
+  const d = ramDiffMinusStack(o, c, base.regs.sp);
   assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} stamp=${d.b}`);
   for (const [addr, val] of WRITES) {
     assert.equal(c.mem.read8(addr), val, `stamp left ${hx(addr)} = ${hx(c.mem.read8(addr))} (expected ${hx(val)})`);
@@ -276,7 +277,7 @@ test("TEETH: the hoist-trap twin (never writes 0x776C) is CAUGHT and names 0x776
   const c = cap.clone();
   oracle(o);
   brokenHoist(c);
-  const d = ramDiffMinusStack(o, c);
+  const d = ramDiffMinusStack(o, c, cap.regs.sp);
   assert.notEqual(d, null, "the gate FAILED to catch the hoist trap — it is worthless");
   assert.equal(d.addr, 0x776c, `teeth caught the wrong address ${hx(d.addr ?? 0)}`);
 
@@ -290,7 +291,7 @@ test("TEETH: the hoist-trap twin (never writes 0x776C) is CAUGHT and names 0x776
   }
   oracle(o2);
   brokenHoist(c2);
-  const d2 = ramDiffMinusStack(o2, c2);
+  const d2 = ramDiffMinusStack(o2, c2, base.regs.sp);
   assert.notEqual(d2, null, "the gate FAILED to catch the hoist trap on the crafted state");
   assert.equal(d2.addr, 0x776c, `crafted teeth caught the wrong address ${hx(d2.addr ?? 0)}`);
 

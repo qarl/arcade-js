@@ -4,7 +4,7 @@
  * ten-record sprite-object-block animation step.
  *
  * The routine WRITES MEMORY and carries state (a 1-in-8 phase counter), so it is
- * gated on memory-equivalence — RAM (minus STACK_SCRATCH) + pc + SP — against the
+ * gated on memory-equivalence — RAM (minus the stack scratch below the entry SP) + pc + SP — against the
  * frozen oracle, and every case runs on a FRESH clone (a reused clone is only safe
  * for a read-only leaf). LIVE-OUT is memory-only: the untranslated callers
  * (0x0AE8/0x1732/0x1757) were not traced, so the oracle's residual A/flags are
@@ -68,6 +68,7 @@ import { xorMaskStridedPair } from "../xorMaskStridedPair.js";
 import { stirRandomSeed } from "../stirRandomSeed.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, SPRITE_OBJ_BLOCK } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -81,27 +82,25 @@ const PHASE_COUNTER = 0x62af;
 const REC9_CODE = SPRITE_OBJ_BLOCK + 0x25; // 0x692d — record 9's code byte
 const RANDOM = 0x6018, SPIN_COUNT = 0x6019, FRAME = 0x601a;
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH (the
- *  dead stack region the oracle's pushes/`ret` churn — excluded by the standard gate). */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
-/** Pin the oracle's four callees to their TRANSLATED oracles, so the reference is a
- *  fully-translated chain regardless of what the capture host's overrides left in the
- *  registry (which stubs 0x003d). The candidate never consults the registry. */
+/** Pin the oracle's four callees to their TRANSLATED oracles, so the reference is a fully-translated chain regardless
+ *  of what the capture host's overrides left in the registry (which stubs 0x003d). */
 function pinTranslatedCallees(m) {
   m.routines.set(0x0038, loc_0038);
   m.routines.set(0x003d, loc_003d);
@@ -110,17 +109,15 @@ function pinTranslatedCallees(m) {
   return m;
 }
 
-/** Run the ORACLE on a fresh clone with the translated callee chain pinned. It performs
- *  its own `ret`, so pc/SP advance. */
+/** Run the ORACLE on a fresh clone with the translated callee chain pinned. It performs its own `ret`, so pc/SP advance. */
 function runOracle(entry) {
   const c = pinTranslatedCallees(entry.clone());
   oracle(c);
   return c;
 }
 
-/** Run a candidate on a fresh clone, then model its return with one m.ret() so pc + SP
- *  match the oracle's (the idiomatic routine replaces the Z80 stack with the JS call
- *  stack, so it never touches pc/SP itself — the harness supplies the return). */
+/** Run a candidate on a fresh clone, then model its return with one m.ret() so pc + SP match the oracle's (the
+ *  idiomatic routine replaces the Z80 stack with the JS call stack, so it never touches pc/SP itself). */
 function runCandidate(entry, fn) {
   const c = entry.clone();
   fn(c);
@@ -128,14 +125,13 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Compare candidate vs oracle over the memory-only contract: RAM − STACK_SCRATCH, pc,
- *  SP. A and flags are DEAD (untranslated callers, not traced) and intentionally omitted.
- *  Returns human-readable mismatches (empty when equal). */
+/** Compare candidate vs oracle over the memory-only contract: RAM − the stack scratch below the entry SP, pc, SP. A and
+ *  flags are DEAD (untranslated callers, not traced) and intentionally omitted. Returns human-readable mismatches. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=0x${o.pc.toString(16)} cand=0x${c.pc.toString(16)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=0x${o.regs.sp.toString(16)} cand=0x${c.regs.sp.toString(16)}`);
@@ -144,16 +140,13 @@ function contractDiffs(entry, fn) {
 
 // -- capture (seed only) ------------------------------------------------------
 
-/** Hook the sibling 0x003d in a real attract run and clone the machine at up to K real
- *  dispatches. 0x003d fires during board setup with the 0x6908 sprite-object block
- *  populated, so these clones carry realistic RAM in the exact region 0x306f edits. We
- *  only need live states to seed crafted entries from — 0x306f itself is never dispatched. */
+/** Hook the sibling 0x003d in a real attract run and clone the machine at up to K real dispatches, to seed crafted
+ *  entries from — 0x306f itself is never dispatched. */
 function captureSeeds(K, maxFrames) {
   const caps = [];
   const snapshot = new Map([[SEED_TARGET, (mm) => {
     if (caps.length < K) caps.push(mm.clone());
-    // do NOT run the oracle here — we just want the entry RAM. runOracle re-pins the
-    // real 0x003d on its own clones, so leaving it unexecuted here is fine.
+    // do NOT run the oracle here — runOracle re-pins the real 0x003d on its own clones.
   }]]);
   const host = new Machine(ROM, { overrides: snapshot });
   try { host.runFrames(maxFrames); } catch { /* attract may reach an untranslated stub */ }
@@ -171,8 +164,7 @@ function craft(seed, phase) {
 
 // -- teeth twins --------------------------------------------------------------
 
-/** Broken twin: bumps the phase counter but IGNORES the 1-in-8 gate — runs the body on
- *  EVERY call. Identical to the real routine on the eighth call; wrong on the other seven. */
+/** Broken twin: bumps the phase counter but IGNORES the 1-in-8 gate — runs the body on EVERY call. */
 function brokenNoThrottle(m) {
   const { regs, mem } = m;
   mem.write8(PHASE_COUNTER, (mem.read8(PHASE_COUNTER) + 1) & 0xff);

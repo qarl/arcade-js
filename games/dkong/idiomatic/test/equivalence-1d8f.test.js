@@ -9,7 +9,7 @@
  * clone per side (never a reused machine). The oracle runs on one clone, the rewrite
  * on another, and they are compared on the go-forward contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) + declared live-out (none).
+ *     RAM (dumpState, minus the stack scratch below the entry SP) + declared live-out (none).
  *
  * pc and SP are deliberately NOT compared. sub_1d8f's oracle models its terminal
  * `ret` with m.step/m.ret — advancing pc to the popped return address and SP by +2 —
@@ -41,7 +41,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1d8f as oracle } from "../../translated/loc_1d8f.js";
 import { triggerWalkSound } from "../triggerWalkSound.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, SND_TRIGGER } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -54,20 +54,19 @@ const test = ROM_PRESENT
 const TARGET = 0x1d8f;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
-
 /**
  * First RAM difference between two machines on the go-forward contract: the whole
- * state dump minus the STACK_SCRATCH region (dead scratch — the oracle's `ret` pops
+ * state dump minus the stack scratch below the entry SP (dead scratch — the oracle's `ret` pops
  * from there but neither side writes it, and it is masked per the contract). Returns
  * {addr,a,b} or null.
  */
-function ramDiffMinusStack(ma, mb) {
+function ramDiffMinusStack(ma, mb, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = ma.dumpState();
   const b = mb.dumpState();
   let d = firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off));
   let from = 0;
-  while (d && inDeadStack(d.addr)) {
+  while (d && dead(d.addr)) {
     from = d.offset + 1;
     d = firstStateDiff(a.subarray(from), b.subarray(from), (off) => ma.stateOffsetToAddr(off + from));
   }
@@ -104,7 +103,7 @@ test("EQUAL: real captured 25m dispatches — triggerWalkSound == oracle in RAM 
     oracle(o);
     triggerWalkSound(c);
 
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, cap.regs.sp);
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} walk=${d.b}`);
   }
   console.log(`  EQUAL: ${CAPS.length} real 25m dispatches identical (RAM −stack)`);
@@ -143,7 +142,7 @@ test("CRAFTED: a pre-dirtied SND_TRIGGER[0] is overwritten with 3 identically by
   oracle(o);
   triggerWalkSound(c);
 
-  const d = ramDiffMinusStack(o, c);
+  const d = ramDiffMinusStack(o, c, base.regs.sp);
   assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} walk=${d.b}`);
   // ...and both genuinely landed 3 (not merely agreed on the dirt).
   assert.equal(c.mem.read8(SND_TRIGGER), 0x03, `triggerWalkSound left SND_TRIGGER[0] = ${c.mem.read8(SND_TRIGGER)} (expected 3)`);
@@ -167,7 +166,7 @@ test("TEETH: a wrong frame count at SND_TRIGGER[0] is CAUGHT on every case", () 
     const c = cap.clone();
     oracle(o);
     brokenTriggerWalkSound(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, cap.regs.sp);
     if (d) { caughtAt = d; break; }
   }
   assert.notEqual(caughtAt, null, "the gate FAILED to catch a wrong SND_TRIGGER[0] store — it is worthless");
@@ -181,7 +180,7 @@ test("TEETH: a wrong frame count at SND_TRIGGER[0] is CAUGHT on every case", () 
   c.mem.write8(SND_TRIGGER, 0xaa);
   oracle(o);
   brokenTriggerWalkSound(c);
-  const d = ramDiffMinusStack(o, c);
+  const d = ramDiffMinusStack(o, c, base.regs.sp);
   assert.notEqual(d, null, "the gate FAILED to catch the wrong store on the crafted state");
   assert.equal(d.addr, SND_TRIGGER, `crafted teeth caught the wrong address ${hx(d.addr ?? 0)}`);
 

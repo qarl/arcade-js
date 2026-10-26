@@ -37,7 +37,7 @@
  *      (d) dropped velocity seed     — loc_22cb never called.
  *      (e) tail entered uncleared    — the snapshot value handed to ROM 0x2153 instead of zero.
  *
- * CONTRACT: RAM MINUS STACK_SCRATCH [0x6BE0,0x6C00), plus the propagated return value. Both
+ * CONTRACT: RAM MINUS the stack scratch below the entry SP [0x6BE0,0x6C00), plus the propagated return value. Both
  * sides run the WHOLE tail chain (0x2153 -> 0x21BA -> the 0x1F72 object loop), so a wrong byte
  * anywhere along it surfaces in the diff. The oracle's two dissolved call brackets (for ROM
  * 0x2407 and ROM 0x22CB) land inside the excluded stack region, and the test MEASURES that the
@@ -64,6 +64,7 @@ import { loc_2407 } from "../loc_2407.js"; // direct callee, reused to build fai
 import { loc_22cb } from "../loc_22cb.js"; // direct callee, reused to build faithful broken twins
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, OBJ_Y, DIFFICULTY, LEVEL } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -94,7 +95,6 @@ const VELOCITY_ARMS = [
 ];
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 // The frozen walk's loop-back into the per-slot step, stubbed on both clones so each side publishes
 // exactly the slot under test and stops. The dissolved idiomatic chain returns after one slot
@@ -107,13 +107,14 @@ const cursorOf = (m) => ({ page: m.regs.h_ * 256, cursor: m.regs.l_ });
 
 // -- diff plumbing ------------------------------------------------------------
 
-/** First RAM byte that differs, skipping the dead STACK_SCRATCH region. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -134,6 +135,7 @@ function firstAnyRamDiff(a, b) {
  */
 function contractDiffs(entry, fn, prep) {
   const a = entry.clone(), b = entry.clone();
+  const aFloor = a.regs.sp;
   if (prep) { prep(a); prep(b); }
   a.routines.set(WALK_LOOPBACK, () => {});
   b.routines.set(WALK_LOOPBACK, () => {});
@@ -141,7 +143,7 @@ function contractDiffs(entry, fn, prep) {
   const candidateReturn = fn(b, cursorOf(b));
 
   const diffs = [];
-  const ram = firstRamDiff(a, b);
+  const ram = firstRamDiff(a, b, aFloor);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (oracleReturn !== candidateReturn) {
     diffs.push(`return oracle=${String(oracleReturn)} cand=${String(candidateReturn)}`);
@@ -149,7 +151,7 @@ function contractDiffs(entry, fn, prep) {
   return diffs;
 }
 
-/** True when oracle and candidate differ ONLY inside STACK_SCRATCH on this entry. */
+/** True when oracle and candidate differ ONLY inside the stack scratch below the entry SP on this entry. */
 function differsOnlyInStack(entry, fn) {
   const a = entry.clone(), b = entry.clone();
   a.routines.set(WALK_LOOPBACK, () => {});
@@ -157,7 +159,7 @@ function differsOnlyInStack(entry, fn) {
   oracle(a);
   fn(b, cursorOf(b));
   const any = firstAnyRamDiff(a, b);
-  return any !== null && inStack(any.addr);
+  return any !== null && deadStackBelow(STACK_SCRATCH, entry.regs.sp)(any.addr);
 }
 
 // -- capture ------------------------------------------------------------------

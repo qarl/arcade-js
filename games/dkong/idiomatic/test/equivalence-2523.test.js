@@ -18,12 +18,12 @@
  *
  * The oracle brackets each `call 0x0057` with a push and terminates with pop-only `ret`s; the
  * candidate direct-calls stirRandomSeed (no push). So on the spawn path the oracle writes two dead
- * stack bytes the candidate never writes; the compare is RAM − STACK_SCRATCH [0x6be0,0x6c00) (the
+ * stack bytes the candidate never writes; the compare is RAM − the stack scratch below the entry SP [0x6be0,0x6c00) (the
  * memory-equivalence contract for a dissolved push). SP is parked at SAFE_SP so that push lands
  * inside STACK_SCRATCH and the oracle's terminal `ret` pops valid work RAM. The non-spawn paths do
  * no stack writes at all on either side.
  *
- *   1. EQUAL — service50mObjectSpawnRequest == oracle on RAM − STACK_SCRATCH across:
+ *   1. EQUAL — service50mObjectSpawnRequest == oracle on RAM − the stack scratch below the entry SP across:
  *        - the timer-running tick (several timer values);
  *        - both no-op returns: no request, and a request with every slot busy;
  *        - every first-free-slot position (records 0..5);
@@ -64,6 +64,7 @@ import {
   SPIN_COUNT,
   STACK_SCRATCH,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -83,31 +84,32 @@ const SAFE_SP = 0x6bf8;
 const NOISE = 0xaa; // pre-dirty the free slot's fields so the spawn writes are observable
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const slotBase = (i) => (OBJ_ARRAY_65A0 + i * STRIDE) & 0xffff;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region
-// (the memory-equivalence contract is RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
+// (the memory-equivalence contract is RAM − the stack scratch below the entry SP). { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
 // All non-stack RAM addresses that changed between two machines (for the no-write checks).
-function changedAddrs(a, b) {
+function changedAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.push(addr);
   }
   return out;
@@ -147,10 +149,11 @@ function craft(base, {
 // Run oracle and candidate on two FRESH byte-identical entries; return the first RAM diff or null.
 function runPair(base, opts, candidate) {
   const a = craft(base, opts);
+  const aFloor = a.regs.sp;
   const b = craft(base, opts);
   oracle(a);
   candidate(b);
-  return firstRamDiff(a, b);
+  return firstRamDiff(a, b, aFloor);
 }
 
 const describe = (d) => d && `RAM diverges at ${hx(d.addr)} (oracle=${d.a} cand=${d.b})`;
@@ -257,8 +260,8 @@ test("EQUAL: service50mObjectSpawnRequest == oracle on the timer/no-op paths and
     assert.equal(a.mem.read8(SPIN_COUNT), 0x40, "timer path leaves SPIN_COUNT untouched");
   }
   // No-op paths change nothing (non-stack).
-  assert.deepEqual(changedAddrs(craft(base, { timer: 0, req: 0 }), (() => { const a = craft(base, { timer: 0, req: 0 }); oracle(a); return a; })()), [], "no-request wrote non-stack RAM");
-  assert.deepEqual(changedAddrs(craft(base, { timer: 0, req: 1, slots: [1, 3, 5, 7, 9, 0xff] }), (() => { const a = craft(base, { timer: 0, req: 1, slots: [1, 3, 5, 7, 9, 0xff] }); oracle(a); return a; })()), [], "all-busy wrote non-stack RAM");
+  assert.deepEqual(changedAddrs(craft(base, { timer: 0, req: 0 }), (() => { const a = craft(base, { timer: 0, req: 0 }); oracle(a); return a; })(), SAFE_SP), [], "no-request wrote non-stack RAM");
+  assert.deepEqual(changedAddrs(craft(base, { timer: 0, req: 1, slots: [1, 3, 5, 7, 9, 0xff] }), (() => { const a = craft(base, { timer: 0, req: 1, slots: [1, 3, 5, 7, 9, 0xff] }); oracle(a); return a; })(), SAFE_SP), [], "all-busy wrote non-stack RAM");
 
   console.log(`  EQUAL: ${count} crafted combos (timer/no-op/every-slot + ${256 * 4 + 256} seed sweep) — RAM identical to the oracle`);
 });

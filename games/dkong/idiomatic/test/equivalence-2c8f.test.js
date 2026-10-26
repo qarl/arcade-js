@@ -13,7 +13,7 @@
  *
  * WHY NOT pc/SP: cycle-free idiomatic code models the Z80 `ret` as the JS return, so pc/SP
  * cannot match by construction and comparing them would measure the absent `ret`, not the
- * routine. The contract here is RAM − STACK_SCRATCH, the return value, and the two registers
+ * routine. The contract here is RAM − the stack scratch below the entry SP, the return value, and the two registers
  * the routine hands to the slot claim.
  *
  *   0. REACHABILITY — how many real 0x2C8F dispatches a plain attract run produces, and which
@@ -81,6 +81,7 @@ import { boardBitGate } from "../boardBitGate.js";
 import { marioActiveGuard } from "../marioActiveGuard.js";
 import { advanceBarrelRelease } from "../advanceBarrelRelease.js";
 import { releaseBarrelIntoFreeSlot } from "../releaseBarrelIntoFreeSlot.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -106,7 +107,6 @@ const SLOT_OCCUPIED = 0x02;
 const SPRITE_RECORD_BYTES = 4; // the claim scales the countdown by this to pick a sprite slot
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 const recordAddr = (k) => OBJ_ARRAY_67 + k * RECORD_STRIDE;
 const slotAddr = (k) => ACTOR_SPRITES + k * SPRITE_RECORD_BYTES;
 
@@ -133,27 +133,29 @@ function assertClaimLandedAt(machine, index, label) {
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
 /** Every non-stack RAM address that changed between two machines. */
-function changedAddrs(a, b) {
+function changedAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.push(addr);
   }
   return out;
@@ -161,7 +163,7 @@ function changedAddrs(a, b) {
 
 /**
  * Run oracle and candidate on two FRESH, byte-identical clones of `entry` and report the
- * contract: RAM − STACK_SCRATCH plus the RETURN VALUE (a dropped or mis-forwarded tail hands
+ * contract: RAM − the stack scratch below the entry SP plus the RETURN VALUE (a dropped or mis-forwarded tail hands
  * back a different value while leaving RAM alone, so the RAM diff alone would not see it).
  *
  * Registers are NOT compared after the call. The two tails run whole subtrees whose own gates
@@ -178,7 +180,7 @@ function contractDiffs(entry, fn) {
   const retB = fn(b);
 
   const diffs = [];
-  const ram = firstRamDiff(a, b);
+  const ram = firstRamDiff(a, b, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (retA !== retB) diffs.push(`return oracle=${String(retA)} cand=${String(retB)}`);
   return { diffs, a, b };
@@ -354,7 +356,7 @@ test("EQUAL (crafted): the arms 25m attract never reaches match the oracle", () 
 
     if (writes) {
       // Exact non-stack write set — proves the path really was the skip / exhausted one.
-      assert.deepEqual(changedAddrs(entry, a).sort(), [...writes].sort(),
+      assert.deepEqual(changedAddrs(entry, a, entry.regs.sp).sort(), [...writes].sort(),
         `${name}: unexpected non-stack write set`);
     }
     // Non-vacuity: the claim genuinely landed on the record the scan should have stopped at.

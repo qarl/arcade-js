@@ -38,6 +38,7 @@ import { loc_2038 as oracle } from "../../translated/loc_2038.js";
 import { loc_2038 } from "../loc_2038.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -112,17 +113,18 @@ function captures() {
 // Comparison
 // ---------------------------------------------------------------------------
 
-/** First differing state byte OUTSIDE the excluded STACK_SCRATCH window (the memory-equivalence
+/** First differing state byte OUTSIDE the stack scratch below the entry SP (the memory-equivalence
  * contract — see the header). The frozen side and the dissolved side reach loc_1f8d's live
  * m.call(0x1f83) with the same guest SP, so they write the same bytes into that window; excluding
  * it is belt-and-braces against any bracket residue, and the final SP is compared separately. */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -136,6 +138,7 @@ function firstRamDiff(a, b) {
  */
 function runPair(entry, candidate) {
   const a = entry.clone(), b = entry.clone();
+  const aFloor = a.regs.sp;
   a.routines.set(WALK_LOOPBACK, () => {});
   b.routines.set(WALK_LOOPBACK, () => {});
   let retA, retB, faultA = null, faultB = null;
@@ -145,12 +148,12 @@ function runPair(entry, candidate) {
   if (faultA !== faultB) return { kind: "fault", detail: `oracle=${faultA} candidate=${faultB}` };
   if (faultA !== null) return null; // both faulted identically: not a difference
 
-  const ram = firstRamDiff(a, b);
+  const ram = firstRamDiff(a, b, aFloor);
   if (ram) return { kind: "ram", detail: `${hx(ram.addr)} oracle=${hb(ram.a)} candidate=${hb(ram.b)}`, addr: ram.addr };
 
   // pc, SP and the register file are dropped: the dissolved form threads the cursor as a value and
   // uses no guest stack, so it no longer moves SP or pc with the frozen call bracket that used to
-  // make them comparable. The memory-equivalence contract (RAM − STACK_SCRATCH) plus the return is
+  // make them comparable. The memory-equivalence contract (RAM − the stack scratch below the entry SP) plus the return is
   // what the dissolved routine actually produces.
   if (retA !== retB) return { kind: "return", detail: `oracle=${retA} candidate=${retB}` };
   return null;
@@ -234,7 +237,7 @@ test("REACHABILITY: 0x2038 is dispatched in attract across every record base the
 // 1. EQUAL on every real dispatch
 // ===========================================================================
 
-test("EQUAL (all real captures): loc_2038 == oracle over RAM − STACK_SCRATCH, final SP and return", () => {
+test("EQUAL (all real captures): loc_2038 == oracle over RAM − the stack scratch below the entry SP, final SP and return", () => {
   const caps = captures();
   const before = caps.length;
   const bad = sweep(caps, loc_2038);

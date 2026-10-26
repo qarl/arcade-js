@@ -9,7 +9,7 @@
  * callees are idiomatic loc_0dd3 (already gated) and the frozen oracle loc_2ff0
  * (no idiomatic yet), called directly. Those model no stack on this path — the ONLY
  * stack traffic is loc_2ff0's `ret`, a read that drifts SP but writes nothing — so the
- * comparison is RAM minus the dead STACK_SCRATCH region (SP/pc are the dropped stack
+ * comparison is RAM minus the stack scratch below the entry SP (SP/pc are the dropped stack
  * model, not compared). The gate:
  *
  *   1. REALISM (real captured dispatches) — hook 0x0da7 during attract. Board setup
@@ -44,6 +44,7 @@ import { loc_2ff0 } from "../../translated/loc_2ff0.js"; // oracle callee, for t
 import { loc_0dd3 } from "../loc_0dd3.js"; // idiomatic callee, for the teeth twins
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -60,19 +61,19 @@ const SUBTILE1 = 0x63af;
 const CRAFT_AT = 0x6100; // scratch RAM the draw never writes — a safe home for synthetic tables
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 // -- comparison plumbing ------------------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH, or null. */
-function firstRamDiffOutsideStack(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP, or null. */
+function firstRamDiffOutsideStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -89,7 +90,7 @@ function replay(entry, cand) {
   oracle(a);
   cand(b);
   return {
-    ram: firstRamDiffOutsideStack(a, b),
+    ram: firstRamDiffOutsideStack(a, b, entry.regs.sp),
     deOracle: a.regs.de & 0xffff,
     deCand: b.regs.de & 0xffff,
   };

@@ -8,7 +8,7 @@
  * It is not a leaf: it silences sound, gates on the frame timer, clears the screen, posts
  * two ring tasks, seeds palette/sound/climb-figure state, steps the height index, and paints
  * a variable number of girder rows. So it is validated by MEMORY-equivalence against the
- * frozen oracle — RAM − STACK_SCRATCH — never the full register file, never cycles, with a
+ * frozen oracle — RAM − the stack scratch below the entry SP — never the full register file, never cycles, with a
  * FRESH clone per case (it writes memory and carries state across rows):
  *
  *   1. REALISM (captured driven dispatch) — drive a coin+start into a credited game so
@@ -42,6 +42,7 @@ import { loc_0bda as oracle } from "../../translated/loc_0bda.js";
 import { buildHowHighScreen } from "../buildHowHighScreen.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -68,14 +69,15 @@ const COIN_START_TAPE = [
 ];
 
 // First differing RAM byte between two dumps, EXCLUDING the dead stack-scratch region — the
-// memory-equivalence contract is RAM − STACK_SCRATCH (the oracle's push residue lands there
+// memory-equivalence contract is RAM − the stack scratch below the entry SP (the oracle's push residue lands there
 // and is benign; measured 0x6bec–0x6bef at the real dispatch). Returns { addr, a, b } or null.
-function firstRamDiffExStack(a, b, offToAddr) {
+function firstRamDiffExStack(a, b, offToAddr, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] === b[i]) continue;
     const addr = offToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { addr, a: a[i], b: b[i] };
   }
   return null;
@@ -112,7 +114,7 @@ test("REALISM: real captured sub-state-8 dispatch — buildHowHighScreen == orac
   oracle(a);
   buildHowHighScreen(b);
 
-  const d = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o));
+  const d = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), entry.regs.sp);
   assert.equal(
     d,
     null,
@@ -158,7 +160,7 @@ test("CRAFTED: every branch arm reads EQUAL on RAM(−stack), gate arm verified 
     oracle(a);
     buildHowHighScreen(b);
 
-    const d = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o));
+    const d = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), entry.regs.sp);
     assert.equal(
       d,
       null,
@@ -209,7 +211,7 @@ test("TEETH: a wrong HOW_HIGH_LAST_SEQ store is CAUGHT and names 0x622F", () => 
   oracle(a);
   brokenBuild(b);
 
-  const d = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o));
+  const d = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), entry.regs.sp);
   assert.notEqual(d, null, "the gate FAILED to catch a wrong HOW_HIGH_LAST_SEQ store — it is worthless");
   assert.equal(
     d.addr,

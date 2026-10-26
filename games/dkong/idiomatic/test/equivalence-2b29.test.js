@@ -30,7 +30,7 @@
  *      base with a surgical poke: BOARD -> 2 for the off-25m arm (both its outcomes, and its
  *      X-snap tail), and the probe tile + descent inputs poked to put the probe point exactly 3
  *      (snap) and exactly 4 (too far) past the boundary, which pins the reach threshold. Each case
- *      asserts RAM (minus STACK_SCRATCH) + pc + SP + both live result bytes identical to the
+ *      asserts RAM (minus the stack scratch below the entry SP) + pc + SP + both live result bytes identical to the
  *      oracle, the same boolean, and an oracle post-condition proving the intended path was taken.
  *
  *   3. TEETH — five deliberately-broken twins, each MUST be caught:
@@ -69,6 +69,7 @@ import {
   MARIO_SPRITE_RECORD,
   SPRITE_X,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -87,35 +88,36 @@ const POISON_A = 0xaa;  // entry accumulator; overwritten by the board load
 const POISON_B = 0x55;  // entry second result byte; every terminal path rewrites it
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // tileAddrForPixel (ROM 0x2FF0), replicated to poke the tile cell under a probe point.
 const tileAddr = (y, x) => (0x7400 + (((~y) & 0xff) >> 3) * 32 + ((x >> 3) & 0x1f)) & 0xffff;
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH (the dead stack
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP (the dead stack
  *  region excluded by contract — the dissolved push/pop/return churn lives there). */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
 /** All non-stack RAM addresses that changed between two machines (for non-vacuity). */
-function changedAddrs(a, b) {
+function changedAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.push(addr);
   }
   return out;
@@ -152,14 +154,14 @@ function runCandidate(entry, fn) {
   return { c, ret };
 }
 
-/** Compare candidate vs oracle over the contract: RAM − STACK_SCRATCH, pc, SP, and BOTH live
+/** Compare candidate vs oracle over the contract: RAM − the stack scratch below the entry SP, pc, SP, and BOTH live
  *  result bytes (the consumer past entry_2b1c decrements the first, then the second). The
  *  coordinate registers and flags are dead ABI. */
 function contractDiffs(entry, fn) {
   const { c: o } = runOracle(entry);
   const { c } = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=0x${(ram.a & 0xff).toString(16)} cand=0x${(ram.b & 0xff).toString(16)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);
@@ -381,7 +383,7 @@ test("CRAFTED: probeMarioDescentLanding == oracle on RAM+pc+SP+A+B across all se
 
     // The normal return writes NO non-stack RAM at all.
     if (ret === true) {
-      assert.deepEqual(changedAddrs(entry, o), [], `${name}: normal return wrote non-stack RAM`);
+      assert.deepEqual(changedAddrs(entry, o, entry.regs.sp), [], `${name}: normal return wrote non-stack RAM`);
     }
   }
 

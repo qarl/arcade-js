@@ -10,11 +10,11 @@
  * SUBSTATE_TIMER (0x6009) is written to 0x40 unconditionally on the grounded arm.
  * Everything else the oracle touches is the Z80 return mechanism (SP/PC + a pushed
  * return address) the direct-call model drops — it lands only in STACK_SCRATCH, which
- * is excluded from the contract. So the contract is: RAM (minus STACK_SCRATCH) + the
+ * is excluded from the contract. So the contract is: RAM (minus the stack scratch below the entry SP) + the
  * boolean caller-skip return. That makes the strongest gate available:
  *
  *   1. EQUAL (exhaustive) — advanceSubstateWhenGrounded == oracle over all 65,536
- *      (airborne x substate) combos, compared on RAM (minus STACK_SCRATCH) AND the
+ *      (airborne x substate) combos, compared on RAM (minus the stack scratch below the entry SP) AND the
  *      boolean return. 65,536 is the complete input space — a proof, not a sample.
  *      Each entry seeds SUBSTATE_TIMER with a 0x99 sentinel so a dropped re-arm would
  *      show in the RAM diff.
@@ -57,6 +57,7 @@ import {
   STACK_SCRATCH,
 } from "../names.js";
 import { Machine } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -74,21 +75,20 @@ const SAFE_SP = 0x6bf8;
 // A value the routine NEVER produces for SUBSTATE_TIMER (grounded always writes 0x40),
 // seeded into each entry so a dropped re-arm would be visible to the RAM diff.
 const TIMER_SENTINEL = 0x99;
-
-const inStackScratch = (addr) => addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
 
 /**
- * First RAM difference outside STACK_SCRATCH between two machines, or null. The stack
+ * First RAM difference outside the stack scratch below the entry SP between two machines, or null. The stack
  * region is the dropped Z80 stack model's residue and is excluded from the contract.
  */
-function ramDiffNoStack(a, b) {
+function ramDiffNoStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStackScratch(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -104,7 +104,7 @@ function runPair(entry, candidate) {
   const b = entry.clone(); // candidate
   const retA = oracle(a);
   const retB = candidate(b);
-  return { ram: ramDiffNoStack(a, b), retA, retB };
+  return { ram: ramDiffNoStack(a, b, entry.regs.sp), retA, retB };
 }
 
 /** A synthetic entry: this machine with the two behaviour-relevant bytes set, a

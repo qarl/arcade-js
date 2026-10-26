@@ -53,6 +53,7 @@ import { loc_266f } from "../loc_266f.js";
 import { loc_264c } from "../loc_264c.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, M50_OBJ2_STEP_DIR, FRAME } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -69,18 +70,18 @@ const SHADOW_POS = 0x63a5;      // the tail's published +step shadow (no names.j
 const SHADOW_NEG = 0x63a4;      // the tail's published −step shadow (no names.js name)
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -93,11 +94,8 @@ function runOracle(entry) {
   return c;
 }
 
-/**
- * Run a candidate on a fresh clone, then model the tail-jump chain's terminal `ret` with one
- * m.ret() so pc + SP match the oracle's (the idiomatic routine replaces the Z80 stack with the
- * JS call stack, so it never touches pc/SP itself — the harness supplies the one caller return).
- */
+// Run a candidate on a fresh clone, then model the tail-jump chain's terminal `ret` with one m.ret() so pc + SP
+// match the oracle's (the idiomatic routine never touches pc/SP itself — the harness supplies the one caller return).
 function runCandidate(entry, fn) {
   const c = entry.clone();
   fn(c);
@@ -105,12 +103,12 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Contract diff: RAM − STACK_SCRATCH, pc, SP. Live-out is memory-only. */
+/** Contract diff: RAM − the stack scratch below the entry SP, pc, SP. Live-out is memory-only. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);
@@ -126,13 +124,9 @@ function bootedMachine(frames) {
   return m;
 }
 
-/**
- * Reproduce REAL 0x266F dispatches by running the translated loc_262f on clones of a booted
- * machine, with 0x266F hooked to snapshot each true entry. object-2's Y (0x6205) is forced
- * below 0xC0 so loc_262f branches here (it stays on the tail path at/above 0xC0), and the
- * latch is seeded to cover BOTH arms (sign bit clear and set). SP is set into the excluded
- * stack region so the tail's push/ret churn is dead scratch.
- */
+// Reproduce REAL 0x266F dispatches by running the translated loc_262f on clones of a booted machine, with 0x266F
+// hooked to snapshot each true entry. object-2's Y (0x6205) is forced below 0xC0 so loc_262f branches here, and the
+// latch is seeded to cover BOTH arms (sign bit clear and set). SP is set into the excluded stack region.
 function captureDispatches(booted) {
   const caps = [];
   const hook = (mm) => { caps.push(mm.clone()); return oracle(mm); };
@@ -149,14 +143,10 @@ function captureDispatches(booted) {
   return caps;
 }
 
-/**
- * Stamp a crafted 0x266F dispatch onto a clone of the base: a stack with the real caller
- * return (0x25FB) staged in STACK_SCRATCH so the terminal `ret` has a sane, excluded target,
- * the caller's latch pointer in hl (the oracle reads the sign bit through it), the frame
- * counter, and the latch value. clone() already neutralises the frame machinery
- * (nextNmi/nextBoundary = Infinity); re-asserted here so no stray NMI can masquerade as a
- * side effect while the oracle steps.
- */
+// Stamp a crafted 0x266F dispatch onto a clone of the base: a stack with the real caller return (0x25FB) staged in
+// STACK_SCRATCH so the terminal `ret` has a sane, excluded target, the caller's latch pointer in hl (the oracle reads
+// the sign bit through it), the frame counter, and the latch value. nextNmi/nextBoundary = Infinity is re-asserted
+// so no stray NMI can masquerade as a side effect while the oracle steps.
 function craft(base, { frame, latch }) {
   const e = base.clone();
   e.regs.sp = 0x6c00;
@@ -258,8 +248,7 @@ function brokenNoWrite(m) {
 test("TEETH: the inverted-sign and dropped-force-negative twins are CAUGHT", () => {
   const base = bootedMachine(400).clone();
 
-  // (a) inverted sign: a sign-SET latch on an even frame — the oracle leaves 0x62A3 at 0xC0,
-  // the twin stamps it to 0xFF. (The even frame keeps the tail from rewriting the latch.)
+  // (a) inverted sign: a sign-SET latch on an even frame — the oracle leaves 0x62A3 at 0xC0, the twin stamps it to 0xFF.
   const inv = craft(base, { frame: 0x02, latch: 0xc0 });
   assert.equal(runOracle(inv).mem.read8(LATCH), 0xc0, "oracle should leave the sign-set latch alone here");
   const invDiffs = contractDiffs(inv, brokenInvertedSign);
@@ -267,8 +256,7 @@ test("TEETH: the inverted-sign and dropped-force-negative twins are CAUGHT", () 
   assert.ok(invDiffs[0].startsWith(`RAM@${hx(LATCH)}`), `expected the diff at ${hx(LATCH)}, got ${invDiffs[0]}`);
   assert.equal(contractDiffs(inv, loc_266f).length, 0, "loc_266f must still pass this entry");
 
-  // (b) dropped write: a sign-CLEAR latch on an even frame — the oracle forces 0x62A3 to 0xFF,
-  // the twin leaves it 0x00.
+  // (b) dropped write: a sign-CLEAR latch on an even frame — the oracle forces 0x62A3 to 0xFF, the twin leaves it 0x00.
   const drop = craft(base, { frame: 0x02, latch: 0x00 });
   assert.equal(runOracle(drop).mem.read8(LATCH), 0xff, "oracle should force the latch negative here");
   const dropDiffs = contractDiffs(drop, brokenNoWrite);

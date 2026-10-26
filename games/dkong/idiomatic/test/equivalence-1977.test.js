@@ -6,7 +6,7 @@
  * GATE:  real captures + live-wire. EVERY dispatch a 2000-frame attract run produces is replayed
  *        oracle-against-rewrite with no sampling; the rewrite is then wired live for a
  *        1200-frame run whose whole frame trace must match the all-oracle baseline on
- *        RAM − STACK_SCRATCH. THERE IS NO CRAFTED ARM, and the reason is not an omission: the
+ *        RAM − the stack scratch below each frame's live SP. THERE IS NO CRAFTED ARM, and the reason is not an omission: the
  *        routine is branch-free, so it has no unreached arm to craft. Teeth: dropping the
  *        demo-input step, taking it twice, and taking it after the cascade instead of before.
  *
@@ -22,7 +22,7 @@
  *   1. REAL CAPTURES — hook 0x1977 in a 2000-frame attract run and, at EVERY dispatch, clone the
  *      entry state twice and run oracle vs rewrite on the two clones before letting the host
  *      proceed on the oracle. No sampling: the test asserts the number replayed equals the
- *      number dispatched. The contract checked is RAM − STACK_SCRATCH plus the declared live-out
+ *      number dispatched. The contract checked is RAM − the stack scratch below the entry SP plus the declared live-out
  *      (memory-only + the returned value). It ALSO checks the full state dump, SP and the whole
  *      register file, which are stronger than the contract and hold here because the shared
  *      0x197A tail rewrites everything the replaced call left; that stronger check is what would
@@ -37,7 +37,7 @@
  *      at all — a continue or two-player path, say. Only attract and that one tape were driven.
  *
  *   3. LIVE-WIRE — wire the rewrite live for a 1200-frame run and require the per-frame trace to
- *      equal the all-oracle baseline on RAM − STACK_SCRATCH. Cycle-free idiomatic code
+ *      equal the all-oracle baseline on RAM − the stack scratch below each frame's live SP. Cycle-free idiomatic code
  *      under-charges the frame, which shifts the NMI and forks the timing-seeded spin counter, so
  *      the harness restores the replaced fragment's cycle cost by measuring it on a throwaway
  *      clone. That restoration is test-only scaffolding: the shipped layer runs frame-stepped and
@@ -76,7 +76,7 @@ import { loc_1977 as oracle } from "../../translated/loc_1977.js";
 import { runAttractDemoFrame } from "../runAttractDemoFrame.js";
 import { advanceAttractDemoInput } from "../advanceAttractDemoInput.js"; // reused to build faithful twins
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
 import {
   STACK_SCRATCH,
@@ -86,6 +86,7 @@ import {
   DEMO_SCRIPT_INDEX,
   DEMO_SCRIPT_COUNTDOWN,
 } from "../names.js";
+import { recordFrameSp, frameFloors } from "./_frame-sp.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -109,31 +110,33 @@ const COIN_START_TAPE = [
 ];
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (addr) => addr !== null && addr !== undefined && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 /** First differing RAM byte outside the dead stack scratch — the memory-equivalence contract. */
-function ramDiff(a, b) {
+function ramDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
-/** First differing entry between two frame traces, outside the dead stack scratch. */
+/** First differing entry between two traced runs ({ frames, sp }), outside the stack scratch below each frame's live SP. */
 function traceDiff(baseline, live, mapper) {
-  for (let f = 0; f < Math.min(baseline.length, live.length); f++) {
-    const a = baseline[f];
-    const b = live[f];
+  const floors = frameFloors(baseline.sp, live.sp);
+  for (let f = 0; f < Math.min(baseline.frames.length, live.frames.length); f++) {
+    const a = baseline.frames[f];
+    const b = live.frames[f];
+    const dead = deadStackBelow(STACK_SCRATCH, floors[f]);
     for (let i = 0; i < Math.min(a.length, b.length); i++) {
       if (a[i] === b[i]) continue;
       const addr = mapper(i);
-      if (inStack(addr)) continue;
+      if (dead(addr)) continue;
       return { frame: f, addr, a: a[i], b: b[i] };
     }
   }
@@ -202,7 +205,7 @@ test("REAL CAPTURES: every 0x1977 dispatch in a 2000-frame attract run == oracle
       replayed++;
       if (a.mem8[P1_INPUT] !== before) inputChanges++;
 
-      const ram = ramDiff(a, b);
+      const ram = ramDiff(a, b, mm.regs.sp);
       const reg = regDiff(a, b);
       const state = firstStateDiff(a.dumpState(), b.dumpState(), (off) => a.stateOffsetToAddr(off));
       if (ram || reg || state || oracleReturn !== candidateReturn) {
@@ -236,7 +239,7 @@ test("REAL CAPTURES: every 0x1977 dispatch in a 2000-frame attract run == oracle
     `  REAL CAPTURES: ${replayed}/${dispatched} dispatches replayed (first at frame ${firstFrame}), ` +
       `all from GAME_STATE/GAME_SUBSTATE ${[...states].join(" ")}, ${shapes.size} distinct entry shapes ` +
       `(script step × hold/advance), ${advanceBranch} on the advance branch, ${inputChanges} that left a ` +
-      `changed control word — RAM − STACK_SCRATCH, full dump, SP, every register and the return value ` +
+      `changed control word — RAM − the stack scratch below the entry SP, full dump, SP, every register and the return value ` +
       `all == oracle`,
   );
 });
@@ -272,8 +275,9 @@ test("REACH: a coin+start tape that reaches gameplay never dispatches 0x1977", (
 // -- 3. LIVE-WIRE -------------------------------------------------------------
 
 let cachedBaseline = null;
-const oracleBaseline = () => (cachedBaseline ??= new Machine(ROM).runFrames(LIVE_FRAMES));
-const liveTrace = (fn) => new Machine(ROM, { overrides: new Map([[TARGET, fn]]) }).runFrames(LIVE_FRAMES);
+const traced = (m) => { const sp = recordFrameSp(m); return { frames: m.runFrames(LIVE_FRAMES), sp }; };
+const oracleBaseline = () => (cachedBaseline ??= traced(new Machine(ROM)));
+const liveTrace = (fn) => traced(new Machine(ROM, { overrides: new Map([[TARGET, fn]]) }));
 
 test("LIVE-WIRE: the rewrite wired live for 1200 frames reproduces the all-oracle trace", () => {
   const mapper = new Machine(ROM);
@@ -285,7 +289,7 @@ test("LIVE-WIRE: the rewrite wired live for 1200 frames reproduces the all-oracl
     diff, null,
     diff && `live trace diverges at frame ${diff.frame}, ${hx(diff.addr)}: ${diff.a} -> ${diff.b}`,
   );
-  assert.equal(wired.length, baseline.length, "the live run must have completed the same number of frames");
+  assert.equal(wired.frames.length, baseline.frames.length, "the live run must have completed the same number of frames");
 
   // The trace is only worth anything if it can fail. Dropping the fragment's cycle charge is the
   // known way to make cycle-free code fork a timing-seeded run; it must be caught.
@@ -293,7 +297,7 @@ test("LIVE-WIRE: the rewrite wired live for 1200 frames reproduces the all-oracl
   assert.notEqual(uncharged, null, "the live trace FAILED to notice the missing cycle charge — it is blind");
 
   console.log(
-    `  LIVE-WIRE: ${baseline.length} frames identical on RAM − STACK_SCRATCH with the fragment's ` +
+    `  LIVE-WIRE: ${baseline.frames.length} frames identical on RAM − the stack scratch below each frame's live SP with the fragment's ` +
       `cycles restored; without them the same trace forks at frame ${uncharged.frame}, ${hx(uncharged.addr)}`,
   );
 });
@@ -335,7 +339,7 @@ function unitCatches(caps, candidate) {
     const b = cap.clone();
     oracle(a);
     candidate(b);
-    const ram = ramDiff(a, b);
+    const ram = ramDiff(a, b, cap.regs.sp);
     if (ram) {
       caught++;
       if (!first) first = ram;

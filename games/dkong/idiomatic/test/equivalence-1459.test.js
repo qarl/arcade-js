@@ -11,7 +11,7 @@
  * validated by capture/clone/replay on a FRESH clone per case — never reusing one
  * machine, never the full register file, never cycles. The compared contract is:
  *
- *   RAM (minus STACK_SCRATCH)  +  io.flipScreen (the 0x7D82 latch)
+ *   RAM (minus the stack scratch below the entry SP)  +  io.flipScreen (the 0x7D82 latch)
  *
  * The flip latch is a board io output, NOT in the RAM dump; comparing io.flipScreen is
  * load-bearing because the A/DIP arms that both leave the latch unchanged differ ONLY
@@ -60,6 +60,7 @@ import { configureFlipScreenAndComposeScreen as candidate } from "../configureFl
 import { enqueueTask } from "../enqueueTask.js";
 import { Machine } from "../../machine.js";
 import { DIP_UPRIGHT, SUBSTATE_TIMER, GAME_SUBSTATE, STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -85,23 +86,23 @@ const COIN_START_TAPE = [
 ];
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 // -- comparison plumbing ------------------------------------------------------
 
 /**
  * First observable difference between two machines after each ran its routine: a RAM
- * byte (skipping the dead STACK_SCRATCH) OR the flip-screen board latch (io.flipScreen —
+ * byte (skipping the stack scratch below the entry SP) OR the flip-screen board latch (io.flipScreen —
  * the 0x7D82 output, not in the RAM dump). RAM first, then the latch. Null if identical.
  */
-function firstDiffOutsideStack(a, b) {
+function firstDiffOutsideStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { kind: "ram", addr, a: da[i], b: db[i] };
   }
   if (a.io.flipScreen !== b.io.flipScreen) {
@@ -121,7 +122,7 @@ function diffAgainstOracle(entry, cand) {
   const b = entry.clone(); // candidate
   oracle(a);
   cand(b);
-  return firstDiffOutsideStack(a, b);
+  return firstDiffOutsideStack(a, b, entry.regs.sp);
 }
 
 // -- entry capture (real loc_141e dispatch, single-byte upstream nudge) --------
@@ -245,7 +246,7 @@ test("CRAFTED: matches the oracle across FULL-ring (all posts dropped) and WRAP 
     poke(a); poke(b);
     oracle(a);
     candidate(b);
-    const d = firstDiffOutsideStack(a, b);
+    const d = firstDiffOutsideStack(a, b, ENTRY_A1.regs.sp);
     assert.equal(d, null, d && `${label}: ${fmt(d)}`);
     console.log(`  CRAFTED/${label}: RAM (ex-stack) + flip identical to the oracle`);
   }

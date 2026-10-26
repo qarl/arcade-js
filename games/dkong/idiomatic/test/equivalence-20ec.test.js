@@ -113,6 +113,7 @@ import manifest from "../../manifest.js";
 import { runCycleFree } from "../../../../core/frame-stepped.js";
 import { STACK_SCRATCH } from "../names.js";
 import { u8 } from "../../../../core/int.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -148,7 +149,6 @@ const REARM_DISTANCE = 26;
 const WRAP_Y = 5; // a sub-26 OBJ_Y: attract never produces one, so the wrap is crafted-only
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16).padStart(4, "0");
-const inStack = (addr) => addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // -- rehosting ----------------------------------------------------------------
 
@@ -242,11 +242,12 @@ function breach(entry, fn) {
 
   const da = a.dumpState();
   const db = b.dumpState();
+  const dead = deadStackBelow(STACK_SCRATCH, entry.regs.sp);
   let stack = null;
   for (let i = 0; i < da.length; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) {
+    if (dead(addr)) {
       stack ??= `RAM(stack)@${hx(addr)} oracle=${da[i]} cand=${db[i]}`;
       continue;
     }
@@ -497,9 +498,10 @@ function protocol(entry, fn) {
   }
   const dump = m.dumpState();
   const live = [];
+  const dead = deadStackBelow(STACK_SCRATCH, spEntry);
   for (let i = 0; i < dump.length; i++) {
     const addr = m.stateOffsetToAddr(i);
-    if (!inStack(addr)) live.push(dump[i]);
+    if (!dead(addr)) live.push(dump[i]);
   }
   return { log: log.join(","), ret: String(ret), spDelta: ((m.regs.sp - spEntry) << 16) >> 16, live };
 }

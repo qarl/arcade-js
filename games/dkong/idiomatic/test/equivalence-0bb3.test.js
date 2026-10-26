@@ -10,7 +10,7 @@
  * it touches (0x6919, SND_PRIORITY/frames, INTRO_STEP, GAME_SUBSTATE) is written, not
  * branched on. The oracle's SP/PC churn is the rst/ret caller-skip mechanism (replaced by
  * tickSubstateTimer's boolean) and its A/F are dead ABI — none reach RAM, so the contract
- * is RAM only, minus STACK_SCRATCH (the oracle pushes a return address there; the direct
+ * is RAM only, minus the stack scratch below the entry SP (the oracle pushes a return address there; the direct
  * call does not — a benign, excluded difference).
  *
  * REACHABILITY. This is an IN-GAME cutscene step (GAME_SUBSTATE == 7): attract never enters
@@ -20,7 +20,7 @@
  * byte-identical clone:
  *
  *   1. EQUAL (exhaustive selector) — runIntroRoarStep == oracle over ALL 256 SUBSTATE_TIMER
- *      values on a real mid-attract base, compared on RAM minus STACK_SCRATCH. 256 values is
+ *      values on a real mid-attract base, compared on RAM minus the stack scratch below the entry SP. 256 values is
  *      the complete branch-selector space, covering the 0x90 / 0x18 / expiry / no-op arms.
  *
  *   2. EQUAL (wrap edges) — crafted entries that drive the ±1 bytes across their 8-bit wrap
@@ -47,6 +47,7 @@ import { runIntroRoarStep } from "../runIntroRoarStep.js";
 import { SUBSTATE_TIMER, INTRO_STEP, GAME_SUBSTATE, STACK_SCRATCH } from "../names.js";
 import { tickSubstateTimer } from "../tickSubstateTimer.js";
 import { Machine } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -63,15 +64,14 @@ const SAFE_SP = 0x6bf8;
 
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
 
-const inStack = (addr) => addr !== null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
-
-/** First differing RAM byte between two dumps, ignoring the dead STACK_SCRATCH region. */
-function firstNonStackDiff(a, b, m) {
+/** First differing RAM byte between two dumps, ignoring the stack scratch below the entry SP. */
+function firstNonStackDiff(a, b, m, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] === b[i]) continue;
     const addr = m.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { offset: i, addr, a: a[i], b: b[i] };
   }
   if (a.length !== b.length) return { offset: n, addr: null, a: a.length, b: b.length };
@@ -88,7 +88,7 @@ function runPair(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return firstNonStackDiff(a.dumpState(), b.dumpState(), a);
+  return firstNonStackDiff(a.dumpState(), b.dumpState(), a, entry.regs.sp);
 }
 
 /** A real mid-attract machine state — realistic sprite buffer / RAM — with neutralised frame machinery. */

@@ -6,7 +6,7 @@
  * sub_0028 is NOT a pure leaf: it consumes the pushed table base off the stack
  * (advancing SP), then dispatches — the dispatched arm writes memory and drives
  * state. So it is validated by MEMORY-equivalence against the frozen oracle
- * (RAM − STACK_SCRATCH, pc, SP, and the returned skip-boolean), never the full
+ * (RAM − the stack scratch below the entry SP, pc, SP, and the returned skip-boolean), never the full
  * register file and never cycles, with a FRESH clone per case:
  *
  *   1. REALISM (captured dispatches) — hook 0x0028 in a real attract run and clone
@@ -40,6 +40,7 @@ import { loc_00ca } from "../../translated/loc_00ca.js";
 import { Machine } from "../../machine.js";
 import { ORACLE_ROUTINES } from "../../routines.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -52,14 +53,15 @@ const TARGET = 0x0028;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
 // First differing RAM byte between two dumps, EXCLUDING the dead stack scratch
-// region (the memory-equivalence contract is RAM − STACK_SCRATCH). Returns
+// region (the memory-equivalence contract is RAM − the stack scratch below the entry SP). Returns
 // { addr, a, b } or null.
-function firstRamDiffExStack(a, b, offToAddr) {
+function firstRamDiffExStack(a, b, offToAddr, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] === b[i]) continue;
     const addr = offToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { addr, a: a[i], b: b[i] };
   }
   return null;
@@ -135,7 +137,7 @@ test("REALISM: real captured 0x0028 dispatches — target + RAM(−stack) + pc +
       `dispatch sequence diverged (entry selector A=${hx(cap.regs.a)}, SP=${hx(cap.regs.sp)})`,
     );
 
-    const ramDiff = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o));
+    const ramDiff = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), cap.regs.sp);
     assert.equal(
       ramDiff,
       null,

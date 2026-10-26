@@ -42,6 +42,7 @@ import { loc_3f24 as oracle } from "../../translated/loc_3f24.js";
 import { stampFixedTilePair } from "../stampFixedTilePair.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -54,15 +55,15 @@ const TARGET = 0x3f24;
 const CELL_TOP = 0x74af; // <- 0x9F
 const CELL_BOT = 0x748f; // <- 0x9E (0x74AF - 0x20)
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
- * Diff two machines' RAM. Returns the first difference OUTSIDE STACK_SCRATCH
+ * Diff two machines' RAM. Returns the first difference OUTSIDE the stack scratch below the entry SP
  * (game-visible — a real failure) or null, plus a count of any (tolerated)
  * differences inside the dead stack scratch. This routine pushes nothing, so a
  * correct rewrite yields stackDiffs === 0 too.
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0;
@@ -70,7 +71,7 @@ function ramDiffMinusStack(a, b) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -80,13 +81,14 @@ function ramDiffMinusStack(a, b) {
 function changedAddrs(entry, fn) {
   const m = entry.clone();
   const before = m.dumpState();
+  const dead = deadStackBelow(STACK_SCRATCH, entry.regs.sp);
   fn(m);
   const after = m.dumpState();
   const out = [];
   for (let i = 0; i < before.length; i++) {
     if (before[i] === after[i]) continue;
     const addr = m.stateOffsetToAddr(i);
-    if (!inStack(addr)) out.push(addr);
+    if (!dead(addr)) out.push(addr);
   }
   return out;
 }
@@ -119,7 +121,7 @@ test("EQUAL (captured): stampFixedTilePair == oracle on every real attract dispa
     oracle(a);
     stampFixedTilePair(b);
 
-    const { bad, stackDiffs } = ramDiffMinusStack(a, b);
+    const { bad, stackDiffs } = ramDiffMinusStack(a, b, entry.regs.sp);
     assert.equal(
       bad,
       null,
@@ -169,7 +171,7 @@ test("EQUAL (crafts): oracle and idiomatic agree regardless of cell/register/RAM
     oracle(a);
     stampFixedTilePair(b);
 
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, entry.regs.sp);
     assert.equal(
       bad,
       null,
@@ -205,7 +207,7 @@ test("TEETH (captured): the wrong-direction second write is CAUGHT and names 0x7
     const a = entry.clone(); const b = entry.clone();
     oracle(a);
     brokenStampFixedTilePair(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, entry.regs.sp);
     if (bad) { caught = bad; break; }
   }
   assert.notEqual(caught, null, "the captured sweep FAILED to catch a wrong-direction write — it is worthless");

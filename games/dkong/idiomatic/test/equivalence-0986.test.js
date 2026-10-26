@@ -11,7 +11,7 @@
  * capture/clone/replay on a FRESH clone per case — never reusing one machine, never
  * the full register file, never cycles. The compared contract is:
  *
- *   RAM (minus STACK_SCRATCH)  +  io.flipScreen (the 0x7D82 latch)
+ *   RAM (minus the stack scratch below the entry SP)  +  io.flipScreen (the 0x7D82 latch)
  *
  * The flip-screen latch is a board io output, NOT in the RAM dump — and the upright
  * (flip ON) and cocktail (flip OFF) 2-player arms BOTH store GAME_SUBSTATE=3, so
@@ -49,6 +49,7 @@ import { clearTilemapAndSprites as clearTilemapAndSpritesLike } from "../clearTi
 import { silenceSound as silenceSoundLike } from "../silenceSound.js";
 import { Machine } from "../../machine.js";
 import { GAME_SUBSTATE, DIP_UPRIGHT, SND_TRIGGER, STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -82,18 +83,19 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
 /**
  * First observable difference between two machines after each has run its routine:
- * a RAM byte (skipping the dead STACK_SCRATCH) OR the flip-screen board latch
+ * a RAM byte (skipping the stack scratch below the entry SP) OR the flip-screen board latch
  * (io.flipScreen — the 0x7D82 output, which is NOT in the RAM dump). Returns null if
  * identical. RAM is checked first, then the latch.
  */
-function firstDiffOutsideStack(a, b) {
+function firstDiffOutsideStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { kind: "ram", addr, a: da[i], b: db[i] };
   }
   if (a.io.flipScreen !== b.io.flipScreen) {
@@ -113,7 +115,7 @@ function diffAgainstOracle(entry, cand) {
   const b = entry.clone(); // candidate
   oracle(a);
   cand(b);
-  return firstDiffOutsideStack(a, b);
+  return firstDiffOutsideStack(a, b, entry.regs.sp);
 }
 
 // -- entry capture (the real 1-player dispatch, and the crafted base) ----------

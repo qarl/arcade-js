@@ -8,7 +8,7 @@
  * is an input-free, straight-line constant memory transform. It is validated by
  * capture/clone/replay on a FRESH clone per side (a memory-writing routine demands
  * that), never on the full register file, never on cycles. The contract compared is
- * RAM (minus STACK_SCRATCH); there are no live-out registers (the header explains
+ * RAM (minus the stack scratch below the entry SP); there are no live-out registers (the header explains
  * both callers reload A/DE before reading, so A/BC/DE/HL/F are dead ABI). SP and PC
  * are likewise not compared — the oracle's terminal `ret` pops the stack (SP += 2)
  * and vectors PC; the idiomatic layer drops that bookkeeping (the JS call stack
@@ -44,6 +44,7 @@ import { loc_0852 as oracle } from "../../translated/loc_0852.js";
 import { clearTilemapAndSprites } from "../clearTilemapAndSprites.js";
 import { Machine } from "../../machine.js";
 import { SPRITE_BUFFER, STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -67,30 +68,27 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
 // -- comparison plumbing ------------------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH, or null. */
-function firstRamDiffOutsideStack(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP, or null. */
+function firstRamDiffOutsideStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
-/**
- * Run the oracle and a candidate on two FRESH clones of `entry` (a memory-writing
- * routine demands a fresh clone per side) and diff RAM outside the dead stack.
- */
 function diffAgainstOracle(entry, candidate) {
   const a = entry.clone(); // oracle
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return firstRamDiffOutsideStack(a, b);
+  return firstRamDiffOutsideStack(a, b, entry.regs.sp);
 }
 
 /**
@@ -106,12 +104,6 @@ function baseMachine(frames) {
   return m;
 }
 
-/**
- * Build a crafted entry from a base machine: paint every cell the routine could
- * touch — all of video RAM (0x7400-0x77FF, the tilemap fill) and a guard-banded
- * span around the sprite buffer (0x68F0-0x6A8F) — with `sentinel`, identically on
- * both sides. The guard bands catch an over-write past either end of the buffer.
- */
 function craftSentinelEntry(base, sentinel) {
   const w = base.clone();
   w.regs.sp = SAFE_SP;

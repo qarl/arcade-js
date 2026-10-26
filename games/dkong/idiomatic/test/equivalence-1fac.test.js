@@ -60,6 +60,7 @@ import { u8 } from "../../../../core/int.js";
 import { loc_1fac as oracle } from "../../translated/loc_1fac.js";
 import { loc_1fac } from "../loc_1fac.js";
 import { OBJ_Y, OBJ_SPRITE_CODE, STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -137,14 +138,15 @@ function stubTails(c) {
 }
 
 /** First differing state byte, classified as stack scratch or live RAM. */
-function stateDiff(a, b) {
+function stateDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   let stack = null;
   for (let i = 0; i < da.length; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) {
+    if (dead(addr)) {
       if (stack === null) stack = { kind: "stack", addr, a: da[i], b: db[i] };
       continue;
     }
@@ -161,6 +163,7 @@ function stateDiff(a, b) {
 function contractBreach(entry, candidate, { stubbed }) {
   const prep = stubbed ? stubTails : undefined;
   const a = rehost(entry, prep);
+  const aFloor = a.regs.sp;
   const b = rehost(entry, prep);
 
   let ra;
@@ -190,7 +193,7 @@ function contractBreach(entry, candidate, { stubbed }) {
     }
   }
 
-  const st = stateDiff(a, b);
+  const st = stateDiff(a, b, aFloor);
   if (st) return st;
   if (a.regs.sp !== b.regs.sp) return { kind: "SP", addr: null, a: hx(a.regs.sp), b: hx(b.regs.sp) };
   // pc and the FULL register file are asserted only where they legitimately hold — after the
@@ -363,6 +366,7 @@ test("DERIVATION: the accumulator and flags are dead at the hand-off, measured a
     overrides: {
       "1fac": (mm) => {
         const clean = rehost(mm);
+        const cleanFloor = clean.regs.sp;
         const dirty = rehost(mm, (c) => {
           let armed = true;
           for (const addr of [TAIL_TRAVEL, TAIL_ARRIVED]) {
@@ -380,7 +384,7 @@ test("DERIVATION: the accumulator and flags are dead at the hand-off, measured a
         oracle(clean);
         oracle(dirty);
         checked++;
-        const st = stateDiff(clean, dirty);
+        const st = stateDiff(clean, dirty, cleanFloor);
         if (st) breaches.push(st);
         else if (clean.pc !== dirty.pc) breaches.push({ kind: "pc", addr: null, a: hx(clean.pc), b: hx(dirty.pc) });
         else if (clean.regs.sp !== dirty.regs.sp) breaches.push({ kind: "SP", addr: null, a: hx(clean.regs.sp), b: hx(dirty.regs.sp) });

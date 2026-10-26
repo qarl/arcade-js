@@ -26,7 +26,7 @@
  *      OBJ_SEARCH_COUNT and the early-return-on-hit), a full exhaustion, a hit at a later record
  *      within a sweep (the count-minus-index recovery), and two cases with different stack-passed
  *      tolerances that flip the decision (proving the tolerance marshalling is live). Every case:
- *      RAM (minus STACK_SCRATCH) and the returned tuple identical to the oracle.
+ *      RAM (minus the stack scratch below the caller frame) and the returned tuple identical to the oracle.
  *
  *   2. TEETH — two broken twins the same suite MUST catch: one that stores the wrong count
  *      (caught in RAM at OBJ_SEARCH_COUNT) and one that drops the early-return-on-hit and runs all
@@ -50,6 +50,7 @@ import {
   OBJ_ARRAY_65A0,
   OBJ_RECORD_66A0,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -71,17 +72,18 @@ const SWEEPS = [
 ];
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const POPPED_ARG = 2; // ROM opens with `pop hl`: the stacked word at entry SP is consumed, so the caller frame starts above it
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region
-// (the memory-equivalence contract is RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the caller frame
+// (the memory-equivalence contract is RAM − the stack scratch below the caller frame). { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -117,13 +119,13 @@ function searchArgs(entry) {
   return { iy: entry.regs.iy, c: entry.regs.c, bounds: entry.mem.read8(sp) | (entry.mem.read8((sp + 1) & 0xffff) << 8) };
 }
 
-/** Full contract diff: RAM − STACK_SCRATCH, plus the returned { overlap, residue, stride, base }. */
+/** Full contract diff: RAM − the stack scratch below the caller frame, plus the returned { overlap, residue, stride, base }. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = entry.clone();
   const tuple = fn(c, searchArgs(entry));
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp + POPPED_ARG);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   diffs.push(...tupleDiffs(o, tuple));
   return diffs;

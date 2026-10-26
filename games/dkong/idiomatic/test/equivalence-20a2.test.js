@@ -6,7 +6,7 @@
  * WHAT IS COMPARED — the memory-equivalence contract. This routine's tail m.calls were dissolved to
  * direct idiomatic calls (m.call(0x20b5)->loc_20b5, m.call(0x20c3)->loc_20c3), so the candidate no
  * longer performs the oracle's guest-stack pushes or charges its cycles. The contract is therefore
- * RAM MINUS STACK_SCRATCH, plus the propagated return value, and nothing else:
+ * RAM MINUS the stack scratch below the entry SP, plus the propagated return value, and nothing else:
  *   - RAM, STACK_SCRATCH EXCLUDED. The game-visible memory must be byte-identical; the dead guest-
  *     stack window is where the dissolved pushes legitimately diverge and is not part of the contract.
  *   - the propagated return value.
@@ -84,6 +84,7 @@ import manifest from "../../manifest.js";
 import { runCycleFree } from "../../../../core/frame-stepped.js";
 import { u8, u16 } from "../../../../core/int.js";
 import { MARIO_Y, OBJ_X, OBJ_Y, STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -113,7 +114,6 @@ const LIVE_FRAMES = 12000;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const s16 = (v) => (v > 32767 ? v - 65536 : v);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 // ── the comparison ───────────────────────────────────────────────────────────
 
@@ -146,15 +146,16 @@ function runInstrumented(m, fn) {
   return { writes, calls, ret, threw };
 }
 
-/** The whole dumped state as bytes; `skipStack` drops the dead scratch window. */
-function firstStateDiff(a, b, { skipStack = false } = {}) {
+/** The whole dumped state as bytes; `liveFloor` (an entry SP) drops the dead scratch below it. */
+function firstStateDiff(a, b, { liveFloor = null } = {}) {
+  const dead = liveFloor === null ? () => false : deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (skipStack && inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -185,9 +186,9 @@ function comparePair(entry, fn) {
   const bothRan = ro.threw === null && rc.threw === null;
   return {
     arm: ro.calls[0] ?? null,
-    // Memory-eq contract: RAM MINUS STACK_SCRATCH. The dissolved direct calls omit the oracle's
+    // Memory-eq contract: RAM MINUS the stack scratch below the entry SP. The dissolved direct calls omit the oracle's
     // m.call guest-stack pushes; the game-visible RAM must still be byte-identical.
-    state: bothRan ? firstStateDiff(o, c, { skipStack: true }) : null,
+    state: bothRan ? firstStateDiff(o, c, { liveFloor: entry.regs.sp }) : null,
     retO: ro.ret,
     retC: rc.ret,
     threwO: ro.threw,

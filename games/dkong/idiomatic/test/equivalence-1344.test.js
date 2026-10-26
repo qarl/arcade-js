@@ -9,7 +9,7 @@
  * dispatched in attract (verified below: 0 dispatches over a 1200-frame window — it
  * is player-2's in-game life-loss sub-state, needing a two-player credited game to
  * reach). It WRITES MEMORY via its own stores and four callees, so it is validated by
- * MEMORY-equivalence against the frozen oracle over RAM (minus STACK_SCRATCH) + pc +
+ * MEMORY-equivalence against the frozen oracle over RAM (minus the stack scratch below the entry SP) + pc +
  * SP — never the full register file, never cycles — on a FRESH clone per case, using
  * CRAFTED entries (doc-06: a real attract-base machine + a surgical poke):
  *
@@ -51,6 +51,7 @@ import { enqueueTask } from "../enqueueTask.js";
 import { fillTileBlock } from "../fillTileBlock.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -72,30 +73,31 @@ const TILE_BLOCK = 0x76d3; //     fillTileBlock top-left
 const RET_ADDR = 0x0710; //       a plausible caller return (after the 0x0702 dispatch)
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH
-// region (the memory-equivalence contract is RAM − STACK_SCRATCH). Returns {addr,a,b} or null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
+// region (the memory-equivalence contract is RAM − the stack scratch below the entry SP). Returns {addr,a,b} or null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
 // All non-stack RAM addresses that changed between two machines (for non-vacuity checks).
-function changedAddrs(a, b) {
+function changedAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.push(addr);
   }
   return out;
@@ -120,13 +122,13 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Full contract diff: RAM − STACK_SCRATCH, pc, SP. Live-out is memory-only, so the
+/** Full contract diff: RAM − the stack scratch below the entry SP, pc, SP. Live-out is memory-only, so the
  *  register file is deliberately NOT compared. Returns human-readable mismatches. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);
@@ -231,7 +233,7 @@ test("EQUAL (game over): LIVES hits zero — loc_1344 == oracle across both loc_
 
     // Non-vacuous, and the game-over stores are as claimed.
     const o = runOracle(entry);
-    assert.ok(changedAddrs(entry, o).length > 0, `${name}: game-over arm wrote nothing — vacuous`);
+    assert.ok(changedAddrs(entry, o, entry.regs.sp).length > 0, `${name}: game-over arm wrote nothing — vacuous`);
     assert.equal(o.mem.read8(GAME_SUBSTATE), 0x11, `${name}: GAME_SUBSTATE should be 0x11`);
     assert.equal(o.mem.read8(SUBSTATE_TIMER), 0xc0, `${name}: SUBSTATE_TIMER should be 0xC0`);
     assert.equal(o.mem.read8(TILE_BLOCK), 0x10, `${name}: fillTileBlock should stamp tile 0x10 at 0x76D3`);

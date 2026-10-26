@@ -12,7 +12,7 @@
  * case uses a FRESH clone per side. The oracle runs on one clone, loc_17b6 on the other,
  * and they are compared on the go-forward contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH)     [live-out is memory-only]
+ *     RAM (dumpState, minus the stack scratch below the entry SP)     [live-out is memory-only]
  *
  * SP/PC are deliberately NOT compared: the oracle threads its calls through push16/step/
  * ret stack + PC bookkeeping, the modelled ABI the direct-call layer replaces with the JS
@@ -75,6 +75,7 @@ import {
   SPRITE_OBJ_BLOCK,
   SEQ_ADVANCE_PTR,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -88,8 +89,6 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 // SP is seated here for every entry: inside STACK_SCRATCH with headroom BOTH ways (the
 // oracle drifts SP down, the idiomatic loc_0da7 drifts it up — see the header).
 const SP_SEAT = 0x6bf0;
-
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // The arm's OWN direct scalar writes (not the callee footprint): address -> constant.
 // 0x6388 is input-dependent (inc) and 0x63C0/0x63C1 are the little-endian repoint = 0x6388.
@@ -106,19 +105,20 @@ const SEQ_STEP = 0x6388;
 
 /**
  * First RAM difference between two machines on the go-forward contract: the whole state
- * dump minus STACK_SCRATCH (dead scratch). Masking IS load-bearing — the oracle's calls
+ * dump minus the stack scratch below the entry SP (dead scratch). Masking IS load-bearing — the oracle's calls
  * push16 into STACK_SCRATCH while the direct-call candidate's loc_0da7 pops it, so those
  * bytes legitimately differ and must be masked. Single forward pass. Returns {addr,a,b} or
  * null.
  */
-function ramDiffMinusStack(ma, mb) {
+function ramDiffMinusStack(ma, mb, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = ma.dumpState();
   const b = mb.dumpState();
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] === b[i]) continue;
     const addr = ma.stateOffsetToAddr(i);
-    if (inDeadStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: a[i], b: b[i] };
   }
   return null;
@@ -130,7 +130,7 @@ function diffAgainstOracle(entry, cand) {
   const b = entry.clone(); // candidate
   oracle(a);
   cand(b);
-  return ramDiffMinusStack(a, b);
+  return ramDiffMinusStack(a, b, entry.regs.sp);
 }
 
 /**
@@ -149,8 +149,6 @@ function attractState(nFrames) {
 
 const ENTRIES = ROM_PRESENT ? [350, 2000, 4500].map(attractState) : [];
 
-// -- 1. EQUAL (real attract states) -------------------------------------------
-
 test("EQUAL: real attract states as entries — loc_17b6 == oracle in RAM (−stack)", () => {
   assert.ok(ENTRIES.length >= 1, "expected at least one attract entry state");
   for (const entry of ENTRIES) {
@@ -159,8 +157,6 @@ test("EQUAL: real attract states as entries — loc_17b6 == oracle in RAM (−st
   }
   console.log(`  EQUAL: ${ENTRIES.length} real attract states — RAM (−stack) identical to the oracle`);
 });
-
-// -- 2. CRAFTED (pre-dirtied, both sides) -------------------------------------
 
 test("CRAFTED: broad work + video RAM dirtied identically on both sides — still RAM-equal", () => {
   for (const [tag, fill] of [["0x5a", 0x5a], ["0xa5", 0xa5]]) {
@@ -174,8 +170,6 @@ test("CRAFTED: broad work + video RAM dirtied identically on both sides — stil
   console.log("  CRAFTED: 0x5a- and 0xa5-dirtied entries — RAM (−stack) identical to the oracle");
 });
 
-// -- 3. INC-EDGE (0x6388 wrap) ------------------------------------------------
-
 test("INC-EDGE: 0x6388 = 0xFF wraps to 0x00 identically (the sole input-dependent byte)", () => {
   const base = ENTRIES[1];
   const entry = base.clone();
@@ -188,12 +182,10 @@ test("INC-EDGE: 0x6388 = 0xFF wraps to 0x00 identically (the sole input-dependen
 
   assert.equal(o.mem.read8(SEQ_STEP), 0x00, "oracle must wrap 0x6388 0xFF -> 0x00");
   assert.equal(c.mem.read8(SEQ_STEP), 0x00, "loc_17b6 must wrap 0x6388 0xFF -> 0x00");
-  const d = ramDiffMinusStack(o, c);
+  const d = ramDiffMinusStack(o, c, entry.regs.sp);
   assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} cand=${d.b}`);
   console.log("  INC-EDGE: 0x6388 0xFF -> 0x00 on both sides, RAM (−stack) identical");
 });
-
-// -- 4. SCALAR WRITES ---------------------------------------------------------
 
 test("SCALAR WRITES: the arm's own direct writes land their constants + inc(0x6388)", () => {
   const entry = ENTRIES[1].clone();
@@ -213,8 +205,6 @@ test("SCALAR WRITES: the arm's own direct writes land their constants + inc(0x63
   assert.equal(c.mem.read8(SEQ_STEP), 0x41, "loc_17b6 inc(0x6388): 0x40 -> 0x41");
   console.log(`  SCALAR WRITES: ${SCALAR_WRITES.size} direct constants + inc(0x6388) 0x40->0x41 land identically`);
 });
-
-// -- 5. TEETH -----------------------------------------------------------------
 
 /** Twin (a): wrong sub-state gate value at 0x6009 (0x21 instead of 0x20). */
 function brokenGateValue(m) {

@@ -9,12 +9,12 @@
  * sprite record #29 (0x6974-0x6977). Its stack traffic (push/pop DE/HL, ret) is
  * dead caller-ABI confined to STACK_SCRATCH, and both call sites (sub_1486)
  * overwrite HL immediately after and read none of the clobbered regs/flags. So
- * the contract is RAM − STACK_SCRATCH, and it is gated the strongest way a leaf
+ * the contract is RAM − the stack scratch below the entry SP, and it is gated the strongest way a leaf
  * can be — EXHAUSTIVELY against the frozen oracle:
  *
  *   1. EQUAL (exhaustive C, B=0) — positionBonusItemSprite == oracle over all 256
  *      C values at B == 0, the WHOLE real domain the caller produces (B is always
- *      0; C = the item-position index). Diffed on the RAM dump minus STACK_SCRATCH,
+ *      0; C = the item-position index). Diffed on the RAM dump minus the stack scratch below the entry SP,
  *      a FRESH clone per side because the routine WRITES memory.
  *
  *   2. EQUAL (B breadth) — B over the mapped-ROM window (0..0x08, so the table
@@ -49,6 +49,7 @@ import { loc_15fa as oracle } from "../../translated/loc_15fa.js";
 import { positionBonusItemSprite } from "../positionBonusItemSprite.js";
 import { STACK_SCRATCH } from "../names.js";
 import { Machine } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -63,20 +64,20 @@ const SAFE_SP = 0x6bfe;           // stack into STACK_SCRATCH so the oracle's pu
 
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
 
-// Contract = RAM − STACK_SCRATCH. The oracle's only non-record writes are its
+// Contract = RAM − the stack scratch below the entry SP. The oracle's only non-record writes are its
 // pushed DE/HL and popped return address, all inside STACK_SCRATCH; skipping that
 // window is the documented contract, not a workaround.
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
-/** First RAM difference (minus STACK_SCRATCH) between two machines, or null. */
-function ramDiffExStack(a, b) {
+/** First RAM difference (minus the stack scratch below the entry SP) between two machines, or null. */
+function ramDiffExStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -98,7 +99,7 @@ function bootedBase(frames = 300) {
 /**
  * Run the oracle and `candidate` on two FRESH clones of `base` with B/C poked
  * (routine WRITES memory, so no clone reuse), and return the first RAM difference
- * (minus STACK_SCRATCH) or null.
+ * (minus the stack scratch below the entry SP) or null.
  */
 function runPair(base, b, c, candidate) {
   const oc = base.clone(); // oracle
@@ -107,7 +108,7 @@ function runPair(base, b, c, candidate) {
   cn.regs.b = b; cn.regs.c = c; cn.regs.sp = SAFE_SP;
   oracle(oc);
   candidate(cn);
-  return ramDiffExStack(oc, cn);
+  return ramDiffExStack(oc, cn, SAFE_SP);
 }
 
 /** Sweep a candidate over all 256 C values at B==0 (the real caller domain). */
@@ -184,7 +185,7 @@ test("EQUAL (exhaustive C, B=0): positionBonusItemSprite == oracle over all 256 
         `(oracle ${mismatch.ram.a} -> idiomatic ${mismatch.ram.b})`,
   );
   assert.equal(count, 256, "must have compared all 256 C values at B==0");
-  console.log(`  EQUAL/exhaustive-C: ${count} cell indices — RAM (minus STACK_SCRATCH) identical to the oracle`);
+  console.log(`  EQUAL/exhaustive-C: ${count} cell indices — RAM (minus the stack scratch below the entry SP) identical to the oracle`);
 });
 
 // -- 2. EQUAL (B breadth) -----------------------------------------------------
@@ -242,12 +243,13 @@ test("REGION-BOUNDED: over real cells (B=0, C=0..0x1D) the oracle writes only 0x
     oracle(after);
     const db = before.dumpState();
     const da = after.dumpState();
+    const dead = deadStackBelow(STACK_SCRATCH, SAFE_SP);
     for (let i = 0; i < Math.min(db.length, da.length); i++) {
       if (db[i] === da[i]) continue;
       const addr = after.stateOffsetToAddr(i);
       const inRecord = addr >= RECORD && addr <= RECORD + 3;
       assert.ok(
-        inRecord || inStack(addr),
+        inRecord || dead(addr),
         `oracle wrote outside the record at 0x${(addr ?? 0).toString(16)} (C=${hx(c)}: ${db[i]} -> ${da[i]})`,
       );
     }

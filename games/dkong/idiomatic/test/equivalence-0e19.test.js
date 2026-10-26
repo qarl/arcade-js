@@ -12,7 +12,7 @@
  * drawLadder (whose tail is a direct call to drawSegmentEndCap, loc_0e2a's twin) on
  * another, then compared on the go-forward contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) + SP + declared live-out DE.
+ *     RAM (dumpState, minus the stack scratch below the entry SP) + SP + declared live-out DE.
  *
  * dumpState covers work + sprite + VIDEO RAM, so both the 0x63B2 counter and the tile
  * stamps — this routine's whole point — are inside the compared state. DE is the live-out:
@@ -47,7 +47,7 @@ import { loc_0e19 as oracle } from "../../translated/loc_0e19.js";
 import { drawLadder } from "../drawLadder.js";
 import { drawSegmentEndCap } from "../drawSegmentEndCap.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -64,18 +64,18 @@ const REMAINDER = 0x63b0; // sub-tile remainder (used only by the end cap)
 const ENDPTR = 0x63ad; // second point's tilemap address (the end cap's write pointer)
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 /**
  * First RAM difference on the go-forward contract: the whole state dump (work +
- * sprite + video) minus the dead STACK_SCRATCH region. Returns {addr,a,b} or null.
+ * sprite + video) minus the stack scratch below the entry SP. Returns {addr,a,b} or null.
  */
-function ramDiffMinusStack(ma, mb) {
+function ramDiffMinusStack(ma, mb, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = ma.dumpState();
   const b = mb.dumpState();
   let d = firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off));
   let from = 0;
-  while (d && inDeadStack(d.addr)) {
+  while (d && dead(d.addr)) {
     from = d.offset + 1;
     d = firstStateDiff(a.subarray(from), b.subarray(from), (off) => ma.stateOffsetToAddr(off + from));
   }
@@ -83,8 +83,8 @@ function ramDiffMinusStack(ma, mb) {
 }
 
 /** Full contract diff: RAM (−stack), then SP, then the DE live-out. null if equal. */
-function contractDiff(o, c) {
-  const d = ramDiffMinusStack(o, c);
+function contractDiff(o, c, liveFloor) {
+  const d = ramDiffMinusStack(o, c, liveFloor);
   if (d) return `RAM at ${hx(d.addr ?? 0)}: oracle=${d.a} cand=${d.b}`;
   if (o.regs.sp !== c.regs.sp) return `SP: oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`;
   if (o.regs.de !== c.regs.de) return `DE: oracle=${hx(o.regs.de)} cand=${hx(c.regs.de)}`;
@@ -123,7 +123,7 @@ test("EQUAL: real captured dispatches — drawLadder == oracle in RAM (−stack)
     oracle(o);
     drawLadder(c);
 
-    const diff = contractDiff(o, c);
+    const diff = contractDiff(o, c, cap.regs.sp);
     assert.equal(diff, null, diff);
   }
   console.log(
@@ -193,7 +193,7 @@ test("CRAFTED: forced span lengths — oracle==candidate + exactly floor(span/8)
     oracle(o);
     drawLadder(c);
 
-    const diff = contractDiff(o, c);
+    const diff = contractDiff(o, c, base.regs.sp);
     assert.equal(diff, null, `span=${hx(span)}: ${diff}`);
 
     // Arm semantics: exactly the first N cells (col+1..col+N) became the body tile 0xC0;
@@ -239,18 +239,19 @@ test("TEETH: a wrong body tile (0xC1) is CAUGHT on a captured dispatch and the c
     const c = cap.clone();
     oracle(o);
     brokenDrawLadder(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, cap.regs.sp);
     if (d) { caught = d; break; }
   }
   assert.notEqual(caught, null, "the gate FAILED to catch a wrong body tile — it is worthless");
 
   // Crafted multi-tile arm too — must be caught regardless.
   const o = CAPS[0].clone();
+  const oFloor = o.regs.sp;
   const c = CAPS[0].clone();
   o.mem.write8(SPAN, 0x40); c.mem.write8(SPAN, 0x40);
   oracle(o);
   brokenDrawLadder(c);
-  assert.notEqual(ramDiffMinusStack(o, c), null, "teeth NOT caught on the crafted multi-tile arm");
+  assert.notEqual(ramDiffMinusStack(o, c, oFloor), null, "teeth NOT caught on the crafted multi-tile arm");
 
   console.log(`  TEETH: wrong body tile caught at ${hx(caught.addr ?? 0)} (oracle=${caught.a} broken=${caught.b}) + crafted multi-tile arm`);
 });

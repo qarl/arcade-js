@@ -12,7 +12,7 @@
  * for a case that writes memory, never the full register file, never cycles. The
  * compared contract is:
  *
- *   RAM (minus STACK_SCRATCH)  +  io.flipScreen (the 0x7D82 latch)
+ *   RAM (minus the stack scratch below the entry SP)  +  io.flipScreen (the 0x7D82 latch)
  *
  * The flip-screen latch is a board io output, NOT in the RAM dump, so comparing
  * io.flipScreen is load-bearing (a skipped flip-set is invisible to the RAM gate). No
@@ -56,6 +56,7 @@ import { loc_13bb as oracle } from "../../translated/loc_13bb.js";
 import { selectPlayer1Context as idiomatic } from "../selectPlayer1Context.js";
 import { Machine } from "../../machine.js";
 import { CURRENT_PLAYER, GAME_SUBSTATE, STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 // 0x600E is the join-value low byte (NOT TWO_PLAYER_GAME, which is the high byte 0x600F).
 // names.js DOES name it ACTIVE_PLAYER_INDEX; it is written here as the low half of a 16-bit
@@ -75,23 +76,21 @@ const SP_CRAFT = 0x6bf8; // inside STACK_SCRATCH: the oracle's `ret` pops from t
 const SENTINEL = 0xee; // a value none of the four outputs settles on, so a dropped write shows
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-
-// -- comparison plumbing ------------------------------------------------------
 
 /**
  * First observable difference between two machines after each has run its routine:
- * a RAM byte (skipping the dead STACK_SCRATCH) OR the flip-screen board latch
+ * a RAM byte (skipping the stack scratch below the entry SP) OR the flip-screen board latch
  * (io.flipScreen — the 0x7D82 output, which is NOT in the RAM dump). RAM first, then
  * the latch. Returns null if identical.
  */
-function firstDiffOutsideStack(a, b) {
+function firstDiffOutsideStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { kind: "ram", addr, a: da[i], b: db[i] };
   }
   if (a.io.flipScreen !== b.io.flipScreen) {
@@ -111,10 +110,8 @@ function diffAgainstOracle(entry, cand) {
   const b = entry.clone(); // candidate
   oracle(a);
   cand(b);
-  return firstDiffOutsideStack(a, b);
+  return firstDiffOutsideStack(a, b, entry.regs.sp);
 }
-
-// -- crafted base machines (real attract states, reused per case) --------------
 
 // Several diverse real attract states, each booted to a different frame so the
 // surrounding work RAM genuinely differs. Cloned per case, never mutated in place.
@@ -147,8 +144,6 @@ function craft(base) {
   return w;
 }
 
-// -- 1. STRUCTURE -------------------------------------------------------------
-
 test("STRUCTURE: crafted entry — game-visible RAM + flip identical, SP/pc unmodelled by idiomatic", () => {
   const entry = craft(bases()[0]);
 
@@ -169,8 +164,6 @@ test("STRUCTURE: crafted entry — game-visible RAM + flip identical, SP/pc unmo
   assert.equal(c.pc, pc0, "loc_13bb must leave pc unchanged (no ret modelling)");
   console.log("  STRUCTURE: crafted entry game-visible-identical; idiomatic touches no SP/pc; pop target in stack scratch");
 });
-
-// -- 2. CONSTANT (diverse bases) ----------------------------------------------
 
 test("CONSTANT: over diverse real bases, loc_13bb == oracle (RAM ex-stack + flip) and output is fixed", () => {
   let count = 0;
@@ -194,8 +187,6 @@ test("CONSTANT: over diverse real bases, loc_13bb == oracle (RAM ex-stack + flip
   assert.equal(count, BASE_FRAMES.length, "must have swept every diverse base");
   console.log(`  CONSTANT: ${count} diverse bases — RAM (ex-stack) + flip identical; outputs pinned to 0/0/0, flip ON`);
 });
-
-// -- 3. TEETH -----------------------------------------------------------------
 
 /** Twin (a): stores the WRONG CURRENT_PLAYER (1, i.e. player 2) — a RAM diff at 0x600D. */
 function brokenWrongPlayer(m) {
@@ -257,8 +248,6 @@ test("TEETH: wrong-player, skipped-flip, and skipped-join twins are all CAUGHT",
       `skipped-join caught at ${hx(dJoin.addr)} (${dJoin.a}->${dJoin.b})`,
   );
 });
-
-// -- 4. REALISM (attract capture, if any) -------------------------------------
 
 test("REALISM: replay any real 0x13bb dispatch; else record that attract never reaches it", () => {
   const caps = [];

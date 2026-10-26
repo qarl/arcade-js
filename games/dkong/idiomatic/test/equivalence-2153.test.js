@@ -14,7 +14,7 @@
  *   1. EQUAL (captured) — ALL captured dispatches are replayed, not a sample: the run produces
  *      13, which is far below the point where sampling is worth its coverage risk. Each is
  *      replayed on two byte-identical clones — oracle on one, loc_2153 on the other — and
- *      compared on RAM − STACK_SCRATCH plus the RETURN VALUE. pc/SP are deliberately not
+ *      compared on RAM − the stack scratch below the entry SP plus the RETURN VALUE. pc/SP are deliberately not
  *      compared: cycle-free code cannot preserve them.
  *
  *   2. EQUAL (crafted) — attract stores 0 on every one of the 13 dispatches, so the captured
@@ -31,7 +31,7 @@
  *      oracle would have spent on each dispatch — by running it on a throwaway clone — and
  *      charges exactly that. The CONTROL test below wires the same rewrite WITHOUT the
  *      restoration and asserts the trace does fork, which is what shows this arm is sensitive
- *      rather than lenient. The contract asserted is RAM − STACK_SCRATCH, the same as arm 1;
+ *      rather than lenient. The contract asserted is RAM − the stack scratch below the entry SP, the same as arm 1;
  *      the full dump INCLUDING the stack region is asserted as well, and holds here because
  *      this rewrite has no stack traffic of its own to lose (its only stack effect is the
  *      frozen tail's, which it still reaches through that same frozen tail).
@@ -69,6 +69,7 @@ import { loc_2146 as oracle2146 } from "../../translated/loc_2146.js";
 import { loc_2153 } from "../loc_2153.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -94,7 +95,6 @@ const Y_FRAC = 6;
 const Y_INT = 5; // NOT written — twin (b) clobbers it instead of Y_FRAC
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16).padStart(4, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // The frozen walk's loop-back into the per-slot step, stubbed on both clones so each side publishes
 // exactly the slot under test and stops. The dissolved idiomatic chain returns after one slot
@@ -107,13 +107,14 @@ const cursorOf = (m) => ({ page: m.regs.h_ * 256, cursor: m.regs.l_ });
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -121,7 +122,7 @@ function firstRamDiff(a, b) {
 
 /**
  * Run oracle and candidate on two FRESH, byte-identical clones of `entry` and report the
- * contract: RAM − STACK_SCRATCH plus the RETURN VALUE. The tail is a jump, so its result is
+ * contract: RAM − the stack scratch below the entry SP plus the RETURN VALUE. The tail is a jump, so its result is
  * this routine's result and a rewrite that swallowed it would leave RAM untouched.
  *
  * Registers are NOT compared. Everything in the register file at exit was put there by the
@@ -137,7 +138,7 @@ function contractDiffs(entry, fn) {
   const retB = fn(b, cursorOf(b));
 
   const diffs = [];
-  const ram = firstRamDiff(a, b);
+  const ram = firstRamDiff(a, b, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (retA !== retB) diffs.push(`return oracle=${String(retA)} cand=${String(retB)}`);
   return { diffs, a, b };

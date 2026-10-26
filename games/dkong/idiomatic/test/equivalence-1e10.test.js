@@ -52,6 +52,7 @@ import { stageAward800Popup as idiomatic } from "../stageAward800Popup.js";
 import { stageAwardPopupAtHitObject } from "../stageAwardPopupAtHitObject.js"; // idiomatic feeder, for the teeth twins
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -69,22 +70,22 @@ const REC = 0x6a30;       // sprite-record slot; REC+1 = B, written by the stamp
 const SND = 0x6085;       // gated sound latch (gate-open, written by stampScorePopupSprite)
 const TASK_TAIL = 0x60b0; // low byte of the task ring's next write slot (page 0x60 fixed)
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
  * First game-visible RAM difference between two machines, EXCLUDING the dead
- * STACK_SCRATCH region (the memory-equivalence contract is RAM − STACK_SCRATCH; SP/pc
+ * STACK_SCRATCH region (the memory-equivalence contract is RAM − the stack scratch below the entry SP; SP/pc
  * are handled separately because the oracle models the stack and idiomatic does not).
  * Returns the first difference { addr, a, b } or null, plus the tolerated stack count.
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -96,7 +97,7 @@ function replay(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return { a, b, ...ramDiffMinusStack(a, b) };
+  return { a, b, ...ramDiffMinusStack(a, b, entry.regs.sp) };
 }
 
 /**
@@ -205,12 +206,13 @@ test("BOARD (exhaustive): stageAward800Popup == oracle over all 256 BOARD values
   let count = 0, opened = 0, closed = 0, mismatch = null;
   for (let v = 0; v < 256 && !mismatch; v++) {
     const a = base.clone(), b = base.clone();
+    const aFloor = a.regs.sp;
     for (const m of [a, b]) { m.mem.write8(BOARD, v); m.mem.write8(SND, 0x00); } // clean SND probe
     oracle(a);
     idiomatic(b);
     count++;
     if (a.mem.read8(SND) === 3) opened++; else closed++; // stampScorePopupSprite's gate fired or not
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     if (bad) mismatch = { v, bad };
   }
   assert.equal(
@@ -254,10 +256,11 @@ test("TEETH (wrong-E): the DE=0x0009 twin is CAUGHT at the task ring's argument 
   const tail = base.mem.read8(TASK_TAIL);
   const argAddr = 0x6000 | ((tail + 1) & 0xff); // E lands here (page 0x60 fixed)
   const a = base.clone(), b = base.clone();
+  const aFloor = a.regs.sp;
   for (const m of [a, b]) m.mem.write8(0x6000 | tail, 0xff); // bit7 set -> slot free -> write arm
   oracle(a);
   brokenWrongE(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the write-arm replay FAILED to catch a wrong E constant — it is worthless");
   assert.equal(bad.addr, argAddr, `expected the caught diff at the task argument byte ${hx(argAddr)}, got ${hx(bad.addr)}`);
   assert.equal(bad.a, 0x08, "oracle must enqueue E=0x08");

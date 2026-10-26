@@ -60,7 +60,7 @@ import {
   SPRITE_Y,
 } from "../names.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -92,17 +92,17 @@ const NOISE = new Map([
 ]);
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 // First RAM byte that differs between two machines, SKIPPING the dead STACK_SCRATCH
-// region (the memory-equivalence contract is RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// region (the memory-equivalence contract is RAM − the stack scratch below the entry SP). { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -110,13 +110,14 @@ function firstRamDiff(a, b) {
 
 // Every NON-STACK RAM address that changed between two machines (the oracle's push
 // churn in STACK_SCRATCH is excluded, so this is a genuine live-write set).
-function changedAddrs(pre, post) {
+function changedAddrs(pre, post, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = pre.dumpState(), db = post.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = pre.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.push(addr);
   }
   return out.sort((p, q) => p - q);
@@ -153,11 +154,11 @@ function makeEntry(base, x, y, { flag = 0x01, airborne = 0x00 } = {}) {
   return e;
 }
 
-/** The memory-equivalence contract: RAM − STACK_SCRATCH + pc + SP. Live-out is
+/** The memory-equivalence contract: RAM − the stack scratch below the entry SP + pc + SP. Live-out is
  *  memory-only; pc/SP are asserted only to prove the dissolved call/ret bracket
  *  lines up. Returns { kind, addr?, msg } | null. */
-function contractDiff(a, b) {
-  const ram = firstRamDiff(a, b);
+function contractDiff(a, b, liveFloor) {
+  const ram = firstRamDiff(a, b, liveFloor);
   if (ram) return { kind: "RAM", addr: ram.addr, msg: `RAM@${hx(ram.addr ?? 0)} oracle=${ram.a} cand=${ram.b}` };
   if (a.pc !== b.pc) return { kind: "pc", msg: `pc oracle=${hx(a.pc)} cand=${hx(b.pc)}` };
   if (a.regs.sp !== b.regs.sp) return { kind: "SP", msg: `SP oracle=${hx(a.regs.sp)} cand=${hx(b.regs.sp)}` };
@@ -172,11 +173,12 @@ function contractDiff(a, b) {
  */
 function runPair(base, x, y, opts, candidate) {
   const a = makeEntry(base, x, y, opts); // oracle
+  const aFloor = a.regs.sp;
   const b = makeEntry(base, x, y, opts); // candidate
   oracle(a);
   candidate(b);
   b.ret(); // model the candidate's terminal return (the oracle's `ret` at 0x2721)
-  return contractDiff(a, b);
+  return contractDiff(a, b, aFloor);
 }
 
 /** Sweep all 256 MARIO_X values crossed with Y_SET, active path. First mismatch + count. */
@@ -236,11 +238,11 @@ test("EQUAL (crafted): both guard early-outs match the oracle AND write no live 
   // And the guard paths write NO LIVE RAM (the only oracle write is the dead push).
   const flagClear = makeEntry(base, 0x30, 0x80, { flag: 0x00 });
   const flagClearPost = flagClear.clone(); oracle(flagClearPost);
-  assert.deepEqual(changedAddrs(flagClear, flagClearPost), [], "flag-clear guard wrote live RAM — should be a pure early return");
+  assert.deepEqual(changedAddrs(flagClear, flagClearPost, flagClear.regs.sp), [], "flag-clear guard wrote live RAM — should be a pure early return");
 
   const airborne = makeEntry(base, 0x30, 0x80, { flag: 0x01, airborne: 0x01 });
   const airbornePost = airborne.clone(); oracle(airbornePost);
-  assert.deepEqual(changedAddrs(airborne, airbornePost), [], "airborne guard wrote live RAM — should be a pure early return");
+  assert.deepEqual(changedAddrs(airborne, airbornePost, airborne.regs.sp), [], "airborne guard wrote live RAM — should be a pure early return");
 
   console.log("  EQUAL/guards: flag-clear and airborne early-outs identical to the oracle and write no live RAM");
 });
@@ -255,7 +257,7 @@ test("NON-VACUITY: each band writes exactly its arm's live cells THROUGH the wra
   const resetPost = reset.clone(); oracle(resetPost);
   assert.equal(resetPost.mem.read8(MARIO_START_FALL), 1, "reset arm must set MARIO_START_FALL");
   assert.equal(resetPost.mem.read8(EDGE_REPOSITION_FLAG), 0, "reset arm must clear EDGE_REPOSITION_FLAG");
-  assert.deepEqual(changedAddrs(reset, resetPost), sortAddrs([EDGE_REPOSITION_FLAG, MARIO_START_FALL]),
+  assert.deepEqual(changedAddrs(reset, resetPost, reset.regs.sp), sortAddrs([EDGE_REPOSITION_FLAG, MARIO_START_FALL]),
     "reset band live-write set must be exactly {EDGE_REPOSITION_FLAG, MARIO_START_FALL}");
 
   // MOVER-STEP band (X=0x30 -> carryMarioUpWithLift, Y=0x80 step): decrement MARIO_Y and mirror it.
@@ -263,7 +265,7 @@ test("NON-VACUITY: each band writes exactly its arm's live cells THROUGH the wra
   const stepPost = step.clone(); oracle(stepPost);
   assert.equal(stepPost.mem.read8(MARIO_Y), 0x7f, "mover step must decrement MARIO_Y");
   assert.equal(stepPost.mem.read8(SPRITE_Y_CELL), 0x7f, "mover step must mirror MARIO_Y to the sprite record");
-  assert.deepEqual(changedAddrs(step, stepPost), sortAddrs([MARIO_Y, SPRITE_Y_CELL]),
+  assert.deepEqual(changedAddrs(step, stepPost, step.regs.sp), sortAddrs([MARIO_Y, SPRITE_Y_CELL]),
     "mover-step live-write set must be exactly {MARIO_Y, sprite-Y}");
   for (const [addr, val] of NOISE) assert.equal(stepPost.mem.read8(addr), val, `step: neighbour ${hx(addr)} disturbed`);
 
@@ -272,14 +274,14 @@ test("NON-VACUITY: each band writes exactly its arm's live cells THROUGH the wra
   const handoffPost = handoff.clone(); oracle(handoffPost);
   assert.equal(handoffPost.mem.read8(MARIO_ACTIVE), 0, "mover handoff must clear MARIO_ACTIVE");
   assert.equal(handoffPost.mem.read8(EDGE_REPOSITION_FLAG), 0, "mover handoff must clear EDGE_REPOSITION_FLAG");
-  assert.deepEqual(changedAddrs(handoff, handoffPost), sortAddrs([MARIO_ACTIVE, EDGE_REPOSITION_FLAG]),
+  assert.deepEqual(changedAddrs(handoff, handoffPost, handoff.regs.sp), sortAddrs([MARIO_ACTIVE, EDGE_REPOSITION_FLAG]),
     "mover-handoff live-write set must be exactly {MARIO_ACTIVE, EDGE_REPOSITION_FLAG}");
 
   // UP-MOVER band (X=0x70 -> carryMarioDownWithLift, Y=0x80 step): increment MARIO_Y and mirror.
   const upStep = makeEntry(base, 0x70, 0x80);
   const upStepPost = upStep.clone(); oracle(upStepPost);
   assert.equal(upStepPost.mem.read8(MARIO_Y), 0x81, "up-mover step must increment MARIO_Y");
-  assert.deepEqual(changedAddrs(upStep, upStepPost), sortAddrs([MARIO_Y, SPRITE_Y_CELL]),
+  assert.deepEqual(changedAddrs(upStep, upStepPost, upStep.regs.sp), sortAddrs([MARIO_Y, SPRITE_Y_CELL]),
     "up-mover-step live-write set must be exactly {MARIO_Y, sprite-Y}");
 
   console.log("  NON-VACUITY: reset -> {EDGE, START_FALL}; mover-step -> {MARIO_Y, sprite-Y}; handoff -> {MARIO_ACTIVE, EDGE}");
@@ -291,20 +293,21 @@ test("BOUNDED EXCLUSION: the ONLY whole-dump oracle-vs-candidate diff lands in S
   // An active mover-step entry (X=0x30 -> carryMarioUpWithLift, Y=0x80): the oracle writes live
   // work RAM (MARIO_Y + sprite-Y) AND the pushed 0x2721 into the stack scratch.
   const a = makeEntry(base, 0x30, 0x80, {}); // oracle
+  const aFloor = a.regs.sp;
   const b = makeEntry(base, 0x30, 0x80, {}); // candidate
   oracle(a);
   loc_271e(b);
   b.ret();
 
   // With STACK_SCRATCH excluded the two are identical (the contract diff is null)...
-  assert.equal(contractDiff(a, b), null, "stack-excluded contract must be identical on an active dispatch");
+  assert.equal(contractDiff(a, b, aFloor), null, "stack-excluded contract must be identical on an active dispatch");
 
   // ...but the WHOLE-dump diff is NON-null and lands inside STACK_SCRATCH — proving
   // the oracle really does push (so the exclusion is load-bearing) and that the push
   // is the ONLY thing it hides (so the exclusion is confined to dead scratch).
   const whole = firstStateDiff(a.dumpState(), b.dumpState(), (off) => a.stateOffsetToAddr(off));
   assert.notEqual(whole, null, "expected the oracle's push16(0x2721) to show up in the whole-dump diff");
-  assert.ok(inStack(whole.addr), `the only whole-dump diff must be in STACK_SCRATCH, got ${hx(whole.addr)}`);
+  assert.ok(deadStackBelow(STACK_SCRATCH, aFloor)(whole.addr), `the only whole-dump diff must be in the stack scratch below the entry SP, got ${hx(whole.addr)}`);
 
   console.log(`  BOUNDED EXCLUSION: live RAM identical; the sole whole-dump diff is at ${hx(whole.addr)} (dead stack scratch)`);
 });

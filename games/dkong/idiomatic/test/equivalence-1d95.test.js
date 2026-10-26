@@ -7,7 +7,7 @@
  * loc_1d95 WRITES memory only, so it is gated by capture / clone / replay (docs/decompiler-pipeline)
  * with a FRESH clone per case. Because the idiomatic routine does NOT model the Z80
  * stack while the oracle's `ret` pops the pushed return address, the contract is
- * RAM − STACK_SCRATCH (never the full register file, never cycles), with the extra
+ * RAM − the stack scratch below the entry SP (never the full register file, never cycles), with the extra
  * requirement that idiomatic loc_1d95 leaves SP/pc UNCHANGED (it models no stack).
  *
  * Reachability: attract plays level-1 25m only, and 0x1d95 fires there just twice per
@@ -50,6 +50,7 @@ import { loc_1d95 as oracle } from "../../translated/loc_1d95.js";
 import { loc_1d95 as idiomatic } from "../loc_1d95.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -65,21 +66,21 @@ const BOARD = 0x6227;     // 25m == 1 (silent arm); anything else queues the sou
 const SND_PRIO = 0x608a;  // SND_PRIORITY — tune 0x0D
 const SND_FRAMES = 0x608b; // SND_PRIORITY_FRAMES — 3
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
  * First game-visible RAM difference between two machines, EXCLUDING the dead
- * STACK_SCRATCH region (the contract is RAM − STACK_SCRATCH; SP/pc are handled
+ * STACK_SCRATCH region (the contract is RAM − the stack scratch below the entry SP; SP/pc are handled
  * separately because the oracle models the stack `ret` and idiomatic does not).
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -91,7 +92,7 @@ function replay(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return { a, b, ...ramDiffMinusStack(a, b) };
+  return { a, b, ...ramDiffMinusStack(a, b, entry.regs.sp) };
 }
 
 /** Assert idiomatic loc_1d95 models no stack: SP and pc unchanged from entry. */
@@ -190,6 +191,7 @@ test("BOARD (exhaustive): loc_1d95 == oracle over all 256 BOARD values (silent +
   let count = 0, silent = 0, sounded = 0, mismatch = null;
   for (let v = 0; v < 256 && !mismatch; v++) {
     const a = base.clone(), b = base.clone();
+    const aFloor = a.regs.sp;
     // Clean sound probes so "was the sound queued?" reads unambiguously.
     for (const m of [a, b]) { m.mem.write8(BOARD, v); m.mem.write8(SND_PRIO, 0x00); m.mem.write8(SND_FRAMES, 0x00); }
     oracle(a);
@@ -197,7 +199,7 @@ test("BOARD (exhaustive): loc_1d95 == oracle over all 256 BOARD values (silent +
     count++;
     if (a.mem.read8(SND_PRIO) === 0x0d && a.mem.read8(SND_FRAMES) === 0x03) sounded++;
     else if (a.mem.read8(SND_PRIO) === 0x00) silent++;
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     if (bad) mismatch = { v, bad };
   }
   assert.equal(
@@ -220,10 +222,11 @@ test("STORE (A-sweep): loc_1d95 commits A into 0x6225 faithfully over a curated 
   for (const av of AS) {
     // Force the SOUND arm (BOARD 2) so the store is checked alongside the sound writes.
     const a = base.clone(), b = base.clone();
+    const aFloor = a.regs.sp;
     for (const m of [a, b]) { m.mem.write8(BOARD, 2); m.regs.a = av; }
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     assert.equal(bad, null, bad && `A=${hx(av)}: RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
     assert.equal(a.mem.read8(FLAG), av, `oracle must store A=${hx(av)} into 0x6225`);
     assert.equal(b.mem.read8(FLAG), av, `idiomatic must store A=${hx(av)} into 0x6225`);
@@ -263,10 +266,11 @@ function brokenWrongStore(m) {
 test("TEETH (wrong-sound): the 0x0C twin is CAUGHT in the BOARD sweep at 0x608A", () => {
   const base = craftedBase();
   const a = base.clone(), b = base.clone();
+  const aFloor = a.regs.sp;
   for (const m of [a, b]) { m.mem.write8(BOARD, 2); m.mem.write8(SND_PRIO, 0x00); }
   oracle(a);
   brokenWrongSound(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the replay FAILED to catch a wrong sound tune — it is worthless");
   assert.equal(bad.addr, SND_PRIO, `expected the caught diff at 0x608A, got ${hx(bad.addr)}`);
   assert.equal(bad.a, 0x0d, "oracle must queue tune 0x0D");
@@ -288,10 +292,11 @@ test("TEETH (wrong-gate): the skip-on-BOARD-2 twin is CAUGHT on a real 25m dispa
 test("TEETH (wrong-store): the constant-0 store twin is CAUGHT in the A-sweep at 0x6225", () => {
   const base = craftedBase();
   const a = base.clone(), b = base.clone();
+  const aFloor = a.regs.sp;
   for (const m of [a, b]) { m.mem.write8(BOARD, 2); m.regs.a = 0xa5; } // A != 0 so the store matters
   oracle(a);
   brokenWrongStore(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the replay FAILED to catch a store that drops A — it is worthless");
   assert.equal(bad.addr, FLAG, `expected the caught diff at 0x6225, got ${hx(bad.addr)}`);
   assert.equal(bad.a, 0xa5, "oracle must store A into 0x6225");

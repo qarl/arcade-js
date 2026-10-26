@@ -8,7 +8,7 @@
  * arm's stageAwardPopupAtHitObject chain (task ring via enqueueTask, the *(0x6343) block[0] clear, and — via
  * the stampScorePopupSprite tail — the 4-byte sprite record 0x6A30..0x6A33 + the board-gated sound
  * 0x6085). So it is gated by capture / clone / replay (docs/decompiler-pipeline) with a FRESH clone per case,
- * on the contract RAM − STACK_SCRATCH (never the full register file, never cycles), with the
+ * on the contract RAM − the stack scratch below the entry SP (never the full register file, never cycles), with the
  * extra requirement that idiomatic pickRandomAwardTier leaves SP/pc unchanged (it models no stack while
  * the oracle's `jp`/`call` chain does).
  *
@@ -24,7 +24,7 @@
  *      rotated A the oracle leaves is dead (idiomatic never touches A).
  *
  *   2. EXHAUSTIVE (dispatch) — on a real captured base, poke RANDOM to EVERY byte 0..255
- *      identically on both sides and compare RAM − STACK_SCRATCH. All three arms are
+ *      identically on both sides and compare RAM − the stack scratch below the entry SP. All three arms are
  *      exercised (all of B ∈ {0x7D,0x7E,0x7F} appear at 0x6A31), and each swept value's arm
  *      is pinned to the bits: bit0 -> 0x7E, else bit1 -> 0x7F, else 0x7D. This is the whole
  *      of pickRandomAwardTier's logic, proven against the oracle.
@@ -48,6 +48,7 @@ import { stageAward500Popup } from "../stageAward500Popup.js";
 import { stageAward800Popup } from "../stageAward800Popup.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -61,7 +62,6 @@ const RNG = 0x6018;   // RANDOM — the byte pickRandomAwardTier dispatches on (
 const BOARD = 0x6227;
 const REC = 0x6a30;   // sprite-record slot; REC+1 = the arm's B, stamped by the stampScorePopupSprite tail
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /** The B constant the correctly-dispatched arm stamps at 0x6A31, from RANDOM's low two bits. */
 function expectedB(rnd) {
@@ -71,18 +71,19 @@ function expectedB(rnd) {
 }
 
 /**
- * First game-visible RAM difference between two machines, EXCLUDING the dead STACK_SCRATCH
- * region (the memory-equivalence contract is RAM − STACK_SCRATCH; SP/pc are handled
+ * First game-visible RAM difference between two machines, EXCLUDING the stack scratch below the entry SP
+ * region (the memory-equivalence contract is RAM − the stack scratch below the entry SP; SP/pc are handled
  * separately because the oracle models the stack and idiomatic does not).
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -94,7 +95,7 @@ function replay(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return { a, b, ...ramDiffMinusStack(a, b) };
+  return { a, b, ...ramDiffMinusStack(a, b, entry.regs.sp) };
 }
 
 /**
@@ -171,13 +172,14 @@ test("EXHAUSTIVE: pickRandomAwardTier == oracle over all 256 RANDOM values (all 
   let count = 0, mismatch = null;
   for (let v = 0; v < 256 && !mismatch; v++) {
     const a = base.clone(), b = base.clone();
+    const aFloor = a.regs.sp;
     a.mem.write8(RNG, v);
     b.mem.write8(RNG, v);
     oracle(a);
     idiomatic(b);
     count++;
 
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     if (bad) { mismatch = { v, bad }; break; }
 
     // The oracle dispatched to the arm the bits select; confirm via the stamped B, and tally.
@@ -215,11 +217,12 @@ test("TEETH (arm-swap): the swapped-dispatch twin is CAUGHT by the sweep (wrong 
   let caught = null;
   for (let v = 0; v < 256 && !caught; v++) {
     const a = base.clone(), b = base.clone();
+    const aFloor = a.regs.sp;
     a.mem.write8(RNG, v);
     b.mem.write8(RNG, v);
     oracle(a);
     brokenSwap(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     if (bad) caught = { v, bad, a, b };
   }
   assert.notEqual(caught, null, "the exhaustive sweep FAILED to catch a swapped-arm dispatch — it is worthless");

@@ -8,7 +8,7 @@
  * loc_04a3 WRITES memory (three colour cells via sub_0514, plus 0x6905 via loc_04ac) and
  * reads registers live-in (A = fill value, DE = stride, C = the store's toggle phase). Its
  * declared LIVE-OUT is memory-only — the tail loc_04ac is memory-only and its caller reads
- * no register afterward — so it is validated on RAM (minus STACK_SCRATCH) + pc + SP via
+ * no register afterward — so it is validated on RAM (minus the stack scratch below the entry SP) + pc + SP via
  * capture/clone/replay. NEVER the full register file, NEVER cycles.
  *
  * The idiomatic routine models the Z80 stack as the JS call stack (no push16/ret of its
@@ -47,6 +47,7 @@ import { fillDescendingColumn } from "../fillDescendingColumn.js";
 import { storeBlinkSpriteCode } from "../storeBlinkSpriteCode.js";
 import { Machine } from "../../machine.js";
 import { SPRITE_BUFFER, STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -62,18 +63,18 @@ const COLOR_COLUMN_TOP = 0x75c4;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const hb = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH, or null. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP, or null. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -86,11 +87,6 @@ function runOracle(entry) {
   return c;
 }
 
-/**
- * Run a candidate on a fresh clone, then model its single net return with one m.ret()
- * so pc + SP match the oracle's (the idiomatic routine replaces the Z80 stack with the
- * JS call stack, so it does not touch pc/SP itself — the harness supplies the return).
- */
 function runCandidate(entry, fn) {
   const c = entry.clone();
   fn(c);
@@ -99,7 +95,7 @@ function runCandidate(entry, fn) {
 }
 
 /**
- * Compare candidate vs oracle over the full contract: RAM − STACK_SCRATCH, pc, SP. The
+ * Compare candidate vs oracle over the full contract: RAM − the stack scratch below the entry SP, pc, SP. The
  * register file and flags are deliberately NOT compared — live-out is memory-only. Returns
  * a list of human-readable mismatches (empty when equal).
  */
@@ -107,7 +103,7 @@ function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);
@@ -163,11 +159,6 @@ function teethWrongColumn(m) {
   storeBlinkSpriteCode(m);
 }
 
-/**
- * BUG: stores the sprite code XOR 0x03 UNCONDITIONALLY, ignoring the phase gate (as if
- * every frame were the once-per-sweep toggle). On a non-toggle entry (posed C=0x00) the
- * oracle stores the code unchanged, so the low two bits of 0x6905 diverge.
- */
 function teethAlwaysToggle(m) {
   const { regs, mem } = m;
   regs.hl = COLOR_COLUMN_TOP;

@@ -11,7 +11,7 @@
  * runHitEffectInsteadOfPlay discards the result and takes its own skip decision), so the return is asserted
  * directly and no register or flag is a live-out. SP/pc are the dropped stack model — the
  * oracle walks the jump table through the stack and returns through its own chain, all inside
- * STACK_SCRATCH. The contract is therefore memory-equivalence on RAM - STACK_SCRATCH plus the
+ * STACK_SCRATCH. The contract is therefore memory-equivalence on RAM - the stack scratch below the entry SP plus the
  * return value, on a FRESH clone per case (the handlers write memory and cue sounds):
  *
  *   1. REALISM — the routine is REACHABLE NATURALLY: hook 0x1E96 in a plain attract run (no
@@ -57,6 +57,7 @@ import {
   SND_PRIORITY,
   STACK_SCRATCH,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -73,19 +74,20 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
- * First game-visible RAM difference between two machines, EXCLUDING the dead STACK_SCRATCH
- * region (the memory-equivalence contract is RAM - STACK_SCRATCH; SP/pc are the dropped stack
+ * First game-visible RAM difference between two machines, EXCLUDING the stack scratch below the entry SP
+ * region (the memory-equivalence contract is RAM - the stack scratch below the entry SP; SP/pc are the dropped stack
  * model — the oracle threads the jump table and its return chain through the stack, the
  * idiomatic direct calls do not, and no caller consumes either).
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -97,7 +99,7 @@ function replay(entry, candidate) {
   const b = entry.clone(); // candidate
   const retA = oracle(a);
   const retB = candidate(b);
-  return { a, b, retA, retB, ...ramDiffMinusStack(a, b) };
+  return { a, b, retA, retB, ...ramDiffMinusStack(a, b, entry.regs.sp) };
 }
 
 /**
@@ -197,7 +199,7 @@ function sweepOne(base, state, candidate) {
   if (o.threw !== c.threw) {
     return { state, why: `oracle ${o.threw ? "refused" : "dispatched"} but candidate ${c.threw ? "refused" : "dispatched"}` };
   }
-  const { bad } = ramDiffMinusStack(o.m, c.m);
+  const { bad } = ramDiffMinusStack(o.m, c.m, base.regs.sp);
   if (bad) return { state, why: `RAM diff at ${hx(bad.addr)} (oracle=${bad.a} candidate=${bad.b})`, bad };
   if (o.ret !== c.ret) return { state, why: `return diverged (oracle=${o.ret} candidate=${c.ret})` };
   return null;

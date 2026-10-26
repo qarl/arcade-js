@@ -57,6 +57,7 @@ import { expandBcdDigits } from "../expandBcdDigits.js";
 import { CREDITS } from "../names.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -67,39 +68,33 @@ const test = ROM_PRESENT
 
 const TARGET = 0x0616;
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // -- the memory-equivalence contract ------------------------------------------
 
 /**
- * First RAM byte that differs between two machines, skipping STACK_SCRATCH — the dead
+ * First RAM byte that differs between two machines, skipping the stack scratch below the entry SP — the dead
  * stack region excluded by the standard gate. The oracle's internal call/push16/pop and
  * final `ret` touch only bytes at or below SP=0x6BFE, all inside STACK_SCRATCH.
  */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
-/** Run the ORACLE on a fresh clone. It rets internally, so pc/SP advance. */
 function runOracle(entry) {
   const c = entry.clone();
   oracle(c);
   return c;
 }
 
-/**
- * Run a candidate on a fresh clone, then model the tail-jump's return with one m.ret() so
- * pc + SP match the oracle's (the idiomatic routine replaces the Z80 stack with the JS
- * call stack, so it never touches pc/SP itself — the harness supplies the caller-return pop).
- */
 function runCandidate(entry, fn) {
   const c = entry.clone();
   fn(c);
@@ -108,14 +103,14 @@ function runCandidate(entry, fn) {
 }
 
 /**
- * Compare candidate vs oracle over the full contract: RAM − STACK_SCRATCH, pc, SP, and
+ * Compare candidate vs oracle over the full contract: RAM − the stack scratch below the entry SP, pc, SP, and
  * declared live-out A/B/HL/IX/DE. Returns human-readable mismatches (empty when equal).
  */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   if (o.regs.a !== c.regs.a) diffs.push(`A oracle=${hx(o.regs.a)} cand=${hx(c.regs.a)}`);
   if (o.regs.b !== c.regs.b) diffs.push(`B oracle=${hx(o.regs.b)} cand=${hx(c.regs.b)}`);
@@ -219,9 +214,6 @@ test("TEETH: the wrong-source and wrong-string twins are CAUGHT", () => {
   const caps = captureDispatches(16, 12000);
   assert.ok(caps.length >= 1, "need real captures to catch the broken twins");
 
-  // Both twins are caught on every real dispatch: wrong-source exits with the wrong HL
-  // live-out (and paints the wrong digits whenever the two source bytes differ); wrong-
-  // string never writes the "CREDIT" glyph cells that the oracle does.
   let caughtSrc = 0, caughtStr = 0;
   for (const cap of caps) {
     if (contractDiffs(cap, teethWrongSource).length > 0) caughtSrc++;

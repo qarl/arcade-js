@@ -10,7 +10,7 @@
  * STACK_SCRATCH (excluded) once SP is parked there. So the contract is RAM (minus
  * STACK_SCRATCH) + the boolean return, NOT the register file / pc / SP.
  *
- *   1. EQUAL (per-step) — dispatchBonusExpiredStep == oracle on RAM (minus STACK_SCRATCH)
+ *   1. EQUAL (per-step) — dispatchBonusExpiredStep == oracle on RAM (minus the stack scratch below the entry SP)
  *      AND the boolean return, over every step:
  *        - step 0 (idle) and step 1 (INIT): one crafted entry each (they read no input
  *          beyond the step; delay/substate/timer seeded to sentinels so the handler's
@@ -63,6 +63,7 @@ import {
   STACK_SCRATCH,
 } from "../names.js";
 import { Machine } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -81,21 +82,20 @@ const SAFE_SP = 0x6bf8;
 const DELAY_SENTINEL = 0x99;
 const TIMER_SENTINEL = 0x99;
 const SUBSTATE_SENTINEL = 0x55;
-
-const inStackScratch = (addr) => addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
 
 /**
- * First RAM difference outside STACK_SCRATCH between two machines, or null. The stack
+ * First RAM difference outside the stack scratch below the entry SP between two machines, or null. The stack
  * region is the dropped Z80 stack model's residue and is excluded from the contract.
  */
-function ramDiffNoStack(a, b) {
+function ramDiffNoStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStackScratch(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -110,7 +110,7 @@ function runPair(entry, candidate) {
   const b = entry.clone(); // candidate
   const retA = oracle(a);
   const retB = candidate(b);
-  return { ram: ramDiffNoStack(a, b), retA, retB };
+  return { ram: ramDiffNoStack(a, b, entry.regs.sp), retA, retB };
 }
 
 /**

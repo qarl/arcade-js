@@ -7,20 +7,18 @@
  * the alternate triple (0x19, 0x0C, 0x01) — then FALLS THROUGH into advanceBarrelRelease, the frame-gated
  * string/sprite renderer.
  *
- * CONTEXT, GROUNDED (live MAME 0.288 on the real dkong ROM, understanding pass 12,
- * scratchpad/pass12-grounding.md): this chain is ORDINARY 25m BARREL PLAY, not a cutscene — an
- * earlier version of this header called it "the 0x2C-cluster cutscene renderer" and that is
- * REFUTED. All 46 observed dispatches fell at gameplay substates (17 in a credited in-board 25m
- * game, 29 in the attract 25m demo) and ZERO at substate 7, the opening Kong-climb cutscene;
- * board 1 only; IX was always an OBJ_ARRAY_67 barrel-record base, one per slot claim by the
- * barrel-release routine (board 1, ROM 0x2CB8), 46 claims paired 1:1 with 46 dispatches. The two
- * presets are two BARREL KINDS: the bit-7-SET (attr 0x0C) kind DROPS with its X pinned at 59,
- * the bit-7-CLEAR (attr 0x0B) kind ROLLS along the girders. Grounding deliberately did NOT
- * establish which NAMED Donkey Kong object either kind is, so neither is named here.
+ * CONTEXT, GROUNDED (live MAME 0.288 on the real dkong ROM, understanding pass 12, scratchpad/pass12-grounding.md):
+ * this chain is ORDINARY 25m BARREL PLAY, not a cutscene. All 46 observed dispatches fell at gameplay substates
+ * (17 in a credited in-board 25m game, 29 in the attract 25m demo) and ZERO at substate 7, the opening Kong-climb
+ * cutscene; board 1 only; IX was always an OBJ_ARRAY_67 barrel-record base, one per slot claim by the barrel-release
+ * routine (board 1, ROM 0x2CB8), 46 claims paired 1:1 with 46 dispatches. The two presets are two BARREL KINDS: the
+ * bit-7-SET (attr 0x0C) kind DROPS with its X pinned at 59, the bit-7-CLEAR (attr 0x0B) kind ROLLS along the
+ * girders. Grounding deliberately did NOT establish which NAMED Donkey Kong object either kind is, so neither is
+ * named here.
  *
  * stampReleasedBarrelKind WRITES MEMORY (the record fields, and — through the fall-through — everything
  * advanceBarrelRelease's chain touches), so it is gated on memory-equivalence, not a returned scalar,
- * and every case runs on FRESH clones. The contract is RAM (minus STACK_SCRATCH) + pc + SP;
+ * and every case runs on FRESH clones. The contract is RAM (minus the stack scratch below the entry SP) + pc + SP;
  * the live-out is memory-only.
  *
  * STACK: stampReleasedBarrelKind pushes nothing of its own — the transition into advanceBarrelRelease is a fall-through /
@@ -33,7 +31,7 @@
  *
  *   1. EQUAL (real captured dispatches) — hook 0x2CF6 in a real attract run and clone the
  *      machine at each true dispatch. Run the ORACLE on one clone and stampReleasedBarrelKind on another;
- *      confirm identical RAM (minus STACK_SCRATCH) + pc + SP. Both preset arms occur
+ *      confirm identical RAM (minus the stack scratch below the entry SP) + pc + SP. Both preset arms occur
  *      naturally (bit-7 clear and bit-7 set).
  *
  *   2. EQUAL (crafted) — from a real attract base, poke IX, the BARREL_CLAIM_MODE byte and the
@@ -60,6 +58,7 @@ import { stampReleasedBarrelKind } from "../stampReleasedBarrelKind.js";
 import { advanceBarrelRelease } from "../advanceBarrelRelease.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, RENDER_STR_PTR, RENDER_OBJ_PTR, RENDER_DST_PTR, BARREL_CLAIM_MODE, OBJ_SPRITE_CODE, OBJ_SPRITE_ATTR } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -73,8 +72,7 @@ const FRAME_GATE = 0x62af;    // advanceBarrelRelease's per-tick down-counter (u
 const ANIM_COUNTER = 0x638f;  // advanceBarrelRelease's animation sub-counter (unnamed)
 const RET_ADDR = 0x2ce5;      // a plausible caller-return site (any valid addr; both sides pop it)
 
-// Field offsets stamped in the renderer object record (caller-provided base). The sprite-code and
-// sprite-attr fields are named in names.js and imported above; only the mode field is unnamed.
+// Field offsets stamped in the renderer object record (caller-provided base).
 const F_MODE = 0x15; // mode field (no names.js name)
 const PRESET_DEFAULT = { [OBJ_SPRITE_CODE]: 0x15, [OBJ_SPRITE_ATTR]: 0x0b, [F_MODE]: 0x00 }; // bit 7 clear
 const PRESET_ALT = { [OBJ_SPRITE_CODE]: 0x19, [OBJ_SPRITE_ATTR]: 0x0c, [F_MODE]: 0x01 };     // bit 7 set
@@ -88,18 +86,18 @@ const SRC_CH = 0x41;  // a non-terminator character
 const SRC_DATA = 0x9a;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs, skipping the dead STACK_SCRATCH region. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -112,11 +110,8 @@ function runOracle(entry) {
   return c;
 }
 
-/**
- * Run a candidate on a fresh clone, then model its single terminal `ret` with one m.ret() so
- * pc + SP match the oracle's (the idiomatic chain replaces the Z80 stack with the JS call
- * stack, so it does not touch pc/SP itself).
- */
+/** Run a candidate on a fresh clone, then model its single terminal `ret` with one m.ret() so pc + SP match the
+ *  oracle's (the idiomatic chain replaces the Z80 stack with the JS call stack, so it does not touch pc/SP itself). */
 function runCandidate(entry, fn) {
   const c = entry.clone();
   fn(c);
@@ -124,12 +119,12 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Full contract diff: RAM − STACK_SCRATCH, pc, SP. Live-out is memory-only. */
+/** Full contract diff: RAM − the stack scratch below the entry SP, pc, SP. Live-out is memory-only. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);

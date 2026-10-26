@@ -12,7 +12,7 @@
  * behaviour is a function of three memory bytes (SUBSTATE_TIMER, GAME_SUBSTATE,
  * PLAY_INTRO) and it writes only fixed memory (the 0x0874 clear regions + those two
  * counters). So it is validated by MEMORY-equivalence against the frozen oracle on
- * RAM − STACK_SCRATCH, with a FRESH clone per case (it writes memory) — never the full
+ * RAM − the stack scratch below the entry SP, with a FRESH clone per case (it writes memory) — never the full
  * register file, never cycles, and NOT SP/PC (the idiomatic layer replaces the rst-0x18
  * caller-skip and the call/ret stack surgery with the JS stack + a boolean, so the
  * oracle's terminal SP is deliberately not reproduced):
@@ -52,6 +52,7 @@ import { tickSubstateTimer } from "../tickSubstateTimer.js";
 import { clearPlayfieldAndSprites } from "../clearPlayfieldAndSprites.js";
 import { Machine } from "../../machine.js";
 import { SPRITE_BUFFER, SUBSTATE_TIMER, GAME_SUBSTATE, PLAY_INTRO, STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -73,32 +74,28 @@ const COIN_START_TAPE = [
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-// -- comparison plumbing ------------------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH, or null. */
-function firstRamDiffOutsideStack(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP, or null. */
+function firstRamDiffOutsideStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
-/**
- * Run the oracle and a candidate on two FRESH clones of `entry` (a memory-writing
- * routine demands a fresh clone per side) and diff RAM outside the dead stack.
- */
 function diffAgainstOracle(entry, candidate) {
   const a = entry.clone(); // oracle
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return firstRamDiffOutsideStack(a, b);
+  return firstRamDiffOutsideStack(a, b, entry.regs.sp);
 }
 
 /**
@@ -159,7 +156,6 @@ test("REALISM: real captured in-game 0x0a63 dispatch — RAM (ex-stack) matches 
   assert.ok(caps.length >= 1, "expected at least one real 0x0a63 dispatch during a credited game");
 
   for (const cap of caps) {
-    // Documents reachability: table index 6, the natural first-game intro path.
     assert.equal(cap.mem.read8(GAME_SUBSTATE), 6, "0x0a63 is table index 6 → GAME_SUBSTATE==6 at entry");
     assert.equal(cap.mem.read8(SUBSTATE_TIMER), 1, "natural entry has the timer about to expire (0x6009==1)");
     const ram = diffAgainstOracle(cap, clearScreenAndSelectIntro);

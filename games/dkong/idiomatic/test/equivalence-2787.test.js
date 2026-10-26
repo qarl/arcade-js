@@ -20,7 +20,7 @@
  * in 3000 frames) — so there are no real captured dispatches; the exhaustive
  * sweep on a real attract base IS the gate.
  *
- *   1. EQUAL (exhaustive) — carryMarioDownWithLift == oracle on RAM − STACK_SCRATCH across all
+ *   1. EQUAL (exhaustive) — carryMarioDownWithLift == oracle on RAM − the stack scratch below the entry SP across all
  *      256 MARIO_Y values (both the step arm and the edge-reset arm).
  *
  *   2. TEETH (exhaustive) — three deliberately-broken twins the same sweep MUST
@@ -51,6 +51,7 @@ import {
   SPRITE_Y,
 } from "../names.js";
 import { Machine } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -74,17 +75,17 @@ const SENT_EDGE = 0xbb; // EDGE_REPOSITION_FLAG
 const SENT_SPRITE_Y = 0xcc; // sprite-record Y
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs, skipping the dead STACK_SCRATCH region
-// (memory-equivalence contract = RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs, skipping the stack scratch below the entry SP
+// (memory-equivalence contract = RAM − the stack scratch below the entry SP). { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -116,10 +117,11 @@ function makeEntry(base, y) {
 // first RAM diff (or null). Fresh entries per side because the routine WRITES memory.
 function runPair(base, y, candidate) {
   const a = makeEntry(base, y); // oracle
+  const aFloor = a.regs.sp;
   const b = makeEntry(base, y); // candidate
   oracle(a);
   candidate(b);
-  return firstRamDiff(a, b);
+  return firstRamDiff(a, b, aFloor);
 }
 
 // Sweep all 256 MARIO_Y values; return the first mismatch (or null) and the count.

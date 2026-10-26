@@ -47,6 +47,7 @@ import { loc_122a as oracle } from "../../translated/loc_122a.js";
 import { replicateGroupStrided } from "../replicateGroupStrided.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -57,23 +58,21 @@ const test = ROM_PRESENT
 
 const TARGET = 0x122a;
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
-
-// -- the memory-equivalence contract ------------------------------------------
 
 /**
- * First RAM byte that differs between two machines, skipping STACK_SCRATCH — the
+ * First RAM byte that differs between two machines, skipping the stack scratch below the entry SP — the
  * dead stack region the standard gate excludes. The oracle pushes HL/BC into this
  * region transiently (then pops them); the idiomatic routine never writes it, so
  * excluding it is exactly the contract, not a fudge.
  */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -99,7 +98,7 @@ function runCandidate(entry, fn) {
 }
 
 /**
- * Compare candidate vs oracle over the full contract: RAM − STACK_SCRATCH, pc, SP,
+ * Compare candidate vs oracle over the full contract: RAM − the stack scratch below the entry SP, pc, SP,
  * and the declared live-out registers A/B/C/D/E/H/L (every main 8-bit reg — the
  * modified E/A/B and the preserved C/D/H/L; F is dropped as dead). Returns a list
  * of human-readable mismatches (empty when equal).
@@ -108,7 +107,7 @@ function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   for (const r of ["a", "b", "c", "d", "e", "h", "l"]) {
     if (o.regs[r] !== c.regs[r]) diffs.push(`${r.toUpperCase()} oracle=${hx(o.regs[r])} cand=${hx(c.regs[r])}`);
@@ -117,8 +116,6 @@ function contractDiffs(entry, fn) {
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=0x${o.regs.sp.toString(16)} cand=0x${c.regs.sp.toString(16)}`);
   return diffs;
 }
-
-// -- capture ------------------------------------------------------------------
 
 /**
  * Hook 0x122a in a real attract run and clone the machine at up to K real
@@ -184,8 +181,6 @@ function brokenPageCross(m) {
   regs.b = 0;
 }
 
-// -- 1. EQUAL (real captured dispatches) --------------------------------------
-
 test("EQUAL (real dispatches): replicateGroupStrided == oracle on every captured 0x122a entry", () => {
   const caps = captureDispatches(64, 2500);
   assert.ok(caps.length >= 1, "expected at least one real 0x122a dispatch during attract");
@@ -197,8 +192,6 @@ test("EQUAL (real dispatches): replicateGroupStrided == oracle on every captured
     `B=${hx(c.regs.b)} C=${hx(c.regs.c)} DE=0x${c.regs.de.toString(16)} HL=0x${c.regs.hl.toString(16)}`);
   console.log(`  EQUAL/real: ${caps.length} captured dispatches identical\n    ` + shapes.join("\n    "));
 });
-
-// -- 2. EQUAL (crafted arms + edges) ------------------------------------------
 
 test("EQUAL (crafted): the B==0/256-pass edge, an E page-wrap, and a C==0 stride match the oracle", () => {
   const caps = captureDispatches(1, 2500);
@@ -228,8 +221,6 @@ test("EQUAL (crafted): the B==0/256-pass edge, an E page-wrap, and a C==0 stride
   }
   console.log(`  EQUAL/crafted: ${cases.length} unreached arms + edges identical to the oracle`);
 });
-
-// -- 3. TEETH -----------------------------------------------------------------
 
 test("TEETH: the cumulative-source twin and the page-cross twin are CAUGHT", () => {
   const caps = captureDispatches(8, 2500);

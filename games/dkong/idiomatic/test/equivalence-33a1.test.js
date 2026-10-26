@@ -13,7 +13,7 @@
  * 0x334A inside driveFireLadderClimb. There is no self-recursive arm, so none is covered here; the test that
  * would exercise it does not exist because the code path does not.
  *
- * WHAT IS COMPARED. RAM − STACK_SCRATCH plus the boolean. pc/SP are NOT compared: they are the
+ * WHAT IS COMPARED. RAM − the stack scratch below the entry SP plus the boolean. pc/SP are NOT compared: they are the
  * Z80 stack idiom the boolean replaces (the oracle's board-gate skip, its splice and its plain
  * return all move pc/SP; the idiomatic routine touches neither). Instead of dropping that
  * meaning, test 2 pins it directly — it asserts WHERE THE ORACLE'S OWN RETURN LANDS on each arm,
@@ -57,6 +57,7 @@ import { loc_33a1 } from "../loc_33a1.js";
 import { boardBitGate } from "../boardBitGate.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, BOARD, OBJ_ARRAY_64, OBJ_STATE } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -78,16 +79,16 @@ const CALLER_RET = 0x334d; // driveFireLadderClimb, the instruction after its ca
 const SKIP_RET = 0x3233; // advanceFire, where the splice lands when driveFireLadderClimb is skipped
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-/** First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -95,7 +96,7 @@ function firstRamDiff(a, b) {
 
 /**
  * Run the oracle and a candidate on two FRESH byte-identical clones and compare the contract:
- * RAM − STACK_SCRATCH and the boolean.
+ * RAM − the stack scratch below the entry SP and the boolean.
  */
 function comparePair(entry, fn) {
   const o = entry.clone();
@@ -107,7 +108,7 @@ function comparePair(entry, fn) {
   } catch (e) {
     threw = e;
   }
-  const ram = threw ? null : firstRamDiff(o, c);
+  const ram = threw ? null : firstRamDiff(o, c, entry.regs.sp);
   return { ram, retO, retC, threw, oracleMachine: o };
 }
 
@@ -204,7 +205,7 @@ test("EQUAL (captured): loc_33a1 == oracle on every real dispatch", () => {
     const r = comparePair(entry, loc_33a1);
     assert.ok(!mismatched(r), `captured dispatch: ${describeMismatch(r)}`);
   }
-  console.log(`  EQUAL/captured: ${caps.length} real dispatches identical (RAM − STACK_SCRATCH + boolean)`);
+  console.log(`  EQUAL/captured: ${caps.length} real dispatches identical (RAM − the stack scratch below the entry SP + boolean)`);
 });
 
 // -- 2. what the boolean MEANS (measured on the oracle's own stack) -----------
@@ -258,7 +259,7 @@ test("EQUAL (crafted): the gate-closed arm, the splice arm, and the boundary mat
     // Non-vacuity: the oracle really took the arm this entry targets.
     assert.equal(r.retO, c.expect, `${c.name}: oracle returned ${r.retO}, expected ${c.expect}`);
     // Neither side may touch work RAM outside the dead stack.
-    assert.equal(firstRamDiff(entry, r.oracleMachine), null, `${c.name}: the oracle wrote non-stack RAM`);
+    assert.equal(firstRamDiff(entry, r.oracleMachine, entry.regs.sp), null, `${c.name}: the oracle wrote non-stack RAM`);
   }
   console.log(`  EQUAL/crafted: ${cases.length} entries — 4 gate-closed, 3 splice, the 88/89/90 boundary, both ends`);
 });
@@ -270,6 +271,7 @@ test("EQUAL (exhaustive): all 65,536 (BOARD, +0x0f) pairs match the oracle", () 
   // Two long-lived machines instead of 131,072 clones: the routine writes no RAM, so re-poking
   // the two input bytes (and the stack) identically on both sides is a byte-identical restart.
   const o = craft(base, { board: 1, y: 240 });
+  const oFloor = o.regs.sp;
   const c = o.clone();
   // The BOOLEAN is compared on every one of the 65,536 pairs. The full RAM dump — 5KB a side —
   // is compared on every board at the Y bases that matter (the ends, the boundary and its
@@ -289,7 +291,7 @@ test("EQUAL (exhaustive): all 65,536 (BOARD, +0x0f) pairs match the oracle", () 
       const retC = loc_33a1(c);
       assert.equal(retO, retC, `board=${board} y=${y}: return oracle=${retO} cand=${retC}`);
       if (ramCheckedY.has(y)) {
-        const ram = firstRamDiff(o, c);
+        const ram = firstRamDiff(o, c, oFloor);
         assert.equal(ram, null, ram && `board=${board} y=${y}: RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
         ramChecks++;
       }
@@ -298,7 +300,7 @@ test("EQUAL (exhaustive): all 65,536 (BOARD, +0x0f) pairs match the oracle", () 
       n++;
     }
   }
-  const residue = firstRamDiff(o, c);
+  const residue = firstRamDiff(o, c, oFloor);
   assert.equal(residue, null,
     residue && `after the sweep, RAM@${hx(residue.addr)} oracle=${residue.a} cand=${residue.b}`);
   assert.ok(sawTrue && sawFalse, "the sweep must exercise BOTH the normal return and the caller-skip");

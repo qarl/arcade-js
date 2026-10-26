@@ -11,7 +11,7 @@
  *     with a +2 step. That stepper nudges MARIO_Y and dispatches to one of three
  *     already-idiomatic arms (center / ladder-end / climb-frame).
  *
- * Gated on MEMORY-equivalence — RAM (minus STACK_SCRATCH) + pc + SP — never a register
+ * Gated on MEMORY-equivalence — RAM (minus the stack scratch below the entry SP) + pc + SP — never a register
  * file (live-out is memory-only; see the routine header). The candidate calls the
  * idiomatic callees directly; the oracle reaches the same two routines by `m.call`, so
  * this ALSO composes the callees' own equivalence.
@@ -66,6 +66,7 @@ import {
   MARIO_SPRITE_CODE,
 } from "../names.js";
 import { u8 } from "../../../../core/int.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -80,32 +81,33 @@ const CENTERING_PHASE = 0x6222; // shared climb-centering toggle (unnamed in nam
 const CLIMB_PACE = 3;           // the reload value loc_1cf2 writes on expiry
 const DOWN_STEP = 2;            // the +2 step loc_1cf2 feeds the shared stepper
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH (the dead
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP (the dead
  *  stack region the standard gate excludes — the oracle's callee `ret`/`call` pops read it). */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
 /** Non-stack RAM addresses that changed between two machines (for the non-vacuity check). */
-function changedAddrs(a, b) {
+function changedAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.push(addr);
   }
   return out;
@@ -129,13 +131,13 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Compare candidate vs oracle over the contract: RAM − STACK_SCRATCH, pc, SP. NO
+/** Compare candidate vs oracle over the contract: RAM − the stack scratch below the entry SP, pc, SP. NO
  *  registers — live-out is memory-only. Returns human-readable mismatches. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=0x${o.pc.toString(16)} cand=0x${c.pc.toString(16)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=0x${o.regs.sp.toString(16)} cand=0x${c.regs.sp.toString(16)}`);
@@ -232,7 +234,7 @@ test("EQUAL (pacer sweep): loc_1cf2 == oracle for all 256 pacer values on a real
   // and the expiry path reloads the pacer to the climb pace.
   const tickEntry = craftPacer(seed, 5);
   const tickOracle = runOracle(tickEntry);
-  assert.deepEqual(changedAddrs(tickEntry, tickOracle), [MARIO_MOVE_STEP_TIMER],
+  assert.deepEqual(changedAddrs(tickEntry, tickOracle, tickEntry.regs.sp), [MARIO_MOVE_STEP_TIMER],
     "tick-down path must write only MARIO_MOVE_STEP_TIMER");
   assert.equal(tickOracle.mem.read8(MARIO_MOVE_STEP_TIMER), 4, "pacer 5 must tick down to 4");
   const stepOracle = runOracle(craftPacer(seed, 0));

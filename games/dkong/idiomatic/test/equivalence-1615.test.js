@@ -10,7 +10,7 @@
  * dispatchBoardClearedInterlude is NOT reached in plain attract — it is the GAME_SUBSTATE 0x600A == 0x16 handler, which
  * the attract demo never drives (a board is never completed). And it is not a leaf: it clears sprite
  * columns and dispatches board-render handlers that paint/animate the interlude and step the
- * sequence. So it is validated by MEMORY-equivalence against the frozen oracle (RAM − STACK_SCRATCH,
+ * sequence. So it is validated by MEMORY-equivalence against the frozen oracle (RAM − the stack scratch below the entry SP,
  * pc, SP), never the full register file and never cycles, with a FRESH clone per case, using CRAFTED
  * entries (a real attract state + a surgical poke).
  *
@@ -57,6 +57,7 @@ import { loc_00ca } from "../../translated/loc_00ca.js";
 import { Machine } from "../../machine.js";
 import { ORACLE_ROUTINES } from "../../routines.js";
 import { STACK_SCRATCH, BOARD, BOARD_ADVANCE_STEP } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -76,13 +77,14 @@ const SPRITE_X_CLEARED = [0x6950, 0x6954, 0x6980, 0x69b8, 0x6a0c, 0x6a1c];
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
 // First differing RAM byte between two dumps, EXCLUDING the dead stack-scratch region (the
-// memory-equivalence contract is RAM − STACK_SCRATCH). Returns { addr, a, b } or null.
-function firstRamDiffExStack(a, b, offToAddr) {
+// memory-equivalence contract is RAM − the stack scratch below the entry SP). Returns { addr, a, b } or null.
+function firstRamDiffExStack(a, b, offToAddr, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] === b[i]) continue;
     const addr = offToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { addr, a: a[i], b: b[i] };
   }
   return null;
@@ -140,6 +142,7 @@ test("FULL-HANDLER: dispatchBoardClearedInterlude == oracle on real bases poked 
   let mutatedAll = true;
   for (const { board, step } of cases) {
     const a = craftEntry(base, board, step); // oracle
+    const aFloor = a.regs.sp;
     const b = craftEntry(base, board, step); // candidate
     const recA = [], recB = [];
     a.overrides = oracleCatchAll(recA);
@@ -157,7 +160,7 @@ test("FULL-HANDLER: dispatchBoardClearedInterlude == oracle on real bases poked 
     assert.ok(recA.length >= 1, `the dispatcher dispatched nothing on the oracle side (${tag})`);
     assert.deepEqual(recB.map(hx), recA.map(hx), `dispatch sequence diverged (${tag})`);
 
-    const ramDiff = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o));
+    const ramDiff = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), aFloor);
     assert.equal(
       ramDiff,
       null,
@@ -167,7 +170,7 @@ test("FULL-HANDLER: dispatchBoardClearedInterlude == oracle on real bases poked 
     assert.equal(b.pc, a.pc, `pc diverged (${tag}): oracle=${hx(a.pc)} cand=${hx(b.pc)}`);
 
     // Non-vacuous: the routine actually ran and wrote RAM (else the replay proves nothing).
-    if (!firstRamDiffExStack(before, a.dumpState(), (o) => a.stateOffsetToAddr(o))) mutatedAll = false;
+    if (!firstRamDiffExStack(before, a.dumpState(), (o) => a.stateOffsetToAddr(o), aFloor)) mutatedAll = false;
   }
   assert.ok(mutatedAll, "some case mutated no RAM — the replay is vacuous for it");
   console.log(`  FULL-HANDLER: ${cases.length} arms (BOARD 1/3 table 0x1623, BOARD 2 table 0x1637, BOARD 4 -> runRivetBoardInterludeFrame) — full oracle handler both sides through the production override seam, target+RAM(−stack)+pc+SP identical, all non-vacuous`);
@@ -284,13 +287,14 @@ test("TEETH: the dropped-prefix, wrong-table-base, and 16-bit-offset twins are a
   // (a) dropped clearSpriteColumns — poke the four groups' X byte non-zero, stub the arm so only
   // the prefix's effect remains, and confirm the twin leaves a poked byte the oracle zeroed.
   const oa = craftEntry(base, 1, 0);
+  const oaFloor = oa.regs.sp;
   const ob = craftEntry(base, 1, 0);
   for (const addr of SPRITE_X_CLEARED) { oa.mem.write8(addr, 0xaa); ob.mem.write8(addr, 0xaa); }
   oa.overrides = stubOverrides([]);
   ob.overrides = stubOverrides([]);
   oracle(oa);
   brokenNoClear(ob);
-  const clearDiff = firstRamDiffExStack(oa.dumpState(), ob.dumpState(), (o) => oa.stateOffsetToAddr(o));
+  const clearDiff = firstRamDiffExStack(oa.dumpState(), ob.dumpState(), (o) => oa.stateOffsetToAddr(o), oaFloor);
   assert.notEqual(clearDiff, null, "the dropped-clearSpriteColumns twin escaped — the gate is worthless");
   assert.ok(
     SPRITE_X_CLEARED.includes(clearDiff.addr),

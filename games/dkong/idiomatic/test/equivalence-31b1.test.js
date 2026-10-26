@@ -8,7 +8,7 @@
  * pointer and the sweep index (0x63A2) both live in MEMORY and are re-read every
  * iteration, so a callee that rewrites either one steers the rest of the sweep.
  *
- * CONTRACT COMPARED HERE: work/sprite/video RAM minus STACK_SCRATCH, plus the return value. The
+ * CONTRACT COMPARED HERE: work/sprite/video RAM minus the stack scratch below the entry SP, plus the return value. The
  * dissolved advanceLiveFires is SP-neutral — it DIRECT-calls advanceFire and owns no guest-stack
  * bracket — so pc and SP are NOT compared (the earlier arm compared them only because the seam form
  * left a live bracket; that is gone). The oracle still splices through the guest stack, so the two
@@ -51,7 +51,7 @@
  *
  *   4. LIVE (whole-machine). The candidate is wired at 0x31B1 for a 3000-frame attract
  *      run and every frame's state dump is compared against the all-oracle baseline,
- *      minus STACK_SCRATCH. THE OVERRIDE RESTORES THE ORACLE'S MEASURED CYCLE COST
+ *      minus the stack scratch below each frame's live SP. THE OVERRIDE RESTORES THE ORACLE'S MEASURED CYCLE COST
  *      (measured per dispatch by running the oracle on a clone): cycle-free code
  *      under-charges, which shifts the vblank NMI and diverges for reasons that have
  *      nothing to do with this routine. Drop the `mm.tick(...)` line below and this run
@@ -92,6 +92,8 @@ import { armAlternateFireModeAtHighDifficulty } from "../armAlternateFireModeAtH
 import { OBJ_ARRAY_64, OBJ_ACTIVE, OBJ_ITER_PTR, STACK_SCRATCH } from "../names.js";
 import { u8, u16 } from "../../../../core/int.js";
 import { Machine } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
+import { recordFrameSp, frameFloors } from "./_frame-sp.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -111,17 +113,17 @@ const ATTRACT_FRAMES = 3000;
 const SAMPLE_STRIDE = 20;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const recordAddr = (i) => OBJ_ARRAY_64 + i * OBJECT_STRIDE;
 
-/** First RAM byte that differs, skipping the dead STACK_SCRATCH region. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -141,7 +143,7 @@ function runCandidate(entry, fn) {
 }
 
 /**
- * RAM − STACK_SCRATCH and the return value. The dissolved advanceLiveFires is SP-neutral (it
+ * RAM − the stack scratch below the entry SP and the return value. The dissolved advanceLiveFires is SP-neutral (it
  * DIRECT-calls advanceFire and owns no guest-stack bracket), so pc and SP are no longer compared —
  * the oracle's live bracket and terminal `ret` are the guest machine's, not the rewrite's, and land
  * in the excluded STACK_SCRATCH. (The whole-game SP tests confirm the conversion is SP-correct.)
@@ -150,7 +152,7 @@ function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o.m, c.m);
+  const ram = firstRamDiff(o.m, c.m, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.ret !== c.ret) diffs.push(`return oracle=${String(o.ret)} cand=${String(c.ret)}`);
   return diffs;
@@ -315,6 +317,7 @@ test("CRAFTED (occupancy): all 32 occupancy patterns match the oracle", () => {
 
 test("LIVE: the candidate wired at 0x31B1 reproduces the oracle over a whole attract run", () => {
   const baseline = new Machine(ROM);
+  const baseSp = recordFrameSp(baseline);
   const baseFrames = baseline.runFrames(ATTRACT_FRAMES);
   assert.equal(baseline.stoppedBy, null, `baseline run stopped early: ${baseline.stoppedBy}`);
 
@@ -334,17 +337,20 @@ test("LIVE: the candidate wired at 0x31B1 reproduces the oracle over a whole att
     return r;
   }]]);
   const cand = new Machine(ROM, { overrides: live });
+  const candSp = recordFrameSp(cand);
   const candFrames = cand.runFrames(ATTRACT_FRAMES);
+  const floors = frameFloors(baseSp, candSp);
   assert.equal(cand.stoppedBy, null, `candidate run stopped early: ${cand.stoppedBy}`);
   assert.ok(fired > 0, "the override never fired — this case would be vacuous");
   assert.equal(candFrames.length, baseFrames.length, "both runs must reach the frame budget");
 
   for (let f = 0; f < baseFrames.length; f++) {
     const a = baseFrames[f], b = candFrames[f];
+    const dead = deadStackBelow(STACK_SCRATCH, floors[f]);
     for (let i = 0; i < a.length; i++) {
       if (a[i] === b[i]) continue;
       const addr = baseline.stateOffsetToAddr(i);
-      if (inStack(addr)) continue;
+      if (dead(addr)) continue;
       assert.fail(`frame ${f}: RAM@${hx(addr)} baseline=${a[i]} live=${b[i]}`);
     }
   }
@@ -360,6 +366,7 @@ test("LIVE: the candidate wired at 0x31B1 reproduces the oracle over a whole att
 
 test("LIVE-OUT: poisoning the registers the oracle leaves changes nothing over a whole attract run", () => {
   const baseline = new Machine(ROM);
+  const baseSp = recordFrameSp(baseline);
   const baseFrames = baseline.runFrames(ATTRACT_FRAMES);
   assert.equal(baseline.stoppedBy, null, `baseline run stopped early: ${baseline.stoppedBy}`);
 
@@ -379,16 +386,19 @@ test("LIVE-OUT: poisoning the registers the oracle leaves changes nothing over a
     return r;
   }]]);
   const poisoned = new Machine(ROM, { overrides: poison });
+  const poisonSp = recordFrameSp(poisoned);
   const poisonFrames = poisoned.runFrames(ATTRACT_FRAMES);
+  const floors = frameFloors(baseSp, poisonSp);
   assert.equal(poisoned.stoppedBy, null, `poisoned run stopped early: ${poisoned.stoppedBy}`);
   assert.ok(fired > 0, "the poison override never fired — this case would be vacuous");
 
   for (let f = 0; f < baseFrames.length; f++) {
     const a = baseFrames[f], b = poisonFrames[f];
+    const dead = deadStackBelow(STACK_SCRATCH, floors[f]);
     for (let i = 0; i < a.length; i++) {
       if (a[i] === b[i]) continue;
       const addr = baseline.stateOffsetToAddr(i);
-      if (inStack(addr)) continue;
+      if (dead(addr)) continue;
       assert.fail(`frame ${f}: RAM@${hx(addr)} baseline=${a[i]} poisoned=${b[i]}`);
     }
   }

@@ -47,6 +47,7 @@ import { drawHighScore } from "../drawHighScore.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, P1_SCORE, P2_SCORE, HIGH_SCORE } from "../names.js";
 import { NotImplemented } from "../../../../boards/dkong/io.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -61,21 +62,21 @@ const COLUMN_P2 = 0x7521; // player-2 score column base (nonzero selector)
 const COLUMN_HS = 0x7641; // high-score fixed column base
 const SAFE_SP = 0x6bfe; // inside STACK_SCRATCH: the renderer's pushes/pops + the final ret land here
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // -- the memory-equivalence contract ------------------------------------------
 
 /**
- * First RAM byte that differs between two machines, skipping STACK_SCRATCH — the dead
+ * First RAM byte that differs between two machines, skipping the stack scratch below the entry SP — the dead
  * stack region the standard gate excludes (the renderer's per-digit push16/pop live there).
  */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -83,30 +84,25 @@ function firstRamDiff(a, b) {
 
 // Every non-stack RAM address that changed between two machines (for the no-write check
 // on the fault path).
-function changedAddrs(a, b) {
+function changedAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.push(addr);
   }
   return out;
 }
 
-/** Run the ORACLE on a fresh clone. Its renderer chain performs the final `ret`, so pc/SP advance. */
 function runOracle(entry) {
   const c = entry.clone();
   oracle(c);
   return c;
 }
 
-/**
- * Run a candidate on a fresh clone, then model its return with one m.ret() so pc + SP
- * match the oracle's (the idiomatic routine replaces the Z80 stack with the JS call
- * stack, so it does not touch pc/SP itself — the harness supplies the caller-return pop).
- */
 function runCandidate(entry, fn) {
   const c = entry.clone();
   fn(c);
@@ -115,7 +111,7 @@ function runCandidate(entry, fn) {
 }
 
 /**
- * Compare candidate vs oracle over the full contract: RAM − STACK_SCRATCH, pc, SP, and
+ * Compare candidate vs oracle over the full contract: RAM − the stack scratch below the entry SP, pc, SP, and
  * every register the routine reproduces (A/B/HL/IX/DE). LIVE-OUT is memory-only — the task
  * returns to the main loop, which reloads its registers — but the registers are reproduced
  * identically to the oracle and pinned here for extra teeth. Returns human-readable
@@ -131,7 +127,7 @@ function contractDiffs(entry, fn) {
     return [`candidate threw: ${e.message}`];
   }
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   if (o.regs.a !== c.regs.a) diffs.push(`A oracle=${hx(o.regs.a)} cand=${hx(c.regs.a)}`);
   if (o.regs.b !== c.regs.b) diffs.push(`B oracle=${hx(o.regs.b)} cand=${hx(c.regs.b)}`);
@@ -293,12 +289,12 @@ test("FAULT (payload 3): both the oracle and loc_05c6 throw, writing no non-stac
   const oc = entry.clone();
   assert.throws(() => oracle(oc), NotImplemented, "the oracle should fault on the payload-3 (0x05E0) arm");
   // ...having written no non-stack RAM before it.
-  assert.deepEqual(changedAddrs(entry, oc), [], "the oracle wrote non-stack RAM before faulting on payload 3");
+  assert.deepEqual(changedAddrs(entry, oc, entry.regs.sp), [], "the oracle wrote non-stack RAM before faulting on payload 3");
 
   // loc_05c6 faults the same way, and likewise writes nothing.
   const cc = entry.clone();
   assert.throws(() => loc_05c6(cc), NotImplemented, "loc_05c6 should fault on the payload-3 (0x05E0) arm");
-  assert.deepEqual(changedAddrs(entry, cc), [], "loc_05c6 wrote non-stack RAM before faulting on payload 3");
+  assert.deepEqual(changedAddrs(entry, cc, entry.regs.sp), [], "loc_05c6 wrote non-stack RAM before faulting on payload 3");
 
   console.log("  FAULT: payload 3 throws NotImplemented on both sides with no non-stack RAM written");
 });

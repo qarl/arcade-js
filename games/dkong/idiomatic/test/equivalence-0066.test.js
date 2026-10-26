@@ -9,7 +9,7 @@
  * and task rings, the input latch, and whatever the GAME_STATE handler dispatches), so
  * every case uses a FRESH clone per side. The contract compared here is the DISSOLVED form:
  *
- *     RAM (dumpState, minus STACK_SCRATCH)  +  io latches  +  the idiomatic side's SP unmoved from entry.
+ *     RAM (dumpState, minus the stack scratch below the entry SP)  +  io latches  +  the idiomatic side's SP unmoved from entry.
  *
  * The idiomatic engine fires this handler as a DIRECT JS call (machine.js fireNmi, idiomaticNmi):
  * no PC push, no register save, no `retn`. The oracle's stack traffic (the pushed PC, the 12-byte
@@ -54,6 +54,7 @@ import { readControls } from "../readControls.js";
 import { perFrame } from "../perFrame.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, ATTRACT, IN0_PORT } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -70,8 +71,6 @@ const IN2_WATCHDOG = 0x7d00;
 const DMA_SETUP_BLOCK = 0x0138;
 const P1_INPUT = 0x6010; // the byte loc_0087 writes; low byte ∈ {0x00-0x0f, 0x80-0x8f}
 const SENTINEL = 0x5a; // a value loc_0087 can NEVER leave at 0x6010 -> unambiguous "it ran"
-
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // The board-output latches (the NMI enable, flip, banks, sound) live in io, not in the RAM dump.
 const IO_FIELDS = ["nmiMask", "flipScreen", "spriteBank", "paletteBank", "audioIrq", "soundLatch3d"];
@@ -91,14 +90,15 @@ function ioDiff(ma, mb) {
  * entry value `sp0`. One masked forward scan: the oracle leaves many dead-stack diffs (the
  * pushed PC and the 12-byte register-save frame it writes and the idiomatic side does not).
  */
-function contractDiff(ma, mb, sp0) {
+function contractDiff(ma, mb, sp0, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = ma.dumpState();
   const b = mb.dumpState();
   const n = Math.min(a.length, b.length);
   for (let off = 0; off < n; off++) {
     if (a[off] === b[off]) continue;
     const addr = ma.stateOffsetToAddr(off);
-    if (inDeadStack(addr)) continue;
+    if (dead(addr)) continue;
     return { kind: "ram", addr, a: a[off], b: b[off] };
   }
   const io = ioDiff(ma, mb);
@@ -166,7 +166,7 @@ test("EQUAL: real captured NMI entries — serviceVblankNmi == oracle (RAM −st
     oracleNmi(o);
     serviceVblankNmi(c);
 
-    const d = contractDiff(o, c, cap.regs.sp);
+    const d = contractDiff(o, c, cap.regs.sp, cap.regs.sp);
     assert.equal(
       d,
       null,
@@ -200,12 +200,13 @@ function inPlayEntry(base) {
 test("CRAFTED: game-in-play arm — ATTRACT=0 with a held input, both read the controls, equal", () => {
   const base = CAPS.find((c) => c.mem.read8(ATTRACT) !== 0) ?? CAPS[0];
   const o = inPlayEntry(base);
+  const oFloor = o.regs.sp;
   const c = inPlayEntry(base);
 
   oracleNmi(o);
   serviceVblankNmi(c);
 
-  const d = contractDiff(o, c, base.regs.sp);
+  const d = contractDiff(o, c, base.regs.sp, oFloor);
   assert.equal(d, null, d && describe(d));
 
   // Non-vacuous: the ORACLE really read the controls — it overwrote the sentinel at the input latch.
@@ -225,10 +226,11 @@ function brokenNoControls(m) {
 test("TEETH C: a handler that never reads the controls is CAUGHT at the input latch", () => {
   const base = CAPS.find((c) => c.mem.read8(ATTRACT) !== 0) ?? CAPS[0];
   const o = inPlayEntry(base);
+  const oFloor = o.regs.sp;
   const c = inPlayEntry(base);
   oracleNmi(o);
   brokenNoControls(c);
-  const d = contractDiff(o, c, base.regs.sp);
+  const d = contractDiff(o, c, base.regs.sp, oFloor);
   assert.notEqual(d, null, "the gate FAILED to catch a dropped controls read");
   assert.equal(d.kind, "ram");
   assert.equal(d.addr, P1_INPUT, `expected the catch at ${hx(P1_INPUT)}, got ${hx(d.addr ?? 0)}`);
@@ -263,6 +265,7 @@ test("TEETH A: an inverted ATTRACT gate (reads input during attract) is CAUGHT",
   assert.notEqual(idx, -1, "no capture left the input-latch sentinel intact — cannot stage the gate teeth");
 
   const o = CAPS[idx].clone();
+  const oFloor = o.regs.sp;
   const c = CAPS[idx].clone();
   o.mem.write8(ATTRACT, 1); c.mem.write8(ATTRACT, 1); // force attract -> correct handler SKIPS input
   o.mem.write8(P1_INPUT, SENTINEL); c.mem.write8(P1_INPUT, SENTINEL);
@@ -270,7 +273,7 @@ test("TEETH A: an inverted ATTRACT gate (reads input during attract) is CAUGHT",
   oracleNmi(o); // correct: skips loc_0087, sentinel survives
   brokenInvertedGate(c); // wrong: reads input in attract, overwrites the sentinel
 
-  const d = contractDiff(o, c, CAPS[idx].regs.sp);
+  const d = contractDiff(o, c, CAPS[idx].regs.sp, oFloor);
   assert.notEqual(d, null, "the gate FAILED to catch an inverted ATTRACT gate — it is worthless");
   assert.equal(d.kind, "ram");
   assert.equal(d.addr, P1_INPUT, `expected the catch at the input latch ${hx(P1_INPUT)}, got ${hx(d.addr ?? 0)}`);
@@ -292,7 +295,7 @@ test("TEETH B: a handler that still unwinds an interrupt frame is CAUGHT at SP (
   const c = base.clone();
   oracleNmi(o);
   brokenKeepsEpilogue(c);
-  const d = contractDiff(o, c, base.regs.sp);
+  const d = contractDiff(o, c, base.regs.sp, base.regs.sp);
   assert.notEqual(d, null, "the gate FAILED to catch an SP-moving handler — the inertness check is worthless");
   assert.equal(d.kind, "sp", `expected the catch at SP (RAM equal), got ${d.kind}`);
   console.log(`  TEETH B: SP-moving twin caught (entry=${hx(d.a)} broken=${hx(d.b)})`);

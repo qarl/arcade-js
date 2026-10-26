@@ -10,7 +10,7 @@
  * sound/task state, and whatever the GAME_STATE handler dispatches), so every case uses a
  * FRESH clone per side. The contract compared is the DISSOLVED form:
  *
- *     RAM (dumpState, minus STACK_SCRATCH)  +  io latches  +  perFrame's SP unmoved from entry.
+ *     RAM (dumpState, minus the stack scratch below the entry SP)  +  io latches  +  perFrame's SP unmoved from entry.
  *
  * perFrame is the tail of a vblank handler the idiomatic engine fires as a DIRECT JS call, so it
  * carries no interrupt-return epilogue: the oracle's register-frame discard and `ret` (and every
@@ -61,6 +61,7 @@ import { runAttractState } from "../runAttractState.js";
 import { dispatchInGameSubstate } from "../dispatchInGameSubstate.js";
 import { loc_01c3 } from "../../translated/loc_01c3.js";
 import { loc_08b2 } from "../../translated/loc_08b2.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -84,8 +85,6 @@ const COIN_START_TAPE = [
   { port: 0x7d00, bits: 0x04, frame: 30, dur: 6 }, // start (IN2 bit2)
 ];
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
-
 // The board-output latches (the NMI enable, flip, banks, sound) live in io, not in the RAM dump.
 const IO_FIELDS = ["nmiMask", "flipScreen", "spriteBank", "paletteBank", "audioIrq", "soundLatch3d"];
 function ioDiff(ma, mb) {
@@ -104,14 +103,15 @@ function ioDiff(ma, mb) {
  * `sp0`. One masked forward scan (the oracle leaves many benign dead-stack diffs — the
  * register-save frame it writes and this layer does not).
  */
-function contractDiff(ma, mb, sp0) {
+function contractDiff(ma, mb, sp0, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = ma.dumpState();
   const b = mb.dumpState();
   const n = Math.min(a.length, b.length);
   for (let off = 0; off < n; off++) {
     if (a[off] === b[off]) continue;
     const addr = ma.stateOffsetToAddr(off);
-    if (inDeadStack(addr)) continue;
+    if (dead(addr)) continue;
     return { kind: "ram", addr, a: a[off], b: b[off] };
   }
   const io = ioDiff(ma, mb);
@@ -222,7 +222,7 @@ test("EQUAL: real captured perFrame entries — perFrame == oracle (RAM −stack
     oraclePerFrame(o);
     perFrame(c);
 
-    const d = contractDiff(o, c, cap.regs.sp);
+    const d = contractDiff(o, c, cap.regs.sp, cap.regs.sp);
     assert.equal(
       d,
       null,
@@ -263,7 +263,7 @@ test("TEETH A: omitting the frame decrement is CAUGHT", () => {
   const c = base.clone();
   oraclePerFrame(o);
   brokenNoFrameDec(c);
-  const d = contractDiff(o, c, base.regs.sp);
+  const d = contractDiff(o, c, base.regs.sp, base.regs.sp);
   assert.notEqual(d, null, "the gate FAILED to catch an omitted frame decrement — it is worthless");
   console.log(`  TEETH A: omitted dec (FRAME) caught (${d.kind} @ ${hx(d.addr ?? d.a)})`);
 });
@@ -281,10 +281,11 @@ function brokenKeepsEpilogue(m) {
 test("TEETH B: a perFrame that still unwinds the interrupt frame is CAUGHT at SP (RAM equal)", () => {
   const base = CAPS[0];
   const o = base.clone();
+  const oFloor = o.regs.sp;
   const c = base.clone();
   oraclePerFrame(o);
   brokenKeepsEpilogue(c);
-  const d = contractDiff(o, c, base.regs.sp);
+  const d = contractDiff(o, c, base.regs.sp, oFloor);
   assert.notEqual(d, null, "the gate FAILED to catch an SP-moving perFrame — the inertness check is worthless");
   assert.equal(d.kind, "sp", `expected the catch at SP (RAM equal), got ${d.kind}`);
   console.log(`  TEETH B: SP-moving twin caught (entry=${hx(d.a)} broken=${hx(d.b)})`);
@@ -310,7 +311,7 @@ test("TEETH C: a perFrame that never re-arms the NMI is CAUGHT in io", () => {
   const c = base.clone();
   oraclePerFrame(o);
   brokenNoRearm(c);
-  const d = contractDiff(o, c, base.regs.sp);
+  const d = contractDiff(o, c, base.regs.sp, base.regs.sp);
   assert.notEqual(d, null, "the gate FAILED to catch a missing NMI re-arm");
   assert.equal(d.kind, "io", `expected the catch in io, got ${d.kind}`);
   assert.equal(d.field, "nmiMask");

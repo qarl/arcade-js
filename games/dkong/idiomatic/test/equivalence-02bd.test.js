@@ -4,7 +4,7 @@
  *
  * PASSES. The loop carries no register across passes (0x02BD reloads H, A, L from RAM), so a
  * pass is the unit: one idiomatic `.next()` (each path ends in its yield) == one oracle trip
- * from loop top (`step(0x02bf)`) to the next. Per pass the gate compares RAM − STACK_SCRATCH,
+ * from loop top (`step(0x02bf)`) to the next. Per pass the gate compares RAM − the stack scratch below the entry SP,
  * the io latches, the port log (every latch/DMA write and IN2 read = watchdog kick, in program order,
  * the service's own excluded; compared exactly), and SP (oracle balanced at its entry SP, idiomatic
  * inert). The bound is the pass count.
@@ -40,6 +40,7 @@ import {
   ATTRACT, FRAME, FRAME_SEEN, SPIN_COUNT, STACK_SCRATCH, TASK_HEAD, WORK_RAM_BASE,
   BONUS_LIFE_AWARDED, CURRENT_PLAYER, DIP_BONUS_LIFE, LIVES, P1_SCORE,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -56,7 +57,6 @@ const COIN_START_TAPE = [
 ];
 const BOUND = Symbol("mainLoop-bound");
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /** Which arm the next pass takes, read from the pre-pass state. */
 function armOf(m) {
@@ -155,6 +155,7 @@ function runGenerator(entry, gen, schedule, passes = PASSES) {
 
 /** First breach between the two pass traces, or null. */
 function breach(entry, oracleRun, cand) {
+  const dead = deadStackBelow(STACK_SCRATCH, entry.regs.sp); // each pass starts at the loop head with entry SP
   if (oracleRun.fault) return `oracle fault: ${oracleRun.fault}`;
   if (cand.early !== null) return `generator ${cand.early}`;
   const os = oracleRun.snaps;
@@ -163,7 +164,7 @@ function breach(entry, oracleRun, cand) {
     for (let i = 0; i < o.state.length; i++) {
       if (o.state[i] === c.state[i]) continue;
       const addr = entry.stateOffsetToAddr(i);
-      if (!inStack(addr)) return `pass ${p + 1} RAM@${hx(addr)} oracle=${o.state[i]} cand=${c.state[i]}`;
+      if (!dead(addr)) return `pass ${p + 1} RAM@${hx(addr)} oracle=${o.state[i]} cand=${c.state[i]}`;
     }
     if (o.log !== c.log) return `pass ${p + 1} port log oracle=[${o.log}] cand=[${c.log}]`;
     const io = o.io.findIndex((v, i) => v !== c.io[i]);

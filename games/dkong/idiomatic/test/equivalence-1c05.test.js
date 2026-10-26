@@ -37,7 +37,7 @@
  *      (d) dropped ITEM_COLLECTED latch.
  *      (e) inverted severity test.
  *
- * CONTRACT. RAM MINUS STACK_SCRATCH [0x6BE0,0x6C00), plus the propagated return value. The oracle's
+ * CONTRACT. RAM MINUS the stack scratch below the entry SP [0x6BE0,0x6C00), plus the propagated return value. The oracle's
  * two call brackets (the descent probe's and the overlap search's) land in that dead stack region,
  * and the REALISM arm asserts at least one real dispatch differs ONLY inside it, so the exclusion is
  * load-bearing rather than decorative. The dissolved candidate opens no guest bracket of its own —
@@ -72,6 +72,7 @@ import {
   MARIO_AIR_FRAMES,
   MARIO_AIR_LANDCHECK,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -96,17 +97,17 @@ const OVERLAP_ARMS = [0x3e99, 0x28b0, 0x28e0, 0x2901];
 const SHIP = ROM_PRESENT ? await resolveAllIdiomatic() : null;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 // -- diff plumbing ------------------------------------------------------------
 
-/** First RAM byte that differs, skipping the dead STACK_SCRATCH region. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -145,7 +146,7 @@ function runCandidate(entry, fn, prep) {
 }
 
 /**
- * Contract diff: RAM − STACK_SCRATCH and the propagated return value. pc and SP are seam artifacts of
+ * Contract diff: RAM − the stack scratch below the entry SP and the propagated return value. pc and SP are seam artifacts of
  * the oracle's guest-stack splice (its two call brackets land in the excluded STACK_SCRATCH) and the
  * dissolved candidate owns no bracket, so they are NOT compared — the whole-game SP tests are what
  * guard SP-correctness now.
@@ -154,7 +155,7 @@ function contractDiffs(entry, fn, prep) {
   const o = runOracle(entry, prep);
   const k = runCandidate(entry, fn, prep);
   const diffs = [];
-  const ram = firstRamDiff(o.c, k.c);
+  const ram = firstRamDiff(o.c, k.c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.value !== k.value) diffs.push(`return oracle=${String(o.value)} cand=${String(k.value)}`);
   return diffs;
@@ -251,9 +252,9 @@ test("REALISM: real captured 0x1C05 attract dispatches — loc_1c05 matches the 
     // JS-call-stack rewrite never writes.
     const o = runOracle(caps[i]), k = runCandidate(caps[i], loc_1c05);
     const any = firstAnyRamDiff(o.c, k.c);
-    if (any && inStack(any.addr)) stackOnly++;
+    if (any && deadStackBelow(STACK_SCRATCH, caps[i].regs.sp)(any.addr)) stackOnly++;
   }
-  assert.ok(stackOnly > 0, "no replayed dispatch differed only inside STACK_SCRATCH — the exclusion would be vacuous");
+  assert.ok(stackOnly > 0, "no replayed dispatch differed only inside the stack scratch below the entry SP — the exclusion would be vacuous");
 
   const perChain = [...allChains].map((t) => `${t}=${chains.filter((x) => x === t).length}`).join(", ");
   console.log(`  REALISM: ${idx.length} of ${caps.length} real 0x1C05 dispatches replayed (${ATTRACT_FRAMES} attract frames), ` +

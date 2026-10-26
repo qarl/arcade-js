@@ -6,7 +6,7 @@
  * The routine WRITES MEMORY (0x6215, then the 4 record bytes 0x694C..0x694F via the
  * already-idiomatic writeMarioSpriteRecord) and ends in a `ret` (the oracle reaches it
  * by tail-jumping entry_1da6, whose `ret` is this routine's return). So it is gated on
- * MEMORY-equivalence — RAM (minus STACK_SCRATCH) + pc + SP — never on a register file
+ * MEMORY-equivalence — RAM (minus the stack scratch below the entry SP) + pc + SP — never on a register file
  * (its live-out is memory-only; see the routine header), and every case runs on a FRESH
  * clone (a reused clone is only safe for a read-only leaf; this writes). The idiomatic
  * routine models the Z80 `ret` as a JS return and touches no pc/SP, so the harness
@@ -47,6 +47,7 @@ import {
   MARIO_ON_LADDER,
   MARIO_X, MARIO_Y, MARIO_SPRITE_CODE, MARIO_SPRITE_ATTR, MARIO_SPRITE_RECORD,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -57,23 +58,16 @@ const test = ROM_PRESENT
 
 const TARGET = 0x1d49;
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
-// -- the memory-equivalence contract ------------------------------------------
-
-/**
- * First RAM byte that differs between two machines, skipping STACK_SCRATCH — the dead
- * stack region the standard gate excludes. The oracle's `ret` pops a return address out
- * of this region; the idiomatic routine (JS call stack) never writes it, so excluding it
- * is exactly the contract, not a fudge.
- */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -86,11 +80,6 @@ function runOracle(entry) {
   return c;
 }
 
-/**
- * Run a candidate on a fresh clone, then model its return with ONE m.ret() so pc + SP
- * match the oracle's (the idiomatic routine replaces the Z80 stack with the JS call
- * stack, so it never touches pc/SP itself — the harness supplies the single net return).
- */
 function runCandidate(entry, fn) {
   const c = entry.clone();
   fn(c);
@@ -98,21 +87,16 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Compare candidate vs oracle over the contract: RAM − STACK_SCRATCH, pc, SP. NO
- *  registers — the live-out is memory-only, and comparing the oracle's dead residual
- *  A/HL/flags would fail on values nothing reads. Returns human-readable mismatches. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=0x${o.pc.toString(16)} cand=0x${c.pc.toString(16)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=0x${o.regs.sp.toString(16)} cand=0x${c.regs.sp.toString(16)}`);
   return diffs;
 }
-
-// -- capture ------------------------------------------------------------------
 
 /**
  * Hook 0x1d49 in a real attract run and clone the machine at up to K real dispatches.
@@ -146,8 +130,6 @@ function craft(seed, { onLadder, x, code, attr, y }) {
   e.regs.sp = 0x6bfe; // the ret's pop lands in STACK_SCRATCH, well clear of work RAM
   return e;
 }
-
-// -- teeth twins --------------------------------------------------------------
 
 /** Broken twin (a): DROPPED-FLAG — forgets step 1, never writing MARIO_ON_LADDER. It
  *  still commits the sprite record, so it agrees on every entry whose 0x6215 is already

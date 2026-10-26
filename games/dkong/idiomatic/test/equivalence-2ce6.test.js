@@ -21,7 +21,7 @@
  *
  * loc_2ce6 WRITES MEMORY (its own record clear, and — through the continuation — everything the
  * stampReleasedBarrelKind/advanceBarrelRelease chain touches), so it is gated on memory-equivalence, not a returned scalar, and
- * every case runs on FRESH clones. The contract is RAM (minus STACK_SCRATCH) + pc + SP.
+ * every case runs on FRESH clones. The contract is RAM (minus the stack scratch below the entry SP) + pc + SP.
  *
  * LIVE-OUT: memory-only, plus the control-flow boundary. loc_2ce6 pushes nothing of its own — both
  * exits are a jump/fall-through into stampReleasedBarrelKind — so the whole chain nets exactly ONE caller-return
@@ -36,7 +36,7 @@
  *
  *   1. EQUAL (real captured dispatches) — hook 0x2CE6 in a real attract run and clone the machine at
  *      each true dispatch. Run the ORACLE on one clone and loc_2ce6 on another; confirm identical
- *      RAM (minus STACK_SCRATCH) + pc + SP. These all take the SKIP arm: the counter starts at 50 on
+ *      RAM (minus the stack scratch below the entry SP) + pc + SP. These all take the SKIP arm: the counter starts at 50 on
  *      25m level 1 and steps down one per barrel release, so attract never reaches 3.
  *
  *   2. EQUAL (crafted) — from a real captured dispatch, poke that ONE counter byte identically on
@@ -69,6 +69,7 @@ import {
   STACK_SCRATCH, BONUS, SPRITE_X, OBJ_65A0_SPRITES, BARREL_CLAIM_MODE,
   OBJ_SPRITE_CODE, OBJ_SPRITE_ATTR,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -92,19 +93,19 @@ const FRAME_GATE = 0x62af;   // advanceBarrelRelease's per-tick down-counter (un
 const ANIM_COUNTER = 0x638f; // advanceBarrelRelease's animation sub-counter (unnamed)
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 const recordX = (index) => COUNTDOWN_SPRITES + index * SPRITE_RECORD_BYTES + SPRITE_X;
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs, skipping the dead STACK_SCRATCH region. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -128,12 +129,12 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Full contract diff: RAM − STACK_SCRATCH, pc, SP. Live-out is memory + the return boundary. */
+/** Full contract diff: RAM − the stack scratch below the entry SP, pc, SP. Live-out is memory + the return boundary. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);

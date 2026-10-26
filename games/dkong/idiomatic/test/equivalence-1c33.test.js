@@ -5,7 +5,7 @@
  * to zero, then always refresh Mario's sprite record.
  *
  * CONTRACT. The live-out is MEMORY ONLY plus control flow, so each case compares
- *   - work RAM minus the dead STACK_SCRATCH region,
+ *   - work RAM minus the stack scratch below the entry SP,
  *   - pc and SP,
  *   - the return value (undefined on every arm, on both sides).
  * The register file is deliberately NOT compared: the oracle leaves the bumped value in the
@@ -63,6 +63,7 @@ import {
   MARIO_AIR_FRAMES, MARIO_HAMMER_PENDING, SND_TRIGGER, BOARD,
   OBJ_PAIR_6680, OBJ_ACTIVE, OBJ_X, OBJ_Y, OBJ_HIT_EXTENT_X, OBJ_HIT_EXTENT_Y, HAMMER_IN_PLAY,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -95,19 +96,19 @@ const LATCH_FRAME = 19;           // the one airborne frame this routine runs th
 const WRAPS = 255;                // the one arrival value whose bump wraps the byte to zero
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region —
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP —
  *  where the oracle's `call 0x2954` bracket (and the latch's own brackets) land. */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -129,13 +130,13 @@ function runCandidate(entry, fn) {
   return { c, ret };
 }
 
-/** Full contract diff: RAM − STACK_SCRATCH, pc, SP, return value. Also hands back the oracle's
+/** Full contract diff: RAM − the stack scratch below the entry SP, pc, SP, return value. Also hands back the oracle's
  *  finished machine so a caller can assert absolute values without re-running it. */
 function compare(entry, fn) {
   const o = runOracle(entry);
   const k = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o.c, k.c);
+  const ram = firstRamDiff(o.c, k.c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.c.pc !== k.c.pc) diffs.push(`pc oracle=${hx(o.c.pc)} cand=${hx(k.c.pc)}`);
   if (o.c.regs.sp !== k.c.regs.sp) diffs.push(`SP oracle=${hx(o.c.regs.sp)} cand=${hx(k.c.regs.sp)}`);

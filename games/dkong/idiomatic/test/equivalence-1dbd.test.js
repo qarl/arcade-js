@@ -9,7 +9,7 @@
  * arm runs armScorePopupAndSelectAward's full effect chain (which the idiomatic side reaches through the
  * fully-idiomatic armScorePopupAndSelectAward, the oracle side through its return-modelling chain), so SP/pc
  * and the STACK_SCRATCH region diverge there and are dead (the caller reads no register).
- * The gate is therefore memory-equivalence on RAM − STACK_SCRATCH (never the full register
+ * The gate is therefore memory-equivalence on RAM − the stack scratch below the entry SP (never the full register
  * file, never cycles, never SP/pc), a FRESH clone per case because the handlers write memory
  * and advance the task ring:
  *
@@ -21,7 +21,7 @@
  *      region cannot mask a real diff.
  *
  *   2. CRAFTED (state sweep) — on real captured bases, poke 0x6340 to each of {0,1,2}
- *      identically on both sides and compare RAM − STACK_SCRATCH. This drives every
+ *      identically on both sides and compare RAM − the stack scratch below the entry SP. This drives every
  *      reachable arm deterministically even though attract already reaches them.
  *
  *   3. CRAFTED (reset vector) — poke 0x6340 to 3 (the reset-vector slot) identically on
@@ -47,6 +47,7 @@ import { armScorePopupAndSelectAward } from "../armScorePopupAndSelectAward.js";
 import { loc_1e4a } from "../../translated/loc_1e4a.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -60,22 +61,22 @@ const STATE = 0x6340;       // the router's state byte (0 idle, 1 arm, 2 countdo
 const STATE_TIMER = 0x6341; // countdown value the state-2 handler works down (arm-distinguishing)
 const SND = 0x6085;         // effect sound latch the state-1 chain cues (arm-distinguishing)
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
- * First game-visible RAM difference between two machines, EXCLUDING the dead STACK_SCRATCH
- * region (the memory-equivalence contract is RAM − STACK_SCRATCH; SP/pc are the dropped
+ * First game-visible RAM difference between two machines, EXCLUDING the stack scratch below the entry SP
+ * region (the memory-equivalence contract is RAM − the stack scratch below the entry SP; SP/pc are the dropped
  * stack model — the oracle's return chain moves them, the idiomatic state-1 handler does
  * not, and neither is consumed by the caller).
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -87,7 +88,7 @@ function replay(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return { a, b, ...ramDiffMinusStack(a, b) };
+  return { a, b, ...ramDiffMinusStack(a, b, entry.regs.sp) };
 }
 
 /**
@@ -159,17 +160,18 @@ function craftedBase(caps) {
   return base;
 }
 
-/** Poke 0x6340 to `state` identically on both sides of a base, compare RAM − STACK_SCRATCH. */
+/** Poke 0x6340 to `state` identically on both sides of a base, compare RAM − the stack scratch below the entry SP. */
 function sweepState(base, candidate) {
   let mismatch = null;
   const armsSeen = new Set();
   for (const state of [0, 1, 2]) {
     const a = base.clone(), b = base.clone();
+    const aFloor = a.regs.sp;
     for (const m of [a, b]) m.mem.write8(STATE, state);
     oracle(a);
     candidate(b);
     armsSeen.add(state);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     if (bad && !mismatch) mismatch = { state, bad };
   }
   return { mismatch, armsSeen };

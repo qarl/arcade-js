@@ -7,7 +7,7 @@
  * plus the DE/B/C registers. Its declared LIVE-OUT is memory-only: all three callers
  * reload HL, DE and BC right after the call and read no flag (verified in loc_1087,
  * loc_1131, sub_11a6), so A/B/C/HL/E and the terminal `add a,c` carry are dead ABI. So
- * it is validated on RAM (minus STACK_SCRATCH) via capture/clone/replay — never the
+ * it is validated on RAM (minus the stack scratch below the entry SP) via capture/clone/replay — never the
  * full register file, never cycles. SP/PC are not compared: the oracle's terminal
  * `ret` pops the stack and vectors PC, which the idiomatic layer drops (the JS call
  * stack replaces it), and any popped bytes live in the excluded stack scratch.
@@ -47,6 +47,7 @@ import { loc_11ec as oracle } from "../../translated/loc_11ec.js";
 import { copyBytePairsStrided } from "../copyBytePairsStrided.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -60,15 +61,16 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
 // -- comparison plumbing ------------------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH, or null. */
-function firstRamDiffOutsideStack(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP, or null. */
+function firstRamDiffOutsideStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -83,7 +85,7 @@ function diffAgainstOracle(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return firstRamDiffOutsideStack(a, b);
+  return firstRamDiffOutsideStack(a, b, entry.regs.sp);
 }
 
 /**

@@ -45,6 +45,7 @@ import { tickSubstateTimer } from "../tickSubstateTimer.js";
 import { enqueueTask } from "../enqueueTask.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, BOARD, BOARD_SEQ_PTR, SUBSTATE_TIMER } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -58,7 +59,6 @@ const POKE_FRAME = 100;
 const HOLD_DUR = 40; // held so 0x178E dispatches + runs its body every frame
 const FRAMES = 140; // run ends within the hold
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 // Identical-both-sides poke that forces board-advance / the 0x1623 table / this selector
 // / gate-expiry, held so 0x178E dispatches AND executes its body every frame. A fresh
@@ -78,11 +78,12 @@ const makeMachine = (overrides) => {
 };
 
 /**
- * Diff two machines' RAM. Returns the first difference OUTSIDE STACK_SCRATCH
+ * Diff two machines' RAM. Returns the first difference OUTSIDE the stack scratch below the entry SP
  * (game-visible — a real failure) or null, plus how many bytes differed inside the
  * dead stack scratch (the tolerated oracle push/ret residue).
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0;
@@ -90,7 +91,7 @@ function ramDiffMinusStack(a, b) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -103,7 +104,7 @@ function replay(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return { a, b, ...ramDiffMinusStack(a, b) };
+  return { a, b, ...ramDiffMinusStack(a, b, entry.regs.sp) };
 }
 
 /**
@@ -155,7 +156,7 @@ test("EQUAL (captured): advanceToNextBoard == oracle on every forced dispatch (d
         `on seqPtr=${hx(entry.mem.read16(BOARD_SEQ_PTR))}`,
     );
     // The oracle's push (rst-0x18 return addr, then the enqueue return addr) writes at
-    // SP-2; that residue must sit inside dead stack scratch, so excluding STACK_SCRATCH
+    // SP-2; that residue must sit inside dead stack scratch, so excluding the stack scratch below the entry SP
     // cannot mask a real diff.
     assert.ok(
       (entry.regs.sp - 2) >= STACK_SCRATCH.lo && entry.regs.sp <= STACK_SCRATCH.hi,
@@ -192,7 +193,7 @@ test("EQUAL (crafted): SKIP / WALK / WRAP arms match the oracle", () => {
     craft(a); craft(b);
     oracle(a);
     advanceToNextBoard(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, entry.regs.sp);
     assert.equal(
       bad,
       null,

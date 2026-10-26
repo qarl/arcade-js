@@ -43,6 +43,7 @@ import { search75mObjectOverlap } from "../search75mObjectOverlap.js";
 import { search100mObjectOverlap } from "../search100mObjectOverlap.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, BOARD, OVERLAP_COUNT } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -54,16 +55,16 @@ const test = ROM_PRESENT
 const RET = 0x286e;                     // a plausible caller return (the arm's ret lands here on the oracle side)
 // OVERLAP_COUNT (0x6060) imported from names.js — the collision counter entry_3e99/entry_3ec3 write.
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 // First differing RAM byte between two machines, EXCLUDING the dead stack scratch
-// (the memory-equivalence contract is RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// (the memory-equivalence contract is RAM − the stack scratch below the entry SP). { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -147,7 +148,7 @@ function contractDiffs(entry, fn) {
     if (!o.threw || !c.threw) diffs.push(`throw oracle=${o.threw} cand=${c.threw}`);
     return diffs; // both threw on the guard slot -> equal
   }
-  const ram = firstRamDiff(o.c, c.c);
+  const ram = firstRamDiff(o.c, c.c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (c.severity !== o.c.regs.a) diffs.push(`severity oracle=${hx(o.c.regs.a)} cand=${hx(c.severity)}`);
   return diffs;

@@ -8,7 +8,7 @@
  * clears the same seven fixed addresses. Its declared LIVE-OUT is memory-only (the sole
  * caller loc_12de reloads HL and A right after the fall-through), though A / HL / B do
  * equal the oracle (0x70 / 0x6970 / 0) and are checked as a free extra pin. So it is
- * validated on RAM (minus STACK_SCRATCH) + pc + SP + A/HL/B via capture/clone/replay —
+ * validated on RAM (minus the stack scratch below the entry SP) + pc + SP + A/HL/B via capture/clone/replay —
  * NEVER the full register file, NEVER cycles.
  *
  * The idiomatic routine models the Z80 `ret` (sub_30e4's, which returns to entry_30db's
@@ -20,15 +20,11 @@
  * Every case runs on a FRESH clone (a reused clone is only safe for a read-only leaf;
  * this routine writes memory).
  *
- *   1. EQUAL (real captured dispatches) — hook 0x30db in a real attract run and clone
- *      the machine at each true dispatch (loc_12de reaches it ~frame 2851). Oracle vs
- *      candidate on fresh clones over the full contract.
- *
- *   2. EQUAL (footprint pin) — a real capture with the whole 0x6900 page sentinel-filled,
- *      so the exact seven-byte footprint is pinned: any missed / extra / misplaced write
- *      shows as a RAM diff. This is the definitive gate — the routine reads nothing and
- *      never branches, so there are no input-dependent arms to craft.
- *
+ *   1. EQUAL (real captured dispatches) — hook 0x30db in a real attract run and clone the machine at each true
+ *      dispatch (loc_12de reaches it ~frame 2851). Oracle vs candidate on fresh clones over the full contract.
+ *   2. EQUAL (footprint pin) — a real capture with the whole 0x6900 page sentinel-filled, so the exact seven-byte
+ *      footprint is pinned: any missed / extra / misplaced write shows as a RAM diff. This is the definitive gate —
+ *      the routine reads nothing and never branches, so there are no input-dependent arms to craft.
  *   3. TEETH — two deliberately-broken twins, each MUST be caught on the sentinel page:
  *      (a) omit-Mario: skips the lone 0x694C write (does only the strided run) — 0x694C
  *          stays the sentinel while the oracle zeros it.
@@ -47,6 +43,7 @@ import { loc_30db } from "../loc_30db.js";
 import { clearStridedBytes } from "../clearStridedBytes.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, MARIO_SPRITE_RECORD } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -58,39 +55,30 @@ const test = ROM_PRESENT
 const TARGET = 0x30db;
 const CAP_FRAMES = 4000; // first 0x30db dispatch lands ~frame 2851
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
-// -- the memory-equivalence contract ------------------------------------------
-
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH, or null. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP, or null. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
-/**
- * Run the ORACLE on a fresh clone. entry_30db m.call's translated sub_30e4 (resolved
- * through the clone's oracle routine table — the constructor consumes no manifest, so
- * 0x30e4 is the faithful lift), which performs the `ret`, so pc/SP advance.
- */
+/** Run the ORACLE on a fresh clone. entry_30db m.call's translated sub_30e4 (resolved through the clone's oracle
+ *  routine table — the constructor consumes no manifest, so 0x30e4 is the faithful lift), which performs the `ret`. */
 function runOracle(entry) {
   const c = entry.clone();
   oracle(c);
   return c;
 }
 
-/**
- * Run a candidate on a fresh clone, then model its return with one m.ret() so pc + SP
- * match the oracle's (the idiomatic routine replaces the Z80 stack with the JS call
- * stack, so it does not touch pc/SP itself — the harness supplies the single return).
- */
+/** Run a candidate on a fresh clone, then model its return with one m.ret() so pc + SP match the oracle's. */
 function runCandidate(entry, fn) {
   const c = entry.clone();
   fn(c);
@@ -98,17 +86,13 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/**
- * Compare candidate vs oracle over the full contract: RAM − STACK_SCRATCH, pc, SP, and
- * the live-out registers A / HL / B (memory is the declared live-out; A/HL/B are a free
- * extra pin — dead at loc_12de, but identical to the oracle). The rest of the register
- * file and the flags are deliberately NOT compared. Returns human-readable mismatches.
- */
+/** Compare candidate vs oracle over the full contract: RAM − the stack scratch below the entry SP, pc, SP, and
+ *  A / HL / B. The rest of the register file and the flags are deliberately NOT compared. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);
@@ -118,14 +102,8 @@ function contractDiffs(entry, fn) {
   return diffs;
 }
 
-// -- capture ------------------------------------------------------------------
-
-/**
- * Hook 0x30db in a real attract run and clone the machine at up to K real dispatches.
- * The wrapper snapshots the entry state, then runs the oracle so the host game proceeds
- * undisturbed. Single runFrames() call — frame-by-frame stepping shifts NMI timing and
- * takes a different attract branch (see docs/decompiler-pipeline).
- */
+/** Clone the machine at up to K real 0x30db dispatches; the oracle then runs so the host proceeds undisturbed.
+ *  Single runFrames() call — frame-by-frame stepping shifts NMI timing and takes a different attract branch. */
 function captureDispatches(K, maxFrames) {
   const caps = [];
   const snapshot = new Map([[TARGET, (mm) => {
@@ -146,8 +124,6 @@ function paintPage(w, page, val) {
   for (let lo = 0; lo < 0x100; lo++) w.mem.write8(((page << 8) | lo) & 0xffff, val);
 }
 
-// -- broken twins -------------------------------------------------------------
-
 /** BUG: skips the lone 0x694C (Mario) write — does only the strided run. */
 function teethOmitMario(m) {
   const { regs } = m;
@@ -165,19 +141,15 @@ function teethShortCount(m) {
   clearStridedBytes(m);
 }
 
-// -- 1. EQUAL (real captured dispatches) --------------------------------------
-
 test("EQUAL (real dispatches): loc_30db == oracle on every captured 0x30db entry", () => {
   assert.ok(CAPS.length >= 1, "expected at least one real 0x30db dispatch during attract");
   for (const cap of CAPS) {
-    const diffs = contractDiffs(cap, loc_30db); // FRESH clones inside — cap untouched
+    const diffs = contractDiffs(cap, loc_30db);
     assert.equal(diffs.length, 0, diffs.join("; "));
   }
   const shapes = [...new Set(CAPS.map((c) => `pc=${hx(c.pc)} sp=${hx(c.regs.sp)} [sp]=${hx(c.mem.read8(c.regs.sp) | (c.mem.read8((c.regs.sp + 1) & 0xffff) << 8))}`))];
   console.log(`  EQUAL/real: ${CAPS.length} captured dispatches identical over RAM + pc + SP + A/HL/B; entry states:\n    ` + shapes.join("\n    "));
 });
-
-// -- 2. EQUAL (footprint pin) -------------------------------------------------
 
 test("EQUAL (footprint pin): the exact seven-byte footprint matches the oracle", () => {
   assert.ok(CAPS.length >= 1, "need one real capture to derive the footprint pin from");
@@ -197,8 +169,6 @@ test("EQUAL (footprint pin): the exact seven-byte footprint matches the oracle",
   );
   console.log(`  EQUAL/footprint: exactly ${zeroed.length} bytes zeroed (${zeroed.join(",")}) — candidate identical`);
 });
-
-// -- 3. TEETH -----------------------------------------------------------------
 
 test("TEETH: the omit-Mario twin and the short-count twin are CAUGHT", () => {
   assert.ok(CAPS.length >= 1, "need one real capture to derive the teeth entries from");

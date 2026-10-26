@@ -11,7 +11,7 @@
  *     (MARIO_CLIMB_LIMIT_B 0x621C, then MARIO_CLIMB_LIMIT_A 0x621B);
  *   - setClimbSpriteFrame (0x1D3F, frame 5/4/3) otherwise, chosen by distance above the
  *     near limit.
- * It is gated on MEMORY-equivalence — RAM (minus STACK_SCRATCH) + pc + SP — never a
+ * It is gated on MEMORY-equivalence — RAM (minus the stack scratch below the entry SP) + pc + SP — never a
  * register file (live-out is memory-only; see the routine header), on a FRESH clone per
  * case (it writes RAM). The candidate calls the idiomatic callees directly; the oracle
  * runs the translated body which reaches those same three routines by `m.call`, so this
@@ -61,6 +61,7 @@ import {
   MARIO_SPRITE_CODE,
 } from "../names.js";
 import { u8 } from "../../../../core/int.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -72,19 +73,19 @@ const test = ROM_PRESENT
 const TARGET = 0x1d11;
 const CENTERING_PHASE = 0x6222; // shared climb-centering toggle (unnamed in names.js)
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH (the dead
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP (the dead
  *  stack region the standard gate excludes — the oracle's callee `ret`/`call` pops read it). */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -108,13 +109,13 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Compare candidate vs oracle over the contract: RAM − STACK_SCRATCH, pc, SP. NO
+/** Compare candidate vs oracle over the contract: RAM − the stack scratch below the entry SP, pc, SP. NO
  *  registers — live-out is memory-only. Returns human-readable mismatches. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=0x${o.pc.toString(16)} cand=0x${c.pc.toString(16)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=0x${o.regs.sp.toString(16)} cand=0x${c.regs.sp.toString(16)}`);

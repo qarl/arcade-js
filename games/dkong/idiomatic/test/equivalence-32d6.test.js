@@ -12,7 +12,7 @@
  * base machine, cloned per case, with a surgical poke of the object record and
  * MARIO_Y that forces each of the five exit paths, crossed with tickFireTimerAndRerollDirection's own
  * timer/random arms so the tail is exercised both ways. Every case is compared
- * oracle-vs-candidate on the memory-equivalence contract (RAM − STACK_SCRATCH).
+ * oracle-vs-candidate on the memory-equivalence contract (RAM − the stack scratch below the entry SP).
  *
  * The oracle dissolves a push16/ret bracket at the loc_330B tail (`call 0x330f`),
  * so on the three tick-out paths it WRITES the pushed return address into the dead
@@ -42,6 +42,7 @@ import { loc_32d6 as candidate } from "../loc_32d6.js";
 import { tickFireTimerAndRerollDirection } from "../tickFireTimerAndRerollDirection.js";
 import { Machine } from "../../machine.js";
 import { MARIO_Y, RANDOM, STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -67,15 +68,16 @@ const F_ARM = 0x1d;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH
-// region (the memory-equivalence contract is RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
+// region (the memory-equivalence contract is RAM − the stack scratch below the entry SP). { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -88,9 +90,9 @@ function runOn(entry, fn) {
   return c;
 }
 
-/** RAM − STACK_SCRATCH diff between the oracle and `fn` on identical clones. */
+/** RAM − the stack scratch below the entry SP diff between the oracle and `fn` on identical clones. */
 function ramDiff(entry, fn) {
-  return firstRamDiff(runOn(entry, oracle), runOn(entry, fn));
+  return firstRamDiff(runOn(entry, oracle), runOn(entry, fn), entry.regs.sp);
 }
 
 // A real, self-consistent machine: boot + a stretch of attract so work RAM holds
@@ -234,7 +236,7 @@ test("EQUAL (crafted): loc_32d6 == oracle on all five exit paths", () => {
     const after = runOn(entry, oracle);
     expect(after, (off) => (opts.ix + off) & 0xffff);
   }
-  console.log(`  EQUAL/crafted: ${CASES.length} crafted paths identical to the oracle (RAM − STACK_SCRATCH)`);
+  console.log(`  EQUAL/crafted: ${CASES.length} crafted paths identical to the oracle (RAM − the stack scratch below the entry SP)`);
 });
 
 // -- 3. TEETH -----------------------------------------------------------------

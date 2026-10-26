@@ -13,7 +13,7 @@
  * STACK-SCRATCH EXCLUSION (required). The oracle brackets each arm with `push16` + `ret`, so it
  * WRITES the stack; loc_32bd models no stack (three direct JS calls). With SP pointed into the
  * stack region the oracle's churn lands entirely in the dead STACK_SCRATCH [0x6be0,0x6c00), so
- * the memory-equivalence contract is RAM − STACK_SCRATCH. pc/SP are NOT compared: live-out is
+ * the memory-equivalence contract is RAM − the stack scratch below the entry SP. pc/SP are NOT compared: live-out is
  * memory-only (the oracle's residual registers/flags and its per-arm terminal ret are dead ABI
  * — the callees' own tests establish their register live-out is dead, and this routine only
  * passes it through).
@@ -34,7 +34,7 @@
  *
  * CAPTURED — 0x32BD IS dispatched during boot/attract (the object-walker subtree runs there),
  *   but only ever on the 25m board, so real captures exercise the BOARD == 1 -> loc_342c arm;
- *   every one is confirmed identical to the oracle (RAM − STACK_SCRATCH).
+ *   every one is confirmed identical to the oracle (RAM − the stack scratch below the entry SP).
  *
  * Run: node --test games/dkong/idiomatic/test/equivalence-32bd.test.js
  */
@@ -57,6 +57,7 @@ import {
   OBJ_WALK_PTR_HI,
   STACK_SCRATCH,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -89,17 +90,17 @@ const OUTPUT_OFFSETS = [0x03, 0x05, 0x0d, 0x0e, 0x0f, 0x18, 0x1c];
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const hb = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region
-// (the memory-equivalence contract is RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
+// (the memory-equivalence contract is RAM − the stack scratch below the entry SP). { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -130,15 +131,16 @@ function makeEntry(base, { board, saved = 0, mx = 0x00, spin = 0x00, tableByte =
 
 /**
  * Run the oracle and the candidate on two FRESH, byte-identical entries and diff the
- * memory-equivalence contract (RAM − STACK_SCRATCH). Fresh entry per side because the routine
+ * memory-equivalence contract (RAM − the stack scratch below the entry SP). Fresh entry per side because the routine
  * WRITES memory — a reused machine would carry the previous run forward.
  */
 function runPair(base, opts, candidate) {
   const a = makeEntry(base, opts);
+  const aFloor = a.regs.sp;
   const b = makeEntry(base, opts);
   oracle(a);
   candidate(b);
-  return { ram: firstRamDiff(a, b) };
+  return { ram: firstRamDiff(a, b, aFloor) };
 }
 
 /**
@@ -275,7 +277,7 @@ test("CAPTURED: loc_32bd == oracle on every real 0x32BD dispatch", () => {
     const c = cap.clone(); c.nextNmi = Infinity; c.nextBoundary = Infinity;
     oracle(a);
     loc_32bd(c);
-    const ram = firstRamDiff(a, c);
+    const ram = firstRamDiff(a, c, cap.regs.sp);
     assert.equal(ram, null, ram && `real dispatch diverges at ${hx(ram.addr ?? 0)} (${ram.a}->${ram.b})`);
   }
   const hist = Object.entries(boards).map(([b, n]) => `board ${b}:${n}`).join(", ");

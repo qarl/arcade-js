@@ -9,7 +9,7 @@
  * records at 0x6A18–0x6A1F) and takes an implicit live-in HL (the caller's ROM position
  * table), so it is validated by capture/clone/replay on a FRESH clone per case — never
  * by reusing one machine, and never on the full register file, cycles, SP or PC. The
- * contract compared is RAM (minus STACK_SCRATCH) only: LIVE-OUT is memory-only (all
+ * contract compared is RAM (minus the stack scratch below the entry SP) only: LIVE-OUT is memory-only (all
  * three call sites reload HL/DE/BC and branch on no flag right after the call, so every
  * register/flag left here is dead ABI — see the routine header).
  *
@@ -48,6 +48,7 @@ import { replicateGroupStrided } from "../replicateGroupStrided.js";
 import { gatherSpriteRecords } from "../gatherSpriteRecords.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -60,17 +61,16 @@ const TARGET = 0x11a6;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-// -- comparison plumbing ------------------------------------------------------
-
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH, or null. */
-function firstRamDiffOutsideStack(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP, or null. */
+function firstRamDiffOutsideStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -85,7 +85,7 @@ function diffRam(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return firstRamDiffOutsideStack(a, b);
+  return firstRamDiffOutsideStack(a, b, entry.regs.sp);
 }
 
 /**
@@ -117,8 +117,6 @@ function craftEntry(cap, { hl, prefill }) {
   return w;
 }
 
-// -- 1. REALISM (captured dispatches) -----------------------------------------
-
 test("REALISM: real captured 0x11a6 dispatches — RAM (ex-stack) matches the oracle", () => {
   const caps = captureDispatches(64, 1200);
   assert.ok(caps.length >= 1, "expected at least one real 0x11a6 dispatch during attract");
@@ -133,8 +131,6 @@ test("REALISM: real captured 0x11a6 dispatches — RAM (ex-stack) matches the or
   }
   console.log(`  REALISM: ${caps.length} real 0x11a6 dispatch(es) — identical RAM (ex-stack)`);
 });
-
-// -- 2. CRAFTED (the two unreached call sites + a prefill) ---------------------
 
 test("CRAFTED: the two call sites attract never reaches (HL=0x3E10, 0x3E14) + a prefill match", () => {
   const [base] = captureDispatches(1, 1200);
@@ -154,8 +150,6 @@ test("CRAFTED: the two call sites attract never reaches (HL=0x3E10, 0x3E14) + a 
   }
   console.log(`  CRAFTED: ${cases.length} entries (both unreached sites + prefills) identical to the oracle`);
 });
-
-// -- 3. TEETH -----------------------------------------------------------------
 
 /**
  * Broken twin: transposes the two per-record stride constants — step 1 gets C=0x0c and

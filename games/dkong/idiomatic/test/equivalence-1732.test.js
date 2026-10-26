@@ -61,6 +61,7 @@ import { climbKongFigureAndBreakHeart as idiomatic } from "../climbKongFigureAnd
 import { animateSpriteObjectBlock } from "../animateSpriteObjectBlock.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, SPRITE_BUFFER, SPRITE_OBJ_BLOCK } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -83,7 +84,6 @@ const CODE_BYTE = SPRITE_BUFFER + 0x121; // 0x6a21
 const SP_CRAFT = 0x6bf8; // inside STACK_SCRATCH; headroom for the oracle's nested push/pop
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 // A non-stepping phase leaves the animation body dormant (probe unchanged): (0+1)&7 != 0.
 const PHASE_HOLD = 0x00;
@@ -93,16 +93,17 @@ const stepsAnim = (phase) => (((phase + 1) & 0xff) & 0x07) === 0;
 
 /**
  * First game-visible differing RAM byte between two machines, EXCLUDING the dead stack-scratch
- * region (the memory-equivalence contract is RAM − STACK_SCRATCH).
+ * region (the memory-equivalence contract is RAM − the stack scratch below the entry SP).
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -149,10 +150,11 @@ const oracleReset = (m) => m.mem.read8(STEP_SELECTOR) !== S_STEP;
 test("STRUCTURE: reset / hold / stepping — work RAM identical, salient outputs asserted, idiomatic touches no SP/pc", () => {
   // RESET (Y < 0x2c, non-stepping phase): the full finish branch runs.
   const [a, b] = craftPair(0x20, PHASE_HOLD);
+  const aFloor = a.regs.sp;
   const sp0 = b.regs.sp, pc0 = b.pc;
   oracle(a);
   idiomatic(b);
-  const { bad, stackDiffs } = ramDiffMinusStack(a, b);
+  const { bad, stackDiffs } = ramDiffMinusStack(a, b, aFloor);
   assert.equal(bad, null, bad && `reset RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
 
   // The oracle actually finished the step — assert the salient outputs so EQUAL is not vacuous.
@@ -173,9 +175,10 @@ test("STRUCTURE: reset / hold / stepping — work RAM identical, salient outputs
 
   // HOLD (Y >= 0x2c, non-stepping phase): only the phase counter moves.
   const [c, d] = craftPair(0x40, PHASE_HOLD);
+  const cFloor = c.regs.sp;
   oracle(c);
   idiomatic(d);
-  const held = ramDiffMinusStack(c, d);
+  const held = ramDiffMinusStack(c, d, cFloor);
   assert.equal(held.bad, null, held.bad && `hold RAM diff at ${hx(held.bad.addr)}`);
   assert.equal(c.mem.read8(STEP_SELECTOR), S_STEP, "hold must NOT advance the step selector");
   assert.equal(c.mem.read8(XOBJ7), 0x11, "hold must NOT touch 0x6924");
@@ -184,9 +187,10 @@ test("STRUCTURE: reset / hold / stepping — work RAM identical, salient outputs
   // STEPPING (phase 0x07): the animation body runs — exercises the animateSpriteObjectBlock
   // composition. Y=0x40 drops to 0x3c (still >= 0x2c) so it HOLDS after scrolling.
   const [e, f] = craftPair(0x40, PHASE_STEP);
+  const eFloor = e.regs.sp;
   oracle(e);
   idiomatic(f);
-  const stepped = ramDiffMinusStack(e, f);
+  const stepped = ramDiffMinusStack(e, f, eFloor);
   assert.equal(stepped.bad, null, stepped.bad && `stepping RAM diff at ${hx(stepped.bad.addr)}`);
   assert.equal(e.mem.read8(PHASE_COUNTER), (PHASE_STEP + 1) & 0xff, "stepping must advance the phase counter to 0x08");
   assert.equal(e.mem.read8(SCROLL_PROBE), 0x3c, "the animation body must scroll the probe 0x40 -> 0x3c (-4)");
@@ -200,9 +204,10 @@ test("GATE (exhaustive): climbKongFigureAndBreakHeart == oracle over all 256 gat
   let count = 0, resets = 0, holds = 0, mismatch = null, partition = null;
   for (let y = 0; y < 256 && !mismatch; y++) {
     const [a, b] = craftPair(y, PHASE_HOLD);
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     count++;
     const reset = oracleReset(a);
     // Non-stepping phase leaves the probe at y; the oracle resets iff y < 0x2c.
@@ -228,9 +233,10 @@ test("PHASE (exhaustive): climbKongFigureAndBreakHeart == oracle over all 256 ph
   let count = 0, stepped = 0, dormant = 0, resets = 0, mismatch = null, partition = null;
   for (let phase = 0; phase < 256 && !mismatch; phase++) {
     const [a, b] = craftPair(0x2e, phase);
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     count++;
     const reset = oracleReset(a);
     if (reset) resets++;
@@ -278,9 +284,10 @@ function brokenWrongResetValue(m) {
 
 test("TEETH (wrong-threshold): resetting at Y==0x2c is CAUGHT by the GATE sweep and names 0x6388", () => {
   const [a, b] = craftPair(0x2c, PHASE_HOLD); // oracle HOLDS at exactly 0x2c
+  const aFloor = a.regs.sp;
   oracle(a);
   brokenWrongThreshold(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the crafted sweep FAILED to catch a wrong threshold — it is worthless");
   assert.equal(bad.addr, STEP_SELECTOR, `expected the caught diff at 0x6388, got ${hx(bad.addr)}`);
   console.log(`  TEETH/wrong-threshold: caught at 0x6388 (oracle=${bad.a} broken=${bad.b})`);
@@ -288,9 +295,10 @@ test("TEETH (wrong-threshold): resetting at Y==0x2c is CAUGHT by the GATE sweep 
 
 test("TEETH (wrong-reset-value): 0x6924=0x6a is CAUGHT on a reset case and names 0x6924", () => {
   const [a, b] = craftPair(0x20, PHASE_HOLD); // a reset case (Y < 0x2c)
+  const aFloor = a.regs.sp;
   oracle(a);
   brokenWrongResetValue(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the crafted case FAILED to catch a wrong reset value — it is worthless");
   assert.equal(bad.addr, XOBJ7, `expected the caught diff at 0x6924, got ${hx(bad.addr)}`);
   console.log(`  TEETH/wrong-reset-value: caught at 0x6924 (oracle=${bad.a} broken=${bad.b})`);
@@ -306,9 +314,10 @@ test("REALISM: replay any real 0x1732 dispatch; else record that attract never r
 
   for (const entry of caps) {
     const a = entry.clone(), b = entry.clone();
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     assert.equal(bad, null, bad && `real-dispatch RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
   }
   if (caps.length === 0) {

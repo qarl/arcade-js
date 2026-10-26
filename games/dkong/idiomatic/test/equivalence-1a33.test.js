@@ -8,7 +8,7 @@
  *
  * The routine WRITES memory only, so it is gated by capture / clone / replay (docs/decompiler-pipeline)
  * with a FRESH clone per case. The idiomatic form models no Z80 stack while the oracle's
- * `ret`/`rst`/`call` push+pop it, so the contract is RAM − STACK_SCRATCH (never the full
+ * `ret`/`rst`/`call` push+pop it, so the contract is RAM − the stack scratch below the entry SP (never the full
  * register file, never cycles), plus the requirement that idiomatic collectEdgeRivet
  * leaves SP/pc UNCHANGED.
  *
@@ -46,6 +46,7 @@ import { armEdgeRivetPickup } from "../armEdgeRivetPickup.js";
 import { loc_1d95 } from "../loc_1d95.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -65,17 +66,17 @@ const RIVETS_LEFT = 0x6290;
 const COLLECT_A = 0x6340, COLLECT_B = 0x6342, COLLECT_C = 0x6225;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-/** First game-visible RAM difference between two machines, EXCLUDING dead STACK_SCRATCH. */
-function ramDiffMinusStack(a, b) {
+/** First game-visible RAM difference between two machines, EXCLUDING the stack scratch below the entry SP. */
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -87,7 +88,7 @@ function replay(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return { a, b, ...ramDiffMinusStack(a, b) };
+  return { a, b, ...ramDiffMinusStack(a, b, entry.regs.sp) };
 }
 
 /** Assert idiomatic collectEdgeRivet models no stack: SP and pc unchanged from entry. */
@@ -157,7 +158,7 @@ test("REALISM (natural): real 0x1a33 dispatches are the gate-closed NO-OP — RA
         `on a real gate-closed 0x1a33 dispatch (X=${hx(entry.mem.read8(MARIO_X))})`,
     );
     // Prove it really is the no-op path: the oracle changed no non-stack RAM from entry.
-    const { bad: moved } = ramDiffMinusStack(entry, a);
+    const { bad: moved } = ramDiffMinusStack(entry, a, entry.regs.sp);
     assert.equal(moved, null, moved && `oracle wrote non-stack RAM at ${hx(moved.addr)} on the 25m gate — not a no-op`);
     assertNoStackModel(entry);
   }
@@ -170,10 +171,11 @@ test("GATE (crafted): only BOARD == 4 acts — boards 1/2/3 stay no-ops, board 4
   const base = craftedBase();
   for (const board of [1, 2, 3, 4]) {
     const [a, b] = pokeCollect([base.clone(), base.clone()], { board, x: 0x40, y: 0x40, airborne: 1 });
+    const aFloor = a.regs.sp;
     const pre = a.clone();
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     assert.equal(bad, null, bad && `BOARD ${board}: RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
     // Sanity via the proven gate: closed on 1/2/3, open on 4.
     const open = board === 4;
@@ -193,16 +195,17 @@ test("ARM (crafted): on a 100m screen-edge column, both raise EDGE_RIVET_ARMED a
   for (const x of [0x4b, 0xb3]) {
     // Start disarmed so the raise is observable; all-rivets present to prove nothing collects.
     const [a, b] = pokeCollect([base.clone(), base.clone()], { board: 4, armed: 0, x, y: 0x40 });
+    const aFloor = a.regs.sp;
     const pre = a.clone();
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     assert.equal(bad, null, bad && `X=${hx(x)}: RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
     assert.equal(a.mem.read8(EDGE_RIVET_ARMED), 1, `X=${hx(x)}: oracle must arm the latch`);
     assert.equal(b.mem.read8(EDGE_RIVET_ARMED), 1, `X=${hx(x)}: idiomatic must arm the latch`);
     assert.equal(a.mem.read8(RIVETS_LEFT), 8, `X=${hx(x)}: arming must not collect a rivet`);
     // The only non-stack change vs entry is EDGE_RIVET_ARMED 0 -> 1.
-    const { bad: moved } = ramDiffMinusStack(pre, a);
+    const { bad: moved } = ramDiffMinusStack(pre, a, aFloor);
     assert.equal(moved && moved.addr, EDGE_RIVET_ARMED, `X=${hx(x)}: arm must touch only 0x6291, saw ${moved && hx(moved.addr)}`);
     assertNoStackModel(a);
   }
@@ -221,10 +224,11 @@ test("COLLECT (crafted sweep): BOARD 4 armed pickup == oracle over X x Y x {air,
     for (const x of XS) {
       for (const y of YS) {
         const [a, b] = pokeCollect([base.clone(), base.clone()], { board: 4, armed: 1, x, y, airborne });
+        const aFloor = a.regs.sp;
         oracle(a);
         idiomatic(b);
         count++;
-        const { bad } = ramDiffMinusStack(a, b);
+        const { bad } = ramDiffMinusStack(a, b, aFloor);
         if (bad) { mismatch = { x, y, airborne, bad }; break; }
         // The oracle provably collected: one rivet gone, count 8 -> 7, latch disarmed.
         assert.equal(a.mem.read8(RIVETS_LEFT), 7, `x=${hx(x)} y=${hx(y)}: oracle must remove one rivet`);
@@ -254,14 +258,15 @@ test("OFF-FIELD (crafted): (MARIO_Y-1) >= 0xD0 disarms and changes nothing else"
   const base = craftedBase();
   // Y = 0xF5 -> Y-1 = 0xF4 >= 0xD0. Armed, board 4, non-edge X.
   const [a, b] = pokeCollect([base.clone(), base.clone()], { board: 4, armed: 1, x: 0x40, y: 0xf5 });
+  const aFloor = a.regs.sp;
   const pre = a.clone();
   oracle(a);
   idiomatic(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.equal(bad, null, bad && `off-field RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
   assert.equal(a.mem.read8(EDGE_RIVET_ARMED), 0, "off-field must still disarm");
   assert.equal(a.mem.read8(RIVETS_LEFT), 8, "off-field must not remove a rivet");
-  const { bad: moved } = ramDiffMinusStack(pre, a);
+  const { bad: moved } = ramDiffMinusStack(pre, a, aFloor);
   assert.equal(moved && moved.addr, EDGE_RIVET_ARMED, `off-field must touch only 0x6291, saw ${moved && hx(moved.addr)}`);
   console.log("  OFF-FIELD/crafted: disarm only, no collect — RAM identical");
 });
@@ -270,14 +275,15 @@ test("EMPTY-SLOT (crafted): an already-removed rivet disarms and changes nothing
   const base = craftedBase();
   // All rivets ALREADY gone (allRivets: 0); armed, board 4, on-field, non-edge X.
   const [a, b] = pokeCollect([base.clone(), base.clone()], { board: 4, armed: 1, x: 0x40, y: 0x40, allRivets: 0 });
+  const aFloor = a.regs.sp;
   const pre = a.clone();
   oracle(a);
   idiomatic(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.equal(bad, null, bad && `empty-slot RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
   assert.equal(a.mem.read8(EDGE_RIVET_ARMED), 0, "empty slot must still disarm");
   assert.equal(a.mem.read8(RIVETS_LEFT), 8, "empty slot must not decrement the count");
-  const { bad: moved } = ramDiffMinusStack(pre, a);
+  const { bad: moved } = ramDiffMinusStack(pre, a, aFloor);
   assert.equal(moved && moved.addr, EDGE_RIVET_ARMED, `empty-slot must touch only 0x6291, saw ${moved && hx(moved.addr)}`);
   console.log("  EMPTY-SLOT/crafted: disarm only, no collect — RAM identical");
 });

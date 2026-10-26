@@ -4,7 +4,7 @@
  * bytes at HL, stride DE" read-modify-write primitive (`mem[HL] ^= C; mem[HL+DE] ^= C`).
  *
  * Like its sibling addStrided (0x003d) this routine WRITES MEMORY, so it is gated on
- * memory-equivalence — RAM (minus STACK_SCRATCH) + pc + SP — not on a returned scalar,
+ * memory-equivalence — RAM (minus the stack scratch below the entry SP) + pc + SP — not on a returned scalar,
  * and every case runs on a FRESH clone. LIVE-OUT is memory-only: the sole caller
  * (sub_306f) overwrites A and HL right after each `call 0x3096` and never reads B or a
  * flag before overwriting it, so A/B/HL and the add-hl carry are DEAD and deliberately
@@ -42,6 +42,7 @@ import { loc_3096 as oracle } from "../../translated/loc_3096.js";
 import { xorMaskStridedPair } from "../xorMaskStridedPair.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -52,21 +53,18 @@ const test = ROM_PRESENT
 
 const SEED_TARGET = 0x003d; // the sibling we hook to obtain realistic sprite-block RAM
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/**
- * First RAM byte that differs between two machines, skipping STACK_SCRATCH — the dead
- * stack region excluded by the standard gate (the oracle's `ret` pops from it).
- */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -79,11 +77,8 @@ function runOracle(entry) {
   return c;
 }
 
-/**
- * Run a candidate on a fresh clone, then model its return with one m.ret() so pc + SP
- * match the oracle's (the idiomatic routine replaces the Z80 stack with the JS call
- * stack, so it does not touch pc/SP itself — the harness supplies the return).
- */
+/** Run a candidate on a fresh clone, then model its return with one m.ret() so pc + SP match the oracle's (the
+ *  idiomatic routine replaces the Z80 stack with the JS call stack, so it does not touch pc/SP itself). */
 function runCandidate(entry, fn) {
   const c = entry.clone();
   fn(c);
@@ -92,7 +87,7 @@ function runCandidate(entry, fn) {
 }
 
 /**
- * Compare candidate vs oracle over the memory-only contract: RAM − STACK_SCRATCH, pc,
+ * Compare candidate vs oracle over the memory-only contract: RAM − the stack scratch below the entry SP, pc,
  * and SP. A/B/HL and flags are DEAD (the sole caller overwrites them before reading) and
  * are intentionally omitted. Returns human-readable mismatches (empty when equal).
  */
@@ -100,7 +95,7 @@ function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=0x${o.pc.toString(16)} cand=0x${c.pc.toString(16)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=0x${o.regs.sp.toString(16)} cand=0x${c.regs.sp.toString(16)}`);

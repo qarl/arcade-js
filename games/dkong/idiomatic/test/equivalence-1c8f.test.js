@@ -7,7 +7,7 @@
  * stored back, and its low two bits handed to beginWalkStep with the facing-right bit 7 set.
  *
  * The routine WRITES MEMORY and both arms end by tailing into the mover's shared sprite-record
- * tail, so it is gated on MEMORY-equivalence — RAM (minus STACK_SCRATCH) + pc + SP — never on a
+ * tail, so it is gated on MEMORY-equivalence — RAM (minus the stack scratch below the entry SP) + pc + SP — never on a
  * register file (its live-out is memory-only; see the routine header). Every case runs on a
  * FRESH clone, since the routine writes.
  *
@@ -58,6 +58,7 @@ import {
   STACK_SCRATCH, MARIO_X, MARIO_Y, BOARD,
   MARIO_WALK_ANIM, MARIO_MOVE_STEP_TIMER, MARIO_SPRITE_CODE,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -78,20 +79,20 @@ const WALK_TILE_MASK = 0x03;
 const FACING_RIGHT = 0x80;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
  *  (the oracle's push16(0x1ca1) and the nested returns linger there; the idiomatic routine
  *  uses the JS call stack, so excluding it is the contract, not a fudge). */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -123,12 +124,12 @@ function cellDiff(entry, fn, addr) {
 
 const shows = (d) => `${hx(d.addr)} oracle=${d.oracle} cand=${d.cand}`;
 
-/** Compare candidate vs oracle over the contract: RAM − STACK_SCRATCH, pc, SP. */
+/** Compare candidate vs oracle over the contract: RAM − the stack scratch below the entry SP, pc, SP. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const { machine: c, returned } = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);

@@ -34,7 +34,7 @@
  *
  *   2. EQUAL (crafted) — force the reload arm (gate 0), the repaint arm (gate 1 and gate 0x40 to
  *      prove "nonzero" not "==1"), and the cold callee routes, each over the whole contract
- *      (RAM − STACK_SCRATCH + pc + SP) plus a path-discriminating non-vacuity check.
+ *      (RAM − the stack scratch below the entry SP + pc + SP) plus a path-discriminating non-vacuity check.
  *
  *   3. TEETH — four deliberately-broken twins, each reusing the real idiomatic arms so the only
  *      divergence is the injected bug, each MUST be caught:
@@ -57,6 +57,7 @@ import { dispatchColorCyclePaint } from "../dispatchColorCyclePaint.js";
 import { dispatchColorCascadeByBoard as loc_0450 } from "../dispatchColorCascadeByBoard.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, COLOUR_CYCLE_ACTIVE, BOARD, SPRITE_OBJ_BLOCK } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -74,18 +75,18 @@ const OBJ_BLOCK_LEN = 0x28;   // 40 bytes = 10 sprite records x 4 bytes
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const hb = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH, or null. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP, or null. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -110,12 +111,12 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Compare candidate vs oracle over the full contract: RAM − STACK_SCRATCH, pc, SP. */
+/** Compare candidate vs oracle over the full contract: RAM − the stack scratch below the entry SP, pc, SP. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${hb(ram.a)} cand=${hb(ram.b)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);
@@ -218,7 +219,7 @@ test("EQUAL (crafted): the reload arm, repaint arm, non-1 gate, and cold callee 
     } else {
       // The repaint arm left the sprite-object block untouched but the colour cascade wrote RAM.
       assert.deepEqual(objBlock(after), objBlock(entry), `${name}: repaint arm should not touch the sprite-object block`);
-      assert.notEqual(firstRamDiff(entry, after), null, `${name}: the colour cascade wrote no RAM`);
+      assert.notEqual(firstRamDiff(entry, after, entry.regs.sp), null, `${name}: the colour cascade wrote no RAM`);
     }
   }
   console.log(`  EQUAL/crafted: ${cases.length} arms (reload 25m/even, repaint gate=1/0x40, rivet) identical to the oracle`);

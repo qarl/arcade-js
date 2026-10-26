@@ -17,7 +17,7 @@
  *      host clones the entry state, runs the oracle on one clone and the rewrite on another,
  *      compares, and discards. Because both hand-off targets tail back into the caller's
  *      ten-record sweep, each replay runs the REST of that sweep as well, and the comparison
- *      covers all of it. Contract: work/sprite/video RAM outside STACK_SCRATCH, the forwarded
+ *      covers all of it. Contract: work/sprite/video RAM outside the stack scratch below the entry SP, the forwarded
  *      return value, pc and SP. pc and SP are asserted because this rewrite keeps the oracle's
  *      hand-off calls and models no stack of its own, so they legitimately hold here.
  *
@@ -71,6 +71,8 @@ import { Machine } from "../../machine.js";
 import { loc_2104 as oracle } from "../../translated/loc_2104.js";
 import { retireBarrelAtEndOfRange } from "../retireBarrelAtEndOfRange.js";
 import { STACK_SCRATCH, OBJ_ACTIVE, OBJ_X } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
+import { recordFrameSp, frameFloors } from "./_frame-sp.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -90,25 +92,27 @@ const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STA
 // -- the contract -------------------------------------------------------------
 
 /** First differing state byte, or null. `skipStack` excludes the dead stack scratch. */
-function firstDumpDiff(a, b, skipStack) {
+function firstDumpDiff(a, b, skipStack, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (skipStack && inStack(addr)) continue;
+    if (skipStack && dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
 /** Every non-stack state address that differs between two machines. */
-function changedAddrs(a, b) {
+function changedAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (!inStack(addr)) out.push(addr);
+    if (!dead(addr)) out.push(addr);
   }
   return out;
 }
@@ -148,7 +152,7 @@ function inReplay(fn) {
 function replayLive(entry, fn) {
   const m = entry.clone();
   const r = inReplay(() => guarded(() => fn(m)));
-  return { m, ...r };
+  return { m, entrySp: entry.regs.sp, ...r };
 }
 
 /**
@@ -163,7 +167,7 @@ function replayIsolated(entry, fn) {
   m.routines.set(TAIL_ABOVE, () => { log.push("1FCE"); return "handed-off-to-1FCE"; });
   m.routines.set(TAIL_AT, () => { log.push("21BA"); return "handed-off-to-21BA"; });
   const r = inReplay(() => guarded(() => fn(m)));
-  return { m, log, ...r };
+  return { m, entrySp: entry.regs.sp, log, ...r };
 }
 
 /** The differences between an oracle replay and a candidate replay, as printable strings. */
@@ -174,7 +178,7 @@ function breaches(ref, cand, { skipStack = true, comparePcSp = true } = {}) {
     return out; // the machines are not comparable once one side aborted
   }
   if (ref.threw && ref.error !== cand.error) out.push(`fault oracle=${ref.error} cand=${cand.error}`);
-  const d = firstDumpDiff(ref.m, cand.m, skipStack);
+  const d = firstDumpDiff(ref.m, cand.m, skipStack, ref.entrySp);
   if (d) out.push(`RAM@${hx(d.addr)} oracle=${d.a} cand=${d.b}`);
   if (ref.value !== cand.value) out.push(`return oracle=${String(ref.value)} cand=${String(cand.value)}`);
   if (comparePcSp) {
@@ -357,7 +361,7 @@ test("EQUAL (captured): retireBarrelAtEndOfRange matches the oracle on every rea
   assert.deepEqual(live.real.slice(0, 3), [], `retireBarrelAtEndOfRange diverged on ${live.real.length} of ${census.total} dispatches`);
   console.log(
     `  EQUAL/captured: all ${census.total} of ${census.total} real dispatches replayed identical ` +
-      "(RAM − STACK_SCRATCH, forwarded return, pc and SP), each carrying the rest of the caller's sweep",
+      "(RAM − the stack scratch below the entry SP, forwarded return, pc and SP), each carrying the rest of the caller's sweep",
   );
 });
 
@@ -402,7 +406,7 @@ test("EQUAL (crafted): the retire arm, both sides of the limit, and the wrap", (
     assert.deepEqual(refIso.log, [arm === "retire" ? "21BA" : "1FCE"],
       `crafted X=${x}: the oracle took the other hand-off, so this table's arm is wrong`);
 
-    const moved = changedAddrs(entry, candIso.m);
+    const moved = changedAddrs(entry, candIso.m, entry.regs.sp);
     if (arm === "retire") {
       // A subset, not an equality: X is already 0 in one crafted case, so its write moves nothing.
       for (const addr of moved) {
@@ -495,17 +499,19 @@ function liveWire(frames, candidate, restoreTiming) {
     return candidate(mm);
   };
   const m = new Machine(ROM, { overrides: new Map([[TARGET, fn]]) });
+  const sp = recordFrameSp(m);
   const frameDumps = m.runFrames(frames);
-  return { m, frameDumps, dispatches };
+  return { m, frameDumps, sp, dispatches };
 }
 
-/** First frame and byte where two frame traces differ, or null. `skipStack` ignores the scratch. */
-function firstTraceDiff(base, other, offToAddr, skipStack = false) {
+/** First frame and byte where two frame traces differ, or null. Per-frame `floors` skip the scratch below them. */
+function firstTraceDiff(base, other, offToAddr, floors = null) {
   for (let f = 0; f < Math.min(base.length, other.length); f++) {
+    const dead = floors ? deadStackBelow(STACK_SCRATCH, floors[f]) : () => false;
     for (let i = 0; i < Math.min(base[f].length, other[f].length); i++) {
       if (base[f][i] === other[f][i]) continue;
       const addr = offToAddr(i);
-      if (skipStack && inStack(addr)) continue;
+      if (dead(addr)) continue;
       return { frame: f, addr, a: base[f][i], b: other[f][i] };
     }
   }
@@ -536,14 +542,15 @@ test("LIVE-WIRE: wired live for a whole attract run, the rewrite leaves the orac
 
 test("LIVE-WIRE CONTROL: without the timing replay the same wiring DOES fork", () => {
   const base = new Machine(ROM);
+  const baseSp = recordFrameSp(base);
   const baseFrames = base.runFrames(LIVE_FRAMES);
-  const { frameDumps } = liveWire(LIVE_FRAMES, retireBarrelAtEndOfRange, false);
+  const { frameDumps, sp } = liveWire(LIVE_FRAMES, retireBarrelAtEndOfRange, false);
   const d = firstTraceDiff(baseFrames, frameDumps, (o) => base.stateOffsetToAddr(o));
   assert.notEqual(d, null, "the un-restored run matched the baseline, so the live-wire arm distinguishes nothing");
   // The first fork lands on the guest stack, which only the FULL dump sees. Demand a LIVE-cell
   // fork as well, so the control cannot be dismissed as an artifact of the excluded region.
-  const live = firstTraceDiff(baseFrames, frameDumps, (o) => base.stateOffsetToAddr(o), true);
-  assert.notEqual(live, null, "the un-restored run diverged only inside STACK_SCRATCH");
+  const live = firstTraceDiff(baseFrames, frameDumps, (o) => base.stateOffsetToAddr(o), frameFloors(baseSp, sp));
+  assert.notEqual(live, null, "the un-restored run diverged only inside the stack scratch below the live SP");
   console.log(
     `  CONTROL: the un-timed run forks at frame ${d.frame}, ${hx(d.addr)} (baseline=${d.a} live=${d.b}) and ` +
       `outside the stack scratch at frame ${live.frame}, ${hx(live.addr)} (baseline=${live.a} live=${live.b}) — ` +

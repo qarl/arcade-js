@@ -13,7 +13,7 @@
  * discarded `pop16` + one net `ret` after it, lining pc + SP up with the oracle. Both the
  * discarded return and the popped bytes sit in STACK_SCRATCH, excluded by the contract.
  *
- * Gated on MEMORY-equivalence — RAM (minus STACK_SCRATCH) + pc + SP — plus the LIVE result
+ * Gated on MEMORY-equivalence — RAM (minus the stack scratch below the entry SP) + pc + SP — plus the LIVE result
  * register A (the grandparent past loc_2b1c reads it with `dec a`) and the boolean unwind
  * signal. HL and the flags are dead ABI and are NOT compared.
  *
@@ -47,6 +47,7 @@ import { loc_2b8b } from "../loc_2b8b.js";
 import { loc_2b91 } from "../loc_2b91.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, MARIO_X, MARIO_SPRITE_RECORD, SPRITE_X } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -62,22 +63,22 @@ const OWN_RET = 0x2b7d;   // the probe-continuation return the unwind discards (
 const SP_TOP = 0x6bfc;    // inside STACK_SCRATCH; the two staged returns sit at 0x6bf8/0x6bfa
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // The oracle's arithmetic, closed for the non-vacuity assertions: snap X to (X & ~7) + 3.
 const snap = (x) => (((x - 8) | 0x07) + 4) & 0xff;
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH (the dead stack
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP (the dead stack
  *  region excluded by contract — the dissolved unwind's popped bytes live there). */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -103,13 +104,13 @@ function runCandidate(entry, fn) {
   return { c, ret };
 }
 
-/** Compare candidate vs oracle over the contract: RAM − STACK_SCRATCH, pc, SP, and the LIVE
+/** Compare candidate vs oracle over the contract: RAM − the stack scratch below the entry SP, pc, SP, and the LIVE
  *  result register A. HL and the flags are dead ABI and are not compared. */
 function contractDiffs(entry, fn) {
   const { c: o } = runOracle(entry);
   const { c } = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=0x${(ram.a & 0xff).toString(16)} cand=0x${(ram.b & 0xff).toString(16)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);

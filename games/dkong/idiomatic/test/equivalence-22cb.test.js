@@ -31,7 +31,7 @@
  * compared. The mode-0 arm makes no stack write at all.
  *
  *   1. EQUAL (crafted sweep) — over mode x difficulty x record pointer, loc_22cb == oracle
- *      on RAM (minus STACK_SCRATCH); plus a non-vacuity check that the oracle actually wrote
+ *      on RAM (minus the stack scratch below the entry SP); plus a non-vacuity check that the oracle actually wrote
  *      the expected arm's bytes (so each arm is genuinely exercised).
  *   2. TEETH — four broken dispatch twins, each of which the sweep MUST catch.
  *   3. REALISM — hook 0x22CB in a real attract run and replay any captured dispatches; plus
@@ -52,6 +52,7 @@ import { loc_2303 } from "../loc_2303.js";
 import { loc_231a } from "../loc_231a.js";
 import { STACK_SCRATCH, DIFFICULTY, LEVEL, RANDOM, MARIO_X, OBJ_X } from "../names.js";
 import { Machine } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -93,17 +94,17 @@ function expectedArm(mode, difficulty) {
 
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
 const hx16 = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region
-// (the memory-equivalence contract is RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
+// (the memory-equivalence contract is RAM − the stack scratch below the entry SP). { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -130,13 +131,14 @@ function makeEntry(base, ix, mode, difficulty) {
   return e;
 }
 
-/** Run oracle vs candidate on two byte-identical entries; diff RAM − STACK_SCRATCH. */
+/** Run oracle vs candidate on two byte-identical entries; diff RAM − the stack scratch below the entry SP. */
 function runPair(base, ix, mode, difficulty, candidate) {
   const a = makeEntry(base, ix, mode, difficulty);
+  const aFloor = a.regs.sp;
   const b = makeEntry(base, ix, mode, difficulty);
   oracle(a);
   candidate(b);
-  return firstRamDiff(a, b);
+  return firstRamDiff(a, b, aFloor);
 }
 
 // mode x difficulty x pointer sweep. Modes span 0 (level arm) and three nonzero values;
@@ -278,7 +280,7 @@ test("REALISM: real captured 0x22CB dispatches — loc_22cb matches the oracle's
     const b = cap.clone(); b.nextNmi = Infinity; b.nextBoundary = Infinity;
     oracle(a);
     loc_22cb(b);
-    const ram = firstRamDiff(a, b);
+    const ram = firstRamDiff(a, b, cap.regs.sp);
     assert.equal(ram, null,
       ram && `real dispatch (pointer=${hx16(a.regs.ix)}) diverges at ${hx16(ram.addr ?? 0)} (${ram.a}->${ram.b})`);
   }

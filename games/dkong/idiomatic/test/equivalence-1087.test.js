@@ -12,7 +12,7 @@
  * (the 0x6500 block's +3/+5 fields), so every case runs on FRESH clones per side and is
  * compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) + pc + SP.
+ *     RAM (dumpState, minus the stack scratch below the entry SP) + pc + SP.
  *
  * NO registers and NO cycles are compared (docs/decompiler-pipeline). Live-out here is memory-only: the
  * board-setup caller reads game RAM next frame, not registers, and — unlike the sibling
@@ -62,6 +62,7 @@ import { copyBytePairsStrided } from "../copyBytePairsStrided.js";
 import { gatherSpriteRecords } from "../gatherSpriteRecords.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -72,35 +73,22 @@ const test = ROM_PRESENT
 
 const TARGET = 0x1087;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
-// -- comparison plumbing ------------------------------------------------------
 
-/**
- * First RAM byte that differs between two machines, skipping STACK_SCRATCH, or null. The
- * oracle transiently pushes into STACK_SCRATCH for its internal calls; those dead bytes —
- * which the candidate never writes — must be excluded, not chased (same skip idiom as the
- * 0x122a/0x11d3/0x1186 gates).
- */
-function ramDiffMinusStack(ma, mb) {
+function ramDiffMinusStack(ma, mb, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = ma.dumpState();
   const b = mb.dumpState();
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] === b[i]) continue;
     const addr = ma.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: a[i], b: b[i] };
   }
   return null;
 }
 
-/**
- * Run the oracle (rets internally) on one fresh clone and a candidate (+ one modelled
- * m.ret) on another, and diff the contract: RAM (-STACK_SCRATCH) + pc + SP. Returns a list
- * of human-readable mismatches (empty when equal). Registers/flags/cycles are NOT compared —
- * live-out is memory-only.
- */
 function contractDiffs(entry, fn) {
   const o = entry.clone();
   oracle(o);
@@ -108,14 +96,13 @@ function contractDiffs(entry, fn) {
   fn(c);
   c.ret(); // model seed75mBoardObjects's own terminal `ret` so pc + SP line up
   const diffs = [];
-  const ram = ramDiffMinusStack(o, c);
+  const ram = ramDiffMinusStack(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr ?? 0)} oracle=${ram.a} cand=${ram.b}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);
   return diffs;
 }
 
-// -- capture: force the board-3 (75m) setup that dispatches 0x1087 -------------
 
 const POKE_FRAME = 100;
 const FRAMES = 120; // the forced dispatch lands ~frame 102
@@ -164,7 +151,6 @@ function craftDistinctive(entry) {
   return w;
 }
 
-// -- 1. EQUAL (real forced dispatches) ----------------------------------------
 
 test("EQUAL: real forced board-3 (75m) dispatches match the oracle on RAM + pc + SP", () => {
   assert.ok(CAPS3.length >= 1, `expected >=1 real 0x1087 dispatch after BOARD=3 poke, got ${CAPS3.length}`);
@@ -179,7 +165,6 @@ test("EQUAL: real forced board-3 (75m) dispatches match the oracle on RAM + pc +
   );
 });
 
-// -- 2. CRAFTED (distinctive 0x6500 content) + own-output content check --------
 
 test("CRAFTED: distinctive 0x6500 content (identical both sides) matches; fixed outputs verified", () => {
   const w = craftDistinctive(CAPS3[0]);
@@ -215,7 +200,6 @@ test("CRAFTED: distinctive 0x6500 content (identical both sides) matches; fixed 
   console.log("  CRAFTED: distinctive 0x6500 content identical to the oracle; fixed 0x6400/0x6600/template outputs verified");
 });
 
-// -- 3. TEETH -----------------------------------------------------------------
 
 /**
  * Broken twin (a): SKIP-FILL — omits step 3 (the six-cell 0x6600 fill with 0x01), a plausible

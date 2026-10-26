@@ -11,7 +11,7 @@
  * and the 40 sprite bytes at 0x6980..) and reads implicit inputs (the 0x6500 record
  * contents), so every case runs on a FRESH clone per side and is compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) + pc + SP + the main registers a/b/c/d/e/h/l/ix.
+ *     RAM (dumpState, minus the stack scratch below the entry SP) + pc + SP + the main registers a/b/c/d/e/h/l/ix.
  *
  * The idiomatic routine models the two internal Z80 calls as direct JS calls (the callees
  * touch no stack) and drops its own terminal `ret`'s stack/PC bookkeeping, so the harness
@@ -33,22 +33,6 @@
  * to 2 then 3 — exercising BOTH call sites with REAL captured entries (real register file,
  * real stack, real board).
  *
- * Jobs:
- *   1. EQUAL (real forced dispatches) — oracle vs seedObjectBlockSprites on fresh clones
- *      of each captured entry (BOARD=2 loc_101f AND BOARD=3 loc_1087) leave identical
- *      RAM (-STACK_SCRATCH) + pc + SP + a/b/c/d/e/h/l/ix.
- *   2. CRAFTED (distinctive record content) — the real 0x6500 block is zero-filled at
- *      dispatch, so poke distinctive bytes into every record field identically on both
- *      sides; this gives the gather non-trivial X/Y inputs. Oracle == candidate, and the
- *      candidate is read back to prove the permuting gather really produced
- *      [X=+3, code=template[0]=0x3b, attr=template[1]=0x00, Y=+5] at each record.
- *   3. TEETH — two deliberately-broken twins, each MUST be caught:
- *      (a) SKIP-FILL: omits step 1, so the gather reads a stale +7/+8 (0 on the real
- *          capture) instead of the template's 0x3b/0x00 — the coordination bug this
- *          routine exists to prevent;
- *      (b) WRONG-DEST: gathers to 0x6900 instead of 0x6980, so the 40 sprite bytes land
- *          in the wrong place.
- *
  * Run: node --test games/dkong/idiomatic/test/equivalence-1186.test.js
  */
 
@@ -62,6 +46,7 @@ import { replicateGroupStrided } from "../replicateGroupStrided.js";
 import { gatherSpriteRecords } from "../gatherSpriteRecords.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -73,24 +58,22 @@ const test = ROM_PRESENT
 const TARGET = 0x1186;
 const LIVE_REGS = ["a", "b", "c", "d", "e", "h", "l", "ix"]; // dead at both call sites; verified as a free margin
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
-
-// -- comparison plumbing ------------------------------------------------------
 
 /**
- * First RAM byte that differs between two machines, skipping STACK_SCRATCH, or null. A
+ * First RAM byte that differs between two machines, skipping the stack scratch below the entry SP, or null. A
  * single O(n) inline-skip pass (as in the 0x122a/0x11d3 gates): the oracle transiently
  * pushes into STACK_SCRATCH for its two internal calls, and those dead bytes — which the
  * candidate never writes — must be excluded, not chased.
  */
-function ramDiffMinusStack(ma, mb) {
+function ramDiffMinusStack(ma, mb, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = ma.dumpState();
   const b = mb.dumpState();
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] === b[i]) continue;
     const addr = ma.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: a[i], b: b[i] };
   }
   return null;
@@ -108,7 +91,7 @@ function contractDiffs(entry, fn) {
   fn(c);
   c.ret(); // model seedObjectBlockSprites's own terminal `ret` so pc + SP line up
   const diffs = [];
-  const ram = ramDiffMinusStack(o, c);
+  const ram = ramDiffMinusStack(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr ?? 0)} oracle=${ram.a} cand=${ram.b}`);
   for (const r of LIVE_REGS) {
     if (o.regs[r] !== c.regs[r]) diffs.push(`${r.toUpperCase()} oracle=${hx(o.regs[r])} cand=${hx(c.regs[r])}`);
@@ -117,8 +100,6 @@ function contractDiffs(entry, fn) {
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);
   return diffs;
 }
-
-// -- capture: force the board-2/3 setup that calls 0x1186 ----------------------
 
 const POKE_FRAME = 100;
 const FRAMES = 120; // the forced dispatch lands ~frame 102
@@ -165,8 +146,6 @@ function craftDistinctive(entry) {
   return w;
 }
 
-// -- 1. EQUAL (real forced dispatches, both call sites) -----------------------
-
 test("EQUAL: real forced board-2 (loc_101f) AND board-3 (loc_1087) dispatches match the oracle", () => {
   assert.ok(CAPS2.length >= 1, `expected >=1 real 0x1186 dispatch after BOARD=2 poke, got ${CAPS2.length}`);
   assert.ok(CAPS3.length >= 1, `expected >=1 real 0x1186 dispatch after BOARD=3 poke, got ${CAPS3.length}`);
@@ -182,8 +161,6 @@ test("EQUAL: real forced board-2 (loc_101f) AND board-3 (loc_1087) dispatches ma
       `(RAM -stack + pc + SP + a/b/c/d/e/h/l/ix); entry SP=${hx(CAPS2[0].regs.sp)}`,
   );
 });
-
-// -- 2. CRAFTED (distinctive record content) ----------------------------------
 
 test("CRAFTED: distinctive 0x6500 record content (identical both sides) matches, and the gather is permuting", () => {
   for (const [label, caps] of [["board-2", CAPS2], ["board-3", CAPS3]]) {
@@ -209,8 +186,6 @@ test("CRAFTED: distinctive 0x6500 record content (identical both sides) matches,
   console.log("  CRAFTED: distinctive content on both boards identical to the oracle; gather verified as X<-+3,code<-+7,attr<-+8,Y<-+5");
 });
 
-// -- 3. TEETH -----------------------------------------------------------------
-
 /**
  * Broken twin (a): SKIP-FILL — omits the template seed (replicateGroupStrided), so the
  * gather reads whatever +7/+8 already held (0 on the real zero-filled block) instead of
@@ -218,7 +193,6 @@ test("CRAFTED: distinctive 0x6500 record content (identical both sides) matches,
  */
 function skipFillTwin(m) {
   const { regs } = m;
-  // BUG: step 1 (the template fill) is omitted entirely.
   regs.ix = 0x6500;
   regs.hl = 0x6980;
   regs.b = 0x0a;

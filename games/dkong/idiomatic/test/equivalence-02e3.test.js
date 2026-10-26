@@ -24,7 +24,7 @@
  * coin+start run supplies no joystick input — so an opcode or payload that only a later
  * state enqueues is untested.
  *
- * CONTRACT — faulting or not, the work/sprite/video state dump outside STACK_SCRATCH, SP,
+ * CONTRACT — faulting or not, the work/sprite/video state dump outside the stack scratch below the entry SP, SP,
  * and the returned value. pc is excluded: the oracle's handler `ret` advances it and the rewrite's
  * direct calls do not. SP is INCLUDED because it is not free here — the oracle pushes the
  * main-loop return address for the handler to `ret` through, and the rewrite must come out
@@ -67,6 +67,8 @@ import { drawScoreTask } from "../drawScoreTask.js";
 import { drawStringVertical } from "../drawStringVertical.js";
 import { drawCreditLineInAttract } from "../drawCreditLineInAttract.js";
 import { drawLivesAndLevel } from "../drawLivesAndLevel.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
+import { recordFrameSp, frameFloors } from "./_frame-sp.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -93,7 +95,6 @@ const COIN_START_TAPE = [
 ];
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (addr) => addr !== null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // -- capturing real entries ---------------------------------------------------
 
@@ -139,14 +140,15 @@ const GAME = ROM_PRESENT
 
 // -- the contract -------------------------------------------------------------
 
-/** First differing state byte outside STACK_SCRATCH, or null. */
-function ramDiff(a, b) {
+/** First differing state byte outside the stack scratch below the entry SP, or null. */
+function ramDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   for (let i = 0; i < da.length; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -169,6 +171,7 @@ function runSide(machine, fn) {
  */
 function contractBreach(capture, candidate) {
   const a = capture.state.clone();
+  const aFloor = a.regs.sp;
   const b = capture.state.clone();
   const sideA = runSide(a, oracle);
   const sideB = runSide(b, candidate);
@@ -184,7 +187,7 @@ function contractBreach(capture, candidate) {
     };
   }
 
-  const ram = ramDiff(a, b);
+  const ram = ramDiff(a, b, aFloor);
   if (ram) return { kind: "ram", ...ram };
   if (a.regs.sp !== b.regs.sp) {
     return { kind: "sp", addr: null, a: a.regs.sp, b: b.regs.sp };
@@ -417,13 +420,14 @@ const HANDLERS_WIRED = {
   "6b8": drawLivesAndLevel,
 };
 
-/** First differing frame byte between two traces, or null. */
-function traceDiff(a, b, host, skipStack) {
+/** First differing frame byte between two traces, or null; `floors` (per frame) skips the stack below them. */
+function traceDiff(a, b, host, floors) {
   for (let f = 0; f < Math.min(a.length, b.length); f++) {
+    const dead = floors ? deadStackBelow(STACK_SCRATCH, floors[f]) : () => false;
     for (let i = 0; i < a[f].length; i++) {
       if (a[f][i] === b[f][i]) continue;
       const addr = host.stateOffsetToAddr(i);
-      if (skipStack && inStack(addr)) continue;
+      if (dead(addr)) continue;
       return { frame: f, addr, a: a[f][i], b: b[f][i] };
     }
   }
@@ -436,7 +440,7 @@ test("LIVE 3a: the mirrored main loop with the ORACLE dispatch reproduces the st
   const mirror = harness(oracle, null);
   const mirrorTrace = mirror.runFrames(LIVE_FRAMES);
   assert.equal(mirrorTrace.length, stockTrace.length, "the two runs did not reach the same frame count");
-  const d = traceDiff(stockTrace, mirrorTrace, stock, false);
+  const d = traceDiff(stockTrace, mirrorTrace, stock, null);
   assert.equal(
     d,
     null,
@@ -467,8 +471,10 @@ test("LIVE 3b: wired in for a whole run, loc_02e3 leaves the same trace as the f
   };
 
   const reference = harness(oracle, HANDLERS_WIRED);
+  const referenceSp = recordFrameSp(reference);
   const referenceTrace = reference.runFrames(LIVE_FRAMES);
   const live = harness(charged, HANDLERS_WIRED);
+  const liveSp = recordFrameSp(live);
   const liveTrace = live.runFrames(LIVE_FRAMES);
 
   assert.equal(reference.stoppedBy, null, `reference run stopped early: ${reference.stoppedBy}`);
@@ -476,12 +482,12 @@ test("LIVE 3b: wired in for a whole run, loc_02e3 leaves the same trace as the f
   assert.equal(liveTrace.length, referenceTrace.length, "the two runs did not reach the same frame count");
   assert.ok(charges.size > 0, "the rewrite was never dispatched in the live run — it proves nothing");
 
-  const d = traceDiff(referenceTrace, liveTrace, reference, true);
+  const d = traceDiff(referenceTrace, liveTrace, reference, frameFloors(referenceSp, liveSp));
   assert.equal(d, null, d && `frame ${d.frame}: ${hx(d.addr)} reference=${d.a} live=${d.b}`);
 
   const entries = [...charges.values()].reduce((s, n) => s + n, 0);
   console.log(
-    `  LIVE 3b: ${LIVE_FRAMES} frames, ${entries} live entries, identical outside STACK_SCRATCH; ` +
+    `  LIVE 3b: ${LIVE_FRAMES} frames, ${entries} live entries, identical outside the stack scratch below each frame's live SP; ` +
       `restored charges ${[...charges].sort((p, q) => p[0] - q[0]).map(([c, n]) => `${c}x${n}`).join(" ")} ` +
       "T-states — so C, DE, HL and the flags the rewrite drops are read back by nobody this run reaches",
   );

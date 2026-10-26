@@ -8,7 +8,7 @@
  * of dispatchBoardClearedInterlude's board-advance dispatcher (GAME_SUBSTATE 0x600A == 0x16), which the attract demo
  * never drives (a board is never completed). And it is not a leaf: it dispatches board-render
  * handlers that paint/animate the interlude and step the sequence. So it is validated by
- * MEMORY-equivalence against the frozen oracle (RAM − STACK_SCRATCH, pc, SP), never the full
+ * MEMORY-equivalence against the frozen oracle (RAM − the stack scratch below the entry SP, pc, SP), never the full
  * register file and never cycles, with a FRESH clone per case, using CRAFTED entries (doc-06: a
  * real state + a surgical poke):
  *
@@ -41,6 +41,7 @@ import { loc_00ca } from "../../translated/loc_00ca.js";
 import { Machine } from "../../machine.js";
 import { ORACLE_ROUTINES } from "../../routines.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -55,13 +56,14 @@ const DISPATCH_TABLE_1648 = "the rivet-board interlude sequence table";
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
 // First differing RAM byte between two dumps, EXCLUDING the dead stack-scratch region
-// (the memory-equivalence contract is RAM − STACK_SCRATCH). Returns { addr, a, b } or null.
-function firstRamDiffExStack(a, b, offToAddr) {
+// (the memory-equivalence contract is RAM − the stack scratch below the entry SP). Returns { addr, a, b } or null.
+function firstRamDiffExStack(a, b, offToAddr, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] === b[i]) continue;
     const addr = offToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { addr, a: a[i], b: b[i] };
   }
   return null;
@@ -113,6 +115,7 @@ test("FULL-HANDLER: dispatchRivetBoardInterludeStep == oracle on real bases poke
   let mutatedAll = true;
   for (const step of REACHABLE) {
     const a = craftEntry(base, step); // oracle
+    const aFloor = a.regs.sp;
     const b = craftEntry(base, step); // candidate
     const recA = [], recB = [];
     a.overrides = oracleCatchAll(recA);
@@ -128,7 +131,7 @@ test("FULL-HANDLER: dispatchRivetBoardInterludeStep == oracle on real bases poke
     assert.ok(recA.length >= 1, `the dispatcher dispatched nothing on the oracle side (step ${hx(step)})`);
     assert.deepEqual(recB.map(hx), recA.map(hx), `dispatch sequence diverged (step ${hx(step)})`);
 
-    const ramDiff = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o));
+    const ramDiff = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), aFloor);
     assert.equal(
       ramDiff,
       null,
@@ -139,7 +142,7 @@ test("FULL-HANDLER: dispatchRivetBoardInterludeStep == oracle on real bases poke
     assert.equal(b.pc, a.pc, `pc diverged (step ${hx(step)}): oracle=${hx(a.pc)} cand=${hx(b.pc)}`);
 
     // Non-vacuous: the arm body actually ran and wrote RAM (else the replay proves nothing).
-    if (!firstRamDiffExStack(before, a.dumpState(), (o) => a.stateOffsetToAddr(o))) mutatedAll = false;
+    if (!firstRamDiffExStack(before, a.dumpState(), (o) => a.stateOffsetToAddr(o), aFloor)) mutatedAll = false;
   }
   assert.ok(mutatedAll, "some reachable arm mutated no RAM — replay is vacuous for it");
   console.log(`  FULL-HANDLER: steps {0..5} — full oracle arm run both sides through the production override seam, target+RAM(−stack)+pc+SP identical, all non-vacuous`);

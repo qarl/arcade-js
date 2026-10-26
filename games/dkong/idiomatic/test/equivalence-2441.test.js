@@ -5,7 +5,7 @@
  *
  * This routine READS BOARD + ROM tables and WRITES MEMORY (the two de-interleaved
  * arrays), and its declared LIVE-OUT is memory-only, so it is gated on
- * memory-equivalence (RAM − STACK_SCRATCH + pc + SP), never on a returned scalar or
+ * memory-equivalence (RAM − the stack scratch below the entry SP + pc + SP), never on a returned scalar or
  * the register file. Every case runs on a FRESH clone (a reused clone is only safe
  * for a read-only leaf); this routine mutates RAM, so each case re-clones.
  *
@@ -13,7 +13,7 @@
  *      the machine at the true dispatch. Attract only ever sets up 25m, so this is a
  *      BOARD == 1 entry (table 0x3AE4: 11 type-0 + 4 type-1 + 9 skipped records). Run
  *      the ORACLE on one clone and loadBoardObjectRecords on another and confirm
- *      identical RAM (minus STACK_SCRATCH) + pc + SP.
+ *      identical RAM (minus the stack scratch below the entry SP) + pc + SP.
  *
  *   2. EQUAL (crafted table arms) — the arms attract never reaches, from the real
  *      captured RAM with a single identical-both-sides poke of BOARD (0x6227): 2 ->
@@ -46,6 +46,7 @@ import { loc_2441 as oracle } from "../../translated/loc_2441.js";
 import { loadBoardObjectRecords } from "../loadBoardObjectRecords.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, BOARD } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -56,22 +57,22 @@ const test = ROM_PRESENT
 
 const TARGET = 0x2441;
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // -- the memory-equivalence contract ------------------------------------------
 
 /**
- * First RAM byte that differs between two machines, skipping STACK_SCRATCH — the
+ * First RAM byte that differs between two machines, skipping the stack scratch below the entry SP — the
  * dead stack region the standard gate excludes. (This routine pushes nothing, so
  * neither side writes the stack; the exclusion is the standard contract, not a fudge.)
  */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -97,7 +98,7 @@ function runCandidate(entry, fn) {
 }
 
 /**
- * Compare candidate vs oracle over the full contract: RAM − STACK_SCRATCH, pc, SP.
+ * Compare candidate vs oracle over the full contract: RAM − the stack scratch below the entry SP, pc, SP.
  * LIVE-OUT is memory-only, so no register is compared (all are dead — loc_0d5f reloads
  * HL/A/DE/BC and reads neither IX/IY nor any flag). Returns human-readable mismatches.
  */
@@ -105,7 +106,7 @@ function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=0x${o.pc.toString(16)} cand=0x${c.pc.toString(16)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=0x${o.regs.sp.toString(16)} cand=0x${c.regs.sp.toString(16)}`);

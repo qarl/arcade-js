@@ -22,7 +22,7 @@
  *      clone and runGameplayFrame on the other, they are compared, and the clones are dropped before the
  *      host continues on the oracle. Each dispatch is labelled by which addresses the ORACLE goes
  *      on to call, so the arm labels come from the oracle's behaviour and never from the
- *      candidate's. Compared on RAM − STACK_SCRATCH and on the return value.
+ *      candidate's. Compared on RAM − the stack scratch below the entry SP and on the return value.
  *      SP IS DELIBERATELY NOT COMPARED IN THIS ARM, and the reason is worth stating: in this
  *      harness only 0x197A is wired, so the candidate's transitive callees run in a half-wired
  *      world — idiomatic dispatchBoardCollision pushes one word for a board-collision handler
@@ -89,7 +89,6 @@ const LIVE_FRAMES = 3000; // the live-wire run and its frozen control
 
 const { nmiReturnPC } = manifest.convergence.idiomatic;
 const hx = (v) => "0x" + (v & 0xffff).toString(16).padStart(4, "0");
-const inStack = (addr) => addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 /**
  * The five ways out of the cascade, in the order the routine can take them. The labels are derived
@@ -114,14 +113,15 @@ function armOfOracleRun(m) {
 }
 
 /** First differing RAM byte OUTSIDE the dead stack scratch, or null; also counts excluded bytes. */
-function ramDiffExStack(a, b, offToAddr) {
+function ramDiffExStack(a, b, offToAddr, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   let excluded = 0;
   let diff = null;
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] === b[i]) continue;
     const addr = offToAddr(i);
-    if (inStack(addr)) { excluded++; continue; }
+    if (dead(addr)) { excluded++; continue; }
     if (diff === null) diff = { addr, a: a[i], b: b[i] };
   }
   return { diff, excluded };
@@ -147,7 +147,7 @@ function replayOne(entry, candidate, label) {
   if (got !== want) {
     return { arm, failure: `${where}: return value ${String(got)} — the oracle returns ${String(want)}` };
   }
-  const { diff, excluded } = ramDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o));
+  const { diff, excluded } = ramDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), entry.regs.sp);
   if (diff !== null) {
     return { arm, failure: `${where}: RAM at ${hx(diff.addr)} oracle=${diff.a} candidate=${diff.b}` };
   }
@@ -252,7 +252,7 @@ function replayCrafted(entries, craft, candidate) {
 
 // -- 1. CAPTURE + INLINE REPLAY -----------------------------------------------
 
-test("CAPTURED DISPATCHES: runGameplayFrame matches the oracle on every natural dispatch (RAM − STACK_SCRATCH + return)", () => {
+test("CAPTURED DISPATCHES: runGameplayFrame matches the oracle on every natural dispatch (RAM − the stack scratch below the entry SP + return)", () => {
   const r = captureAndReplay(runGameplayFrame);
 
   assert.equal(r.stoppedBy, null, `capture run stopped early: ${r.stoppedBy}`);
@@ -282,7 +282,7 @@ test("CAPTURED DISPATCHES: runGameplayFrame matches the oracle on every natural 
   console.log(
     `  CAPTURED: all ${r.total} of ${r.total} natural dispatches replayed over ${CAPTURE_FRAMES} attract ` +
       `frames (first at frame ${r.firstFrame}; arms: ${ARMS.map((a) => `${a}=${r.armTotals.get(a)}`).join(" ")}); ` +
-      `RAM − STACK_SCRATCH and return value identical; ${r.excluded} byte(s) of excluded stack ` +
+      `RAM − the stack scratch below the entry SP and return value identical; ${r.excluded} byte(s) of excluded stack ` +
       `scratch, low-water SP ${hx(r.lowSp)}. Entry path: ${r.viaAttractTask} via the attract task ` +
       `(ROM 0x1977), ${r.viaInGameDispatch} via the in-game dispatch — the in-game path is NOT covered.`,
   );
@@ -357,6 +357,7 @@ async function liveRun(candidate, bracket, frames = LIVE_FRAMES) {
   installEntropyPin(m, manifest.entropyPin);
   m.inputTape = CREDITED_TAPE.map((t) => ({ ...t }));
   const trace = [];
+  const spTrace = [];
   const sps = new Set();
   const r = runIdiomaticGame(m, {
     bootAddr: 0x0000,
@@ -367,21 +368,23 @@ async function liveRun(candidate, bracket, frames = LIVE_FRAMES) {
       mm.applyInputs(frame);
       trace.push(Buffer.from(mm.dumpState()));
       sps.add(mm.regs.sp);
+      spTrace.push(mm.regs.sp);
     },
   });
-  return { m, trace, dispatches, sps, run: r };
+  return { m, trace, dispatches, sps, spTrace, run: r };
 }
 
 /** First frame+byte where two traces differ, split into live cells and dead stack scratch. */
-function firstTraceDiff(base, other, offToAddr) {
+function firstTraceDiff(base, other, offToAddr, floors) {
   let full = null;
   for (let f = 0; f < Math.min(base.length, other.length); f++) {
     const a = base[f], b = other[f];
+    const dead = deadStackBelow(STACK_SCRATCH, floors[f]);
     for (let i = 0; i < Math.min(a.length, b.length); i++) {
       if (a[i] === b[i]) continue;
       const d = { frame: f, addr: offToAddr(i), a: a[i], b: b[i] };
       if (full === null) full = d;
-      if (!inStack(d.addr)) return { full, live: d };
+      if (!dead(d.addr)) return { full, live: d };
     }
   }
   return { full, live: null };
@@ -402,7 +405,7 @@ test("LIVE-WIRE: runGameplayFrame, dispatched by the in-game table, drives a cre
   // THE STACK ASSERTION. The rewrite must leave the guest SP exactly where it was seated.
   assert.deepEqual([...cand.sps], [GUEST_SP], `live-wire moved the guest SP: ${[...cand.sps].map(hx).join(",")}`);
 
-  const d = firstTraceDiff(ctl.trace, cand.trace, (o) => ctl.m.stateOffsetToAddr(o));
+  const d = firstTraceDiff(ctl.trace, cand.trace, (o) => ctl.m.stateOffsetToAddr(o), frameFloors(ctl.spTrace, cand.spTrace));
   assert.equal(
     d.live, null,
     d.live && `frame ${d.live.frame} diverged at ${hx(d.live.addr)}: frozen=${d.live.a} live-wire=${d.live.b}`,
@@ -444,6 +447,8 @@ import { dispatchBonusExpiredStep } from "../dispatchBonusExpiredStep.js";
 import { tickTimedBoardBonus } from "../tickTimedBoardBonus.js";
 import { silenceSound } from "../silenceSound.js";
 import { advanceSubstateAndArmTimer } from "../advanceSubstateAndArmTimer.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
+import { frameFloors } from "./_frame-sp.js";
 
 /** The middle of the cascade, shared by every twin so each one differs in exactly one thing. */
 function body(m) {

@@ -19,7 +19,7 @@
  *      Mario's record at 0x6200.
  *
  *   1. EQUAL (real dispatches) — clone each real entry, run oracle vs loc_1bec on independent
- *      fresh clones, and compare RAM − STACK_SCRATCH, pc, SP and the propagated return value.
+ *      fresh clones, and compare RAM − the stack scratch below the entry SP, pc, SP and the propagated return value.
  *      Non-vacuity is pinned too: the oracle really does step the record (the airborne-frame
  *      counter advances and the fixed-point vertical coordinate moves).
  *
@@ -64,6 +64,7 @@ import {
   MARIO_AIR_LANDCHECK,
   MARIO_FATAL_FALL,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -79,7 +80,6 @@ const HANDLER = 0x1c05; // the airborne handler this routine tails into (still t
 const MARIO_RECORD = MARIO_ACTIVE;
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
 const hx16 = (v) => "0x" + (v & 0xffff).toString(16).padStart(4, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // Canonical coin+start tape (tapes/coin_start.lua contract): pulse IN2 coin (0x80) then IN2
 // start1 (0x04) so the ROM's own credit/start logic begins a 1-player game.
@@ -104,16 +104,17 @@ const EXITS = [0x1c33, 0x1c3a, 0x1c76, 0x2853];
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
  *  (the oracle brackets its ballistic call with a push/pop the idiomatic form has no need of;
  *  the handler chain churns the same region on both sides). */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -126,13 +127,13 @@ function runOn(entry, fn) {
   return { m: c, ret };
 }
 
-/** Compare a candidate against the oracle on the contract: RAM − STACK_SCRATCH and the
+/** Compare a candidate against the oracle on the contract: RAM − the stack scratch below the entry SP and the
  *  propagated return value (pc/SP excluded — seam artifacts). Returns human-readable mismatches. */
 function contractDiffs(entry, fn) {
   const o = runOn(entry, oracle);
   const c = runOn(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o.m, c.m);
+  const ram = firstRamDiff(o.m, c.m, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx16(ram.addr)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   // pc/SP dropped: the tail m.call(0x1C05) was dissolved to a direct loc_1c05 call, so pc and
   // SP are now seam artifacts, never game live-outs; the whole-game SP-inertness tests guard SP.

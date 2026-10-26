@@ -16,7 +16,7 @@
  *      early dispatch with ATTRACT=0 (the guard PROCEEDS — full draw) and one with
  *      ATTRACT=1 (the guard SKIPS — writes nothing). For each, run the ORACLE on
  *      one clone and drawLivesAndLevel on another and confirm identical
- *      game-visible RAM (RAM minus STACK_SCRATCH), and that SP/pc are untouched.
+ *      game-visible RAM (RAM minus the stack scratch below the entry SP), and that SP/pc are untouched.
  *
  *   2. EQUAL (crafted draw arm) — attract only ever feeds this routine LIVES=1,
  *      A=1 (zero reserve) and small levels, so to exercise the marker fill, the
@@ -42,6 +42,7 @@ import { loc_06b8 as oracle } from "../../translated/loc_06b8.js";
 import { drawLivesAndLevel } from "../drawLivesAndLevel.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, ATTRACT, LIVES, LEVEL } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -54,15 +55,15 @@ const TARGET = 0x06b8;
 const MARKER_BOTTOM = 0x7783; // the reserve-marker cell the fill starts from
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
  * Diff two machines' full state (work + sprite + video RAM, per dumpState).
- * Returns the first GAME-VISIBLE difference (outside STACK_SCRATCH — a real
+ * Returns the first GAME-VISIBLE difference (outside the stack scratch below the entry SP — a real
  * failure) or null, plus a count of DEAD stack-scratch bytes that differed
  * (expected here: the oracle's rst/ret pushes+pops leave a little residue).
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0;
@@ -70,7 +71,7 @@ function ramDiffMinusStack(a, b) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -82,7 +83,7 @@ function replay(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return { a, b, ...ramDiffMinusStack(a, b) };
+  return { a, b, ...ramDiffMinusStack(a, b, entry.regs.sp) };
 }
 
 /**
@@ -169,9 +170,10 @@ test("EQUAL (crafted): the draw arm matches the oracle over reserve counts, the 
   for (const pair of DRAW_PAIRS) {
     for (const level of DRAW_LEVELS) {
       const { a, b } = craftPair(entry, { ...pair, level });
+      const aFloor = a.regs.sp;
       oracle(a);
       drawLivesAndLevel(b);
-      const { bad } = ramDiffMinusStack(a, b);
+      const { bad } = ramDiffMinusStack(a, b, aFloor);
       n++;
       assert.equal(
         bad,
@@ -222,9 +224,10 @@ test("TEETH (crafted): a wrong marker tile is CAUGHT and names 0x7783", () => {
   outer: for (const pair of DRAW_PAIRS) {
     for (const level of DRAW_LEVELS) {
       const { a, b } = craftPair(entry, { ...pair, level });
+      const aFloor = a.regs.sp;
       oracle(a);
       brokenDrawLivesAndLevel(b);
-      const { bad } = ramDiffMinusStack(a, b);
+      const { bad } = ramDiffMinusStack(a, b, aFloor);
       if (bad) { caught = bad; break outer; }
     }
   }

@@ -37,6 +37,7 @@ import { loc_309f as oracle } from "../../translated/loc_309f.js";
 import { enqueueTask } from "../enqueueTask.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -48,14 +49,14 @@ const test = ROM_PRESENT
 const TARGET = 0x309f;
 const TASK_TAIL = 0x60b0;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
  * Diff two machines' RAM. Returns the first difference that is OUTSIDE
  * STACK_SCRATCH (game-visible — a real failure) or null, plus how many bytes
  * differed inside the dead stack scratch (the tolerated push-HL residue).
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0;
@@ -63,7 +64,7 @@ function ramDiffMinusStack(a, b) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -78,7 +79,7 @@ function replay(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return { a, b, ...ramDiffMinusStack(a, b) };
+  return { a, b, ...ramDiffMinusStack(a, b, entry.regs.sp) };
 }
 
 /**
@@ -114,7 +115,7 @@ test("EQUAL (captured): enqueueTask == oracle on every real attract dispatch (di
         `on tail=${hx(entry.mem.read8(TASK_TAIL))}`,
     );
     // The oracle's push writes HL to [SP-2,SP-1]; that residue must land inside
-    // dead stack scratch, so excluding STACK_SCRATCH cannot mask a real diff.
+    // dead stack scratch, so excluding the stack scratch below the entry SP cannot mask a real diff.
     // (It may be invisible when the stack already holds HL there — that is fine;
     // what matters is that the push TARGET is in-region.)
     assert.ok(
@@ -156,7 +157,7 @@ test("EQUAL (crafted): DROP / WRAP / boundary arms attract never reaches match t
     craft(a); craft(b);
     oracle(a);
     enqueueTask(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, entry.regs.sp);
     assert.equal(
       bad,
       null,

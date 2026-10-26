@@ -27,7 +27,7 @@
  *
  *   1. EQUAL (captured) — hook 0x0315 in a real boot/attract run, clone at each
  *      dispatch (bucketed by arm), and confirm redrawPlayerUpIndicator == oracle over
- *      RAM − STACK_SCRATCH, pc, SP. Both guard arms and the body occur naturally.
+ *      RAM − the stack scratch below the entry SP, pc, SP. Both guard arms and the body occur naturally.
  *
  *   2. EQUAL (crafted) — poke FRAME / ATTRACT / CURRENT_PLAYER / TWO_PLAYER_GAME
  *      identically on both sides to reach: frame-skip early-out, guard-skip (both
@@ -62,6 +62,7 @@ import {
   CURRENT_PLAYER,
   TWO_PLAYER_GAME,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -77,17 +78,17 @@ const P2_COL = 0x74e0;      // player-2 indicator column base (loc_0347 selector
 const ROW_BACK = 0xffe0;    // −32: one tilemap row back between the three cells
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH
-// region (the memory-equivalence contract is RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
+// region (the memory-equivalence contract is RAM − the stack scratch below the entry SP). { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -95,13 +96,14 @@ function firstRamDiff(a, b) {
 
 // All non-stack RAM addresses that changed between two machines (for the no-write
 // non-vacuity check on the frame-skip / guard-skip paths).
-function changedAddrs(a, b) {
+function changedAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.push(addr);
   }
   return out;
@@ -127,12 +129,12 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Full contract diff: RAM − STACK_SCRATCH, pc, SP. Live-out is memory-only. */
+/** Full contract diff: RAM − the stack scratch below the entry SP, pc, SP. Live-out is memory-only. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);
@@ -224,14 +226,14 @@ test("EQUAL (crafted): frame-skip / guard-skip / both blink phases / both player
   for (const frame of [0x01, 0x03, 0x0f, 0x1f]) {
     const entry = craft(base, { frame, attract: 0x00, player: 0, twoPlayer: 1 });
     assert.equal(contractDiffs(entry, redrawPlayerUpIndicator).length, 0, `frame-skip ${hx(frame)}`);
-    assert.deepEqual(changedAddrs(entry, runOracle(entry)), [], `frame-skip ${hx(frame)} wrote RAM`);
+    assert.deepEqual(changedAddrs(entry, runOracle(entry), entry.regs.sp), [], `frame-skip ${hx(frame)} wrote RAM`);
   }
 
   // 2b. Guard skip: multiple-of-16 frame but ATTRACT set -> body skipped, no writes.
   for (const player of [0, 1]) {
     const entry = craft(base, { frame: 0x00, attract: 0x01, player, twoPlayer: 1 });
     assert.equal(contractDiffs(entry, redrawPlayerUpIndicator).length, 0, `guard-skip P${player + 1}`);
-    assert.deepEqual(changedAddrs(entry, runOracle(entry)), [], `guard-skip P${player + 1} wrote RAM`);
+    assert.deepEqual(changedAddrs(entry, runOracle(entry), entry.regs.sp), [], `guard-skip P${player + 1} wrote RAM`);
   }
 
   // 2c. bit-4 CLEAR (paint current player's glyphs). Expected cells: glyph=player+1,
@@ -251,7 +253,7 @@ test("EQUAL (crafted): frame-skip / guard-skip / both blink phases / both player
     assert.equal(o.mem.read8(c0), glyph, `${name}: base glyph`);
     assert.equal(o.mem.read8(c1), 0x25, `${name}: row-1 tile`);
     assert.equal(o.mem.read8(c2), 0x20, `${name}: row-2 tile`);
-    assert.ok(changedAddrs(entry, o).length > 0, `${name}: vacuous`);
+    assert.ok(changedAddrs(entry, o, entry.regs.sp).length > 0, `${name}: vacuous`);
   }
 
   // 2d. bit-4 SET, one-player: blank the current player's three cells, then stop.

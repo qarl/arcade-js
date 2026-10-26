@@ -38,7 +38,7 @@
  * call at all. The 0x3E99 → 0x3EC3 subtree is depth 1 and acyclic.
  *
  * CONTRACT. The dissolved arm takes the probe point/tolerances as arguments and returns { overlap }
- * by JS value with no guest-stack ops. Compared: RAM − STACK_SCRATCH and the overlap code (the
+ * by JS value with no guest-stack ops. Compared: RAM − the stack scratch below the caller frame and the overlap code (the
  * oracle leaves it in A; the candidate returns it). pc/SP are seam artifacts of the oracle's
  * per-scan call/return brackets and are not compared; the bytes those brackets leave behind land in
  * the dead STACK_SCRATCH region, which the memory compare excludes.
@@ -74,6 +74,7 @@ import {
   STACK_SCRATCH, OVERLAP_COUNT, OBJ_ARRAY_67, OBJ_ARRAY_64, MARIO_ACTIVE, MARIO_X,
   OBJ_ACTIVE, OBJ_X, OBJ_Y, OBJ_HIT_EXTENT_X, OBJ_HIT_EXTENT_Y,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -96,16 +97,17 @@ const WIDE_BOUNDS = 0x1308;  // the bounds word attract always passes (low = ver
 const NARROW_BOUNDS = 0x0508; // the caller's other bounds word; never seen in attract
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const POPPED_ARG = 2; // ROM opens with `pop hl`: the stacked word at entry SP is consumed, so the caller frame starts above it
 
-/** First RAM byte that differs, skipping the dead STACK_SCRATCH region. { addr, a, b } | null. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs, skipping the stack scratch below the caller frame. { addr, a, b } | null. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -137,13 +139,13 @@ function runCandidate(entry, fn) {
   return { c, returned };
 }
 
-/** Full contract diff: RAM − STACK_SCRATCH, and the overlap code (the oracle leaves it in A; the
+/** Full contract diff: RAM − the stack scratch below the caller frame, and the overlap code (the oracle leaves it in A; the
  * candidate returns it). pc/SP are NOT compared — the dissolved arm does no guest-stack ops. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const { c, returned } = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp + POPPED_ARG);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (returned !== o.regs.a) diffs.push(`code(returned) oracle=${o.regs.a} cand=${returned}`);
   return diffs;

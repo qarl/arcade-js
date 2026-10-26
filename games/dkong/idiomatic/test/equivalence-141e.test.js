@@ -12,7 +12,7 @@
  * is validated by capture/clone/replay on a FRESH clone per case — never one shared
  * machine, never the full register file, never cycles. The compared contract is:
  *
- *   RAM (minus STACK_SCRATCH)  +  io.flipScreen (the 0x7D82 board latch)
+ *   RAM (minus the stack scratch below the entry SP)  +  io.flipScreen (the 0x7D82 board latch)
  *
  * The flip latch is a board io output, NOT in the RAM dump; comparing io.flipScreen is
  * load-bearing because the tail arms drive it (attract sets 1; compose sets A|DIP). No
@@ -64,6 +64,7 @@ import { clearPlayfieldAndSprites } from "../clearPlayfieldAndSprites.js";
 import { configureFlipScreenAndComposeScreen } from "../configureFlipScreenAndComposeScreen.js";
 import { selectPlayer2AndComposeScreen } from "../selectPlayer2AndComposeScreen.js";
 import { enterAttractMode } from "../enterAttractMode.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -89,7 +90,6 @@ const COIN_START_TAPE = [
 ];
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /** True if any of the five records holds `value` (mirrors the candidate's scan). */
 function anyRecordEquals(mem, value) {
@@ -104,17 +104,18 @@ function anyRecordEquals(mem, value) {
 
 /**
  * First observable difference between two machines after each ran its routine: a RAM byte
- * (skipping the dead STACK_SCRATCH) OR the flip-screen board latch (io.flipScreen — the
+ * (skipping the stack scratch below the entry SP) OR the flip-screen board latch (io.flipScreen — the
  * 0x7D82 output, not in the RAM dump). RAM first, then the latch. Null if identical.
  */
-function firstDiffOutsideStack(a, b) {
+function firstDiffOutsideStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { kind: "ram", addr, a: da[i], b: db[i] };
   }
   if (a.io.flipScreen !== b.io.flipScreen) {
@@ -134,7 +135,7 @@ function diffAgainstOracle(entry, cand) {
   const b = entry.clone(); // candidate
   oracle(a);
   cand(b);
-  return firstDiffOutsideStack(a, b);
+  return firstDiffOutsideStack(a, b, entry.regs.sp);
 }
 
 // -- entry capture (real loc_141e dispatches, the driven game-over hold) --------

@@ -55,6 +55,7 @@ import { fillTileBlock } from "../fillTileBlock.js";
 import { Machine } from "../../machine.js";
 import { ORACLE_ROUTINES } from "../../routines.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -72,16 +73,16 @@ const TASK = 0x309f; // reachable task-post primitive — many varied real machi
 const CALLER_HLS = [0x76c6, 0x76cb, 0x76d0, 0x76d3, 0x76d4, 0x76d5, 0x76da];
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
- * Diff two machines' RAM. Returns the first difference OUTSIDE STACK_SCRATCH
+ * Diff two machines' RAM. Returns the first difference OUTSIDE the stack scratch below the entry SP
  * (game-visible — a real failure) or null, plus how many bytes differed inside the
  * dead stack scratch. (For 0x1826 the oracle's `ret` pops but never writes the
  * stack, so in practice even the stack side is clean; the exclusion is the
  * standard contract, kept so a future stack touch could not mask a real diff.)
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0;
@@ -89,7 +90,7 @@ function ramDiffMinusStack(a, b) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -150,20 +151,18 @@ function craft(base, hl, sentinel) {
   return m;
 }
 
-// -- 1. REAL (driven capture) -------------------------------------------------
-
 test("REAL (driven): fillTileBlock == oracle on the real game-over dispatch (HL=0x76D4)", () => {
   const caps = captureDrivenDispatches(8, 8500);
   assert.ok(caps.length >= 1, "expected at least one real 0x1826 dispatch driving coin+start to game over");
 
   for (const entry of caps) {
-    const a = entry.clone(); // oracle
-    const b = entry.clone(); // candidate
+    const a = entry.clone();
+    const b = entry.clone();
     const sp0 = b.regs.sp, pc0 = b.pc;
     oracle(a);
     fillTileBlock(b);
 
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, entry.regs.sp);
     assert.equal(
       bad,
       null,
@@ -177,8 +176,6 @@ test("REAL (driven): fillTileBlock == oracle on the real game-over dispatch (HL=
   );
 });
 
-// -- 2. EQUAL (crafted @ real caller HLs on real captured states) -------------
-
 test("EQUAL (crafted): fillTileBlock == oracle at every real caller HL over real captured states", () => {
   const bases = [...captureAt(SIBLING, 4, 700), ...captureAt(TASK, 8, 400)];
   assert.ok(bases.length >= 1, "expected at least one real sibling/task dispatch to capture a base state from");
@@ -187,13 +184,13 @@ test("EQUAL (crafted): fillTileBlock == oracle at every real caller HL over real
   for (const base of bases) {
     for (const hl of CALLER_HLS) {
       const seeded = craft(base, hl, null); // realistic VRAM background, no sentinel
-      const a = seeded.clone(); // oracle
-      const b = seeded.clone(); // candidate
+      const a = seeded.clone();
+      const b = seeded.clone();
       const sp0 = b.regs.sp, pc0 = b.pc;
       oracle(a);
       fillTileBlock(b);
 
-      const { bad } = ramDiffMinusStack(a, b);
+      const { bad } = ramDiffMinusStack(a, b, seeded.regs.sp);
       assert.equal(
         bad,
         null,
@@ -207,8 +204,6 @@ test("EQUAL (crafted): fillTileBlock == oracle at every real caller HL over real
   }
   console.log(`  EQUAL/crafted: ${count} (base × caller-HL) combos — game-visible RAM identical to the oracle`);
 });
-
-// -- 3. EQUAL (region-crossing crafts) ----------------------------------------
 
 test("EQUAL (edges): region-crossing HLs match the oracle byte-for-byte", () => {
   const [base] = captureAt(TASK, 1, 400);
@@ -232,7 +227,7 @@ test("EQUAL (edges): region-crossing HLs match the oracle byte-for-byte", () => 
     const b = seeded.clone();
     oracle(a);
     fillTileBlock(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, seeded.regs.sp);
     assert.equal(
       bad,
       null,
@@ -241,8 +236,6 @@ test("EQUAL (edges): region-crossing HLs match the oracle byte-for-byte", () => 
     console.log(`  EQUAL/edge ${label} (HL=${hx(hl)}): game-visible RAM identical`);
   }
 });
-
-// -- 4. TEETH -----------------------------------------------------------------
 
 /**
  * Broken twin: steps HL back by 0x24 instead of 0x25 after each row (DE = 0xFFDC
@@ -273,7 +266,7 @@ test("TEETH (crafted): the wrong row step is CAUGHT inside the fill region", () 
     const b = seeded.clone();
     oracle(a);
     brokenFillTileBlock(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, seeded.regs.sp);
     if (bad) { caught = { ...bad, hl }; break; }
   }
   assert.notEqual(caught, null, "the crafted sweep FAILED to catch a wrong row step — it is worthless");

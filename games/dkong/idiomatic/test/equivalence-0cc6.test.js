@@ -7,7 +7,7 @@
  *
  * loc_0cc6 WRITES memory through all three callees and the continuation carries state,
  * so it is gated by clone / replay with a FRESH clone per case. The memory-equivalence
- * contract is RAM − STACK_SCRATCH: the oracle's push/call/ret traffic lands in the dead
+ * contract is RAM − the stack scratch below the entry SP: the oracle's push/call/ret traffic lands in the dead
  * stack region, which the compare excludes; the direct-call layer drops it entirely.
  *
  * Attract builds 25m ONLY, so it dispatches 0x0CC6 with BOARD == 1 — the rivet gate
@@ -45,6 +45,7 @@ import { stampRivetBoardTiles } from "../stampRivetBoardTiles.js";
 import { loc_3fa0 } from "../loc_3fa0.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, SUBSTATE_TIMER, GAME_SUBSTATE, BOARD } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -65,16 +66,17 @@ const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
  * First game-visible differing RAM byte between two machines, EXCLUDING the dead
- * stack-scratch region (the memory-equivalence contract is RAM − STACK_SCRATCH).
+ * stack-scratch region (the memory-equivalence contract is RAM − the stack scratch below the entry SP).
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -111,10 +113,11 @@ test("STRUCTURE: real board-1 entry — game-visible RAM identical; oracle ran t
 
   const subBefore = entry.mem.read8(GAME_SUBSTATE);
   const a = entry.clone(), b = entry.clone();
+  const aFloor = a.regs.sp;
   oracle(a);
   idiomatic(b);
 
-  const { bad, stackDiffs } = ramDiffMinusStack(a, b);
+  const { bad, stackDiffs } = ramDiffMinusStack(a, b, aFloor);
   assert.equal(bad, null, bad && `game-visible RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
 
   // Non-vacuous: the continuation's salient writes are present on the oracle side.
@@ -129,12 +132,13 @@ test("STRUCTURE: real board-1 entry — game-visible RAM identical; oracle ran t
 test("BOARDS (crafted): loc_0cc6 == oracle for BOARD 1/2/3/4; the rivet stamp shows on board 4", () => {
   for (const board of [1, 2, 3, 4]) {
     const a = base().clone(), b = base().clone();
+    const aFloor = a.regs.sp;
     a.mem.write8(BOARD, board);
     b.mem.write8(BOARD, board);
     oracle(a);
     idiomatic(b);
 
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     assert.equal(bad, null, bad && `BOARD ${board}: RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
 
     // Non-vacuous: the rivet gate opens only on the 100m board, where the first
@@ -177,9 +181,10 @@ function brokenSkipContinuation(m) {
 
 test("TEETH (skip-walk): dropping the layout walk is CAUGHT in the drawn tilemap", () => {
   const a = base().clone(), b = base().clone(); // board 1 (attract's natural), gate closed
+  const aFloor = a.regs.sp;
   oracle(a);
   brokenSkipWalk(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the gate FAILED to catch a dropped layout walk — it is worthless");
   assert.equal(inStack(bad.addr), false, "the caught diff must be game-visible, not stack scratch");
   console.log(`  TEETH/skip-walk: caught at ${hx(bad.addr)} (oracle=${bad.a} broken=${bad.b})`);
@@ -187,10 +192,11 @@ test("TEETH (skip-walk): dropping the layout walk is CAUGHT in the drawn tilemap
 
 test("TEETH (always-stamp): the rivet gate open on board 1 is CAUGHT at the rivet cell", () => {
   const a = base().clone(), b = base().clone(); // board 1: gate MUST stay closed
+  const aFloor = a.regs.sp;
   assert.equal(a.mem.read8(BOARD), 1, "this twin is validated on board 1 (gate closed)");
   oracle(a);
   brokenAlwaysStamp(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the gate FAILED to catch an ungated rivet stamp — it is worthless");
   assert.ok(RIVET_CELLS.has(bad.addr), `expected the caught diff at a rivet cell, got ${hx(bad.addr)}`);
   console.log(`  TEETH/always-stamp: caught at ${hx(bad.addr)} (oracle=${bad.a} broken=${bad.b})`);
@@ -198,11 +204,12 @@ test("TEETH (always-stamp): the rivet gate open on board 1 is CAUGHT at the rive
 
 test("TEETH (skip-rivet): the rivet gate closed on board 4 is CAUGHT at the rivet cell", () => {
   const a = base().clone(), b = base().clone();
+  const aFloor = a.regs.sp;
   a.mem.write8(BOARD, 4); // the 100m board, where the gate MUST fire
   b.mem.write8(BOARD, 4);
   oracle(a);
   brokenSkipRivet(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the gate FAILED to catch a skipped rivet stamp — it is worthless");
   assert.ok(RIVET_CELLS.has(bad.addr), `expected the caught diff at a rivet cell, got ${hx(bad.addr)}`);
   console.log(`  TEETH/skip-rivet: caught at ${hx(bad.addr)} (oracle=${bad.a} broken=${bad.b})`);
@@ -210,9 +217,10 @@ test("TEETH (skip-rivet): the rivet gate closed on board 4 is CAUGHT at the rive
 
 test("TEETH (skip-continuation): dropping the continuation is CAUGHT with the setup timer unarmed", () => {
   const a = base().clone(), b = base().clone();
+  const aFloor = a.regs.sp;
   oracle(a);
   brokenSkipContinuation(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the gate FAILED to catch a dropped board-setup continuation — it is worthless");
   assert.equal(a.mem.read8(SUBSTATE_TIMER), 0x40, "oracle arms the setup timer");
   assert.notEqual(b.mem.read8(SUBSTATE_TIMER), 0x40, "the twin (no continuation) must leave the setup timer unarmed");
@@ -226,9 +234,10 @@ test("REALISM: replay every real 0x0cc6 dispatch — game-visible RAM identical 
   assert.ok(caps.length >= 1, "expected at least one real 0x0cc6 dispatch in a long attract run");
   for (const entry of caps) {
     const a = entry.clone(), b = entry.clone();
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     assert.equal(bad, null, bad && `real-dispatch RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
   }
   console.log(`  REALISM: ${caps.length} real 0x0cc6 dispatch(es) — game-visible RAM identical to the oracle`);

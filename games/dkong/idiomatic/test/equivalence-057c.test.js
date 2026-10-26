@@ -6,7 +6,7 @@
  * loop expandBcdDigits (0x0583), painting six digits up a video column.
  *
  * Like expandBcdDigits (0x0583) and storeDigitAndAdvance (0x0593), this routine WRITES
- * MEMORY and loops, so it is gated on memory-equivalence (RAM − STACK_SCRATCH + pc + SP
+ * MEMORY and loops, so it is gated on memory-equivalence (RAM − the stack scratch below the entry SP + pc + SP
  * + reproduced registers), not a returned scalar, and every case runs on a FRESH clone.
  *
  * GROUNDING — why crafted-entry, and why it is still real. Attract never dispatches
@@ -53,6 +53,7 @@ import { renderBcdColumn } from "../renderBcdColumn.js";
 import { expandBcdDigits } from "../expandBcdDigits.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -64,39 +65,33 @@ const test = ROM_PRESENT
 const LOOP = 0x0583; // the shared loop sub_057c falls into — reachable in attract
 const TARGET = 0x057c; // sub_057c itself — NOT reached in attract (probed 0 dispatches)
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // -- the memory-equivalence contract ------------------------------------------
 
 /**
- * First RAM byte that differs between two machines, skipping STACK_SCRATCH — the dead
+ * First RAM byte that differs between two machines, skipping the stack scratch below the entry SP — the dead
  * stack region excluded by the standard gate. The oracle's internal per-digit
  * push16/pop touches only bytes below SP=0x6BFE, all inside STACK_SCRATCH.
  */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
-/** Run the ORACLE on a fresh clone. It performs its own `ret`, so pc/SP advance. */
 function runOracle(entry) {
   const c = entry.clone();
   oracle(c);
   return c;
 }
 
-/**
- * Run a candidate on a fresh clone, then model its return with one m.ret() so pc + SP
- * match the oracle's (the idiomatic routine replaces the Z80 stack with the JS call
- * stack, so it does not touch pc/SP itself — the harness supplies the caller-return pop).
- */
 function runCandidate(entry, fn) {
   const c = entry.clone();
   fn(c);
@@ -105,7 +100,7 @@ function runCandidate(entry, fn) {
 }
 
 /**
- * Compare candidate vs oracle over the full contract: RAM − STACK_SCRATCH, pc, SP, and
+ * Compare candidate vs oracle over the full contract: RAM − the stack scratch below the entry SP, pc, SP, and
  * every register the routine reproduces (A/B/HL/IX/DE). LIVE-OUT is memory-only — the
  * caller reloads A and reads no output register — but the registers are reproduced
  * identically to the oracle and pinned here for extra teeth (the wrong-stride twin is
@@ -115,7 +110,7 @@ function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   if (o.regs.a !== c.regs.a) diffs.push(`A oracle=${hx(o.regs.a)} cand=${hx(c.regs.a)}`);
   if (o.regs.b !== c.regs.b) diffs.push(`B oracle=${hx(o.regs.b)} cand=${hx(c.regs.b)}`);
@@ -145,7 +140,6 @@ function captureLoopStates(K, maxFrames) {
   return caps;
 }
 
-/** Confirm attract really does NOT dispatch 0x057c — the reachability fact this gate rests on. */
 function count057cDispatches(maxFrames) {
   let n = 0;
   const ov = new Map([[TARGET, (mm) => { n++; return oracle(mm); }]]);
@@ -168,11 +162,6 @@ function sub057cEntryFrom(loopCap) {
   return e;
 }
 
-/**
- * Broken twin: wrong stride magnitude — -0x10 (half a row) instead of -0x20 (a full row).
- * Still climbs the column (so every write stays on-map), but digits 2..6 land at the wrong
- * cells and the final IX is start-0x60 instead of start-0xC0 — caught via RAM and IX.
- */
 function brokenStrideRender(m) {
   const { regs } = m;
   regs.exDeHl();
@@ -218,9 +207,7 @@ test("EQUAL (crafted): production source, source-wrap and differing-nibble arms 
   const cases = [
     // The exact sub_1486 production source pointer (ROM 0x01bf — the digit template).
     { name: "sub_1486 source DE=0x01bf", e: craft((e) => { e.regs.de = 0x01bf; }) },
-    // A second real destination (the credit column, IX=0x74bf) with a real 3-byte source.
     { name: "credit-column dest IX=0x74bf", e: craft((e) => { e.regs.ix = 0x74bf; e.regs.de = 0x60ba; }) },
-    // Writable source with differing nibbles, so the high-then-low swap is observable.
     { name: "differing-nibble source (0x93/0x2a/0xf0)", e: craft((e) => {
         e.mem.write8(0x6100, 0xf0); e.mem.write8(0x6101, 0x2a); e.mem.write8(0x6102, 0x93);
         e.regs.de = 0x6102; // HL walks 0x6102(0x93) -> 0x6101(0x2a) -> 0x6100(0xf0)

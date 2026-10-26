@@ -7,7 +7,7 @@
  * clearPlayfieldAndSprites, TWO_PLAYER_GAME, GAME_SUBSTATE, GAME_STATE) and is deep in
  * a call cascade, so it is gated by capture / clone / replay (docs/decompiler-pipeline) with a FRESH
  * clone per case. Because it under-charges cycles (no m.step), the strict whole-machine
- * byte-exact gate does not apply; the contract is RAM (minus STACK_SCRATCH) + candidate
+ * byte-exact gate does not apply; the contract is RAM (minus the stack scratch below the entry SP) + candidate
  * SP/pc unchanged, exactly the memory-equivalence contract.
  *
  *   1. REALISM (real captured dispatches) — a coin+start1 tape drives the credited state.
@@ -50,6 +50,7 @@ import { readStartButtonSelector } from "../readStartButtonSelector.js";
 import { spendCredit } from "../spendCredit.js";
 import { clearPlayfieldAndSprites } from "../clearPlayfieldAndSprites.js";
 import { enqueueTask } from "../enqueueTask.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -83,11 +84,12 @@ const COIN_START_TAPE = [
 
 /**
  * First differing RAM byte between two machines, EXCLUDING the dead stack-scratch
- * region (the memory-equivalence contract is RAM − STACK_SCRATCH). A null diff also
+ * region (the memory-equivalence contract is RAM − the stack scratch below the entry SP). A null diff also
  * PROVES stack confinement: any oracle push that underflowed below STACK_SCRATCH into
  * real RAM would surface here (commitGameStart writes no stack bytes at all).
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0;
@@ -95,7 +97,7 @@ function ramDiffMinusStack(a, b) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -108,7 +110,7 @@ function replay(entry, candidate) {
   const b = entry.clone();
   oracle(a);
   candidate(b);
-  return { a, b, ...ramDiffMinusStack(a, b) };
+  return { a, b, ...ramDiffMinusStack(a, b, entry.regs.sp) };
 }
 
 /** Drive coin+start and clone the machine at each real 0x08F8 dispatch. The wrapper
@@ -197,7 +199,7 @@ test("CRAFTED: forced 2-PLAYER start — two credits spent, P2 seeded, TWO_PLAYE
   forceStart(a, 0x08); forceStart(b, 0x08); // START2 only
   oracle(a);
   commitGameStart(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, base.regs.sp);
   assert.equal(
     bad,
     null,
@@ -223,7 +225,7 @@ test("CRAFTED: both start buttons held (A==0x0C) — do NOTHING, RAM identical &
   const before = b.dumpState().slice();
   oracle(a);
   commitGameStart(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, base.regs.sp);
   assert.equal(bad, null, bad && `both-buttons: RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
   // It must genuinely do nothing: GAME_STATE stays credited and RAM is untouched.
   assert.equal(b.mem.read8(GAME_STATE), gsBefore, "both-buttons arm must not advance GAME_STATE");
@@ -299,7 +301,7 @@ test("TEETH A: the drop-2P-flag twin is CAUGHT by the crafted 2-PLAYER arm (at 0
   forceStart(a, 0x08); forceStart(b, 0x08);
   oracle(a);
   brokenDropTwoPlayer(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, base.regs.sp);
   assert.notEqual(bad, null, "the 2-PLAYER arm FAILED to catch a dropped TWO_PLAYER_GAME flag — it is worthless");
   assert.equal(bad.addr, TWO_PLAYER_GAME, `expected the caught diff at 0x600F, got ${hx(bad.addr)}`);
   console.log(`  TEETH A: caught at 0x600F (oracle=${bad.a} broken=${bad.b})`);
@@ -313,7 +315,7 @@ test("TEETH B: the no-advance twin is CAUGHT by the real 1-PLAYER dispatch (at 0
   const a = start.clone(); const b = start.clone();
   oracle(a);
   brokenNoAdvance(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, start.regs.sp);
   assert.notEqual(bad, null, "the realism gate FAILED to catch an unadvanced GAME_STATE — it is worthless");
   assert.equal(bad.addr, GAME_STATE, `expected the caught diff at 0x6005, got ${hx(bad.addr)}`);
   console.log(`  TEETH B: caught at 0x6005 (oracle=${bad.a} broken=${bad.b})`);

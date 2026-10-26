@@ -11,7 +11,7 @@
  * loc_0a76 is NOT reached in plain attract (verified: 0 dispatches over 2000 attract frames);
  * it fires only once a game is credited and started, while the opening cutscene plays. It is
  * not a leaf — it dispatches a step handler that writes memory and drives the cutscene. So it
- * is validated by MEMORY-equivalence against the frozen oracle: RAM − STACK_SCRATCH, never SP,
+ * is validated by MEMORY-equivalence against the frozen oracle: RAM − the stack scratch below the entry SP, never SP,
  * never pc, never the full register file, never cycles. The dissolved form deliberately does
  * not seat a guest-stack return, so SP/pc legitimately differ from the oracle and are outside
  * the compare. Two arms:
@@ -46,6 +46,7 @@ import { loc_0b68 } from "../loc_0b68.js";
 import { runIntroRoarStep } from "../runIntroRoarStep.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -67,13 +68,14 @@ const COIN_START_TAPE = [
 ];
 
 // First differing RAM byte between two dumps, EXCLUDING the dead stack-scratch region
-// (the memory-equivalence contract is RAM − STACK_SCRATCH). Returns { addr, a, b } or null.
-function firstRamDiffExStack(a, b, offToAddr) {
+// (the memory-equivalence contract is RAM − the stack scratch below the entry SP). Returns { addr, a, b } or null.
+function firstRamDiffExStack(a, b, offToAddr, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] === b[i]) continue;
     const addr = offToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { addr, a: a[i], b: b[i] };
   }
   return null;
@@ -120,7 +122,7 @@ test("REALISM: real captured cutscene 0x0a76 dispatches — RAM(−stack) matche
     oracle(a);
     dispatchIntroCutsceneStep(b);
 
-    const ramDiff = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o));
+    const ramDiff = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), cap.regs.sp);
     assert.equal(
       ramDiff,
       null,
@@ -170,7 +172,7 @@ test("MAPPING TOOTH: the swapped-slot twin is CAUGHT by the realism cross-check"
     const b = cap.clone(); // broken twin (swapped mapping)
     oracle(a);
     brokenSwappedDispatch(b);
-    const ramDiff = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o));
+    const ramDiff = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), cap.regs.sp);
     if (ramDiff) { caught++; if (!example) example = { step: s, ramDiff }; }
   }
   assert.ok(caught >= 1, "the realism cross-check FAILED to catch the swapped-slot twin — the mapping is untested");

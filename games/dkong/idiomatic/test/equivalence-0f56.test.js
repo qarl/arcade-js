@@ -12,7 +12,7 @@
  * so LIVE-OUT is memory-only. Every case therefore runs on a FRESH clone per side and
  * is compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) only.
+ *     RAM (dumpState, minus the stack scratch below the entry SP) only.
  *
  * NOT COMPARED, deliberately (like the sibling equivalence-0fd7 gate): SP, PC, cycles,
  * and the full register file. The oracle threads PC through m.step and balances the Z80
@@ -53,6 +53,7 @@ import { loc_0f56 as oracle } from "../../translated/loc_0f56.js";
 import { initBoardState } from "../initBoardState.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -66,19 +67,19 @@ const LEVEL = 0x6229;
 const BOARD = 0x6227;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // -- comparison plumbing ------------------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH, or null. */
-function firstRamDiffOutsideStack(ma, mb) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP, or null. */
+function firstRamDiffOutsideStack(ma, mb, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = ma.dumpState();
   const b = mb.dumpState();
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] === b[i]) continue;
     const addr = ma.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: a[i], b: b[i] };
   }
   return null;
@@ -95,7 +96,7 @@ function diffRam(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return firstRamDiffOutsideStack(a, b);
+  return firstRamDiffOutsideStack(a, b, entry.regs.sp);
 }
 
 /**

@@ -19,7 +19,7 @@
  *
  *   1. EQUAL (exhaustive) — all 256 RANDOM values decide the gate completely; swept against
  *      both real record bases (0x6280 / 0x6288) and boundary state bytes (0x00, 0x02, 0xFF —
- *      including the 0xFF -> 0x00 wrap), on a real attract base. RAM − STACK_SCRATCH + pc + SP
+ *      including the 0xFF -> 0x00 wrap), on a real attract base. RAM − the stack scratch below the entry SP + pc + SP
  *      identical to the oracle across the whole product. A proof, not a sample.
  *
  *   2. EQUAL (crafted arms) — the two decisions made explicit with oracle-behaviour checks:
@@ -49,6 +49,7 @@ import { loc_2207 as oracle2207 } from "../../translated/loc_2207.js";
 import { advance50mObjectStateOnRandomGate } from "../advance50mObjectStateOnRandomGate.js";
 import { Machine } from "../../machine.js";
 import { RANDOM, STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -64,36 +65,37 @@ const TARGET = 0x2299;
 const RET_ADDR = 0x199e;
 
 // The two record bases dispatch50mObjectState's body actually supplies (BOARD_OBJ_SCRATCH and +8). Each is
-// the object's own state byte — the cell this arm steps. Well outside STACK_SCRATCH.
+// the object's own state byte — the cell this arm steps. Well outside the stack scratch below the entry SP.
 const REC_A = 0x6280;
 const REC_B = 0x6288;
 const START_BYTES = [0x00, 0x02, 0xff]; // 0x02 is the realistic state that selects this arm; 0xFF proves the wrap.
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region
-// (the memory-equivalence contract is RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
+// (the memory-equivalence contract is RAM − the stack scratch below the entry SP). { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
 // Non-stack RAM addresses that changed between two machines (no-write check on the gate-closed path).
-function changedAddrs(a, b) {
+function changedAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.push(addr);
   }
   return out;
@@ -142,12 +144,12 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Full contract diff: RAM − STACK_SCRATCH, pc, SP. Live-out is memory-only. */
+/** Full contract diff: RAM − the stack scratch below the entry SP, pc, SP. Live-out is memory-only. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);
@@ -165,7 +167,7 @@ function sweep(base, fn) {
         const diffs = contractDiffs(entry, fn);
         count++;
         if (diffs.length) {
-          const ram = firstRamDiff(runOracle(entry), runCandidate(entry, fn));
+          const ram = firstRamDiff(runOracle(entry), runCandidate(entry, fn), entry.regs.sp);
           return { mismatch: { recordBase, rnd, startByte, diffs, ram }, count };
         }
       }
@@ -210,7 +212,7 @@ test("EQUAL (crafted): gate-open steps the state byte, gate-closed writes nothin
       assert.equal(contractDiffs(entry, advance50mObjectStateOnRandomGate).length, 0, `closed ${hx(rnd)} @ ${hx(recordBase)}`);
       const after = runOracle(entry);
       // Nothing non-stack changed on the gate-closed path.
-      assert.deepEqual(changedAddrs(entry, after), [], `closed ${hx(rnd)}: wrote non-stack RAM`);
+      assert.deepEqual(changedAddrs(entry, after, entry.regs.sp), [], `closed ${hx(rnd)}: wrote non-stack RAM`);
       closed++;
     }
   }

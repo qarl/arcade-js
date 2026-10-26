@@ -26,7 +26,7 @@
  *      first 24 real entry states, and each is re-run with DIFFICULTY poked identically on
  *      both sides over all six table slots and past the clamp — real states with a surgical
  *      nudge, since attract only ever presents difficulty 1 and would otherwise cover just
- *      one gate. That is 240 replays. Each compares RAM − STACK_SCRATCH and the returned
+ *      one gate. That is 240 replays. Each compares RAM − the stack scratch below the entry SP and the returned
  *      decision on fresh clones.
  *
  *   2. EXHAUSTIVE — all 65536 (DIFFICULTY, FRAME) byte pairs against the oracle. The two
@@ -79,6 +79,7 @@ import { loc_3131 as oracleGate3131 } from "../../translated/loc_3131.js";
 import { gateFireUpdateByDifficulty } from "../gateFireUpdateByDifficulty.js";
 import { Machine } from "../../machine.js";
 import { DIFFICULTY, FRAME, STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -109,14 +110,15 @@ const EXPECTED_GATE = (difficulty) =>
 
 /**
  * First differing RAM byte between two dumps, EXCLUDING the dead stack scratch region (the
- * memory-equivalence contract is RAM − STACK_SCRATCH). Returns { addr, a, b } or null.
+ * memory-equivalence contract is RAM − the stack scratch below the entry SP). Returns { addr, a, b } or null.
  */
-function firstRamDiffExStack(a, b, offToAddr) {
+function firstRamDiffExStack(a, b, offToAddr, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] === b[i]) continue;
     const addr = offToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { addr, a: a[i], b: b[i] };
   }
   return null;
@@ -247,11 +249,12 @@ test("CRAFTED on REAL captures: RAM(−stack) + decision match at every difficul
   for (const cap of caps) {
     for (const d of CRAFTED) {
       const a = prepare(cap.clone(), d, cap.mem.read8(FRAME)); // oracle
+      const aFloor = a.regs.sp;
       const b = prepare(cap.clone(), d, cap.mem.read8(FRAME)); // candidate
       const want = oracle(a);
       const got = gateFireUpdateByDifficulty(b);
       assert.equal(got, want, `decision diverged at DIFFICULTY=${hx(d)} FRAME=${hx(cap.mem.read8(FRAME))}: oracle=${want} gateFireUpdateByDifficulty=${got}`);
-      const ramDiff = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o));
+      const ramDiff = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), aFloor);
       assert.equal(
         ramDiff,
         null,
@@ -272,8 +275,9 @@ test("PURITY: neither side writes RAM outside the dead stack scratch, at every t
     for (let f = 0; f < 8; f++) {
       const a = makeEntry(base, d, f);
       const before = a.dumpState();
+      const entrySp = a.regs.sp;
       oracle(a);
-      const oracleWrote = firstRamDiffExStack(before, a.dumpState(), (o) => a.stateOffsetToAddr(o));
+      const oracleWrote = firstRamDiffExStack(before, a.dumpState(), (o) => a.stateOffsetToAddr(o), entrySp);
       assert.equal(
         oracleWrote,
         null,
@@ -283,12 +287,12 @@ test("PURITY: neither side writes RAM outside the dead stack scratch, at every t
       const b = makeEntry(base, d, f);
       const beforeB = b.dumpState();
       gateFireUpdateByDifficulty(b);
-      const candWrote = firstRamDiffExStack(beforeB, b.dumpState(), (o) => b.stateOffsetToAddr(o));
+      const candWrote = firstRamDiffExStack(beforeB, b.dumpState(), (o) => b.stateOffsetToAddr(o), entrySp);
       assert.equal(candWrote, null, candWrote && `gateFireUpdateByDifficulty wrote RAM at ${hx16(candWrote.addr)}`);
       checked++;
     }
   }
-  console.log(`  PURITY: ${checked} entries — neither side touches RAM outside STACK_SCRATCH (this is what licenses the memory-only contract)`);
+  console.log(`  PURITY: ${checked} entries — neither side touches RAM outside the stack scratch below the entry SP (this is what licenses the memory-only contract)`);
 });
 
 // -- 2. EXHAUSTIVE ------------------------------------------------------------

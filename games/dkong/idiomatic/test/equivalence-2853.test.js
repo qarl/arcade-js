@@ -11,11 +11,11 @@
  * on 25m that arm counts overlaps into OVERLAP_COUNT (0x6060) and returns a 0/1/3/7 severity.
  *
  * The dissolved routine returns the severity by JS value and opens no guest-stack bracket, so it is
- * validated by RAM − STACK_SCRATCH plus that returned severity vs the oracle's A. pc/SP are seam
+ * validated by RAM − the stack scratch below the entry SP plus that returned severity vs the oracle's A. pc/SP are seam
  * artifacts (oracle `call 0x3e88` / terminal `ret`) and are not compared.
  *
  *   1. REALISM (captured) — hook 0x2853 in attract, clone at each true dispatch, confirm == oracle
- *      (RAM − STACK_SCRATCH, returned severity) across the count-0 and count>0 arms.
+ *      (RAM − the stack scratch below the entry SP, returned severity) across the count-0 and count>0 arms.
  *   2. EQUAL (crafted) — sweep player Y over both direction arms through the live 25m counter, and
  *      route through the other boards' arms (2/3/4), matching the oracle.
  *   3. EQUAL (boundary) — three single-object entries at the overlap boundary, each depending on
@@ -38,6 +38,7 @@ import { searchPlayerObjectOverlap as loc_2853 } from "../searchPlayerObjectOver
 import { dispatchBoardOverlapSearch } from "../dispatchBoardOverlapSearch.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, MARIO_ACTIVE, MARIO_Y, P1_INPUT, BOARD, OVERLAP_COUNT } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -57,17 +58,17 @@ const IY_AXIS2_REF = 0x6203; // (iy+0x03) — the cross-axis reference the arm r
 const IY_WRONG_AXIS2_REF = 0x6303; // (0x6300+0x03) — the cell the wrong-base twin would read
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs, skipping the dead STACK_SCRATCH region (the
-// memory-equivalence contract is RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs, skipping the stack scratch below the entry SP (the
+// memory-equivalence contract is RAM − the stack scratch below the entry SP). { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -93,7 +94,7 @@ function runCandidate(entry, fn) {
 }
 
 /**
- * Full contract diff: RAM − STACK_SCRATCH, and the severity code (the oracle leaves it in A; the
+ * Full contract diff: RAM − the stack scratch below the entry SP, and the severity code (the oracle leaves it in A; the
  * dissolved routine returns it). pc/SP are NOT compared — the dissolved dispatch does no guest-stack
  * ops, so they are seam artifacts; the whole-game SP tests guard SP-correctness now.
  */
@@ -101,7 +102,7 @@ function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const { c, returned } = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (returned !== o.regs.a) diffs.push(`severity oracle=${o.regs.a} cand=${returned}`);
   return diffs;
@@ -175,7 +176,7 @@ test("REALISM: real captured 0x2853 dispatches — loc_2853 matches the oracle",
     assert.equal(diffs.length, 0, `captured dispatch (board=${cap.mem.read8(BOARD)} input=${cap.mem.read8(P1_INPUT)} Y=${cap.mem.read8(MARIO_Y)}): ${diffs.join("; ")}`);
     if (runOracle(cap).regs.a !== 0) sawCount++; else sawZero++;
   }
-  console.log(`  REALISM: ${caps.length} real dispatches identical (RAM−STACK_SCRATCH, pc, SP, A) — ${sawCount} overlap, ${sawZero} clear`);
+  console.log(`  REALISM: ${caps.length} real dispatches identical (RAM − the stack scratch below the entry SP, pc, SP, A) — ${sawCount} overlap, ${sawZero} clear`);
 });
 
 // -- 1. EQUAL (crafted: Y sweep, both direction arms, all boards) -------------

@@ -13,7 +13,7 @@
  * stack region. So it is validated the strongest way — EXHAUSTIVELY:
  *
  *   1. EQUAL (exhaustive) — loc_13a1 == oracle over ALL 65,536 (0x6009, 0x6040) combos,
- *      compared on RAM − STACK_SCRATCH (the memory-equivalence contract). The oracle's
+ *      compared on RAM − the stack scratch below the entry SP (the memory-equivalence contract). The oracle's
  *      push16 / rst-0x18 stack churn lands in STACK_SCRATCH and is excluded; the
  *      direct-call candidate leaves the stack alone. 256x256 is the complete input
  *      space, so this is a proof, not a sample.
@@ -29,10 +29,10 @@
  *      drive a coin+start game, hook 0x06fe, and clone REAL credited-game states. Onto
  *      each we poke the surgical nudge (GAME_SUBSTATE = 0x17) and both timer values
  *      (expiry / not-yet) crossed with a zero and a non-zero P1 byte, identically on both
- *      sides, then confirm loc_13a1 reproduces the oracle's RAM − STACK_SCRATCH against a
+ *      sides, then confirm loc_13a1 reproduces the oracle's RAM − the stack scratch below the entry SP against a
  *      realistic full-RAM background — not just a fresh machine.
  *
- * Contract: RAM − STACK_SCRATCH only. LIVE-OUT is memory-only; SP/PC are the rst-0x18
+ * Contract: RAM − the stack scratch below the entry SP only. LIVE-OUT is memory-only; SP/PC are the rst-0x18
  * caller-skip mechanism the boolean early-return replaces, and the dispatcher ignores the
  * handler's residual registers/flags — so neither is compared (never the full register
  * file, never cycles).
@@ -50,6 +50,7 @@ import { loc_13a1 } from "../loc_13a1.js";
 import { tickSubstateTimer } from "../tickSubstateTimer.js";
 import { SUBSTATE_TIMER, GAME_SUBSTATE, P1_CONTEXT, STACK_SCRATCH } from "../names.js";
 import { Machine } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -71,13 +72,14 @@ const SUBSTATE_SENTINEL = 0x17;
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
 
 // First differing RAM byte between two dumps, EXCLUDING the dead stack-scratch region
-// (the memory-equivalence contract is RAM − STACK_SCRATCH). Returns { addr, a, b } or null.
-function firstRamDiffExStack(a, b, offToAddr) {
+// (the memory-equivalence contract is RAM − the stack scratch below the entry SP). Returns { addr, a, b } or null.
+function firstRamDiffExStack(a, b, offToAddr, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] === b[i]) continue;
     const addr = offToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { addr, a: a[i], b: b[i] };
   }
   return null;
@@ -85,7 +87,7 @@ function firstRamDiffExStack(a, b, offToAddr) {
 
 /**
  * Run the oracle and a candidate on two fresh clones of `entry` and diff the
- * memory-equivalence contract (RAM − STACK_SCRATCH). A FRESH clone per side because the
+ * memory-equivalence contract (RAM − the stack scratch below the entry SP). A FRESH clone per side because the
  * routine WRITES memory (docs/decompiler-pipeline: only a pure read-only leaf may reuse a clone).
  */
 function runPair(entry, candidate) {
@@ -93,7 +95,7 @@ function runPair(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return firstRamDiffExStack(a.dumpState(), b.dumpState(), (off) => a.stateOffsetToAddr(off));
+  return firstRamDiffExStack(a.dumpState(), b.dumpState(), (off) => a.stateOffsetToAddr(off), entry.regs.sp);
 }
 
 /** A synthetic entry: `base` with the two input bytes set, GAME_SUBSTATE at its sentinel,
@@ -123,8 +125,6 @@ function sweep(base, candidate) {
   return { mismatch: null, count };
 }
 
-// -- 1. EQUAL (exhaustive) ----------------------------------------------------
-
 test("EQUAL (exhaustive): loc_13a1 == oracle over all 65,536 (0x6009,0x6040) combos", () => {
   const base = new Machine(ROM).clone();
   const { mismatch, count } = sweep(base, loc_13a1);
@@ -136,10 +136,8 @@ test("EQUAL (exhaustive): loc_13a1 == oracle over all 65,536 (0x6009,0x6040) com
         `0x${(mismatch.ram.addr ?? 0).toString(16)} (${mismatch.ram.a}->${mismatch.ram.b})`,
   );
   assert.equal(count, 256 * 256, "must have compared all 65,536 (timer,p1) combos");
-  console.log(`  EQUAL/exhaustive: ${count} (0x6009,0x6040) combos — RAM − STACK_SCRATCH identical to the oracle`);
+  console.log(`  EQUAL/exhaustive: ${count} (0x6009,0x6040) combos — RAM − the stack scratch below the entry SP identical to the oracle`);
 });
-
-// -- 2. TEETH (exhaustive) ----------------------------------------------------
 
 /** BUG: swaps the 0x17/0x14 arms of the P1-byte test — writes the WRONG GAME_SUBSTATE on
  *  expiry. Caught by the 0x600A diff (only on the expiry rows, 0x6009==1). */
@@ -183,8 +181,6 @@ test("TEETH (exhaustive): the no-rearm twin is CAUGHT (SUBSTATE_TIMER re-arm has
   );
 });
 
-// -- 3. REALISM (crafted onto real in-game states) ----------------------------
-
 // A coin+start tape: coin on IN2 bit7 at frame 10, start1 on IN2 bit2 at frame 30. Credits
 // and starts a game so GAME_STATE reaches 3 and the 0x06fe sub-state dispatcher runs.
 const COIN_START_TAPE = [
@@ -214,7 +210,7 @@ function captureInGameStates(K, maxFrames) {
   return caps;
 }
 
-test("REALISM: crafted idx-0x17 entries on real credited-game states — RAM − STACK_SCRATCH matches", () => {
+test("REALISM: crafted idx-0x17 entries on real credited-game states — RAM − the stack scratch below the entry SP matches", () => {
   const caps = captureInGameStates(6, 1500);
   assert.ok(caps.length >= 1, "expected at least one real in-game 0x06fe state to craft from");
 
@@ -240,5 +236,5 @@ test("REALISM: crafted idx-0x17 entries on real credited-game states — RAM −
       }
     }
   }
-  console.log(`  REALISM: ${compared} crafted entries over ${caps.length} real in-game states — RAM − STACK_SCRATCH == oracle`);
+  console.log(`  REALISM: ${compared} crafted entries over ${caps.length} real in-game states — RAM − the stack scratch below the entry SP == oracle`);
 });

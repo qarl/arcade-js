@@ -44,6 +44,7 @@ import { loc_1e28 as oracle } from "../../translated/loc_1e28.js";
 import { awardScorePopup } from "../awardScorePopup.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -59,14 +60,14 @@ const POPUP_SPRITE = 0x6a30; // the 4-byte score-glyph sprite record
 const POPUP_Y = 0x6a33; // +3, the popup Y byte
 const AWARD_SOUND = 0x6085; // SND_TRIGGER[5]
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
- * Diff two machines' RAM. Returns the first difference OUTSIDE STACK_SCRATCH
+ * Diff two machines' RAM. Returns the first difference OUTSIDE the stack scratch below the entry SP
  * (game-visible — a real failure) or null, plus how many bytes differed inside the
  * dead stack scratch (the tolerated push residue).
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0;
@@ -74,7 +75,7 @@ function ramDiffMinusStack(a, b) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -89,7 +90,7 @@ function replay(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return { a, b, ...ramDiffMinusStack(a, b) };
+  return { a, b, ...ramDiffMinusStack(a, b, entry.regs.sp) };
 }
 
 /**
@@ -176,7 +177,7 @@ test("EQUAL (crafted): the other score tiers and every board's gate arm match th
     oracle(a);
     awardScorePopup(b);
 
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, entry.regs.sp);
     assert.equal(
       bad,
       null,
@@ -243,7 +244,7 @@ test("TEETH (crafted): ignoring the board gate is CAUGHT on a closed-gate board 
   oracle(a);
   brokenIgnoresGate(b);
 
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, entry.regs.sp);
   assert.notEqual(bad, null, "the crafted closed-gate entry FAILED to catch an unconditional sound — it is worthless");
   assert.equal(bad.addr, AWARD_SOUND, `expected the caught diff at 0x6085, got ${hx(bad.addr)}`);
   assert.equal(bad.a, 0x00, "oracle must leave SND_TRIGGER[5] cleared on a closed-gate board");

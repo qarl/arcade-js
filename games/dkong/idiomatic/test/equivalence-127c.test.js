@@ -8,7 +8,7 @@
  * The oracle brackets the first call in the Z80 stack (`call 0x1dbd`, then falls through
  * its return into entry_127f: `return m.call(0x127f)`); the idiomatic routine drops that
  * stack model and simply calls the two already-idiomatic callees directly. So the compared
- * contract is MEMORY-equivalence on RAM − STACK_SCRATCH (never the full register file,
+ * contract is MEMORY-equivalence on RAM − the stack scratch below the entry SP (never the full register file,
  * never cycles, never SP/pc — the oracle's push/pop churn moves SP/pc within the dead
  * STACK_SCRATCH and the caller reads neither), plus the propagated return value. A FRESH
  * clone per case because both callees write memory and advance sub-state.
@@ -20,7 +20,7 @@
  * hooking detail, NOT unreachability — see that routine's corrected REACHABILITY note.) So:
  *
  *   1. REALISM (captured) — hook 0x127C in a real attract run, clone at each dispatch, and
- *      confirm idiomatic runDeathAnimationSubstate == oracle over RAM − STACK_SCRATCH (+ identical return) on
+ *      confirm idiomatic runDeathAnimationSubstate == oracle over RAM − the stack scratch below the entry SP (+ identical return) on
  *      every real state the game actually produces. Entry SP is asserted to sit inside
  *      STACK_SCRATCH, so excluding that region cannot mask a real game-visible diff.
  *
@@ -35,7 +35,7 @@
  *      the untouched base. (Labels below say "phase sweep". The pre-pass-13
  *      vocabulary; the phases are the death animation's seed / step / hand-off.)
  *
- *   4. TEETH — two deliberately-broken twins, each caught by RAM − STACK_SCRATCH:
+ *   4. TEETH — two deliberately-broken twins, each caught by RAM − the stack scratch below the entry SP:
  *      (a) drops the effect-router call (only dispatches the animation phase) — caught on a
  *          state-2 countdown entry at EFFECT_TIMER (0x6341);
  *      (b) drops the animation-phase dispatch (only routes the effect) — caught on a phase-0
@@ -66,6 +66,7 @@ import {
   SUBSTATE_TIMER,
   STACK_SCRATCH,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -80,31 +81,33 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
- * First game-visible RAM difference between two machines, EXCLUDING the dead STACK_SCRATCH
- * region (the memory-equivalence contract is RAM − STACK_SCRATCH). Also counts the stack
+ * First game-visible RAM difference between two machines, EXCLUDING the stack scratch below the entry SP
+ * region (the memory-equivalence contract is RAM − the stack scratch below the entry SP). Also counts the stack
  * diffs so a case can confirm the exclusion is actually doing something.
  * Returns { bad: {addr,a,b}|null, stackDiffs }.
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
 }
 
 /** Did any non-stack RAM byte change between a `before` snapshot and machine `m` now? */
-function mutatedNonStack(before, m) {
+function mutatedNonStack(before, m, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const after = m.dumpState();
   const n = Math.min(before.length, after.length);
   for (let i = 0; i < n; i++) {
     if (before[i] === after[i]) continue;
-    if (!inStack(m.stateOffsetToAddr(i))) return true;
+    if (!dead(m.stateOffsetToAddr(i))) return true;
   }
   return false;
 }
@@ -115,7 +118,7 @@ function replay(entry, candidate) {
   const b = entry.clone(); // candidate
   const ra = oracle(a);
   const rb = candidate(b);
-  return { a, b, ra, rb, ...ramDiffMinusStack(a, b) };
+  return { a, b, ra, rb, ...ramDiffMinusStack(a, b, entry.regs.sp) };
 }
 
 /**
@@ -204,12 +207,13 @@ test("CRAFTED (EFFECT_STATE sweep): runDeathAnimationSubstate == oracle over EFF
   const armsSeen = new Set();
   for (const state of [0, 1, 2]) {
     const a = base.clone(), b = base.clone();
+    const aFloor = a.regs.sp;
     a.mem.write8(EFFECT_STATE, state);
     b.mem.write8(EFFECT_STATE, state);
     const ra = oracle(a);
     const rb = idiomatic(b);
     armsSeen.add(state);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     assert.equal(
       bad,
       null,
@@ -230,6 +234,7 @@ test("CRAFTED (phase sweep): runDeathAnimationSubstate == oracle over DEATH_ANIM
   let mutatedAny = false;
   for (const phase of [0, 1, 2]) {
     const a = base.clone(), b = base.clone();
+    const aFloor = a.regs.sp;
     for (const m of [a, b]) {
       m.mem.write8(DEATH_ANIM_PHASE, phase);
       m.mem.write8(SUBSTATE_TIMER, 0x01); // rst 0x18 decrements 1 -> 0 and runs the arm body
@@ -237,7 +242,7 @@ test("CRAFTED (phase sweep): runDeathAnimationSubstate == oracle over DEATH_ANIM
     const before = a.dumpState();
     const ra = oracle(a);
     const rb = idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     assert.equal(
       bad,
       null,
@@ -245,7 +250,7 @@ test("CRAFTED (phase sweep): runDeathAnimationSubstate == oracle over DEATH_ANIM
     );
     assert.equal(rb, ra, `DEATH_ANIM_PHASE=${phase}: return diverged (oracle=${ra} idiomatic=${rb})`);
     // Non-vacuous: the arm body actually ran and wrote RAM (else the replay proves nothing).
-    if (mutatedNonStack(before, a)) mutatedAny = true;
+    if (mutatedNonStack(before, a, aFloor)) mutatedAny = true;
   }
   assert.ok(mutatedAny, "no phase arm mutated RAM — the tick gate never opened, the replay is vacuous");
   console.log(`  CRAFTED/phase-sweep: DEATH_ANIM_PHASE {0,1,2} gate-open — full oracle arm run both sides, RAM(−stack)+return identical`);
@@ -264,7 +269,7 @@ test("TEETH (drop effect-router): the missing effect service is CAUGHT and names
   assert.ok(state2, "expected a real EFFECT_STATE=2 (countdown) entry");
 
   const { bad } = replay(state2, brokenNoEffectRouter);
-  assert.notEqual(bad, null, "dropping the effect-router escaped the RAM − STACK_SCRATCH gate — it is worthless");
+  assert.notEqual(bad, null, "dropping the effect-router escaped the RAM − the stack scratch below the entry SP gate — it is worthless");
   assert.equal(bad.addr, EFFECT_TIMER, `expected the caught diff at ${hx(EFFECT_TIMER)}, got ${hx(bad.addr)}`);
   console.log(`  TEETH/effect: caught at ${hx(EFFECT_TIMER)} (oracle=${bad.a} broken=${bad.b})`);
 });
@@ -274,14 +279,15 @@ test("TEETH (drop the death-animation dispatch): the missing service is CAUGHT a
   assert.ok(base, "expected a real 0x127C entry to craft the phase-0 gate-open case onto");
 
   const a = base.clone(), b = base.clone();
+  const aFloor = a.regs.sp;
   for (const m of [a, b]) {
     m.mem.write8(DEATH_ANIM_PHASE, 0x00);
     m.mem.write8(SUBSTATE_TIMER, 0x01); // open the gate so the phase-0 seed body runs
   }
   oracle(a);
   brokenNoDeathAnimDispatch(b);
-  const { bad } = ramDiffMinusStack(a, b);
-  assert.notEqual(bad, null, "dropping the death animation dispatch escaped the RAM − STACK_SCRATCH gate — it is worthless");
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
+  assert.notEqual(bad, null, "dropping the death animation dispatch escaped the RAM − the stack scratch below the entry SP gate — it is worthless");
   assert.equal(bad.addr, SUBSTATE_TIMER, `expected the caught diff at ${hx(SUBSTATE_TIMER)}, got ${hx(bad.addr)}`);
   console.log(`  TEETH/death-dispatch: caught at ${hx(SUBSTATE_TIMER)} (oracle=${bad.a} broken=${bad.b})`);
 });

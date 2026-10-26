@@ -10,7 +10,7 @@
  * pure priority encoder on A; every downstream branch lives in the tail and is IDENTICAL
  * on both sides. DISSOLVED FORM (sp-trampoline): the tail is now the idiomatic awardScorePopup
  * (memory-eq to the frozen loc_1e28 oracle) — a plain JS call that models NEITHER the guest
- * stack nor the guest `ret`. So the contract is game-visible RAM − STACK_SCRATCH, NOT the old
+ * stack nor the guest `ret`. So the contract is game-visible RAM − the stack scratch below the entry SP, NOT the old
  * RAM+SP+pc: the oracle's tail-`ret` moves SP/pc by the dead return-word, the idiomatic tail
  * does not, and that divergence is confined to the dead STACK_SCRATCH region (see the
  * loc_1e28 ret dissolution). Attract only ever reaches arm 1 (A=0x00), so arms 2/3 are
@@ -23,7 +23,7 @@
  *
  *   2. ARM SELECTION (exhaustive crafted) — on a real 0x3e70 entry, poke A to EVERY byte
  *      0..255 identically on both sides (freeing the ring slot so the enqueue is observable)
- *      and compare RAM − STACK_SCRATCH. This is the whole input domain of the
+ *      and compare RAM − the stack scratch below the entry SP. This is the whole input domain of the
  *      encoder: A is the only input that changes its behaviour. It pins all three arms
  *      (0x6A31 = B ∈ {0x7B,0x7D,0x7F}; the enqueued E ∈ {1,3,5}) and crafts arms 2 and 3
  *      attract never reaches. Both arm-distinguishing channels (the record byte and the
@@ -45,6 +45,7 @@ import { pickAwardTierByObjectCount as idiomatic } from "../pickAwardTierByObjec
 import { loc_1e28 } from "../../translated/loc_1e28.js"; // the frozen oracle tail, for the teeth twins
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -59,23 +60,23 @@ const REC = 0x6a30;       // sprite-record slot; REC+1 = B, the arm-distinguishi
 const SND = 0x6085;       // gated sound latch (written by the loc_1e28 tail)
 const TASK_TAIL = 0x60b0; // low byte of the task ring's next write slot (page 0x60 fixed)
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
- * First game-visible discrepancy between two machines: RAM minus the dead STACK_SCRATCH
+ * First game-visible discrepancy between two machines: RAM minus the stack scratch below the entry SP
  * region. Returns { addr, a, b } of the first difference or null, plus the count of tolerated
  * stack-scratch byte diffs. SP/pc are NOT compared — they are the dropped guest-stack model:
  * the oracle's tail-`ret` moves them, the dissolved idiomatic tail does not, and neither is
  * consumed by the caller (the rst-0x28 return is the JS call stack now).
  */
-function contractDiff(a, b) {
+function contractDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr: hx(addr), a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -87,7 +88,7 @@ function replay(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return { a, b, ...contractDiff(a, b) };
+  return { a, b, ...contractDiff(a, b, entry.regs.sp) };
 }
 
 /**
@@ -123,6 +124,7 @@ function sweepA(base, candidate) {
   let count = 0, mismatch = null;
   for (let A = 0; A < 256 && !mismatch; A++) {
     const a = base.clone(), b = base.clone();
+    const aFloor = a.regs.sp;
     const tail = a.mem.read8(TASK_TAIL);       // same on both clones (from `base`)
     const slot = 0x6000 | tail;
     for (const m of [a, b]) { m.regs.a = A; m.mem.write8(slot, 0xff); } // free the slot
@@ -134,7 +136,7 @@ function sweepA(base, candidate) {
     // Cross-check the oracle's own arm consistency: E (enqueued) = B - 0x7A.
     const e = a.mem.read8((0x6000 | ((tail + 1) & 0xff)));
     if (bcode in arms) assert.equal(e, bcode - 0x7a, `oracle arm inconsistency at A=${hx(A)}: B=${hx(bcode)} E=${e}`);
-    const { bad } = contractDiff(a, b);
+    const { bad } = contractDiff(a, b, aFloor);
     if (bad) mismatch = { A, bad };
   }
   return { mismatch, arms, count };

@@ -13,11 +13,11 @@
  * touches (SP, the pushed 0x084c return byte, HL/A/F) is the Z80 caller-skip mechanism
  * the direct-call model replaces — the pushed byte lands in STACK_SCRATCH (real SP at
  * dispatch is 0x6bee/0x6bf0, deep in that dead region), so it is excluded from the
- * contract, which is therefore RAM (minus STACK_SCRATCH). That leaves the strongest
+ * contract, which is therefore RAM (minus the stack scratch below the entry SP). That leaves the strongest
  * gate available:
  *
  *   1. EQUAL (exhaustive) — clearSubstateWhenTimerExpires == oracle over ALL 65,536
- *      (lo,hi) combos of (0x6008, 0x6009), compared on RAM (minus STACK_SCRATCH).
+ *      (lo,hi) combos of (0x6008, 0x6009), compared on RAM (minus the stack scratch below the entry SP).
  *      GAME_SUBSTATE is seeded to a nonzero sentinel so the clear-to-0 is observable
  *      (loc_084b never reads it, so the branch logic is unaffected). 256×256 is the
  *      complete input space — a proof, not a sample.
@@ -49,6 +49,7 @@ import { tickSubstatePrescaler } from "../tickSubstatePrescaler.js";
 import { tickSubstateTimer } from "../tickSubstateTimer.js";
 import { SUBSTATE_TIMER_LO, SUBSTATE_TIMER, GAME_SUBSTATE, STACK_SCRATCH } from "../names.js";
 import { Machine } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -58,8 +59,6 @@ const test = ROM_PRESENT
   : (name, fn) => nodeTest(name, { skip: "skipped: ROM not built — run 'make -C games/dkong rom'" }, fn);
 
 const TARGET = 0x084b;
-// Sentinel parked in GAME_SUBSTATE at entry so the both-expired clear-to-0 is a visible
-// RAM change (loc_084b never reads 0x600A, so its value cannot affect the branch logic).
 const SUBSTATE_SENTINEL = 0xaa;
 // The oracle's `rst 0x20` pushes 0x084c at SP-2 and its callees pop it back; point SP into
 // work RAM so those stack reads stay valid (never I/O). The pushed bytes land in
@@ -69,18 +68,19 @@ const SAFE_SP = 0x6bf8;
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
 
 /**
- * First differing RAM byte between two machines, EXCLUDING STACK_SCRATCH, or null.
+ * First differing RAM byte between two machines, EXCLUDING the stack scratch below the entry SP, or null.
  * The oracle writes its `rst` return address into the stack region; the direct-call
  * candidate does not, so that region is dead scratch and outside the contract.
  */
-function ramDiffNoStack(mA, mB) {
+function ramDiffNoStack(mA, mB, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = mA.dumpState();
   const b = mB.dumpState();
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] === b[i]) continue;
     const addr = mA.stateOffsetToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { offset: i, addr, a: a[i], b: b[i] };
   }
   return null;
@@ -89,7 +89,7 @@ function ramDiffNoStack(mA, mB) {
 /**
  * Run the oracle and the candidate on two FRESH clones of `entry` (the routine WRITES
  * memory, so a clone per side — docs/decompiler-pipeline: only a pure read-only leaf may reuse one) and
- * diff RAM minus STACK_SCRATCH. loc_084b returns nothing consumed, so RAM is the whole
+ * diff RAM minus the stack scratch below the entry SP. loc_084b returns nothing consumed, so RAM is the whole
  * contract.
  */
 function runPair(entry, candidate) {
@@ -97,10 +97,9 @@ function runPair(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return ramDiffNoStack(a, b);
+  return ramDiffNoStack(a, b, entry.regs.sp);
 }
 
-/** A synthetic entry: this machine with the two timer bytes set, a parked sub-state, and a safe stack. */
 function makeEntry(base, lo, hi) {
   const e = base.clone();
   e.mem.write8(SUBSTATE_TIMER_LO, lo);
@@ -144,12 +143,6 @@ test("EQUAL (exhaustive): clearSubstateWhenTimerExpires == oracle over all 65,53
 
 // -- 2. TEETH (exhaustive) ----------------------------------------------------
 
-/**
- * BUG: clears GAME_SUBSTATE whenever the LOW prescaler underflows, ignoring the high
- * half. It ticks 0x6008/0x6009 exactly like the oracle, so only the 0x600A byte
- * diverges — and only on the lo==1, hi!=1 edge, where the oracle leaves the sub-state
- * parked. A gate that skipped that edge or ignored 0x600A would pass this.
- */
 function brokenClearOnAnyUnderflow(m) {
   const { mem } = m;
   const remaining = (mem.read8(SUBSTATE_TIMER_LO) - 1) & 0xff;

@@ -7,7 +7,7 @@
  *
  * loc_2d51 WRITES MEMORY (through stepBarrelAlongReleasePath / activateReleasedBarrel downstream), so it is gated on
  * memory-equivalence, not a returned scalar, and every case runs on FRESH clones. The
- * contract is RAM (minus STACK_SCRATCH) + pc + SP — the live-out is memory-only (a
+ * contract is RAM (minus the stack scratch below the entry SP) + pc + SP — the live-out is memory-only (a
  * per-frame render call; the caller reads none of the residual registers). The oracle nets
  * ONE terminal `ret` (handed up through stepBarrelAlongReleasePath's emit-path `ret`, or activateReleasedBarrel's on the
  * terminator path); the idiomatic routine models that as a JS return, so the harness
@@ -47,6 +47,7 @@ import { loc_2d51 } from "../loc_2d51.js";
 import { stepBarrelAlongReleasePath } from "../stepBarrelAlongReleasePath.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, RENDER_STR_PTR, RENDER_OBJ_PTR, RENDER_DST_PTR } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -71,18 +72,18 @@ const DECOY_DATA = 0xee; // its data byte
 const OBJ_CH = 0x33; // a distinctive non-terminator char at OBJ+0 (read only by the wrong-pointer twin)
 
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs, skipping the dead STACK_SCRATCH region. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -95,11 +96,8 @@ function runOracle(entry) {
   return c;
 }
 
-/**
- * Run a candidate on a fresh clone, then model its terminal `ret` with one m.ret() so pc +
- * SP match the oracle's (the idiomatic chain replaces the Z80 stack with the JS call stack,
- * so it does not touch pc/SP itself).
- */
+/** Run a candidate on a fresh clone, then model its terminal `ret` with one m.ret() so pc + SP match the oracle's
+ *  (the idiomatic chain replaces the Z80 stack with the JS call stack, so it does not touch pc/SP itself). */
 function runCandidate(entry, fn) {
   const c = entry.clone();
   fn(c);
@@ -107,12 +105,12 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Full contract diff: RAM − STACK_SCRATCH, pc, SP. Live-out is memory-only. */
+/** Full contract diff: RAM − the stack scratch below the entry SP, pc, SP. Live-out is memory-only. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=0x${o.pc.toString(16)} cand=0x${c.pc.toString(16)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=0x${o.regs.sp.toString(16)} cand=0x${c.regs.sp.toString(16)}`);
@@ -250,8 +248,7 @@ test("TEETH: the skip-reload twin and the wrong-pointer twin are CAUGHT", () => 
   // An attribute-bit-SET character on the emit path; the decoy points at a different char.
   const entry = craft(base, { ch: 0xc1, dataByte: 0xa5, field7: 0x50, field8: 0x60 });
 
-  // (a) skip-reload — renders the decoy char instead of SRC's, so the record and the
-  // advanced cursor diverge.
+  // (a) skip-reload — renders the decoy char instead of SRC's, so the record and the advanced cursor diverge.
   const skipDiffs = contractDiffs(entry, brokenSkipReload);
   assert.ok(skipDiffs.length > 0, "the skip-reload twin escaped — the gate is worthless");
 

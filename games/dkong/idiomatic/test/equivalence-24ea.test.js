@@ -13,7 +13,7 @@
  *
  * The oracle brackets its callees with push/call and finishes with a terminal return,
  * so it churns the dead STACK_SCRATCH region; the idiomatic routine models no stack
- * (direct calls, a plain JS return). The comparison is therefore RAM − STACK_SCRATCH —
+ * (direct calls, a plain JS return). The comparison is therefore RAM − the stack scratch below the entry SP —
  * the memory-equivalence contract — and pc/SP are not compared (the caller consumes no
  * register/flag from this routine; its live-out is memory-only). Every entry's stack is
  * re-seated into the scratch window before the pair runs, so the oracle's transient
@@ -58,6 +58,7 @@ import {
   M50_OBJ2_STEP_NEG,
   M50_OBJ3_STEP,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -75,17 +76,17 @@ const SPRITE_SENTINEL = 0xee; // preset into each sprite slot; a copy overwrites
 const SAFE_SP = 0x6bf8;       // re-seat SP here so all oracle stack churn stays in STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH
-// region (the memory-equivalence contract is RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
+// region (the memory-equivalence contract is RAM − the stack scratch below the entry SP). { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -93,13 +94,14 @@ function firstRamDiff(a, b) {
 
 // All non-stack RAM addresses that changed between two machines (the board-gate-closed
 // non-vacuity check: that path must write nothing outside the dead stack).
-function changedNonStackAddrs(a, b) {
+function changedNonStackAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.push(addr);
   }
   return out;
@@ -109,10 +111,11 @@ function changedNonStackAddrs(a, b) {
 // window) and return the first non-stack RAM difference, or null.
 function ramDiff(entry, candidate) {
   const a = entry.clone(); a.regs.sp = SAFE_SP;
+  const aFloor = a.regs.sp;
   const b = entry.clone(); b.regs.sp = SAFE_SP;
   oracle(a);
   candidate(b);
-  return firstRamDiff(a, b);
+  return firstRamDiff(a, b, aFloor);
 }
 
 const runOracleOn = (entry) => { const a = entry.clone(); a.regs.sp = SAFE_SP; oracle(a); return a; };
@@ -174,7 +177,7 @@ test("REACHABILITY + captured: 0x24EA is dispatched and every real dispatch == o
     // attract is 25m, so the oracle must take the board-gate-closed skip: no non-stack write.
     const o = runOracleOn(cap);
     const src = cap.clone(); src.regs.sp = SAFE_SP;
-    if (changedNonStackAddrs(src, o).length === 0) closed++;
+    if (changedNonStackAddrs(src, o, SAFE_SP).length === 0) closed++;
   }
   assert.equal(closed, caps.length, "every captured attract dispatch should take the 50m-gate-closed (no-write) arm");
   console.log(`  REACHABILITY: ${count} natural 0x24EA dispatches in 1200 frames; ${caps.length} verified, all board-gate-closed`);

@@ -9,7 +9,7 @@
  * interlude step), so it is validated by crafted-entry capture/clone/replay on a FRESH
  * clone per side, never the full register file, never cycles. Its whole input surface
  * is two RAM bytes — the 0x6390 sub-counter and the 0x6388 selector — so the sweep is
- * effectively EXHAUSTIVE. The contract compared is RAM (minus STACK_SCRATCH); live-out
+ * effectively EXHAUSTIVE. The contract compared is RAM (minus the stack scratch below the entry SP); live-out
  * is memory-only (the sequence-dispatcher successor reads none of the residual regs).
  *
  *   1. EQUAL (exhaustive over 0x6390) — from a real attract RAM base, sweep the stored
@@ -48,6 +48,7 @@ import { loadSpriteObjectBlock } from "../loadSpriteObjectBlock.js";
 import { addToSpriteObjectColumn } from "../addToSpriteObjectColumn.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, SPRITE_OBJ_BLOCK } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -65,15 +66,16 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
 // -- comparison plumbing ------------------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH, or null. */
-function firstRamDiffOutsideStack(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP, or null. */
+function firstRamDiffOutsideStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -98,7 +100,7 @@ function diffAgainstOracle(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return firstRamDiffOutsideStack(a, b);
+  return firstRamDiffOutsideStack(a, b, entry.regs.sp);
 }
 
 /** A real attract RAM base: booted machine, work RAM populated, no overrides so the

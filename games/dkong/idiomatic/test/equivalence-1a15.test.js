@@ -19,7 +19,7 @@
  *      never reaches 0), but its dispatcher entry_1a07 (0x1A07) fires every gameplay frame.
  *      Hook 0x1A07, clone REAL fully-populated 25m states, seed the two output bytes to
  *      sentinels + a safe SP onto each (keeping the rest of the real RAM background), and
- *      confirm the candidate reproduces the oracle's RAM − STACK_SCRATCH. Because the
+ *      confirm the candidate reproduces the oracle's RAM − the stack scratch below the entry SP. Because the
  *      routine reads nothing, any real background is a valid bed; this also proves it
  *      touches ONLY 0x6386/0x6387 and nothing else in a live memory image.
  *
@@ -29,7 +29,7 @@
  *        (b) broken-delay — drops the BONUS_EXPIRED_DELAY clear; the 0x6387 sentinel
  *            survives and the diff catches it.
  *
- * Contract: RAM − STACK_SCRATCH (the memory-equivalence contract). LIVE-OUT is memory
+ * Contract: RAM − the stack scratch below the entry SP (the memory-equivalence contract). LIVE-OUT is memory
  * only; the oracle's terminal `ret` pops the stack inside STACK_SCRATCH (SP seeded there)
  * and is excluded, and the dispatcher ignores the handler's residual registers/flags — so
  * neither SP/pc nor the register file is compared (never the full register file, never
@@ -47,6 +47,7 @@ import { loc_1a07 as oracleDispatcher } from "../../translated/loc_1a07.js";
 import { startBonusExpiredDelay } from "../startBonusExpiredDelay.js";
 import { BONUS_EXPIRED_STEP, BONUS_EXPIRED_DELAY, STACK_SCRATCH } from "../names.js";
 import { Machine } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -58,8 +59,7 @@ const test = ROM_PRESENT
 const DISPATCHER = 0x1a07; // entry_1a07 — fires every gameplay frame; reaches loc_1a15 at state 1
 
 // Sentinels seeded on the base entry so each write is observable: a dropped write leaves
-// the sentinel behind and the RAM diff catches it. Both differ from the target values
-// (0x6386 → 2, 0x6387 → 0).
+// the sentinel behind and the RAM diff catches it.
 const SENTINEL_STEP = 0x99;  // -> 0x6386 (routine writes 2)
 const SENTINEL_DELAY = 0x77; // -> 0x6387 (routine writes 0)
 
@@ -70,30 +70,25 @@ const SAFE_SP = 0x6bf8;
 
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
 
-// First differing RAM byte between two dumps, EXCLUDING the dead stack-scratch region
-// (the memory-equivalence contract is RAM − STACK_SCRATCH). Returns { addr, a, b } or null.
-function firstRamDiffExStack(a, b, offToAddr) {
+function firstRamDiffExStack(a, b, offToAddr, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] === b[i]) continue;
     const addr = offToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { addr, a: a[i], b: b[i] };
   }
   return null;
 }
 
-/**
- * Run the oracle and a candidate on two FRESH clones of `entry` (docs/decompiler-pipeline: a routine that
- * WRITES memory must get a fresh clone per side — only a pure read-only leaf may reuse one)
- * and diff RAM − STACK_SCRATCH. Returns a divergence descriptor or null.
- */
+/** Oracle and candidate on FRESH clones of `entry` (a writer needs one per side); diff RAM − stack scratch. */
 function runPair(entry, candidate) {
   const a = entry.clone(); // oracle
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return firstRamDiffExStack(a.dumpState(), b.dumpState(), (off) => a.stateOffsetToAddr(off));
+  return firstRamDiffExStack(a.dumpState(), b.dumpState(), (off) => a.stateOffsetToAddr(off), entry.regs.sp);
 }
 
 /** `base` with the two output bytes seeded to sentinels and a safe stack. */
@@ -122,16 +117,14 @@ test("EQUAL: startBonusExpiredDelay == oracle on a sentinel entry, and the write
   oracle(oc);
   assert.equal(oc.mem.read8(BONUS_EXPIRED_STEP), 2, "oracle must advance BONUS_EXPIRED_STEP (0x6386) to 2");
   assert.equal(oc.mem.read8(BONUS_EXPIRED_DELAY), 0, "oracle must clear BONUS_EXPIRED_DELAY (0x6387) to 0");
-  console.log("  EQUAL: sentinel entry — RAM − STACK_SCRATCH identical; oracle wrote 0x6386=2, 0x6387=0");
+  console.log("  EQUAL: sentinel entry — RAM − the stack scratch below the entry SP identical; oracle wrote 0x6386=2, 0x6387=0");
 });
 
 // -- 2. EQUAL (real captured backgrounds) -------------------------------------
 
 /**
- * Run a plain attract and clone the machine at up to K real 0x1A07 dispatches — real,
- * fully-populated 25m gameplay states. The wrapper clones then runs the frozen dispatcher
- * oracle so the host game proceeds undisturbed; capturing is gated off after the run so
- * isolated replays can't pollute it.
+ * Clone the machine at up to K real 0x1A07 dispatches in attract — real, fully-populated 25m gameplay
+ * states. The wrapper then runs the frozen dispatcher oracle so the host game proceeds undisturbed.
  */
 function captureDispatchBackgrounds(K, maxFrames) {
   const caps = [];
@@ -146,13 +139,12 @@ function captureDispatchBackgrounds(K, maxFrames) {
   return caps;
 }
 
-test("EQUAL: startBonusExpiredDelay on real captured backgrounds — RAM − STACK_SCRATCH matches", () => {
+test("EQUAL: startBonusExpiredDelay on real captured backgrounds — RAM − the stack scratch below the entry SP matches", () => {
   const caps = captureDispatchBackgrounds(64, 2000);
   assert.ok(caps.length >= 1, "expected at least one real 0x1A07 dispatch during attract");
 
   let compared = 0;
   for (const cap of caps) {
-    // Keep the real RAM background; seed only the two output bytes to sentinels + a safe SP.
     const entry = cap.clone();
     entry.mem.write8(BONUS_EXPIRED_STEP, SENTINEL_STEP);
     entry.mem.write8(BONUS_EXPIRED_DELAY, SENTINEL_DELAY);
@@ -166,7 +158,7 @@ test("EQUAL: startBonusExpiredDelay on real captured backgrounds — RAM − STA
     );
     compared++;
   }
-  console.log(`  EQUAL/realism: ${compared} real captured backgrounds — RAM − STACK_SCRATCH == oracle`);
+  console.log(`  EQUAL/realism: ${compared} real captured backgrounds — RAM − the stack scratch below the entry SP == oracle`);
 });
 
 // -- 3. TEETH -----------------------------------------------------------------

@@ -22,7 +22,7 @@
  *
  *   1. REACHABILITY — confirm 0x33E7 IS dispatched in attract (via its translated caller).
  *   2. EQUAL (captured) — hook 0x33E7 in a real attract run, clone at each dispatch, and
- *      confirm loc_33e7 == oracle over RAM (minus STACK_SCRATCH) + pc + SP on every real state.
+ *      confirm loc_33e7 == oracle over RAM (minus the stack scratch below the entry SP) + pc + SP on every real state.
  *   3. EQUAL (crafted grid) — loc_33e7 == oracle across the full field grid, every arm exercised.
  *   4. EXCLUSION IS EXACT — without the stack exclusion the ONLY diff is inside STACK_SCRATCH
  *      (the dissolved push16 bracket), never a live cell.
@@ -40,6 +40,7 @@ import { loc_33e7 } from "../loc_33e7.js";
 import { stepObjectSpriteFrame } from "../stepObjectSpriteFrame.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -64,17 +65,17 @@ const COUNTER_ADDR = IX_BASE + COUNTER_OFF;   // 0x640f
 const SUBTIMER_ADDR = IX_BASE + SUBTIMER_OFF; // 0x6414
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region
-// (the memory-equivalence contract is RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b, { includeStack = false } = {}) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
+// (the memory-equivalence contract is RAM − the stack scratch below the entry SP). { addr, a, b } | null.
+function firstRamDiff(a, b, { liveFloor = null } = {}) {
+  const dead = liveFloor === null ? () => false : deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (!includeStack && inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -99,12 +100,12 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Full contract diff: RAM − STACK_SCRATCH, pc, SP. Live-out is memory-only. */
+/** Full contract diff: RAM − the stack scratch below the entry SP, pc, SP. Live-out is memory-only. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, { liveFloor: entry.regs.sp });
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);
@@ -235,12 +236,12 @@ test("EXCLUSION: the only un-excluded diff is the dissolved push16 bracket, insi
   const c = runCandidate(entry, loc_33e7);
 
   // Non-stack RAM must be identical.
-  assert.equal(firstRamDiff(o, c), null, "a live (non-stack) cell diverged");
+  assert.equal(firstRamDiff(o, c, { liveFloor: entry.regs.sp }), null, "a live (non-stack) cell diverged");
 
   // Including the stack, any diff that exists must lie within STACK_SCRATCH (the pushed 0x33ea).
-  const withStack = firstRamDiff(o, c, { includeStack: true });
+  const withStack = firstRamDiff(o, c);
   assert.ok(withStack !== null, "expected the oracle's push16(0x33ea) to show as a stack-only diff");
-  assert.ok(inStack(withStack.addr), `the un-excluded diff at ${hx(withStack.addr)} is NOT in STACK_SCRATCH — the exclusion is hiding a live cell`);
+  assert.ok(deadStackBelow(STACK_SCRATCH, entry.regs.sp)(withStack.addr), `the un-excluded diff at ${hx(withStack.addr)} is NOT in the stack scratch below the entry SP — the exclusion is hiding a live cell`);
   console.log(`  EXCLUSION: only diff at ${hx(withStack.addr)} (oracle=${withStack.a} cand=${withStack.b}) — inside STACK_SCRATCH, exactly the dissolved push`);
 });
 

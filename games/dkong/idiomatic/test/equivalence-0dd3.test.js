@@ -48,6 +48,7 @@ import { loc_0e4f } from "../../translated/loc_0e4f.js";
 import { loc_0e19 } from "../../translated/loc_0e19.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -66,19 +67,19 @@ const ADDR1 = 0x63ab;
 const KIND = 0x63b3;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 // -- comparison plumbing ------------------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH, or null. */
-function firstRamDiffOutsideStack(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP, or null. */
+function firstRamDiffOutsideStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -95,7 +96,7 @@ function replay(entry, cand) {
   oracle(a);
   cand(b);
   return {
-    ram: firstRamDiffOutsideStack(a, b),
+    ram: firstRamDiffOutsideStack(a, b, entry.regs.sp),
     deOracle: a.regs.de & 0xffff,
     deCand: b.regs.de & 0xffff,
   };

@@ -8,7 +8,7 @@
  * loc_0ae8 WRITES memory and is NOT a leaf: it calls animateSpriteObjectBlock (0x306F,
  * which stirs the PRNG + edits the sprite block) and scrollClimbGraphicStep (0x304A, which
  * writes video RAM). So it is gated by capture / clone / replay (docs/decompiler-pipeline) on MEMORY-
- * equivalence against the frozen oracle — RAM − STACK_SCRATCH — never the full register
+ * equivalence against the frozen oracle — RAM − the stack scratch below the entry SP — never the full register
  * file and never cycles, with a FRESH clone per case. Its four branch combinations are the
  * cross of two independent data-dependent branches: `call z,0x304A` (taken iff
  * (0x62AF & 0x0F)==0, the 16th-tick scroll) and `ret nc` (exit-A "still climbing" iff
@@ -51,6 +51,7 @@ import { animateSpriteObjectBlock } from "../animateSpriteObjectBlock.js";
 import { scrollClimbGraphicStep } from "../scrollClimbGraphicStep.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, SUBSTATE_TIMER, INTRO_STEP, SEQ_ADVANCE_PTR, SPRITE_OBJ_BLOCK } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -64,7 +65,6 @@ const TICK_COUNTER = 0x62af; // the 1-in-16 tick counter animateSpriteObjectBloc
 const CLIMBER_Y = SPRITE_OBJ_BLOCK + 3; // 0x690B — record 0's Y byte
 const SCROLL_INDEX = 0x638e; // scrollClimbGraphicStep's per-step scroll counter
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 // A coin+start tape (as in the 0x0a76 dispatcher test): coin on IN2 bit7 at frame 10,
 // start1 on IN2 bit2 at frame 30. This credits + starts a game so GAME_STATE reaches 3,
@@ -74,16 +74,15 @@ const COIN_START_TAPE = [
   { port: 0x7d00, bits: 0x04, frame: 30, dur: 6 }, // start (IN2 bit2)
 ];
 
-// First game-visible differing RAM byte between two machines, EXCLUDING the dead
-// stack-scratch region (the memory-equivalence contract is RAM − STACK_SCRATCH).
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -110,8 +109,6 @@ function captureDrivenDispatches(K, maxFrames) {
   return caps;
 }
 
-// A real captured mid-cutscene 0x0ae8 entry, built once and reused as the base for every
-// crafted case (cloned per case, never mutated).
 let _base = null;
 function craftedBase() {
   if (!_base) {
@@ -122,7 +119,6 @@ function craftedBase() {
   return _base;
 }
 
-// -- 1. REALISM (captured driven dispatches) ----------------------------------
 
 test("REALISM: real captured cutscene 0x0ae8 dispatches — RAM(−stack) identical; SP/pc untouched", () => {
   const caps = captureDrivenDispatches(400, 1500);
@@ -131,6 +127,7 @@ test("REALISM: real captured cutscene 0x0ae8 dispatches — RAM(−stack) identi
   let compared = 0, exitA = 0, exitB = 0, scrolls = 0, spPcHeld = 0;
   for (const cap of caps) {
     const a = cap.clone(); // oracle
+    const aFloor = a.regs.sp;
     const b = cap.clone(); // idiomatic
 
     // The idiomatic side models no Z80 stack — SP and pc must be exactly as at entry.
@@ -139,7 +136,7 @@ test("REALISM: real captured cutscene 0x0ae8 dispatches — RAM(−stack) identi
     idiomatic(b);
     if (b.regs.sp === sp0 && b.pc === pc0) spPcHeld++;
 
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     assert.equal(
       bad,
       null,
@@ -161,7 +158,6 @@ test("REALISM: real captured cutscene 0x0ae8 dispatches — RAM(−stack) identi
   );
 });
 
-// -- 2. CRAFTED (forced exit-B, incl. the never-natural call-taken combo) ------
 
 /**
  * Force one branch combination onto a real captured state, identically on both sides.
@@ -184,7 +180,7 @@ test("CRAFTED: forced exit-B (call-skipped AND the never-natural call-taken) —
   // (a) call-SKIPPED + exit-B: 0x62AF 0x00 -> tick 0x01 (nibble 1, no scroll; and not an
   //     8th call, so 0x690B is untouched by 0x306F), 0x690B 0x59 (< 0x5D -> exit-B).
   const [a1, b1] = runCrafted(0x00, 0x59);
-  const d1 = ramDiffMinusStack(a1, b1);
+  const d1 = ramDiffMinusStack(a1, b1, craftedBase().regs.sp);
   assert.equal(d1.bad, null, d1.bad && `call-skipped exit-B RAM diff at ${hx(d1.bad.addr)} (oracle=${d1.bad.a} idiomatic=${d1.bad.b})`);
   // Non-vacuous: the oracle really took the advance path.
   assert.equal(a1.mem.read8(INTRO_STEP), (craftedBase().mem.read8(INTRO_STEP) + 1) & 0xff, "oracle must inc INTRO_STEP on exit-B");
@@ -196,14 +192,13 @@ test("CRAFTED: forced exit-B (call-skipped AND the never-natural call-taken) —
   //     scroll; also an 8th call, so 0x306F scrolls the Y bytes up 4), 0x690B 0x59 -> 0x55
   //     after 0x306F, still < 0x5D -> exit-B. Exercises scroll AND advance in one frame.
   const [a2, b2] = runCrafted(0x0f, 0x59);
-  const d2 = ramDiffMinusStack(a2, b2);
+  const d2 = ramDiffMinusStack(a2, b2, craftedBase().regs.sp);
   assert.equal(d2.bad, null, d2.bad && `call-taken exit-B RAM diff at ${hx(d2.bad.addr)} (oracle=${d2.bad.a} idiomatic=${d2.bad.b})`);
   assert.equal(a2.mem.read8(INTRO_STEP), (craftedBase().mem.read8(INTRO_STEP) + 1) & 0xff, "combo: oracle must inc INTRO_STEP");
   assert.notEqual(a2.mem.read8(SCROLL_INDEX), craftedBase().mem.read8(SCROLL_INDEX), "combo: the scroll arm must have fired");
   console.log("  CRAFTED: call-skipped exit-B and call-taken exit-B — RAM(−stack) identical; advance path exercised");
 });
 
-// -- 3. TEETH -----------------------------------------------------------------
 
 /** Twin (a): drops the `inc (INTRO_STEP)` on exit-B — everything else faithful, so the
  *  cutscene would hang on step 2 forever. Only an exit-B case diverges (at 0x6385). */
@@ -232,10 +227,11 @@ function brokenScrollGate(m) {
 test("TEETH (drop-advance): the dropped INTRO_STEP inc is CAUGHT on exit-B and names 0x6385", () => {
   // A forced exit-B (call-skipped): 0x62AF 0x00 -> tick 0x01, 0x690B 0x59 -> exit-B.
   const a = craftedBase().clone(), b = craftedBase().clone();
+  const aFloor = a.regs.sp;
   for (const m of [a, b]) { m.mem.write8(TICK_COUNTER, 0x00); m.mem.write8(CLIMBER_Y, 0x59); }
   oracle(a);
   brokenDropAdvance(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the exit-B case FAILED to catch a dropped INTRO_STEP advance — it is worthless");
   assert.equal(bad.addr, INTRO_STEP, `expected the caught diff at 0x6385, got ${hx(bad.addr)}`);
   console.log(`  TEETH/drop-advance: caught at INTRO_STEP 0x6385 (oracle=${bad.a} broken=${bad.b})`);
@@ -247,10 +243,11 @@ test("TEETH (scroll-gate): the & 0x07 scroll gate is CAUGHT at a nibble-8 tick a
   // 0x690B 0x80 keeps it exit-A (0x08 is an 8th call, so 0x306F drops Y to 0x7C, still >= 0x5D),
   // isolating the scroll difference at the scroll index 0x638E.
   const a = craftedBase().clone(), b = craftedBase().clone();
+  const aFloor = a.regs.sp;
   for (const m of [a, b]) { m.mem.write8(TICK_COUNTER, 0x07); m.mem.write8(CLIMBER_Y, 0x80); }
   oracle(a);
   brokenScrollGate(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the nibble-8 case FAILED to catch a wrong scroll gate — it is worthless");
   assert.equal(bad.addr, SCROLL_INDEX, `expected the caught diff at the scroll index 0x638E, got ${hx(bad.addr)}`);
   console.log(`  TEETH/scroll-gate: caught at scroll index 0x638E (oracle=${bad.a} broken=${bad.b})`);

@@ -36,7 +36,7 @@
  *      clone per side. For each: (a) PURITY — the oracle's write footprint is a subset
  *      of {0x6901, 0x6905}; (b) the oracle genuinely clears bit 7 of 0x6901 and, on the
  *      toggle phase, produces (v5 & 0x7f) ^ 0x03 at 0x6905 (arms exercised); and (c) a
- *      fresh-clone whole-machine RAM diff (minus STACK_SCRATCH) between oracle and
+ *      fresh-clone whole-machine RAM diff (minus the stack scratch below the entry SP) between oracle and
  *      candidate is empty.
  *
  * Run: node --test games/dkong/idiomatic/test/equivalence-04f9.test.js
@@ -52,6 +52,7 @@ import { blinkSpritePairOff } from "../blinkSpritePairOff.js";
 import { storeBlinkSpriteCode } from "../storeBlinkSpriteCode.js";
 import { Machine } from "../../machine.js";
 import { SPRITE_BUFFER, STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -125,15 +126,16 @@ function sweepGrid(cand, cs) {
 
 // -- whole-machine plumbing (crafted gate) ------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH, or null. */
-function firstRamDiffOutsideStack(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP, or null. */
+function firstRamDiffOutsideStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -148,11 +150,12 @@ function diffAgainstOracle(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return firstRamDiffOutsideStack(a, b);
+  return firstRamDiffOutsideStack(a, b, entry.regs.sp);
 }
 
-/** Every RAM addr (outside STACK_SCRATCH) whose byte the oracle changed on `entry`. */
+/** Every RAM addr (outside the stack scratch below the entry SP) whose byte the oracle changed on `entry`. */
 function oracleWriteFootprint(entry) {
+  const dead = deadStackBelow(STACK_SCRATCH, entry.regs.sp);
   const m = entry.clone();
   const before = m.dumpState();
   oracle(m);
@@ -161,7 +164,7 @@ function oracleWriteFootprint(entry) {
   for (let i = 0; i < before.length; i++) {
     if (before[i] === after[i]) continue;
     const addr = m.stateOffsetToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     addrs.push(addr);
   }
   return addrs;

@@ -8,7 +8,7 @@
  * caller chain (ROM 0x1C33 falls into the player-sprite copy at 0x1DA6, whose first two actions
  * reload the accumulator and its pointer from memory) reads no register or flag it leaves
  * behind. So each case compares:
- *   - work RAM minus the dead STACK_SCRATCH region,
+ *   - work RAM minus the stack scratch below the entry SP,
  *   - pc and SP,
  *   - the RETURN VALUE (undefined on every arm, on both sides).
  * The register file is deliberately NOT compared: the oracle's terminal `ld a,b / and a / cp 1`
@@ -65,6 +65,7 @@ import {
   HAMMER_IN_PLAY,
   BOARD,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -90,16 +91,16 @@ const MX = 0x40; // crafted Mario X (the search's axis-2 reference)
 const MY = 0x80; // crafted Mario Y (the search's axis-1 reference)
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region.
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the entry SP.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -123,12 +124,12 @@ function runCandidate(entry, fn) {
   return { c, ret };
 }
 
-/** Full contract diff: RAM − STACK_SCRATCH, pc, SP, and the return value. */
+/** Full contract diff: RAM − the stack scratch below the entry SP, pc, SP, and the return value. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const k = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o.c, k.c);
+  const ram = firstRamDiff(o.c, k.c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.c.pc !== k.c.pc) diffs.push(`pc oracle=${hx(o.c.pc)} cand=${hx(k.c.pc)}`);
   if (o.c.regs.sp !== k.c.regs.sp) diffs.push(`SP oracle=${hx(o.c.regs.sp)} cand=${hx(k.c.regs.sp)}`);

@@ -43,7 +43,7 @@
  *     has redefined everything and the probe would be aimed at the wrong boundary. Carries its own
  *     non-vacuity check — the same poison aimed at the registers the rewrite KEEPS must diverge.
  *
- * CONTRACT COMPARED in (1) and (2): the work/sprite/video state dump minus STACK_SCRATCH, the
+ * CONTRACT COMPARED in (1) and (2): the work/sprite/video state dump minus the stack scratch below the entry SP, the
  * forwarded return value, and — as extras beyond the required contract — pc and SP. STACK_SCRATCH
  * is excluded because this rewrite dissolves the oracle's brackets around ROM 0x2333 and ROM
  * 0x23DE (both callees are idiomatic and direct-called) while keeping the one around ROM 0x24B4,
@@ -72,6 +72,7 @@ import { advanceRollingBarrel } from "../advanceRollingBarrel.js";
 import { advanceBarrelSpriteOrientation } from "../advanceBarrelSpriteOrientation.js";
 import { snapYToGirder, snapYToGirderFromRegisters } from "../snapYToGirder.js";
 import { OBJ_X, OBJ_Y, STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -92,7 +93,6 @@ const CRAFT_X_LO = 32;
 const CRAFT_X_HI = 42;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /** The two already-idiomatic callees, wired at their ROM addresses. Both runs of case 4 get these. */
 const IDIOMATIC_CALLEES = { "2333": snapYToGirderFromRegisters, "23de": advanceBarrelSpriteOrientation };
@@ -121,13 +121,14 @@ function rehost(src, overrides) {
 }
 
 /** First differing state byte outside the dead stack scratch, or null. */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   for (let i = 0; i < da.length; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -147,6 +148,7 @@ const cursorOf = (m) => ({ page: m.regs.h_ * 256, cursor: m.regs.l_ });
 
 function contractDiffs(src, candidate, overrides) {
   const o = rehost(src, overrides);
+  const oFloor = o.regs.sp;
   const c = rehost(src, overrides);
   o.routines.set(WALK_LOOPBACK, () => {});
   c.routines.set(WALK_LOOPBACK, () => {});
@@ -162,7 +164,7 @@ function contractDiffs(src, candidate, overrides) {
     cret = `THREW ${err.message}`;
   }
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, oFloor);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (oret !== cret) diffs.push(`return oracle=${String(oret)} cand=${String(cret)}`);
   // pc and SP are dropped: the dissolved form threads the cursor as a value and uses no guest stack

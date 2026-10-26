@@ -10,7 +10,7 @@
  * So it is validated the strongest way — EXHAUSTIVELY over that one byte:
  *
  *   1. EQUAL (exhaustive) — loc_13aa == oracle over ALL 256 DIP_UPRIGHT values,
- *      compared on RAM − STACK_SCRATCH (the memory-equivalence contract) AND the
+ *      compared on RAM − the stack scratch below the entry SP (the memory-equivalence contract) AND the
  *      flip-screen latch. The base entry seeds 0x600A/0x600D/0x600E to non-target
  *      SENTINELS so each of the routine's writes is observable (a dropped write would
  *      leave a sentinel behind and diverge). The oracle's terminal `ret` pops the
@@ -36,10 +36,10 @@
  *      sub-state dispatcher, which fires every in-game frame), and clone REAL
  *      credited-game states. Onto each — keeping its full real RAM background — we poke
  *      only DIP_UPRIGHT (a few values) and a safe SP, then confirm loc_13aa reproduces
- *      the oracle's RAM − STACK_SCRATCH and flip latch against a realistic machine, not
+ *      the oracle's RAM − the stack scratch below the entry SP and flip latch against a realistic machine, not
  *      just a fresh boot.
  *
- * Contract: RAM − STACK_SCRATCH + io.flipScreen. LIVE-OUT is memory + that latch; SP/PC
+ * Contract: RAM − the stack scratch below the entry SP + io.flipScreen. LIVE-OUT is memory + that latch; SP/PC
  * are the Z80 `ret` the direct-call return replaces and the dispatcher ignores the
  * handler's residual registers/flags — so neither is compared (never the full register
  * file, never cycles).
@@ -56,6 +56,7 @@ import { loc_06fe as oracleDispatcher } from "../../translated/loc_06fe.js";
 import { loc_13aa } from "../loc_13aa.js";
 import { DIP_UPRIGHT, GAME_SUBSTATE, CURRENT_PLAYER, STACK_SCRATCH } from "../names.js";
 import { Machine } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -68,9 +69,6 @@ const DISPATCHER = 0x06fe;
 const FLIP_SCREEN_LATCH = 0x7d82; // I/O latch — NOT in dumpState(); compared via io.flipScreen
 const PLAYER_CONTEXT_HI = 0x600e; // un-named scratch, high byte of the 0x600D word store
 
-// Sentinels seeded on the base entry so each of the routine's writes is observable: a
-// dropped write leaves the sentinel behind and the RAM diff catches it. All three differ
-// from the routine's target values (0x600A→0, 0x600D→1, 0x600E→1).
 const SENTINEL_SUBSTATE = 0x99; // -> 0x600A (routine clears to 0)
 const SENTINEL_PLAYER = 0x55;   // -> 0x600D (routine sets to 1)
 const SENTINEL_PLAYER_HI = 0xaa; // -> 0x600E (routine sets to 1)
@@ -82,14 +80,13 @@ const SAFE_SP = 0x6bf8;
 
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
 
-// First differing RAM byte between two dumps, EXCLUDING the dead stack-scratch region
-// (the memory-equivalence contract is RAM − STACK_SCRATCH). Returns { addr, a, b } or null.
-function firstRamDiffExStack(a, b, offToAddr) {
+function firstRamDiffExStack(a, b, offToAddr, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] === b[i]) continue;
     const addr = offToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { addr, a: a[i], b: b[i] };
   }
   return null;
@@ -98,7 +95,7 @@ function firstRamDiffExStack(a, b, offToAddr) {
 /**
  * Run the oracle and a candidate on two FRESH clones of `entry` (docs/decompiler-pipeline: a routine
  * that WRITES memory must get a fresh clone per side — only a pure read-only leaf may
- * reuse one) and diff the full contract: RAM − STACK_SCRATCH first, then the flip-screen
+ * reuse one) and diff the full contract: RAM − the stack scratch below the entry SP first, then the flip-screen
  * latch (io.flipScreen — the 0x7D82 write dumpState() cannot see). Returns a
  * divergence descriptor or null.
  */
@@ -107,7 +104,7 @@ function runPair(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  const ram = firstRamDiffExStack(a.dumpState(), b.dumpState(), (off) => a.stateOffsetToAddr(off));
+  const ram = firstRamDiffExStack(a.dumpState(), b.dumpState(), (off) => a.stateOffsetToAddr(off), entry.regs.sp);
   if (ram) return { kind: "ram", ...ram };
   if (a.io.flipScreen !== b.io.flipScreen) {
     return { kind: "flip", addr: FLIP_SCREEN_LATCH, a: a.io.flipScreen, b: b.io.flipScreen };
@@ -145,8 +142,6 @@ function sweep(base, candidate) {
   return { mismatch: null, count };
 }
 
-// -- 1. EQUAL (exhaustive) ----------------------------------------------------
-
 test("EQUAL (exhaustive): loc_13aa == oracle over all 256 DIP_UPRIGHT values (RAM + flip latch)", () => {
   const base = new Machine(ROM).clone();
   const { mismatch, count } = sweep(base, loc_13aa);
@@ -158,10 +153,8 @@ test("EQUAL (exhaustive): loc_13aa == oracle over all 256 DIP_UPRIGHT values (RA
         `0x${(mismatch.diff.addr ?? 0).toString(16)} (${mismatch.diff.a}->${mismatch.diff.b})`,
   );
   assert.equal(count, 256, "must have compared all 256 DIP_UPRIGHT values");
-  console.log(`  EQUAL/exhaustive: ${count} DIP_UPRIGHT values — RAM − STACK_SCRATCH + flip latch identical to the oracle`);
+  console.log(`  EQUAL/exhaustive: ${count} DIP_UPRIGHT values — RAM − the stack scratch below the entry SP + flip latch identical to the oracle`);
 });
-
-// -- 2. TEETH (exhaustive) ----------------------------------------------------
 
 /** BUG: writes a constant 0 to the flip latch instead of DIP_UPRIGHT. Caught by the
  *  io.flipScreen compare whenever the DIP's bit 0 is set (odd rows). */
@@ -177,7 +170,6 @@ function brokenFlip(m) {
 function brokenSubstate(m) {
   const { mem } = m;
   mem.write8(FLIP_SCREEN_LATCH, mem.read8(DIP_UPRIGHT));
-  // BUG: missing `ld (0x600a),a` — GAME_SUBSTATE never cleared
   mem.write8(CURRENT_PLAYER, 1);
   mem.write8(PLAYER_CONTEXT_HI, 1);
 }
@@ -226,8 +218,6 @@ test("TEETH (exhaustive): the broken-player twin is CAUGHT (CURRENT_PLAYER has t
   );
 });
 
-// -- 3. REALISM (crafted onto real credited-game states) ----------------------
-
 // A coin+start tape: coin on IN2 bit7 at frame 10, start1 on IN2 bit2 at frame 30. Credits
 // and starts a game so GAME_STATE reaches 3 and the 0x06fe sub-state dispatcher runs.
 const COIN_START_TAPE = [
@@ -255,7 +245,7 @@ function captureInGameStates(K, maxFrames) {
   return caps;
 }
 
-test("REALISM: loc_13aa on real credited-game states (full RAM background) — RAM − STACK_SCRATCH + flip match", () => {
+test("REALISM: loc_13aa on real credited-game states (full RAM background) — RAM − the stack scratch below the entry SP + flip match", () => {
   const caps = captureInGameStates(6, 1500);
   assert.ok(caps.length >= 1, "expected at least one real in-game 0x06fe state to craft from");
 
@@ -276,5 +266,5 @@ test("REALISM: loc_13aa on real credited-game states (full RAM background) — R
       compared++;
     }
   }
-  console.log(`  REALISM: ${compared} crafted entries over ${caps.length} real in-game states — RAM − STACK_SCRATCH + flip == oracle`);
+  console.log(`  REALISM: ${compared} crafted entries over ${caps.length} real in-game states — RAM − the stack scratch below the entry SP + flip == oracle`);
 });

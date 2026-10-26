@@ -8,7 +8,7 @@
  * This is the CYCLE-FREE / memory-equivalence gate (docs/decompiler-pipeline), not the
  * retired strict whole-machine one. The two sides are compared on the go-forward contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH), PLUS the palette-bank output latch.
+ *     RAM (dumpState, minus the stack scratch below the entry SP), PLUS the palette-bank output latch.
  *
  * pc and SP are deliberately NOT compared: the oracle models the rst-0x18 skip idiom with
  * push16/step/ret (it pushes the fall-through address 0x0C92, then either returns to it —
@@ -60,7 +60,7 @@ import { buildBoardWhenTimerExpires as idiomatic } from "../buildBoardWhenTimerE
 import { buildBoard } from "../buildBoard.js";
 import { tickSubstateTimer } from "../tickSubstateTimer.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   BOARD,
@@ -92,31 +92,33 @@ const EXPECTED = {
   4: { bank: 3, bgm: 0x0b }, // 100m rivet — arm raises bit0 to bank 3
 };
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inStackScratch = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 /**
  * First RAM difference between two machines on the go-forward contract: the whole state
- * dump minus the STACK_SCRATCH region (dead scratch — the oracle pushes the rst-0x18
+ * dump minus the stack scratch below the entry SP (dead scratch — the oracle pushes the rst-0x18
  * fall-through/return addresses there while the direct-call idiomatic side does not).
  * Returns {addr,a,b,offset} or null. dumpState() returns a fresh array per call, so the
  * dead-stack bytes are neutralised by copying them across before the single diff.
  */
-function ramDiffMinusStack(ma, mb) {
+function ramDiffMinusStack(ma, mb, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = ma.dumpState();
   const b = mb.dumpState();
   for (let off = 0; off < a.length; off++) {
-    if (inDeadStack(ma.stateOffsetToAddr(off))) b[off] = a[off]; // mask dead scratch
+    if (dead(ma.stateOffsetToAddr(off))) b[off] = a[off]; // mask dead scratch
   }
   return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off));
 }
 
 /** How many of the masked-away diffs actually fell in the dead stack region. */
-function stackDiffCount(ma, mb) {
+function stackDiffCount(ma, mb, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = ma.dumpState();
   const b = mb.dumpState();
   let n = 0;
   for (let off = 0; off < a.length; off++) {
-    if (a[off] !== b[off] && inDeadStack(ma.stateOffsetToAddr(off))) n++;
+    if (a[off] !== b[off] && dead(ma.stateOffsetToAddr(off))) n++;
   }
   return n;
 }
@@ -146,7 +148,6 @@ const CAPS = ROM_PRESENT
   ? { 1: captureForced(1), 2: captureForced(2), 3: captureForced(3), 4: captureForced(4) }
   : {};
 
-// -- 0. REACHABILITY ----------------------------------------------------------
 
 test("REACHABILITY: buildBoardWhenTimerExpires dispatches the in-play board rebuild for every board", () => {
   for (const board of [1, 2, 3, 4]) {
@@ -154,12 +155,11 @@ test("REACHABILITY: buildBoardWhenTimerExpires dispatches the in-play board rebu
     const cap = CAPS[board][0];
     assert.equal(cap.mem.read8(BOARD), board, `entry must be the board-${board} rebuild`);
     assert.equal(cap.mem.read8(SUBSTATE_TIMER), 1, `entry timer must be 1 (the expiry/build frame) for board ${board}`);
-    assert.ok(inDeadStack(cap.regs.sp), `entry SP must sit in STACK_SCRATCH for the exclusion to be sound (SP=${hx(cap.regs.sp)})`);
+    assert.ok(inStackScratch(cap.regs.sp), `entry SP must sit in STACK_SCRATCH for the exclusion to be sound (SP=${hx(cap.regs.sp)})`);
   }
   console.log(`  REACHABILITY: forced 0x0C91 dispatch captured for boards 1..4 (entry SP in STACK_SCRATCH)`);
 });
 
-// -- 1. EQUAL (build / expiry, every board arm) -------------------------------
 
 test("EQUAL (build): buildBoardWhenTimerExpires == oracle in RAM (−stack) and palette bank on every board", () => {
   for (const board of [1, 2, 3, 4]) {
@@ -174,7 +174,7 @@ test("EQUAL (build): buildBoardWhenTimerExpires == oracle in RAM (−stack) and 
     oracle(o);
     idiomatic(c);
 
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, cap.regs.sp);
     assert.equal(d, null, d && `board ${board}: RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} idiomatic=${d.b}`);
     assert.equal(o.io.paletteBank, c.io.paletteBank, `board ${board}: palette bank must match the oracle`);
 
@@ -188,12 +188,11 @@ test("EQUAL (build): buildBoardWhenTimerExpires == oracle in RAM (−stack) and 
     assert.equal(c.mem.read8(SND_BGM), bgm, `board ${board}: idiomatic must queue tune ${hx(bgm)}`);
     assert.equal(c.io.paletteBank, bank, `board ${board}: idiomatic must select palette bank ${bank}`);
     assert.equal(c.mem.read8(SUBSTATE_TIMER), TIMER_RELOAD, `board ${board}: idiomatic must reload the timer`);
-    assert.ok(stackDiffCount(o, c) > 0, `board ${board}: the oracle's stack traffic must differ (so the STACK_SCRATCH mask is load-bearing)`);
+    assert.ok(stackDiffCount(o, c, cap.regs.sp) > 0, `board ${board}: the oracle's stack traffic must differ (so the STACK_SCRATCH mask is load-bearing)`);
     console.log(`  EQUAL build board ${board}: identical (RAM −stack + bank=${bank}, tune=${hx(bgm)}, timer reloaded)`);
   }
 });
 
-// -- 2. EQUAL (skip / still counting) -----------------------------------------
 
 test("EQUAL (skip): buildBoardWhenTimerExpires == oracle when the timer has not expired — tick only, no build", () => {
   // timer 5,2 count down without expiring; timer 0 wraps to 255 and still does not build
@@ -214,7 +213,7 @@ test("EQUAL (skip): buildBoardWhenTimerExpires == oracle when the timer has not 
       oracle(o);
       idiomatic(c);
 
-      const d = ramDiffMinusStack(o, c);
+      const d = ramDiffMinusStack(o, c, cap.regs.sp);
       assert.equal(d, null, d && `board ${board} timer ${timer}: RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} idiomatic=${d.b}`);
       assert.equal(o.io.paletteBank, c.io.paletteBank, `board ${board} timer ${timer}: palette bank must match`);
 
@@ -256,7 +255,7 @@ test("TEETH: an inverted gate and a dropped countdown tick are CAUGHT", () => {
     o.mem.write8(BONUS_DISPLAY, SCRATCH_SENTINEL);  c.mem.write8(BONUS_DISPLAY, SCRATCH_SENTINEL);
     oracle(o);
     brokenInvertedGate(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, cap.regs.sp);
     assert.notEqual(d, null, "the gate FAILED to catch an inverted timer gate — it is worthless");
     console.log(`  TEETH(inverted gate): caught at ${hx(d.addr ?? 0)} (oracle=${d.a} broken=${d.b})`);
   }
@@ -269,7 +268,7 @@ test("TEETH: an inverted gate and a dropped countdown tick are CAUGHT", () => {
     o.mem.write8(SUBSTATE_TIMER, 5);  c.mem.write8(SUBSTATE_TIMER, 5);
     oracle(o);
     brokenNoTick(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, cap.regs.sp);
     assert.notEqual(d, null, "the gate FAILED to catch a dropped countdown tick — it is worthless");
     assert.equal(d.addr, SUBSTATE_TIMER, `teeth caught the wrong address ${hx(d.addr ?? 0)} (expected SUBSTATE_TIMER ${hx(SUBSTATE_TIMER)})`);
     console.log(`  TEETH(dropped tick): caught at ${hx(d.addr)} (oracle=${d.a} broken=${d.b})`);

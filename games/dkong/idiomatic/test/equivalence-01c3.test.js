@@ -10,7 +10,7 @@
  * at boot, off a plain power-on. It WRITES memory through five decompiled callees
  * (clearPlayfieldAndSprites, drawLivesAndLevel, decodeDipSwitches, draw1UpLabel,
  * enqueueTask). So it is gated by MEMORY-equivalence against the frozen oracle
- * (RAM − STACK_SCRATCH), with a FRESH clone per case — never the full register
+ * (RAM − the stack scratch below the entry SP), with a FRESH clone per case — never the full register
  * file, never cycles:
  *
  *   1. REALISM (real power-on dispatch) — boot a plain machine, hook 0x01C3, and
@@ -27,7 +27,7 @@
  *          tail is left untouched — only the baseline + screen state change.
  *        - WRAP: set TASK_TAIL near the top (0xFC) so the 6-byte batch wraps 0xFF→0xC0
  *          mid-batch, pinning enqueueTask's wrap math across the whole batch.
- *      Each compared oracle vs idiomatic on RAM − STACK_SCRATCH. (This routine is
+ *      Each compared oracle vs idiomatic on RAM − the stack scratch below the entry SP. (This routine is
  *      straight-line — no branches — so the one real entry already covers the whole
  *      control path; the crafts only broaden the shared enqueue primitive.)
  *
@@ -52,6 +52,7 @@ import { draw1UpLabel } from "../draw1UpLabel.js";
 import { enqueueTask } from "../enqueueTask.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -81,22 +82,22 @@ const OPENING_TASKS = [
 ];
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
  * Diff two machines' RAM (work + sprite + video). Returns the first game-visible
- * difference (outside STACK_SCRATCH — a real failure) or null, plus a count of bytes
+ * difference (outside the stack scratch below the entry SP — a real failure) or null, plus a count of bytes
  * that differed inside the dead stack scratch (the oracle's push/`ret` residue, which
  * the idiomatic routine does not model — expected, tolerated, excluded).
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -109,7 +110,7 @@ function replay(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return { a, b, ...ramDiffMinusStack(a, b) };
+  return { a, b, ...ramDiffMinusStack(a, b, entry.regs.sp) };
 }
 
 /**
@@ -200,7 +201,7 @@ test("CRAFTED: matches the oracle across FULL-ring (all posts dropped) and WRAP 
     poke(a); poke(b);
     oracle(a);
     powerOnInit(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, entry.regs.sp);
     assert.equal(
       bad,
       null,

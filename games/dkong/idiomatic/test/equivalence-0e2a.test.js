@@ -9,7 +9,7 @@
  * per side (never a reused machine). The oracle is run on one clone, drawSegmentEndCap
  * on another, and they are compared on the go-forward contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) + SP + declared live-out DE.
+ *     RAM (dumpState, minus the stack scratch below the entry SP) + SP + declared live-out DE.
  *
  * dumpState covers work + sprite + VIDEO RAM, so the tile stamps — this routine's whole
  * point — are inside the compared state. DE is the live-out: the successor 0x0DA7 does
@@ -43,7 +43,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0e2a as oracle } from "../../translated/loc_0e2a.js";
 import { drawSegmentEndCap } from "../drawSegmentEndCap.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -59,18 +59,18 @@ const REMAINDER = 0x63b0; // sub-tile span remainder
 const ENDPTR = 0x63ad; // second point's tilemap address (VRAM)
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 /**
  * First RAM difference on the go-forward contract: the whole state dump (work +
- * sprite + video) minus the dead STACK_SCRATCH region. Returns {addr,a,b} or null.
+ * sprite + video) minus the stack scratch below the entry SP. Returns {addr,a,b} or null.
  */
-function ramDiffMinusStack(ma, mb) {
+function ramDiffMinusStack(ma, mb, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = ma.dumpState();
   const b = mb.dumpState();
   let d = firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off));
   let from = 0;
-  while (d && inDeadStack(d.addr)) {
+  while (d && dead(d.addr)) {
     from = d.offset + 1;
     d = firstStateDiff(a.subarray(from), b.subarray(from), (off) => ma.stateOffsetToAddr(off + from));
   }
@@ -78,8 +78,8 @@ function ramDiffMinusStack(ma, mb) {
 }
 
 /** Full contract diff: RAM (−stack), then SP, then the DE live-out. null if equal. */
-function contractDiff(o, c) {
-  const d = ramDiffMinusStack(o, c);
+function contractDiff(o, c, liveFloor) {
+  const d = ramDiffMinusStack(o, c, liveFloor);
   if (d) return `RAM at ${hx(d.addr ?? 0)}: oracle=${d.a} cand=${d.b}`;
   if (o.regs.sp !== c.regs.sp) return `SP: oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`;
   if (o.regs.de !== c.regs.de) return `DE: oracle=${hx(o.regs.de)} cand=${hx(c.regs.de)}`;
@@ -120,7 +120,7 @@ test("EQUAL: real captured dispatches — drawSegmentEndCap == oracle in RAM (�
     oracle(o);
     drawSegmentEndCap(c);
 
-    const diff = contractDiff(o, c);
+    const diff = contractDiff(o, c, cap.regs.sp);
     assert.equal(diff, null, diff);
   }
   // Reachability claim in the header must hold: all four arm combinations occur.
@@ -191,7 +191,7 @@ test("CRAFTED: each of the four arms forced by a surgical poke — oracle==candi
     oracle(o);
     drawSegmentEndCap(c);
 
-    const diff = contractDiff(o, c);
+    const diff = contractDiff(o, c, base.regs.sp);
     const label = `${arm.single ? "single" : "multi"}/${arm.rem ? "rem" : "flush"}`;
     assert.equal(diff, null, `${label}: ${diff}`);
 
@@ -232,7 +232,7 @@ test("TEETH: a wrong endpoint-tile bias is CAUGHT on every captured and crafted 
     const c = cap.clone();
     oracle(o);
     brokenDrawSegmentEndCap(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, cap.regs.sp);
     if (d) { caught = d; break; }
   }
   assert.notEqual(caught, null, "the gate FAILED to catch a wrong endpoint tile — it is worthless");
@@ -246,7 +246,7 @@ test("TEETH: a wrong endpoint-tile bias is CAUGHT on every captured and crafted 
     o.mem.write8(REMAINDER, rem); c.mem.write8(REMAINDER, rem);
     oracle(o);
     brokenDrawSegmentEndCap(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, base.regs.sp);
     assert.notEqual(d, null, `teeth NOT caught on crafted arm single=${single} rem=${rem}`);
   }
   console.log(`  TEETH: wrong endpoint tile caught at ${hx(caught.addr ?? 0)} (oracle=${caught.a} broken=${caught.b}) + all crafted arms`);

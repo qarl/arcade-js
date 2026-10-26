@@ -37,6 +37,8 @@ import { loc_1ff6 as tailOracle } from "../../translated/loc_1ff6.js";
 import { stepBarrelLeft } from "../stepBarrelLeft.js";
 import { OBJ_X, STACK_SCRATCH } from "../names.js";
 import { Machine } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
+import { recordFrameSp, frameFloors } from "./_frame-sp.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -67,16 +69,16 @@ const CRAFT_BASE_FRAMES = 900;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const hb = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-/** First RAM byte that differs OUTSIDE the excluded STACK_SCRATCH window. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs OUTSIDE the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -84,7 +86,7 @@ function firstRamDiff(a, b) {
 
 /**
  * Run the oracle and a candidate on two fresh, byte-identical clones of one entry and report the
- * first contract breach: RAM − STACK_SCRATCH, final guest SP, and the forwarded return. A FAULT is
+ * first contract breach: RAM − the stack scratch below the entry SP, final guest SP, and the forwarded return. A FAULT is
  * a RESULT, not a crash: a broken twin (or a crafted X the game never produces) can walk the frozen
  * chain into unmapped memory, and a gate that dies instead of reporting proves nothing. Two
  * identical faults are not a difference.
@@ -98,6 +100,7 @@ const cursorOf = (m) => ({ page: m.regs.h * 256, cursor: m.regs.l });
 
 function runPair(entry, candidate) {
   const a = entry.clone(), b = entry.clone();
+  const aFloor = a.regs.sp;
   a.routines.set(WALK_STEP, () => {});
   b.routines.set(WALK_STEP, () => {});
   let retA, retB, faultA = null, faultB = null;
@@ -107,7 +110,7 @@ function runPair(entry, candidate) {
   if (faultA !== faultB) return { kind: "fault", detail: `oracle=${faultA} candidate=${faultB}` };
   if (faultA !== null) return null;
 
-  const ram = firstRamDiff(a, b);
+  const ram = firstRamDiff(a, b, aFloor);
   if (ram) return { kind: "ram", detail: `${hx(ram.addr)} oracle=${hb(ram.a)} candidate=${hb(ram.b)}`, addr: ram.addr };
   // The final guest SP is dropped: the dissolved form threads the cursor as a value and uses no guest
   // stack of its own, so it no longer tracks the oracle's m.call/ret bracket.
@@ -223,7 +226,7 @@ function craftedEntries(base) {
 // 1. EQUAL on every real dispatch
 // ===========================================================================
 
-test("CAPTURED: every real 0x1FEF dispatch == oracle over RAM − STACK_SCRATCH, final SP and return", () => {
+test("CAPTURED: every real 0x1FEF dispatch == oracle over RAM − the stack scratch below the entry SP, final SP and return", () => {
   const caps = captureDispatches(ATTRACT_FRAMES);
   assert.ok(caps.length > 0, "no 0x1FEF dispatch was captured — this case would be vacuous");
   const before = caps.length;
@@ -271,7 +274,7 @@ test("CRAFTED: stepBarrelLeft == oracle over the whole chain for all 256 X value
 
   console.log(
     `  CRAFTED: 256 X values on base ${hx(base.regs.ix)} — whole frozen chain on both sides, ` +
-      "RAM − STACK_SCRATCH, final SP and return identical",
+      "RAM − the stack scratch below the entry SP, final SP and return identical",
   );
 });
 
@@ -360,6 +363,7 @@ nodeTest("LIVE: retired — the routine now takes the cursor as a value; FULL FL
 
 test("LIVE-OUT: scrambling the flags at the ROM 0x1FF6 boundary changes nothing over a whole attract run", () => {
   const baseline = new Machine(ROM);
+  const baseSp = recordFrameSp(baseline);
   const baseFrames = baseline.runFrames(ATTRACT_FRAMES);
   assert.equal(baseline.stoppedBy, null, `baseline run stopped early: ${baseline.stoppedBy}`);
 
@@ -373,16 +377,19 @@ test("LIVE-OUT: scrambling the flags at the ROM 0x1FF6 boundary changes nothing 
     return tailOracle(mm);
   }]]);
   const poisoned = new Machine(ROM, { overrides: poison });
+  const poisonSp = recordFrameSp(poisoned);
   const poisonFrames = poisoned.runFrames(ATTRACT_FRAMES);
+  const floors = frameFloors(baseSp, poisonSp);
   assert.equal(poisoned.stoppedBy, null, `poisoned run stopped early: ${poisoned.stoppedBy}`);
   assert.ok(fired > 0, "the poison override never fired — this case would be vacuous");
 
   for (let f = 0; f < baseFrames.length; f++) {
     const a = baseFrames[f], b = poisonFrames[f];
+    const dead = deadStackBelow(STACK_SCRATCH, floors[f]);
     for (let i = 0; i < a.length; i++) {
       if (a[i] === b[i]) continue;
       const addr = baseline.stateOffsetToAddr(i);
-      if (inStack(addr)) continue;
+      if (dead(addr)) continue;
       assert.fail(`frame ${f}: RAM@${hx(addr)} baseline=${a[i]} poisoned=${b[i]}`);
     }
   }

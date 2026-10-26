@@ -51,6 +51,7 @@ import { drawStringVertical } from "../drawStringVertical.js";
 import { drawCreditDisplay } from "../drawCreditDisplay.js";
 import { CREDITS, FRAME, STACK_SCRATCH } from "../names.js";
 import { Machine } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -62,23 +63,23 @@ const test = ROM_PRESENT
 const TARGET = 0x08d5;
 const IN2 = 0x7d00;
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // -- the memory-equivalence contract ------------------------------------------
 
 /**
- * First RAM byte that differs between two machines, skipping STACK_SCRATCH — the
+ * First RAM byte that differs between two machines, skipping the stack scratch below the entry SP — the
  * dead stack region the standard gate excludes. The oracle's push16/m.call/m.ret
  * touch only bytes at or below the entry SP, all inside STACK_SCRATCH on the real
  * NMI stack.
  */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -104,12 +105,12 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Compare candidate vs oracle over RAM − STACK_SCRATCH, pc, SP, and live-out A. */
+/** Compare candidate vs oracle over RAM − the stack scratch below the entry SP, pc, SP, and live-out A. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   if (o.regs.a !== c.regs.a) diffs.push(`A oracle=${hx(o.regs.a)} cand=${hx(c.regs.a)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=0x${o.pc.toString(16)} cand=0x${c.pc.toString(16)}`);

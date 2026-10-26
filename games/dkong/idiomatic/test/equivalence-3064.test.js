@@ -5,7 +5,7 @@
  * 16-bit and wrapping).
  *
  * Like addStrided (0x003d) and unlike the pure-leaf exemplar (0x2333), this routine
- * WRITES MEMORY, so it is gated on memory-equivalence — RAM (minus STACK_SCRATCH) +
+ * WRITES MEMORY, so it is gated on memory-equivalence — RAM (minus the stack scratch below the entry SP) +
  * pc + SP — not on a returned scalar, and every case runs on a FRESH clone (a reused
  * clone is only safe for a read-only leaf). Its declared LIVE-OUT is memory-only (the
  * one byte at HL+BC+DE); the oracle's residual HL/A/F are dead at the sole call site,
@@ -51,6 +51,7 @@ import { loc_304a } from "../../translated/loc_304a.js";
 import { copyByteDisplaced } from "../copyByteDisplaced.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -61,22 +62,18 @@ const test = ROM_PRESENT
 
 const TARGET = 0x3064;
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/**
- * First RAM byte that differs between two machines, skipping STACK_SCRATCH — the
- * dead stack region excluded by the standard gate. sub_3064 pushes nothing, so it
- * never writes the stack anyway; the exclusion just follows the contract.
- */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -89,11 +86,8 @@ function runOracle(entry) {
   return c;
 }
 
-/**
- * Run a candidate on a fresh clone, then model its return with one m.ret() so pc + SP
- * match the oracle's (the idiomatic routine replaces the Z80 stack with the JS call
- * stack, so it never touches pc/SP itself — the harness supplies the return).
- */
+/** Run a candidate on a fresh clone, then model its return with one m.ret() so pc + SP match the oracle's (the
+ *  idiomatic routine replaces the Z80 stack with the JS call stack, so it never touches pc/SP itself). */
 function runCandidate(entry, fn) {
   const c = entry.clone();
   fn(c);
@@ -101,17 +95,13 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/**
- * Compare candidate vs oracle over the memory-only contract: RAM − STACK_SCRATCH, pc,
- * and SP. LIVE-OUT is memory-only, so HL/A/F are intentionally NOT compared (they are
- * dead at the sole caller loc_304a). Returns a list of human-readable mismatches
- * (empty when equal).
- */
+/** Compare candidate vs oracle over the memory-only contract: RAM − the stack scratch below the entry SP, pc, and SP;
+ *  HL/A/F are intentionally NOT compared. Returns a list of human-readable mismatches (empty when equal). */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=0x${o.pc.toString(16)} cand=0x${c.pc.toString(16)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=0x${o.regs.sp.toString(16)} cand=0x${c.regs.sp.toString(16)}`);
@@ -120,10 +110,8 @@ function contractDiffs(entry, fn) {
 
 // -- capture ------------------------------------------------------------------
 
-/**
- * A realistic booted machine, captured at loc_0fd7 (reached in plain attract) — the
- * same seed the optimized loc_304a suite uses. Its clones drive loc_304a below.
- */
+// A realistic booted machine, captured at loc_0fd7 (reached in plain attract) — the same seed the optimized loc_304a
+// suite uses. Its clones drive loc_304a below.
 function captureBooted(maxFrames) {
   let entry = null;
   const snap = new Map([[0x0fd7, (mm) => { if (entry === null) entry = mm.clone(); return loc_0fd7(mm); }]]);

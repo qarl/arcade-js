@@ -17,7 +17,7 @@
  * `ret` (entry_1da6's), and on the landing arm's pending-pickup path entry_1c4f `push16`s a
  * return address that sub_1d95 pops — a balanced bracket the idiomatic layer models with the
  * JS call stack, so those pushed bytes are DEAD scratch the candidate never writes. The gate
- * therefore compares RAM MINUS STACK_SCRATCH [0x6be0,0x6c00), plus pc and SP, and the
+ * therefore compares RAM MINUS the stack scratch below the entry SP [0x6be0,0x6c00), plus pc and SP, and the
  * candidate performs ONE m.ret() after running to line pc + SP up with the oracle's terminal
  * ret. Live-out is memory-only; the counter and landing registers are dead past the branch.
  *
@@ -61,6 +61,7 @@ import {
   MARIO_AIRBORNE,
   ITEM_COLLECTED,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -73,17 +74,17 @@ const TARGET = 0x1c3a;
 const RET_ADDR = 0x1c08; // a plausible caller-return for crafted entries (entry_1c05's site)
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region
-// (the memory-equivalence contract is RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
+// (the memory-equivalence contract is RAM − the stack scratch below the entry SP). { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -121,12 +122,12 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Full contract diff: RAM − STACK_SCRATCH, pc, SP. Live-out is memory-only. */
+/** Full contract diff: RAM − the stack scratch below the entry SP, pc, SP. Live-out is memory-only. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);
@@ -211,7 +212,7 @@ test("EQUAL (crafted): the airborne, counter-wrap, and landing arms all match th
   const c = runCandidate(pickup, loc_1c3a);
   const anyDiff = firstAnyRamDiff(o, c);
   assert.notEqual(anyDiff, null, "expected the dissolved push16 to leave a stack-scratch difference");
-  assert.ok(inStack(anyDiff.addr), `the only RAM difference must be in STACK_SCRATCH, got ${hx(anyDiff.addr)}`);
+  assert.ok(deadStackBelow(STACK_SCRATCH, pickup.regs.sp)(anyDiff.addr), `the only RAM difference must be in the stack scratch below the entry SP, got ${hx(anyDiff.addr)}`);
 
   console.log(`  EQUAL/crafted: ${cases.length} arms identical; pickup-arm push16 difference confined to STACK_SCRATCH (${hx(anyDiff.addr)})`);
 });

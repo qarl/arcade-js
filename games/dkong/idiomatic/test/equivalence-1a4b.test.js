@@ -21,7 +21,7 @@
  *      SP already holds loc_197a's real return address, so the `ret` lands correctly.
  *
  *   1. EQUAL (exhaustive) — sweep all 256 prior values of 0x6291, each staged on the
- *      real base, and confirm armEdgeRivetPickup == oracle on RAM−STACK_SCRATCH + pc +
+ *      real base, and confirm armEdgeRivetPickup == oracle on RAM − the stack scratch below the entry SP + pc +
  *      SP, and that 0x6291 ends 1 in every case. 256 cases cover the whole (only) input
  *      the routine could conceivably read — it reads none, so all end identically.
  *
@@ -53,6 +53,7 @@ import { loc_1a33 as oracle1a33 } from "../../translated/loc_1a33.js";
 import { armEdgeRivetPickup } from "../armEdgeRivetPickup.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, EDGE_RIVET_ARMED } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -65,18 +66,16 @@ const TARGET = 0x1a4b;      // arm_1a4b
 const CALLER = 0x1a33;      // sub_1a33 (dispatched in attract; base source)
 const RIVETS_LEFT = 0x6290; // sits just below EDGE_RIVET_ARMED (0x6291); wrong-addr teeth target
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
-// -- the memory-equivalence contract ------------------------------------------
-
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -89,11 +88,6 @@ function runOracle(entry) {
   return c;
 }
 
-/**
- * Run a candidate on a fresh clone, then model its return with one m.ret() so pc + SP
- * match the oracle's (the idiomatic routine replaces the Z80 stack with the JS call
- * stack, so it does not touch pc/SP itself — the harness supplies the return).
- */
 function runCandidate(entry, fn) {
   const c = entry.clone();
   fn(c);
@@ -101,19 +95,17 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Compare candidate vs oracle over RAM − STACK_SCRATCH + pc + SP (live-out is memory-only). */
+/** Compare candidate vs oracle over RAM − the stack scratch below the entry SP + pc + SP (live-out is memory-only). */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=0x${o.pc.toString(16)} cand=0x${c.pc.toString(16)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=0x${o.regs.sp.toString(16)} cand=0x${c.regs.sp.toString(16)}`);
   return diffs;
 }
-
-// -- capture ------------------------------------------------------------------
 
 /**
  * One host attract run that (a) counts how often 0x1a4b is dispatched — it never is —
@@ -140,8 +132,6 @@ function craft(base, prior) {
   c.mem.write8(EDGE_RIVET_ARMED, prior);
   return c;
 }
-
-// -- broken twins -------------------------------------------------------------
 
 /** Broken twin (a): stores 0x00 instead of 0x01 — the flag would never arm. */
 function brokenWrongValue(m) {
@@ -205,11 +195,12 @@ test("FOOTPRINT: the oracle writes exactly one non-stack byte — 0x6291 — and
     const entry = craft(BASE, prior);
     const before = entry.dumpState();
     const after = runOracle(entry).dumpState();
+    const dead = deadStackBelow(STACK_SCRATCH, entry.regs.sp);
     let touched = null, extra = false;
     for (let i = 0; i < Math.min(before.length, after.length); i++) {
       if (before[i] === after[i]) continue;
       const a = entry.stateOffsetToAddr(i);
-      if (inStack(a)) continue; // the ret's stack pop is not a write anyway
+      if (dead(a)) continue; // the ret's stack pop is not a write anyway
       if (a === EDGE_RIVET_ARMED) touched = a;
       else extra = true;
     }

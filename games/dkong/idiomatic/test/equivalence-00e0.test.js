@@ -10,7 +10,7 @@
  * to the device latches: after running oracle vs idiomatic on independent clones
  * of one entry state, compare
  *
- *     dumpState() (work+sprite+video, minus STACK_SCRATCH)
+ *     dumpState() (work+sprite+video, minus the stack scratch below the entry SP)
  *   + io.latch6h[0..7]   (the eight sound-trigger bits)
  *   + io.soundLatch3d    (0x7C00 tune index)
  *   + io.audioIrq        (0x7D80 IRQ line)
@@ -64,6 +64,7 @@ import {
   SND_PRIORITY_FRAMES,
   STACK_SCRATCH,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -79,18 +80,19 @@ const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
 
 /**
  * First observable difference between two machines AFTER a run — work/sprite/video
- * RAM (minus STACK_SCRATCH) plus the three sound-device latches — or null when
+ * RAM (minus the stack scratch below the entry SP) plus the three sound-device latches — or null when
  * identical. The device latches are the routine's real output and are NOT in
  * dumpState(), so they are compared explicitly.
  */
-function soundStateDiff(a, b) {
+function soundStateDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue; // dead stack scratch
+    if (dead(addr)) continue; // dead stack scratch
     return `RAM 0x${addr.toString(16)}: oracle=${hx(da[i])} idio=${hx(db[i])}`;
   }
   for (let i = 0; i < 8; i++) {
@@ -114,7 +116,7 @@ function comparePair(base, candidate) {
   const b = base.clone(); // candidate under test
   oracle(a);
   candidate(b);
-  return soundStateDiff(a, b);
+  return soundStateDiff(a, b, base.regs.sp);
 }
 
 // -- 1. REALISM (captured dispatches) ---------------------------------------

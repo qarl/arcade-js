@@ -10,7 +10,7 @@
  * (ROM 0x21BA). Almost all of the visible work happens in those continuations, so this gate is
  * mostly a gate on WHICH ONE runs and on what it is handed.
  *
- * CONTRACT COMPARED HERE: work/sprite/video RAM minus STACK_SCRATCH, the return value, and the
+ * CONTRACT COMPARED HERE: work/sprite/video RAM minus the stack scratch below the entry SP, the return value, and the
  * MAIN register file as a declared live-out. The main set holds for a derivable reason: the frozen
  * continuations run the whole rest of the sweep and the sweep's shared tail swaps the register
  * sets back, so by the time control returns the main set belongs to the sweep and not to this
@@ -102,6 +102,8 @@ import { advanceBarrelSpriteOrientation } from "../advanceBarrelSpriteOrientatio
 import { OBJ_ARRAY_67, OBJ_X, OBJ_Y, STACK_SCRATCH } from "../names.js";
 import { u8 } from "../../../../core/int.js";
 import { Machine } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
+import { recordFrameSp, frameFloors } from "./_frame-sp.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -126,7 +128,6 @@ const RETIRE_MARGIN = 8;
 const MAIN_REGS = ["a", "f", "b", "c", "d", "e", "h", "l", "ix", "iy"];
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 // The staging cursor the walk owns as a plain value. This arm is captured at its OWN entry, before
 // its exx, so the cursor is still in the active bank (h/l) — the two exchanges the frozen chain then
@@ -153,14 +154,15 @@ function rehost(base, overrides) {
   return e;
 }
 
-/** First RAM byte that differs, skipping the dead STACK_SCRATCH region. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -185,13 +187,13 @@ function contractDiffs(entry, fn) {
     return [`threw ${e.constructor.name}: ${e.message}`];
   }
   const out = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) out.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (oret !== cret) out.push(`return oracle=${String(oret)} cand=${String(cret)}`);
   // pc, SP and the register file are ALL dropped: the dissolved rewrite threads the staging cursor
   // as a value and direct-calls its continuations, so it writes no exx-swapped loop registers and no
   // guest-stack bracket — the whole register set the old form left is now JS-local. The contract is
-  // RAM minus STACK_SCRATCH plus the return; arm identity is implied by RAM (a spliced/retired record
+  // RAM minus the stack scratch below the entry SP plus the return; arm identity is implied by RAM (a spliced/retired record
   // differs in RAM from an inlined one).
   return out;
 }
@@ -259,9 +261,10 @@ let BASELINE = null;
 function baseline() {
   if (BASELINE) return BASELINE;
   const m = new Machine(ROM);
+  const sp = recordFrameSp(m);
   const frames = m.runFrames(ATTRACT_FRAMES);
   assert.equal(m.stoppedBy, null, `baseline run stopped early: ${m.stoppedBy}`);
-  BASELINE = { m, frames };
+  BASELINE = { m, frames, sp };
   return BASELINE;
 }
 
@@ -289,7 +292,7 @@ function withX(x) {
 
 /** Wire `body` at 0x2053 for a whole attract run and diff every frame against the baseline. */
 function liveRun(body) {
-  const { m: base, frames: baseFrames } = baseline();
+  const { m: base, frames: baseFrames, sp: baseFrameSp } = baseline();
   let fired = 0;
   const deltas = new Set();
   const cand = new Machine(ROM, {
@@ -312,17 +315,20 @@ function liveRun(body) {
       return r;
     }]]),
   });
+  const candFrameSp = recordFrameSp(cand);
   const candFrames = cand.runFrames(ATTRACT_FRAMES);
+  const floors = frameFloors(baseFrameSp, candFrameSp);
   assert.equal(cand.stoppedBy, null, `live run stopped early: ${cand.stoppedBy}`);
   assert.equal(candFrames.length, baseFrames.length, "both runs must reach the frame budget");
 
   let firstBad = null;
   for (let f = 0; f < baseFrames.length && !firstBad; f++) {
     const a = baseFrames[f], b = candFrames[f];
+    const dead = deadStackBelow(STACK_SCRATCH, floors[f]);
     for (let i = 0; i < a.length; i++) {
       if (a[i] === b[i]) continue;
       const addr = base.stateOffsetToAddr(i);
-      if (inStack(addr)) continue;
+      if (dead(addr)) continue;
       firstBad = `frame ${f}: RAM@${hx(addr)} baseline=${a[i]} live=${b[i]}`;
       break;
     }

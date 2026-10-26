@@ -7,7 +7,7 @@
  *
  * loc_12de WRITES memory and gates on SUBSTATE_TIMER, so it is validated by
  * capture/clone/replay against the frozen oracle on the memory-equivalence contract:
- * RAM (minus STACK_SCRATCH) only. pc / SP / the register file are NOT compared — the
+ * RAM (minus the stack scratch below the entry SP) only. pc / SP / the register file are NOT compared — the
  * oracle's push16/rst/call/ret churn is the Z80 stack model the direct-call rewrite
  * drops; every byte of it lands in STACK_SCRATCH (SP sits at 0x6bec-0x6bf0 for every
  * real dispatch) and its residual A/HL/F are dead ABI (the rst-0x28 dispatch this
@@ -57,6 +57,7 @@ import { tickSubstateTimer as tick } from "../tickSubstateTimer.js"; // reused i
 import { loc_30db as clear } from "../loc_30db.js"; //                    "        "        "
 import { GAME_SUBSTATE, SUBSTATE_TIMER, STACK_SCRATCH } from "../names.js";
 import { Machine } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -69,18 +70,18 @@ const TARGET = 0x12de;
 const PLAYER_INDEX = 0x600e; // 1P/2P index, unnamed in names.js
 const SPRITE_CLEARS = [0x694c, 0x6958, 0x695c, 0x6960, 0x6964, 0x6968, 0x696c]; // loc_30db's footprint
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
-// -- the memory-equivalence contract: RAM minus STACK_SCRATCH ------------------
+// -- the memory-equivalence contract: RAM minus the stack scratch below the entry SP ------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH, or null. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP, or null. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue; // the dropped Z80 stack model — not in the contract
+    if (dead(addr)) continue; // the dropped Z80 stack model — not in the contract
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -97,7 +98,7 @@ function runPair(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return firstRamDiff(a, b);
+  return firstRamDiff(a, b, entry.regs.sp);
 }
 
 /** Clone an entry and poke fields; returns the fresh clone. */

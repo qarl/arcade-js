@@ -7,7 +7,7 @@
  * 0x6227, SUBSTATE_TIMER 0x6009, GAME_SUBSTATE 0x600A) and leaves NO live registers
  * (it is reached via the vblank rst-0x28 sub-state dispatch, which reads none of its
  * residual regs/flags — live-out is memory-only). So it is gated on
- * memory-equivalence over RAM (minus STACK_SCRATCH) + pc + SP, and every case runs
+ * memory-equivalence over RAM (minus the stack scratch below the entry SP) + pc + SP, and every case runs
  * on a FRESH clone (a reused clone is only safe for a read-only leaf):
  *
  *   1. EQUAL (real driven dispatch) — 0x09ab does NOT run in attract (0 dispatches
@@ -15,7 +15,7 @@
  *      coin+start inputTape credits and starts a game, and the game-start context
  *      restore dispatches 0x09ab exactly once at frame 33 on the 0x600F==0
  *      (one-player) arm. The oracle and restorePlayer1Context are run on fresh clones
- *      of that captured entry and compared on RAM (minus STACK_SCRATCH) + pc + SP.
+ *      of that captured entry and compared on RAM (minus the stack scratch below the entry SP) + pc + SP.
  *
  *   2. EQUAL (crafted arms + edges) — clones of the real entry with a surgical poke,
  *      for coverage the single driven dispatch cannot reach:
@@ -61,6 +61,7 @@ import {
   SUBSTATE_TIMER,
   GAME_SUBSTATE,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -72,7 +73,6 @@ const test = ROM_PRESENT
 const TARGET = 0x09ab;
 const MAX_FRAMES = 40; // 0x09ab first dispatches at frame 33 under the coin+start tape
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // A coin+start tape: coin on IN2 (0x7d00) bit7 at frame 10, start1 on bit2 at frame 30.
 // Credits and starts a game so GAME_STATE reaches 3 and the game-start sub-state
@@ -85,33 +85,28 @@ const COIN_START_TAPE = [
 // -- the memory-equivalence contract ------------------------------------------
 
 /**
- * First RAM byte that differs between two machines, skipping STACK_SCRATCH — the
+ * First RAM byte that differs between two machines, skipping the stack scratch below the entry SP — the
  * dead stack region the standard gate excludes.
  */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
-/** Run the ORACLE on a fresh clone. It performs its own `ret`, so pc/SP advance. */
 function runOracle(entry) {
   const c = entry.clone();
   oracle(c);
   return c;
 }
 
-/**
- * Run a candidate on a fresh clone, then model its return with one m.ret() so pc +
- * SP match the oracle's (the idiomatic routine replaces the Z80 stack with the JS
- * call stack, so it does not touch pc/SP itself — the harness supplies the return).
- */
 function runCandidate(entry, fn) {
   const c = entry.clone();
   fn(c);
@@ -120,7 +115,7 @@ function runCandidate(entry, fn) {
 }
 
 /**
- * Compare candidate vs oracle over the full contract: RAM − STACK_SCRATCH, pc, SP.
+ * Compare candidate vs oracle over the full contract: RAM − the stack scratch below the entry SP, pc, SP.
  * Live-out is memory-only (no live registers), so the register file is deliberately
  * NOT compared. Returns a list of human-readable mismatches (empty when equal).
  */
@@ -128,7 +123,7 @@ function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=0x${o.pc.toString(16)} cand=0x${c.pc.toString(16)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=0x${o.regs.sp.toString(16)} cand=0x${c.regs.sp.toString(16)}`);
@@ -154,7 +149,6 @@ function captureEntry(maxFrames) {
   return entry;
 }
 
-/** A clone of the ordering craft: old live pointer != restored pointer, distinct targets. */
 function makeOrderingCraft(entry) {
   const c = entry.clone();
   // Old live board-seq pointer -> 0x6100 (value 0xAA); restored pointer (P1_CONTEXT
@@ -171,8 +165,6 @@ function makeOrderingCraft(entry) {
 
 // -- broken twins -------------------------------------------------------------
 
-/** Broken twin (a): the two sub-state arms swapped. Caught whenever the arm is armed
- *  (always) — including the real one-player dispatch. */
 function brokenArmSwap(m) {
   const { mem } = m;
   for (let i = 0; i < 8; i++) mem.write8(LIVES + i, mem.read8(P1_CONTEXT + i));
@@ -186,8 +178,6 @@ function brokenArmSwap(m) {
   }
 }
 
-/** Broken twin (b): derefs the board pointer BEFORE the ldir (the ordering bug), so
- *  BOARD is derived from the STALE 0x622A. Caught on the ordering craft. */
 function brokenStalePointer(m) {
   const { mem } = m;
   mem.write8(BOARD, mem.read8(mem.read16(BOARD_SEQ_PTR))); // BUG: before the ldir
@@ -222,7 +212,6 @@ test("EQUAL (crafted): two-player arm + distinct-byte context + ldir-before-dere
   const entry = captureEntry(MAX_FRAMES);
   assert.ok(entry, "need the real capture to seed crafted entries with real RAM");
 
-  // (a) two-player arm: poke 0x600F non-zero (1 and 0xFF both take the alternation arm).
   const twoP = entry.clone();
   twoP.mem.write8(TWO_PLAYER_GAME, 0x01);
   const twoPff = entry.clone();
@@ -236,7 +225,6 @@ test("EQUAL (crafted): two-player arm + distinct-byte context + ldir-before-dere
   for (let i = 0; i < 8; i++) distinct.mem.write8(P1_CONTEXT + i, PATTERN[i]);
   distinct.mem.write8(0x6150, 0x99); // deref target for the pinned pointer
 
-  // (c) ordering craft: BOARD must come from the RESTORED pointer, not the stale one.
   const ordering = makeOrderingCraft(entry);
 
   const cases = [
@@ -250,7 +238,6 @@ test("EQUAL (crafted): two-player arm + distinct-byte context + ldir-before-dere
     assert.equal(diffs.length, 0, `${name}: ${diffs.join("; ")}`);
   }
 
-  // Sanity: confirm the ordering craft actually derives BOARD from the restored pointer.
   const orderOut = runOracle(makeOrderingCraft(entry));
   assert.equal(orderOut.mem.read8(BOARD), 0xbb, "ordering craft must derive BOARD from the restored pointer (0xBB)");
 
@@ -267,7 +254,6 @@ test("TEETH: the arm-swap twin and the stale-pointer twin are CAUGHT", () => {
   const swapDiffs = contractDiffs(entry, brokenArmSwap);
   assert.ok(swapDiffs.length > 0, "the arm-swap twin escaped on the real dispatch — the gate is worthless");
 
-  // ...and on the two-player arm too.
   const twoP = entry.clone();
   twoP.mem.write8(TWO_PLAYER_GAME, 0x01);
   assert.ok(contractDiffs(twoP, brokenArmSwap).length > 0, "arm-swap twin escaped on the two-player arm");

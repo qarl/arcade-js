@@ -18,7 +18,7 @@
  *      guard were missing, so the no-write is genuine.
  *   2. EQUAL (25m step sweep) — a matrix of (companion, coord, state) that exercises every
  *      snapYToGirder arm (hold vs step, both sentinel coordinates 240/76, both slope directions,
- *      both travel directions). Each asserts identical contract (RAM − STACK_SCRATCH, pc,
+ *      both travel directions). Each asserts identical contract (RAM − the stack scratch below the entry SP, pc,
  *      SP) AND that the stored +0x0F equals snapYToGirder(companion, coord, state) — proving the
  *      wrapper actually passes the coordinates through and stores the result. Non-vacuity:
  *      the sweep is required to contain both cases that changed the coordinate and cases
@@ -45,6 +45,7 @@ import { settleFireOnGirderSlope } from "../settleFireOnGirderSlope.js";
 import { snapYToGirder } from "../snapYToGirder.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, BOARD, OBJ_STATE } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -61,17 +62,17 @@ const OFF_0F = 0x0f;      // record +0x0F — coordinate stepped + stored (snapY
 const FIELD_0F = (OBJ_BASE + OFF_0F) & 0xffff; // the single cell this routine writes
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region
-// (the memory-equivalence contract is RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
+// (the memory-equivalence contract is RAM − the stack scratch below the entry SP). { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -79,13 +80,14 @@ function firstRamDiff(a, b) {
 
 // All non-stack RAM addresses that changed between two machines (for the no-write
 // non-vacuity check on the board-guard early-out).
-function changedAddrs(a, b) {
+function changedAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.push(addr);
   }
   return out;
@@ -111,12 +113,12 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Full contract diff: RAM − STACK_SCRATCH, pc, SP. Live-out is memory-only. */
+/** Full contract diff: RAM − the stack scratch below the entry SP, pc, SP. Live-out is memory-only. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);
@@ -160,7 +162,7 @@ test("EQUAL (board guard): every non-25m board early-outs with no RAM write", ()
     const diffs = contractDiffs(entry, settleFireOnGirderSlope);
     assert.equal(diffs.length, 0, `board ${hx(board)}: ${diffs.join("; ")}`);
     // Genuinely the no-write path: the oracle wrote no non-stack RAM.
-    assert.deepEqual(changedAddrs(entry, runOracle(entry)), [], `board ${hx(board)}: guard path wrote non-stack RAM`);
+    assert.deepEqual(changedAddrs(entry, runOracle(entry), entry.regs.sp), [], `board ${hx(board)}: guard path wrote non-stack RAM`);
   }
   console.log("  EQUAL/board-guard: 6 non-25m selectors early-out with no non-stack write, identical to the oracle");
 });

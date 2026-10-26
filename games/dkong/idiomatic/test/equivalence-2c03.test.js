@@ -14,11 +14,11 @@
  *
  * LIVE-OUT is memory-only: every exit either wrote nothing (or only the cluster's writes) or
  * tail-dispatched a void cluster entry, and the board-1 caller reads back no register/flag the
- * oracle leaves — so this compares RAM − STACK_SCRATCH only, no pc/SP shim.
+ * oracle leaves — so this compares RAM − the stack scratch below the entry SP only, no pc/SP shim.
  *
  *   0. REACHABILITY — 0x2c03 is dispatched during 25m attract.
  *   1. EQUAL (captured) — hook 0x2c03 in a real attract run, clone at each dispatch, and
- *      confirm scheduleBarrelRelease == oracle (RAM − STACK_SCRATCH) on every real state.
+ *      confirm scheduleBarrelRelease == oracle (RAM − the stack scratch below the entry SP) on every real state.
  *   2. EQUAL (crafted) — poke the gates/thresholds identically on both sides to drive every
  *      path: the three gate-closed skips, the zero-bonus early-out, the loc_2c7b tail, the
  *      loc_2c86 tail, the loc_2c41 tail by BOTH the phase-match jump and the odd-spin
@@ -48,6 +48,7 @@ import { marioActiveGuard as marioActiveGuardRef } from "../marioActiveGuard.js"
 import { loc_2c7b as loc_2c7bRef } from "../loc_2c7b.js";
 import { loc_2c86 as loc_2c86Ref } from "../loc_2c86.js";
 import { loc_2c41 as loc_2c41Ref } from "../loc_2c41.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -65,17 +66,17 @@ const SCRATCH_FLAG = 0x6392;
 const SAFE_SP = 0x6bf8; // the oracle's terminal `ret`s pop here; its `call` pushes land in STACK_SCRATCH.
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region
-// (the memory-equivalence contract is RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
+// (the memory-equivalence contract is RAM − the stack scratch below the entry SP). { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -83,13 +84,14 @@ function firstRamDiff(a, b) {
 
 // All non-stack RAM addresses that changed between two machines (for the no-write / exact-write
 // checks on the skip and early-out paths).
-function changedAddrs(a, b) {
+function changedAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.push(addr);
   }
   return out;
@@ -101,7 +103,7 @@ function ramDiff(entry, fn) {
   const b = entry.clone();
   oracle(a);
   fn(b);
-  return firstRamDiff(a, b);
+  return firstRamDiff(a, b, entry.regs.sp);
 }
 
 // A real, self-consistent machine: boot + a stretch of attract so work RAM holds realistic values.
@@ -168,7 +170,7 @@ test("EQUAL (captured): scheduleBarrelRelease == oracle on every real dispatch",
     assert.equal(diff, null, diff && `captured dispatch: RAM@${hx(diff.addr)} oracle=${diff.a} cand=${diff.b}`);
     // Classify for reporting: body (any non-stack write) vs skip.
     const after = entry.clone(); oracle(after);
-    if (changedAddrs(entry, after).length > 0) bodyRuns++; else skips++;
+    if (changedAddrs(entry, after, entry.regs.sp).length > 0) bodyRuns++; else skips++;
   }
   console.log(`  EQUAL/captured: ${caps.length} real dispatches identical to the oracle (${bodyRuns} body, ${skips} skip)`);
 });
@@ -209,7 +211,7 @@ test("EQUAL (crafted): every gate/threshold path matches the oracle", () => {
     const after = entry.clone(); oracle(after);
     if (writes) {
       // Exact non-stack write set — proves the path was genuinely the skip / early-out / return one.
-      assert.deepEqual(changedAddrs(entry, after).sort(), [...writes].sort(),
+      assert.deepEqual(changedAddrs(entry, after, entry.regs.sp).sort(), [...writes].sort(),
         `${name}: unexpected non-stack write set`);
     } else if (body) {
       // A cluster entry fired: it stamped the mode byte and the entry flag (sentinels gone).
@@ -218,7 +220,7 @@ test("EQUAL (crafted): every gate/threshold path matches the oracle", () => {
       assert.notEqual(after.mem.read8(SCRATCH_FLAG), 0xee, `${name}: cluster entry flag not raised`);
       if (stirs) {
         // The loc_2c41 head stirs the random seed before dispatching a mode entry.
-        assert.ok(changedAddrs(entry, after).includes(RANDOM), `${name}: cluster head did not stir RANDOM`);
+        assert.ok(changedAddrs(entry, after, entry.regs.sp).includes(RANDOM), `${name}: cluster head did not stir RANDOM`);
       }
     }
   }

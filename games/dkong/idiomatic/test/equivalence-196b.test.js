@@ -8,7 +8,7 @@
  * loc_196b WRITES memory (the clear footprint + a store to GAME_SUBSTATE) and READS
  * exactly ONE byte (0x600E). So it is validated by capture/clone/replay on a FRESH
  * clone per case — never reusing one machine, never the full register file, never
- * cycles. The compared contract is RAM minus STACK_SCRATCH + pc + SP; here pc/SP are
+ * cycles. The compared contract is RAM minus the stack scratch below the entry SP + pc + SP; here pc/SP are
  * dropped (the idiomatic layer has no stack/PC bookkeeping) so the gate is RAM
  * (ex-stack). loc_196b touches no board io latch, so no io field is compared.
  *
@@ -47,6 +47,7 @@ import { clearScreenAndSelectSubstate as candidate } from "../clearScreenAndSele
 import { clearTilemapAndSprites as clearTilemapAndSpritesLike } from "../clearTilemapAndSprites.js";
 import { Machine } from "../../machine.js";
 import { GAME_SUBSTATE, SPRITE_BUFFER, STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -85,15 +86,16 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
 // -- comparison plumbing ------------------------------------------------------
 
-/** First RAM byte (skipping the dead STACK_SCRATCH) that differs, or null. */
-function firstDiffOutsideStack(a, b) {
+/** First RAM byte (skipping the stack scratch below the entry SP) that differs, or null. */
+function firstDiffOutsideStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -108,7 +110,7 @@ function diffAgainstOracle(entry, cand) {
   a.regs.sp = 0x6bfe; // valid work-RAM stack for the oracle's push16/call/ret
   oracle(a);
   cand(b);
-  return firstDiffOutsideStack(a, b);
+  return firstDiffOutsideStack(a, b, 0x6bfe);
 }
 
 const inFootprint = (addr) =>

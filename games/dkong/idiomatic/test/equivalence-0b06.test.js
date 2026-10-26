@@ -8,7 +8,7 @@
  * idiomatic), so it is gated by capture / clone / replay (docs/decompiler-pipeline) with a FRESH clone per
  * case. It is reached ONLY in a credited game while the opening cutscene (GAME_SUBSTATE 7)
  * runs at INTRO_STEP == 4 — never in plain attract — so the states are captured from a
- * DRIVEN coin+start run. The comparison is RAM − STACK_SCRATCH: the oracle's stack traffic
+ * DRIVEN coin+start run. The comparison is RAM − the stack scratch below the entry SP: the oracle's stack traffic
  * on the deepest arm (path C) lands entirely in 0x6bea..0x6bed, well inside STACK_SCRATCH
  * [0x6be0,0x6c00), so excluding that region cannot mask a game-visible divergence. SP/pc
  * are the dropped stack model and are NOT compared — the oracle's own final `ret` nets SP+2
@@ -46,6 +46,7 @@ import { scrollClimbGraphicStep } from "../scrollClimbGraphicStep.js";
 import { drawBoardLayout as loc_0da7 } from "../drawBoardLayout.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -72,16 +73,17 @@ const COIN_START_TAPE = [
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First game-visible RAM byte that differs between two machines (skipping STACK_SCRATCH),
-// or null. The memory-equivalence contract for this routine is RAM − STACK_SCRATCH.
-function firstRamDiffExStack(a, b) {
+// First game-visible RAM byte that differs between two machines (skipping the stack scratch below the entry SP),
+// or null. The memory-equivalence contract for this routine is RAM − the stack scratch below the entry SP.
+function firstRamDiffExStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -94,7 +96,7 @@ function replay(entry, cand) {
   const b = entry.clone(); // candidate
   oracle(a);
   cand(b);
-  return firstRamDiffExStack(a, b);
+  return firstRamDiffExStack(a, b, entry.regs.sp);
 }
 
 /**

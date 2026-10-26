@@ -6,14 +6,14 @@
  * `ret`. It reads and writes NO memory and leaves NO live registers (entry_1a07 ->
  * loc_197a @0x19BF reads nothing on return, it just proceeds to the next call 0x2FCB),
  * so live-out is memory-only — in fact empty. It is gated on memory-equivalence over
- * RAM (minus STACK_SCRATCH) + pc + SP, and every case runs on a FRESH clone:
+ * RAM (minus the stack scratch below the entry SP) + pc + SP, and every case runs on a FRESH clone:
  *
  *   1. EQUAL (real captured dispatches) — hook 0x1a1e in a real attract run and clone
  *      the machine at each true dispatch. Attract reaches it ~1197 times over 2000
  *      frames from entry_1a07 while BONUS_EXPIRED_STEP == 0 (entry SP 0x6bea-0x6bee,
  *      all inside STACK_SCRATCH). For each capture: (a) confirm the ORACLE itself writes
  *      NO RAM (the "does nothing" claim, direct), and (b) confirm bonusExpiredIdle ==
- *      oracle on RAM-STACK_SCRATCH + pc + SP.
+ *      oracle on RAM - the stack scratch below the entry SP + pc + SP.
  *
  *   2. EQUAL (crafted entry) — the routine is branchless, so there are no unreached
  *      ARMS; instead the craft exercises a state the natural run never produces: SP
@@ -45,6 +45,7 @@ import { loc_1a1e as oracle } from "../../translated/loc_1a1e.js";
 import { bonusExpiredIdle } from "../bonusExpiredIdle.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, BONUS_EXPIRED_STEP } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -55,21 +56,15 @@ const test = ROM_PRESENT
 
 const TARGET = 0x1a1e;
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
-// -- the memory-equivalence contract ------------------------------------------
-
-/**
- * First RAM byte that differs between two machines, skipping STACK_SCRATCH — the
- * dead stack region the standard gate excludes.
- */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -82,11 +77,6 @@ function runOracle(entry) {
   return c;
 }
 
-/**
- * Run a candidate on a fresh clone, then model its return with one m.ret() so pc +
- * SP match the oracle's (the idiomatic routine replaces the Z80 stack with the JS
- * call stack, so it does not touch pc/SP itself — the harness supplies the return).
- */
 function runCandidate(entry, fn) {
   const c = entry.clone();
   fn(c);
@@ -94,16 +84,12 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/**
- * Compare candidate vs oracle over the full contract: RAM − STACK_SCRATCH, pc, SP.
- * Live-out is memory-only (no live registers), so the register file is deliberately
- * NOT compared. Returns a list of human-readable mismatches (empty when equal).
- */
+/** Candidate vs oracle over RAM − the stack scratch below the entry SP, pc, SP; empty when equal. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=0x${o.pc.toString(16)} cand=0x${c.pc.toString(16)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=0x${o.regs.sp.toString(16)} cand=0x${c.regs.sp.toString(16)}`);
@@ -112,16 +98,9 @@ function contractDiffs(entry, fn) {
 
 /** RAM (minus stack) the ORACLE changed vs the pristine entry — null iff it wrote none. */
 function oracleWroteRam(entry) {
-  return firstRamDiff(entry, runOracle(entry));
+  return firstRamDiff(entry, runOracle(entry), entry.regs.sp);
 }
 
-// -- capture ------------------------------------------------------------------
-
-/**
- * Hook 0x1a1e in a real attract run and clone the machine at up to K real dispatches.
- * The wrapper snapshots the entry state, then runs the oracle so the host game
- * proceeds undisturbed.
- */
 function captureDispatches(K, maxFrames) {
   const caps = [];
   const snapshot = new Map([[TARGET, (mm) => {
@@ -132,8 +111,6 @@ function captureDispatches(K, maxFrames) {
   host.runFrames(maxFrames);
   return caps;
 }
-
-// -- broken twins -------------------------------------------------------------
 
 /**
  * Broken twin (a): a stray write — advances the router's state byte 0x6386 to 2 (it
@@ -170,7 +147,7 @@ test("EQUAL (real dispatches): the oracle writes no RAM and bonusExpiredIdle == 
       oracleWroteRam(cap), null,
       "oracle wrote RAM — sub_1a1e is not a memory no-op after all",
     );
-    // (b) the idiomatic no-op reproduces it on RAM − STACK_SCRATCH + pc + SP.
+    // (b) the idiomatic no-op reproduces it on RAM − the stack scratch below the entry SP + pc + SP.
     const diffs = contractDiffs(cap, bonusExpiredIdle); // FRESH clones inside — cap untouched
     assert.equal(diffs.length, 0, diffs.join("; "));
   }

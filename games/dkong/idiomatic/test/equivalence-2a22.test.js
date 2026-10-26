@@ -11,7 +11,7 @@
  *
  * The oracle models the Z80 stack (it push/call/rets, and findCollidingObject takes a one- or two-level
  * return); loc_2a22 models none of it (a direct JS call, boolean return discarded). So the
- * harness compares RAM − STACK_SCRATCH (the oracle's push/call/ret churn all lands in that dead
+ * harness compares RAM − the stack scratch below the entry SP (the oracle's push/call/ret churn all lands in that dead
  * region) plus the live register file — A, B, and the preserved/unchanged C, DE, H, L, IX, IY, F.
  * pc/SP are NOT compared: loc_2a22's only post-call instruction is its own `ret`, so both arms
  * return loc_29af to the same continuation (0x29C0) with the same A/B — the return plumbing is
@@ -26,7 +26,7 @@
  *      dispatch (if any) matches the oracle. Documents the measured 0-dispatch reality.
  *
  *   2. EQUAL (fuzz) — a broad randomised sweep over the 0x6600 record layouts and the reference
- *      coordinate / tolerance registers loc_29af supplies. Every trial: RAM (minus STACK_SCRATCH)
+ *      coordinate / tolerance registers loc_29af supplies. Every trial: RAM (minus the stack scratch below the entry SP)
  *      and the live register file identical to the oracle. Coverage counters assert the sweep hit
  *      every arm (hit / exhausted / inactive-slot / hit at a nonzero index for the B recovery).
  *
@@ -51,6 +51,7 @@ import { loc_2a22 } from "../loc_2a22.js";
 import { findCollidingObject } from "../findCollidingObject.js"; // idiomatic callee — used to build the teeth
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, OBJ_ARRAY_66 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -72,17 +73,17 @@ const STRIDE = 0x10; // the stride loc_2a22 binds (DE)
 const COUNT = 6; // the record count loc_2a22 binds (B)
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region
-// (memory-equivalence contract = RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
+// (memory-equivalence contract = RAM − the stack scratch below the entry SP). { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -101,7 +102,7 @@ function regDiffs(o, c) {
   return out;
 }
 
-/** Full contract diff between the oracle and a candidate on a shared entry: RAM − STACK_SCRATCH
+/** Full contract diff between the oracle and a candidate on a shared entry: RAM − the stack scratch below the entry SP
  *  and the live register file (pc/SP excluded — see the header). Returns a list of diffs. */
 function contractDiffs(entry, fn) {
   const o = entry.clone();
@@ -109,7 +110,7 @@ function contractDiffs(entry, fn) {
   oracle(o);
   fn(c);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   diffs.push(...regDiffs(o, c));
   return diffs;

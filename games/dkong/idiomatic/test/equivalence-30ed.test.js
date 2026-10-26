@@ -16,13 +16,13 @@
  *      first of each arm; the test asserts the sample covers every arm the run produced, and
  *      prints how many of how many were replayed. Each sampled entry is replayed on two
  *      byte-identical clones — oracle on one, updateFires on the other — and compared on
- *      RAM − STACK_SCRATCH and the RETURN VALUE. pc/SP are deliberately not compared: the
+ *      RAM − the stack scratch below the entry SP and the RETURN VALUE. pc/SP are deliberately not compared: the
  *      rewrite has no stack dance to preserve, and the test measures where both sides' stack
  *      traffic landed instead, asserting it stayed inside the excluded region.
  *
  *   2. LIVE-WIRE — updateFires drives a whole 2000-frame attract run as a registered override, and
  *      every frame of the state trace must be byte-identical to the all-oracle baseline on
- *      RAM − STACK_SCRATCH. The dissolved chain runs on the JS stack (updateFires direct-calls
+ *      RAM − the stack scratch below each frame's live SP. The dissolved chain runs on the JS stack (updateFires direct-calls
  *      advanceLiveFires, which direct-calls advanceFire), so the guest STACK_SCRATCH the oracle
  *      writes its call brackets into legitimately differs and is excluded, exactly as arm 1 does.
  *      THE CYCLE RESTORATION IS NOT COSMETIC. The rewrite charges no T-states for the three
@@ -47,7 +47,7 @@
  * state them): 1532 natural dispatches over 4000 attract frames, the first at frame 586,
  * classified from the ORACLE's own call sequence into 765 gate-skip / 286 census-skip / 481 full.
  * 79 of the 1532 are replayed oracle-vs-rewrite on byte-identical clones. The live-wire arm then
- * runs 2000 frames with the rewrite registered, RAM − STACK_SCRATCH in the diff.
+ * runs 2000 frames with the rewrite registered, RAM − the stack scratch below each frame's live SP in the diff.
  *
  * THE LIVE-OUT DERIVATION, cross-file and therefore here rather than in the routine: there is
  * exactly one caller — translated/loc_197a.js at ROM 0x198C, the only `m.call(0x30ed)` in the
@@ -76,6 +76,8 @@ import { spawnRequestedFireAndRecolorLiveFires } from "../spawnRequestedFireAndR
 import { publishFireSprites } from "../publishFireSprites.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
+import { recordFrameSp, frameFloors } from "./_frame-sp.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -91,17 +93,17 @@ const SAMPLE_EVERY = 20; // keep every Nth dispatch, plus the first of each arm
 const ARMS = ["gate-skip", "census-skip", "full"];
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16).padStart(4, "0");
-const inStack = (addr) => addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 /** First differing RAM byte OUTSIDE the dead stack scratch, or null. Also counts the excluded bytes. */
-function ramDiffExStack(a, b, offToAddr) {
+function ramDiffExStack(a, b, offToAddr, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   let excluded = 0;
   let diff = null;
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] === b[i]) continue;
     const addr = offToAddr(i);
-    if (inStack(addr)) { excluded++; continue; }
+    if (dead(addr)) { excluded++; continue; }
     if (diff === null) diff = { addr, a: a[i], b: b[i] };
   }
   return { diff, excluded };
@@ -163,7 +165,7 @@ function replaySamples(kept, candidate) {
     if (failure === null && gotRet !== wantRet) {
       failure = { kind: "return", cap, want: wantRet, got: gotRet };
     }
-    const { diff, excluded: ex } = ramDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o));
+    const { diff, excluded: ex } = ramDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), cap.entry.regs.sp);
     excluded += ex;
     if (failure === null && diff !== null) failure = { kind: "ram", cap, diff };
   }
@@ -184,7 +186,7 @@ const describe = (f) =>
 
 // -- 1. CAPTURE + REPLAY ------------------------------------------------------
 
-test("CAPTURED DISPATCHES: updateFires matches the oracle on RAM − STACK_SCRATCH and on its return value", () => {
+test("CAPTURED DISPATCHES: updateFires matches the oracle on RAM − the stack scratch below the entry SP and on its return value", () => {
   const { kept, total, armTotals, firstFrame } = captureDispatches();
 
   assert.ok(total > 0, "0x30ED is dispatched every frame the object pass runs (handler_1977 → loc_197a → here); none means the live chain regressed");
@@ -210,7 +212,7 @@ test("CAPTURED DISPATCHES: updateFires matches the oracle on RAM − STACK_SCRAT
   console.log(
     `  CAPTURED: ${kept.length} of ${total} natural dispatches replayed over ${CAPTURE_FRAMES} attract frames ` +
       `(first at frame ${firstFrame}; arms: ${ARMS.map((a) => `${a}=${armTotals.get(a)}`).join(" ")}); ` +
-      `RAM − STACK_SCRATCH and return value identical; ${excluded} byte(s) of excluded stack scratch, ` +
+      `RAM − the stack scratch below the entry SP and return value identical; ${excluded} byte(s) of excluded stack scratch, ` +
       `low-water SP ${hx(lowWater)}`,
   );
 });
@@ -241,18 +243,20 @@ function liveWire(frames, candidate, restoreCycles) {
     if (restoreCycles) mm.step(0x30f9, cost - (mm.cycles - c0));
   };
   const m = new Machine(ROM, { overrides: new Map([[TARGET, fn]]) });
+  const sp = recordFrameSp(m);
   const frameDumps = m.runFrames(frames);
-  return { m, frameDumps, dispatches };
+  return { m, frameDumps, sp, dispatches };
 }
 
 /** First frame+byte where two traces differ OUTSIDE the dead stack scratch, or null. */
-function firstTraceDiff(base, other, offToAddr) {
+function firstTraceDiff(base, other, offToAddr, floors) {
   for (let f = 0; f < Math.min(base.length, other.length); f++) {
     const a = base[f], b = other[f];
+    const dead = deadStackBelow(STACK_SCRATCH, floors[f]);
     for (let i = 0; i < Math.min(a.length, b.length); i++) {
       if (a[i] === b[i]) continue;
       const addr = offToAddr(i);
-      if (inStack(addr)) continue; // the dissolved chain runs on the JS stack; guest scratch differs
+      if (dead(addr)) continue; // the dissolved chain runs on the JS stack; guest scratch differs
       return { frame: f, addr, a: a[i], b: b[i] };
     }
   }
@@ -261,16 +265,17 @@ function firstTraceDiff(base, other, offToAddr) {
 
 test("LIVE-WIRE: updateFires drives a whole attract run frame-identical to the all-oracle baseline", () => {
   const base = new Machine(ROM);
+  const baseSp = recordFrameSp(base);
   const baseFrames = base.runFrames(LIVE_FRAMES);
   assert.equal(base.stoppedBy ?? null, null, `baseline run stopped early: ${base.stoppedBy}`);
   assert.equal(baseFrames.length, LIVE_FRAMES, "baseline did not reach every frame");
 
-  const { m, frameDumps, dispatches } = liveWire(LIVE_FRAMES, updateFires, true);
+  const { m, frameDumps, sp, dispatches } = liveWire(LIVE_FRAMES, updateFires, true);
   assert.equal(m.stoppedBy ?? null, null, `live-wire run stopped early: ${m.stoppedBy}`);
   assert.equal(frameDumps.length, LIVE_FRAMES, "live-wire run did not reach every frame");
   assert.ok(dispatches > 0, "the override must actually have been dispatched, or this arm is vacuous");
 
-  const d = firstTraceDiff(baseFrames, frameDumps, (o) => base.stateOffsetToAddr(o));
+  const d = firstTraceDiff(baseFrames, frameDumps, (o) => base.stateOffsetToAddr(o), frameFloors(baseSp, sp));
   assert.equal(
     d,
     null,
@@ -278,15 +283,16 @@ test("LIVE-WIRE: updateFires drives a whole attract run frame-identical to the a
   );
   console.log(
     `  LIVE-WIRE: ${dispatches} dispatches over ${LIVE_FRAMES} attract frames — all ${frameDumps.length} ` +
-      "frames byte-identical to the all-oracle baseline on RAM − STACK_SCRATCH",
+      "frames byte-identical to the all-oracle baseline on RAM − the stack scratch below each frame's live SP",
   );
 });
 
 test("LIVE-WIRE CONTROL: without the cycle restoration the same wiring DOES fork — the arm above is sensitive", () => {
   const base = new Machine(ROM);
+  const baseSp = recordFrameSp(base);
   const baseFrames = base.runFrames(LIVE_FRAMES);
-  const { frameDumps } = liveWire(LIVE_FRAMES, updateFires, false);
-  const d = firstTraceDiff(baseFrames, frameDumps, (o) => base.stateOffsetToAddr(o));
+  const { frameDumps, sp } = liveWire(LIVE_FRAMES, updateFires, false);
+  const d = firstTraceDiff(baseFrames, frameDumps, (o) => base.stateOffsetToAddr(o), frameFloors(baseSp, sp));
   assert.notEqual(
     d,
     null,
@@ -369,7 +375,7 @@ test("TEETH: a returned boolean is invisible to the RAM diff and caught ONLY by 
     const b = cap.entry.clone();
     oracle(a);
     brokenReturnsBoolean(b);
-    const { diff } = ramDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o));
+    const { diff } = ramDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), cap.entry.regs.sp);
     if (diff !== null) { ramOnly = `[${cap.arm} #${cap.index}] RAM at ${hx(diff.addr)}: oracle=${diff.a} candidate=${diff.b}`; break; }
   }
   assert.equal(ramOnly, null, "this twin was supposed to be RAM-identical; if the RAM diff sees it, the claim above is wrong");

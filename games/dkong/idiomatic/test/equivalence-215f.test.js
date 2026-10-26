@@ -7,7 +7,7 @@
  * (the search key, the second field plus five as the vertical discriminator, and 21 as the scan
  * count) and jumps to loc_21ba, still the frozen oracle. So oracle and candidate BOTH run the whole
  * shared tail and everything downstream to its `ret`; the contract is:
- *   - RAM identical minus STACK_SCRATCH (the oracle's push/ret bracket and two nested lookup pushes
+ *   - RAM identical minus the stack scratch below the entry SP (the oracle's push/ret bracket and two nested lookup pushes
  *     are the only dead stack; the deepest guest push reaches 0x6BE2, inside STACK_SCRATCH).
  *   - The return value the walk's tail propagates back to loc_1FF6's caller.
  * pc and SP are not compared: cycle-free code cannot preserve pc, and SP is the tail chain's
@@ -44,6 +44,7 @@ import { startBarrelDescentAtLadder } from "../startBarrelDescentAtLadder.js"; /
 import { findOppositeLadderEnd } from "../findOppositeLadderEnd.js"; // classifies each capture's lookup arm for coverage evidence
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -70,16 +71,16 @@ const DISCRIMINATOR_OFFSET = 5;
 const SHADOW_RESIDUE = ["b_", "c_", "e_", "h_", "l_"];
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs, skipping the dead STACK_SCRATCH region. { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs, skipping the stack scratch below the entry SP. { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -110,7 +111,7 @@ function captureAttract() {
 
 /**
  * Run the oracle and a candidate on two fresh, byte-identical clones and return the
- * contract diffs: RAM − STACK_SCRATCH, plus the return value.
+ * contract diffs: RAM − the stack scratch below the entry SP, plus the return value.
  */
 // The frozen walk's loop-back into the per-slot step, stubbed on both clones so each side publishes
 // exactly the slot under test and stops. The dissolved idiomatic chain returns after one slot
@@ -128,7 +129,7 @@ function contractDiffs(entry, candidate) {
   const ra = oracle(a);
   const rb = candidate(b, cursorOf(b));
   const diffs = [];
-  const ram = firstRamDiff(a, b);
+  const ram = firstRamDiff(a, b, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (ra !== rb) diffs.push(`return oracle=${String(ra)} cand=${String(rb)}`);
   return diffs;
@@ -199,7 +200,7 @@ test("EQUAL (captured): loc_215f == oracle on EVERY real dispatch", () => {
     "attract was expected never to produce a row field whose +5 wraps");
 
   console.log(
-    `  EQUAL/captured: all ${caps.length} real dispatches identical (RAM − STACK_SCRATCH + return) — ` +
+    `  EQUAL/captured: all ${caps.length} real dispatches identical (RAM − the stack scratch below the entry SP + return) — ` +
       `${shapes.size} distinct entry shapes, ${bases.size} record bases, ${keys.size} search keys, ` +
       `${rows.size} row fields (none wrapping), lookup arms ` +
       `miss=${arms.miss} tag0=${arms.tag0} tag1=${arms.tag1}`,

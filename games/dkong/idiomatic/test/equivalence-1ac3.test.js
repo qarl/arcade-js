@@ -9,7 +9,7 @@
  * end on the reference side, all five idiomatic handlers plus their still-oracle remainders on
  * the candidate side — so a mis-routed frame surfaces as divergent RAM inside the handler.
  *
- * CONTRACT COMPARED: RAM − STACK_SCRATCH, plus the return value. Registers and pc/SP are NOT
+ * CONTRACT COMPARED: RAM − the stack scratch below the entry SP, plus the return value. Registers and pc/SP are NOT
  * in the contract, and this file measures that rather than asserting it:
  *
  *   - REGISTERS. All five handlers are idiomatic and drop the oracle's dead register dance, so
@@ -88,6 +88,7 @@ import {
   MARIO_AIR_PREV_X,
   MARIO_AIR_PREV_Y,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -105,54 +106,57 @@ const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 // -- the memory-equivalence contract ------------------------------------------
 
 /** Every differing live (non-stack) RAM address between two machines. */
-function ramDiffAddrs(a, b) {
+function ramDiffAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = new Set();
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (!inStack(addr)) out.add(addr);
+    if (!dead(addr)) out.add(addr);
   }
   return out;
 }
 
-/** First differing RAM byte outside the dead STACK_SCRATCH region, or null. */
-function firstRamDiff(a, b) {
+/** First differing RAM byte outside the stack scratch below the entry SP, or null. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (!inStack(addr)) return { addr, a: da[i], b: db[i] };
+    if (!dead(addr)) return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
 /** Bytes that differ INSIDE the excluded region — diagnostic, proves the exclusion is used. */
-function stackDiffCount(a, b) {
+function stackDiffCount(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   let n = 0;
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
-    if (da[i] !== db[i] && inStack(a.stateOffsetToAddr(i))) n++;
+    if (da[i] !== db[i] && dead(a.stateOffsetToAddr(i))) n++;
   }
   return n;
 }
 
 /**
  * Run the oracle and `fn` on two fresh clones of `entry`; report every contract violation
- * (RAM − STACK_SCRATCH and the return value) plus the measured, out-of-contract residues.
+ * (RAM − the stack scratch below the entry SP and the return value) plus the measured, out-of-contract residues.
  */
 function compare(entry, fn) {
   const a = entry.clone(); const wantRet = oracle(a);
   const b = entry.clone(); const gotRet = fn(b);
   const diffs = [];
-  const ram = firstRamDiff(a, b);
+  const ram = firstRamDiff(a, b, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (wantRet !== gotRet) diffs.push(`return oracle=${wantRet} cand=${gotRet}`);
   return {
     diffs,
     a, b,
     spDelta: b.regs.sp - a.regs.sp,
-    stackBytes: stackDiffCount(a, b),
+    stackBytes: stackDiffCount(a, b, entry.regs.sp),
     regsDiffering: REG_FIELDS.filter((k) => a.regs[k] !== b.regs[k] && k !== "sp"),
   };
 }
@@ -247,7 +251,7 @@ test("EQUAL (captured): dispatchMarioMovement == oracle on every real attract di
   }
 
   console.log(
-    `  EQUAL/captured: ${caps.length} real dispatches identical on RAM−STACK_SCRATCH + return value; ` +
+    `  EQUAL/captured: ${caps.length} real dispatches identical on RAM − the stack scratch below the entry SP + return value; ` +
       `${stackExcluded} byte(s) of excluded stack scratch`,
   );
   console.log(
@@ -298,7 +302,7 @@ test("LIVE-OUT: the registers that differ are dead — the caller's own cascade 
     }
     lowWater = Math.min(lowWater, a.regs.sp, b.regs.sp);
 
-    const d = ramDiffAddrs(a, b);
+    const d = ramDiffAddrs(a, b, cap.regs.sp);
     assert.equal(
       d.size,
       0,
@@ -456,7 +460,7 @@ function teeth(entries, twin, label, mustTouch) {
   for (const entry of entries) {
     const a = entry.clone(); oracle(a);
     const b = entry.clone(); twin(b);
-    const d = ramDiffAddrs(a, b);
+    const d = ramDiffAddrs(a, b, entry.regs.sp);
     if (d.size === 0) continue;
     caught++;
     for (const addr of d) cells.add(addr);

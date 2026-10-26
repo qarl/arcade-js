@@ -27,7 +27,7 @@
  *      (bit-1-clear arm: default +0x44), each with regs.a = the board rotated right one bit
  *      (what loc_0450 hands it) so the oracle branches on the same board; plus a second
  *      BOARD == 2 entry with a different 0x63b7 to prove the RAM delta is really read. Each
- *      compared over the whole contract (RAM − STACK_SCRATCH + pc + SP) and checked
+ *      compared over the whole contract (RAM − the stack scratch below the entry SP + pc + SP) and checked
  *      non-vacuous (the sprite-object X column really moved).
  *
  *   3. TEETH — two deliberately-broken twins, each MUST be caught:
@@ -49,6 +49,7 @@ import { addToSpriteObjectColumn } from "../addToSpriteObjectColumn.js";
 import { dispatchColorCyclePaint } from "../dispatchColorCyclePaint.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, BOARD, SPRITE_OBJ_BLOCK } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -64,7 +65,6 @@ const DEFAULT_SHIFT = 0x44;         // the fixed X-shift on the other even board
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const hb = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // The dispatcher hands loc_0478 the board rotated right one bit; the oracle reads that
 // register and rotates again to test the board's bit 1. Reproduce the caller's rotate.
@@ -72,14 +72,15 @@ const ror8 = (v) => (((v & 0xff) >> 1) | ((v & 1) << 7)) & 0xff;
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH, or null. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP, or null. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -92,11 +93,6 @@ function runOracle(entry) {
   return c;
 }
 
-/**
- * Run a candidate on a fresh clone, then model its single net return with one m.ret() so
- * pc + SP match the oracle's (the idiomatic routine replaces the Z80 stack with the JS call
- * stack, so it does not touch pc/SP itself — the harness supplies the one return).
- */
 function runCandidate(entry, fn) {
   const c = entry.clone();
   fn(c);
@@ -104,12 +100,12 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Compare candidate vs oracle over the full contract: RAM − STACK_SCRATCH, pc, SP. */
+/** Compare candidate vs oracle over the full contract: RAM − the stack scratch below the entry SP, pc, SP. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${hb(ram.a)} cand=${hb(ram.b)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);
@@ -153,8 +149,6 @@ test("REACHABILITY: 0x0478 is cold in a 25m attract (crafted-only gate); any rea
   }]]);
   const host = new Machine(ROM, { overrides: snap });
   host.runFrames(1500);
-  // Attract plays 25m (BOARD == 1), and loc_0450 only routes here on an even board, so this
-  // is expected to be zero. If it ever is not, validate those real dispatches too.
   for (const cap of caps) {
     const diffs = contractDiffs(cap, loc_0478);
     assert.equal(diffs.length, 0, `real dispatch: ${diffs.join("; ")}`);
@@ -182,7 +176,6 @@ test("EQUAL (crafted): the bit-1-set (50m) and bit-1-clear (100m) arms match the
     const diffs = contractDiffs(entry, loc_0478);
     assert.equal(diffs.length, 0, `${name}: ${diffs.join("; ")}`);
 
-    // Non-vacuity: the oracle really shifted the X column by the expected delta.
     const before = xColumn(entry);
     const after = xColumn(runOracle(entry));
     for (let k = 0; k < 10; k++) {

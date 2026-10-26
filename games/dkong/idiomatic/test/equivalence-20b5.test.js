@@ -10,7 +10,7 @@
  * Both sides run the rest of the object loop to completion; measured, they leave RAM outside the
  * stack window and the final SP identical, and only the frozen side's call/ret bracket writes into
  * the stack window. So this gate asserts:
- *   - RAM EXCLUDING the STACK_SCRATCH window {0x6be0,0x6c00}: the frozen chain's bracket writes a
+ *   - RAM EXCLUDING the stack scratch below the entry SP {0x6be0,0x6c00}: the frozen chain's bracket writes a
  *     return address there at an SP the JS chain does not push to, so the two runs legitimately
  *     differ inside it and nowhere else;
  *   - this routine's OWN ordered store sequence — its writes to the record's two step bytes,
@@ -74,6 +74,8 @@ import { Machine } from "../../machine.js";
 import { loc_20b5 as oracle } from "../../translated/loc_20b5.js";
 import { loc_20b5 } from "../loc_20b5.js";
 import { STACK_SCRATCH, OBJ_ARRAY_67 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
+import { recordFrameSp, frameFloors } from "./_frame-sp.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -108,7 +110,6 @@ const EXPECTED_DISPATCHES = 23;
 const EXPECTED_SHAPES = [0, 255]; // the only whole-pixel step bytes attract delivers
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 // The staging cursor the walk owns as a plain value: sprite page and low byte, parked in the
 // alternate bank at entry (the motion arm exchanged it out). The dissolved chain takes it as `cur`.
@@ -139,14 +140,15 @@ function recordOwnWrites(m, fn) {
   return { writes, ret, threw };
 }
 
-/** First differing state byte OUTSIDE the excluded STACK_SCRATCH window. */
-function firstStateDiff(a, b) {
+/** First differing state byte OUTSIDE the stack scratch below the entry SP. */
+function firstStateDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -154,7 +156,7 @@ function firstStateDiff(a, b) {
 
 /**
  * Run the oracle and a candidate on two byte-identical clones and report the DISSOLVED-form
- * contract: RAM − STACK_SCRATCH, this routine's own ordered store sequence, the final guest SP, and
+ * contract: RAM − the stack scratch below the entry SP, this routine's own ordered store sequence, the final guest SP, and
  * the return value. pc and the rest of the register file are dropped with the frozen call bracket
  * that used to make them comparable.
  */
@@ -177,7 +179,7 @@ function comparePair(entry, fn) {
 
   return {
     threw: rc.threw,
-    state: rc.threw ? null : firstStateDiff(o, c),
+    state: rc.threw ? null : firstStateDiff(o, c, entry.regs.sp),
     writeDiff: rc.threw ? null : writeDiff,
     spO: o.regs.sp, spC: rc.threw ? null : c.regs.sp,
     retO: ro.ret, retC: rc.ret,
@@ -186,7 +188,7 @@ function comparePair(entry, fn) {
 }
 
 // The final guest SP is dropped: the dissolved form threads the cursor as a value and uses no guest
-// stack of its own, so it no longer tracks the oracle's m.call/ret bracket. RAM − STACK_SCRATCH, the
+// stack of its own, so it no longer tracks the oracle's m.call/ret bracket. RAM − the stack scratch below the entry SP, the
 // own store sequence, faults and the return are what the dissolved routine actually produces.
 const mismatched = (r) =>
   r.threw != null || r.state !== null || r.writeDiff !== null ||
@@ -323,7 +325,7 @@ test("EQUAL (captured): loc_20b5 == oracle on EVERY real dispatch, replayed inli
   assert.equal(after.mem.read8((local.regs.ix + STEP_FRACTION) & 0xffff), 0, "oracle must leave the fraction = 0");
 
   console.log(`  EQUAL/captured: ${dispatches} of ${dispatches} real dispatches replayed inline (all of them) — ` +
-    "identical on RAM − STACK_SCRATCH, this routine's own store sequence, the final guest SP and the return");
+    "identical on RAM − the stack scratch below the entry SP, this routine's own store sequence, the final guest SP and the return");
 });
 
 // -- 3/4. LIVE (whole attract): the live-out measurement ----------------------
@@ -332,8 +334,9 @@ let BASELINE = null;
 function baselineFrames() {
   if (!BASELINE) {
     const m = new Machine(ROM);
+    const sp = recordFrameSp(m);
     m.runFrames(ATTRACT_FRAMES);
-    BASELINE = m.frames;
+    BASELINE = Object.assign(m.frames, { sp });
   }
   return BASELINE;
 }
@@ -355,8 +358,9 @@ function liveRun(fn, { charge = true } = {}) {
     return r;
   }]]);
   const m = new Machine(ROM, { overrides: ov });
+  const sp = recordFrameSp(m);
   m.runFrames(ATTRACT_FRAMES);
-  return { frames: m.frames, calls };
+  return { frames: Object.assign(m.frames, { sp }), calls };
 }
 
 /** The state-offset -> address table, built with Array.from (see the note in test 1). */
@@ -365,12 +369,14 @@ function addressTable() {
   return Array.from(probe.dumpState(), (_, i) => probe.stateOffsetToAddr(i));
 }
 
-/** First (frame, address) where two traces differ OUTSIDE the excluded STACK_SCRATCH window. */
+/** First (frame, address) where two traces differ OUTSIDE the stack scratch below each frame's live SP. */
 function firstTraceDiff(a, b, addrOf) {
   const n = Math.min(a.length, b.length);
+  const floors = frameFloors(a.sp, b.sp);
   for (let i = 0; i < n; i++) {
+    const dead = deadStackBelow(STACK_SCRATCH, floors[i]);
     for (let j = 0; j < a[i].length; j++) {
-      if (a[i][j] !== b[i][j] && !inStack(addrOf[j])) return { frame: i, addr: addrOf[j], a: a[i][j], b: b[i][j] };
+      if (a[i][j] !== b[i][j] && !dead(addrOf[j])) return { frame: i, addr: addrOf[j], a: a[i][j], b: b[i][j] };
     }
   }
   return a.length === b.length ? null : { frame: -1, addr: -1, a: a.length, b: b.length };

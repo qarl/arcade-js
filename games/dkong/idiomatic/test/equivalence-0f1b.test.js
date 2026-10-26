@@ -42,6 +42,7 @@ import { loc_0e4f } from "../../translated/loc_0e4f.js";
 import { fillTileColumn } from "../fillTileColumn.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -62,11 +63,12 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
- * Diff two machines' RAM. Returns the first difference OUTSIDE STACK_SCRATCH
+ * Diff two machines' RAM. Returns the first difference OUTSIDE the stack scratch below the entry SP
  * (game-visible — a real failure) or null, plus how many bytes differed inside the
  * dead stack scratch. entry_0f1b never touches the stack, so stackDiffs should be 0.
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0;
@@ -74,7 +76,7 @@ function ramDiffMinusStack(a, b) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -92,7 +94,7 @@ function craftReplay(entry, kind, candidate) {
   b.mem.write8(KIND, kind);
   oracle(a);
   candidate(b);
-  const { bad, stackDiffs } = ramDiffMinusStack(a, b);
+  const { bad, stackDiffs } = ramDiffMinusStack(a, b, entry.regs.sp);
   const deMismatch = a.regs.de !== b.regs.de ? { oracle: a.regs.de, cand: b.regs.de } : null;
   return { a, b, bad, stackDiffs, deMismatch };
 }

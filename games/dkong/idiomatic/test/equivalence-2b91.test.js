@@ -9,7 +9,7 @@
  * caller. In direct-call form that non-local exit is a boolean; the idiomatic routine returns
  * false, the caller-skip signal.
  *
- * It is gated on MEMORY-equivalence — RAM (minus STACK_SCRATCH) + pc + SP — plus the LIVE result
+ * It is gated on MEMORY-equivalence — RAM (minus the stack scratch below the entry SP) + pc + SP — plus the LIVE result
  * register A (must be 1, the value the still-translated caller reads back) and the boolean unwind
  * signal. B/HL and the flags are dead ABI and are NOT compared (the oracle leaves the discarded
  * return in HL; the idiomatic form does not). The routine's whole effect is a pure function of the
@@ -20,7 +20,7 @@
  * well-defined. Both cells are pre-poked to a per-input SENTINEL (x ^ 0xff, guaranteed != x) so a
  * skipped write is observable — a cell that keeps the sentinel proves the write never happened.
  *
- *   1. EQUAL (sweep) — all 256 adjusted-X inputs; on each, RAM (minus STACK_SCRATCH) + pc + SP + A
+ *   1. EQUAL (sweep) — all 256 adjusted-X inputs; on each, RAM (minus the stack scratch below the entry SP) + pc + SP + A
  *      identical to the oracle and the idiomatic routine returns false. Non-vacuity: the oracle
  *      really commits X to BOTH cells (over the sentinel) and leaves A=1, and unwinds two levels
  *      (SP += 4, pc -> the staged grandparent).
@@ -50,6 +50,7 @@ import { loc_2b91 as oracle } from "../../translated/loc_2b91.js";
 import { loc_2b91 } from "../loc_2b91.js";
 import { Machine } from "../../machine.js";
 import { MARIO_X, MARIO_SPRITE_RECORD, SPRITE_X, STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -69,15 +70,16 @@ const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STA
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH (the dead stack region
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP (the dead stack region
  *  excluded by contract — the unwind's popped bytes live there). */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -103,10 +105,10 @@ function runCandidate(entry, fn) {
 }
 
 /** Compare an already-run oracle machine vs an already-run candidate machine over the contract:
- *  RAM − STACK_SCRATCH, pc, SP, and the LIVE result register A. B/HL and the flags are dead ABI. */
-function diffContract(o, c) {
+ *  RAM − the stack scratch below the entry SP, pc, SP, and the LIVE result register A. B/HL and the flags are dead ABI. */
+function diffContract(o, c, liveFloor) {
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, liveFloor);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=0x${(ram.a & 0xff).toString(16)} cand=0x${(ram.b & 0xff).toString(16)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=0x${o.pc.toString(16)} cand=0x${c.pc.toString(16)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=0x${o.regs.sp.toString(16)} cand=0x${c.regs.sp.toString(16)}`);
@@ -116,7 +118,7 @@ function diffContract(o, c) {
 
 /** oracle-vs-candidate on independent fresh clones of the same entry. */
 function contractDiffs(entry, fn) {
-  return diffContract(runOracle(entry).c, runCandidate(entry, fn).c);
+  return diffContract(runOracle(entry).c, runCandidate(entry, fn).c, entry.regs.sp);
 }
 
 // A real booted attract machine, built once and reused as the base for every crafted entry (cloned
@@ -193,7 +195,7 @@ test("EQUAL (sweep): loc_2b91 == oracle on RAM+pc+SP+A over all 256 adjusted-X i
     const entry = craftEntry(x);
     const { c: o } = runOracle(entry);
     const { c, ret } = runCandidate(entry, loc_2b91);
-    const diffs = diffContract(o, c);
+    const diffs = diffContract(o, c, entry.regs.sp);
     assert.equal(diffs.length, 0, `X=${hx(x)}: ${diffs.join("; ")}`);
     assert.equal(ret, false, `X=${hx(x)}: idiomatic must return false (the unwind signal)`);
     checked++;

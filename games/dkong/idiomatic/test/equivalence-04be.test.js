@@ -13,7 +13,7 @@
  * The routine WRITES memory (six colour cells, a third of them repainted on two arms, plus the
  * two sprite code bytes 0x6901/0x6905) and reads two register live-ins (the sweep counter and
  * the stride) plus Mario's X. Its declared LIVE-OUT is memory-only, so it is validated on RAM
- * (minus STACK_SCRATCH) + pc + SP via capture/clone/replay. NEVER the full register file,
+ * (minus the stack scratch below the entry SP) + pc + SP via capture/clone/replay. NEVER the full register file,
  * NEVER cycles.
  *
  * The idiomatic routine models the Z80 stack as the JS call stack (no push/ret of its own), so
@@ -59,6 +59,7 @@ import { paintColorColumnAndBlinkOff } from "../paintColorColumnAndBlinkOff.js";
 import { blinkSpritePairOn } from "../blinkSpritePairOn.js";
 import { Machine } from "../../machine.js";
 import { SPRITE_BUFFER, STACK_SCRATCH, MARIO_X } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -78,21 +79,21 @@ const SPRITE1_CODE = SPRITE_BUFFER + 5; // 0x6905 — record #1's code byte
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const hb = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // The three cells a fill lays down from a given top at a given stride.
 const cells = (top, de) => [top, (top + de) & 0xffff, (top + 2 * de) & 0xffff];
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH, or null. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP, or null. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -117,20 +118,21 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Compare candidate vs oracle over the full contract: RAM − STACK_SCRATCH, pc, SP. */
+/** Compare candidate vs oracle over the full contract: RAM − the stack scratch below the entry SP, pc, SP. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);
   return diffs;
 }
 
-/** Every RAM addr (outside STACK_SCRATCH) whose byte the oracle changed on `entry`. */
+/** Every RAM addr (outside the stack scratch below the entry SP) whose byte the oracle changed on `entry`. */
 function oracleWriteFootprint(entry) {
+  const dead = deadStackBelow(STACK_SCRATCH, entry.regs.sp);
   const m = entry.clone();
   const before = m.dumpState();
   oracle(m);
@@ -139,7 +141,7 @@ function oracleWriteFootprint(entry) {
   for (let i = 0; i < before.length; i++) {
     if (before[i] === after[i]) continue;
     const addr = m.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     addrs.push(addr);
   }
   return addrs;

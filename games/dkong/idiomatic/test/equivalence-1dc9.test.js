@@ -14,7 +14,7 @@
  * models the stack), while the other arms run the fully-idiomatic stageAwardPopupAtHitObject chain (which does
  * not). So SP/pc and the STACK_SCRATCH region diverge from the oracle on the non-bit0 arms
  * (dead — the rst-0x28 caller reads no register, and the Z80 stack has become the JS call
- * stack). The gate is therefore memory-equivalence on RAM − STACK_SCRATCH (never the full
+ * stack). The gate is therefore memory-equivalence on RAM − the stack scratch below the entry SP (never the full
  * register file, never cycles, never SP/pc), with a FRESH clone per case because the routine
  * and its callees write memory and advance the task ring:
  *
@@ -26,12 +26,12 @@
  *
  *   2. EXHAUSTIVE (0x6342 dispatch) — on a real captured base, poke 0x6342 to EVERY byte
  *      0..255 identically on both sides (freeing the task-ring slot so the setter's stamp is
- *      observable) and compare RAM − STACK_SCRATCH. This crafts every top-level arm attract
+ *      observable) and compare RAM − the stack scratch below the entry SP. This crafts every top-level arm attract
  *      does not naturally reach and is the whole of armScorePopupAndSelectAward's bit dispatch, proven against
  *      the oracle; all four arm classes (bit0 / bit1 / bit2 / fall-through) are exercised.
  *
  *   3. EXHAUSTIVE (LEVEL sub-dispatch) — force the fall-through arm (0x6342 := 0) and sweep
- *      LEVEL (0x6229) over 0..255, comparing RAM − STACK_SCRATCH. Crafts the 1 / 2 / >=3
+ *      LEVEL (0x6229) over 0..255, comparing RAM − the stack scratch below the entry SP. Crafts the 1 / 2 / >=3
  *      LEVEL sub-dispatch (stageAward300Popup / stageAward500Popup / stageAward800Popup) attract's single 25m level never
  *      reaches; all three arms are exercised.
  *
@@ -57,6 +57,7 @@ import { stageAward500Popup } from "../stageAward500Popup.js";
 import { stageAward800Popup } from "../stageAward800Popup.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, LEVEL, SND_TRIGGER } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -73,22 +74,22 @@ const SND = SND_TRIGGER + 5; // 0x6085 — the effect sound latch (fall-through 
 const REC = 0x6a30;         // sprite-record slot; REC+1 = the setter's B (arm-distinguishing)
 const TASK_TAIL = 0x60b0;   // low byte of the task ring's next write slot (page 0x60 fixed)
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
- * First game-visible RAM difference between two machines, EXCLUDING the dead STACK_SCRATCH
- * region (the memory-equivalence contract is RAM − STACK_SCRATCH; SP/pc are the dropped
+ * First game-visible RAM difference between two machines, EXCLUDING the stack scratch below the entry SP
+ * region (the memory-equivalence contract is RAM − the stack scratch below the entry SP; SP/pc are the dropped
  * stack model — the oracle's tail-`ret` chain moves them, the idiomatic setters mostly do
  * not, and neither is consumed by the rst-0x28 caller).
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -100,7 +101,7 @@ function replay(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return { a, b, ...ramDiffMinusStack(a, b) };
+  return { a, b, ...ramDiffMinusStack(a, b, entry.regs.sp) };
 }
 
 /**
@@ -183,12 +184,13 @@ function sweepSelect(base, candidate) {
   let count = 0, mismatch = null;
   for (let sel = 0; sel < 256 && !mismatch; sel++) {
     const a = base.clone(), b = base.clone();
+    const aFloor = a.regs.sp;
     for (const m of [a, b]) { m.mem.write8(SELECT, sel); freeRingSlot(m); }
     oracle(a);
     candidate(b);
     count++;
     arms[selectArm(sel)]++;
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     if (bad) mismatch = { sel, bad };
   }
   return { mismatch, arms, count };
@@ -224,13 +226,14 @@ function sweepLevel(base, candidate) {
   let count = 0, mismatch = null;
   for (let lvl = 0; lvl < 256 && !mismatch; lvl++) {
     const a = base.clone(), b = base.clone();
+    const aFloor = a.regs.sp;
     for (const m of [a, b]) { m.mem.write8(SELECT, 0x00); m.mem.write8(LEVEL, lvl); freeRingSlot(m); }
     oracle(a);
     candidate(b);
     count++;
     const code = a.mem.read8(REC + 1);
     if (code in arms) arms[code]++;
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     if (bad) mismatch = { lvl, bad };
   }
   return { mismatch, arms, count };

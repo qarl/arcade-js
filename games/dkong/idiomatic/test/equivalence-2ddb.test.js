@@ -11,7 +11,7 @@
  * The idiomatic routine dissolves the oracle's rst-0x30 / rst-0x10 caller-skip stack idiom into
  * two boolean-guard returns and its djnz mask-fold loop into a plain loop.
  *
- * CONTRACT (memory-equivalence): RAM − STACK_SCRATCH (the oracle's rst push16/ret churn writes
+ * CONTRACT (memory-equivalence): RAM − the stack scratch below the entry SP (the oracle's rst push16/ret churn writes
  * dead stack the direct-call candidate never touches — verified: every real dispatch pushes
  * inside [0x6BE0,0x6C00)), plus pc + SP. The register live-out is DEAD — loc_197a issues its
  * next call without reading A / B / flags — so registers are not compared; pc + SP are lined up
@@ -53,6 +53,7 @@ import {
   EVENT_REQ_313C,
   OBJ_SPAWN_REQ,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -67,17 +68,17 @@ const SP_TOP = 0x6c00;      // stack top: every push16 in this cascade lands in 
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const hx16 = (v) => "0x" + (v & 0xffff).toString(16).padStart(4, "0");
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs, skipping the dead STACK_SCRATCH region (the memory-equivalence
-// contract is RAM − STACK_SCRATCH: the oracle's rst push16/ret writes there). null | { addr, a, b }.
-function firstRamDiff(a, b) {
+// First RAM byte that differs, skipping the stack scratch below the entry SP (the memory-equivalence
+// contract is RAM − the stack scratch below the entry SP: the oracle's rst push16/ret writes there). null | { addr, a, b }.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -85,13 +86,14 @@ function firstRamDiff(a, b) {
 
 // All non-stack RAM addresses that changed between two machines (for the skip / no-trigger
 // "wrote nothing" non-vacuity check).
-function changedAddrs(a, b) {
+function changedAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.push(addr);
   }
   return out;
@@ -119,12 +121,12 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Full contract diff: RAM − STACK_SCRATCH, pc, SP. Live-out is memory-only. */
+/** Full contract diff: RAM − the stack scratch below the entry SP, pc, SP. Live-out is memory-only. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx16(o.pc)} cand=${hx16(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx16(o.regs.sp)} cand=${hx16(c.regs.sp)}`);
@@ -197,7 +199,7 @@ test("EQUAL (captured): raisePeriodicObjectSpawnRequests == oracle on every real
     const diffs = contractDiffs(entry, candidate);
     assert.equal(diffs.length, 0, `captured dispatch: ${diffs.join("; ")}`);
     // Confirm the real path really is the board-gate skip: the oracle wrote nothing non-stack.
-    assert.deepEqual(changedAddrs(entry, runOracle(entry)), [], "captured dispatch was expected to take the board-gate skip");
+    assert.deepEqual(changedAddrs(entry, runOracle(entry), entry.regs.sp), [], "captured dispatch was expected to take the board-gate skip");
   }
   console.log(`  EQUAL/captured: ${caps.length} real dispatches identical to the oracle (all board-gate skips)`);
 });
@@ -233,7 +235,7 @@ test("EQUAL (crafted): the difficulty/frame trigger sweep, alive-gate skip, and 
           assert.equal(o.mem.read8(OBJ_SPAWN_REQ), 1, `board=${board} diff=${hx(difficulty)} frame=${hx(frame)}: 0x639A not raised`);
           fired++;
         } else {
-          assert.deepEqual(changedAddrs(entry, o), [], `board=${board} diff=${hx(difficulty)} frame=${hx(frame)}: no-trigger path wrote RAM`);
+          assert.deepEqual(changedAddrs(entry, o, entry.regs.sp), [], `board=${board} diff=${hx(difficulty)} frame=${hx(frame)}: no-trigger path wrote RAM`);
           quiet++;
         }
         combos++;
@@ -246,13 +248,13 @@ test("EQUAL (crafted): the difficulty/frame trigger sweep, alive-gate skip, and 
   // Alive-gate skip: board 4 (board gate open), Mario dead -> return with no writes.
   const dead = craft(base, { board: 4, marioActive: 0, difficulty: 0x01, frame: 0x00 });
   assert.equal(contractDiffs(dead, candidate).length, 0, "alive-gate skip diverged");
-  assert.deepEqual(changedAddrs(dead, runOracle(dead)), [], "alive-gate skip wrote non-stack RAM");
+  assert.deepEqual(changedAddrs(dead, runOracle(dead), dead.regs.sp), [], "alive-gate skip wrote non-stack RAM");
 
   // Board-gate skip on 25m / 75m (mask 0x0A selects the current-board bit only on boards 2 and 4).
   for (const board of [1, 3]) {
     const skip = craft(base, { board, marioActive: 1, difficulty: 0x01, frame: 0x00 });
     assert.equal(contractDiffs(skip, candidate).length, 0, `board-${board} skip diverged`);
-    assert.deepEqual(changedAddrs(skip, runOracle(skip)), [], `board-${board} skip wrote non-stack RAM`);
+    assert.deepEqual(changedAddrs(skip, runOracle(skip), skip.regs.sp), [], `board-${board} skip wrote non-stack RAM`);
   }
   console.log("  EQUAL/crafted: alive-gate skip + board 1/3 skips identical to the oracle");
 });

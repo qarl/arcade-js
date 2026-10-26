@@ -9,7 +9,7 @@
  * it rescans past the entry; if the key never appears it MISSES and double-unwinds. It
  * writes NO work RAM — its whole result is registers plus a boolean skip signal — so
  * the contract is:
- *   - RAM identical minus STACK_SCRATCH (the oracle's loop-internal push/pop of the
+ *   - RAM identical minus the stack scratch below the entry SP (the oracle's loop-internal push/pop of the
  *     match address and count is dead scratch the idiomatic routine dissolves into
  *     locals; the miss path only READS the stack). Genuine dissolved pushes -> the one
  *     exclusion this gate needs.
@@ -61,6 +61,7 @@ import { loc_236e as oracle } from "../../translated/loc_236e.js";
 import { findOppositeLadderEnd } from "../findOppositeLadderEnd.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, OBJ_PARAM_TABLE0 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -83,17 +84,17 @@ const DISC = 0x99;
 const FILLER = 0x00; // != KEY and != DISC, so a cleared slot never fakes a hit
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs, skipping the dead STACK_SCRATCH region (the
-// memory-equivalence contract is RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs, skipping the stack scratch below the entry SP (the
+// memory-equivalence contract is RAM − the stack scratch below the entry SP). { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -102,7 +103,7 @@ function firstRamDiff(a, b) {
 /**
  * Run the oracle and a candidate on two fresh, byte-identical clones (frame machinery
  * neutralised so a stray NMI cannot masquerade as a side effect) and return the full
- * contract diffs: RAM − STACK_SCRATCH, the boolean return, and — only when the oracle
+ * contract diffs: RAM − the stack scratch below the entry SP, the boolean return, and — only when the oracle
  * FOUND — the register live-outs the callers consume (A,B,C,D,E). HL is dead, not
  * compared.
  */
@@ -113,7 +114,7 @@ function contractDiffs(entry, candidate) {
   // The oracle returns a bare boolean; the candidate returns { hit, ... } — compare on .hit.
   const rc = candidate(b).hit;
   const diffs = [];
-  const ram = firstRamDiff(a, b);
+  const ram = firstRamDiff(a, b, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (ro !== rc) diffs.push(`return oracle=${ro} cand=${rc}`);
   if (ro === true) {

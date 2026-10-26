@@ -3,7 +3,7 @@
  * Equivalence test for driveFireLadderClimb (ROM 0x333D) — the switch between a 0x6400-array object's two
  * travel states and its on-foot state.
  *
- * WHAT IS COMPARED. RAM − STACK_SCRATCH, plus the return value. The routine has ONE exit as far
+ * WHAT IS COMPARED. RAM − the stack scratch below the entry SP, plus the return value. The routine has ONE exit as far
  * as its caller is concerned: its own return and the two unwinds its callees perform (loc_33a1's
  * height skip, findOppositeLadderEnd's table miss) all land at the same continuation, ROM 0x3233, so the
  * idiomatic twin returns `undefined` on every path and the gate asserts that on both sides —
@@ -30,7 +30,7 @@
  *      tags, a rescan past a non-matching entry, and the Mario comparison at its exact boundary.
  *   3. LIVE (whole attract) — the live-out measurement. The candidate is wired at 0x333D for a
  *      real 4000-frame attract run and the frame trace is diffed against the all-oracle baseline
- *      on every live cell outside STACK_SCRATCH. A second run repeats it with every register
+ *      on every live cell outside the stack scratch below each frame's live SP. A second run repeats it with every register
  *      except the record pointer deliberately clobbered on the way out, which is what makes
  *      "no register live-out" a measurement rather than a reading of the caller.
  *      ★ The oracle's measured cycle cost is restored inside the override. Without that the run
@@ -55,6 +55,8 @@ import { findOppositeLadderEnd } from "../findOppositeLadderEnd.js";
 import { Machine } from "../../machine.js";
 import { u8 } from "../../../../core/int.js";
 import { STACK_SCRATCH, BOARD, MARIO_Y, OBJ_STATE, OBJ_ARRAY_64, OBJ_PARAM_TABLE0 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
+import { recordFrameSp, frameFloors } from "./_frame-sp.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -96,16 +98,16 @@ const FAR = 0x2a;
 const FILLER = 0xee;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-/** First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -113,7 +115,7 @@ function firstRamDiff(a, b) {
 
 /**
  * Run the oracle on one clone and a candidate on another, byte-identical one, and report the
- * contract: RAM − STACK_SCRATCH, the return value, and the ORACLE's write footprint (so the
+ * contract: RAM − the stack scratch below the entry SP, the return value, and the ORACLE's write footprint (so the
  * excluded stack window can be shown not to be hiding anything).
  */
 function comparePair(entry, fn) {
@@ -135,9 +137,10 @@ function comparePair(entry, fn) {
 
   const record = entry.regs.ix;
   const allowed = new Set(WRITABLE.map((d) => (record + d) & 0xffff));
-  const strayWrite = writes.find((a) => !allowed.has(a) && !inStack(a));
+  const dead = deadStackBelow(STACK_SCRATCH, entry.regs.sp);
+  const strayWrite = writes.find((a) => !allowed.has(a) && !dead(a));
 
-  return { ram: threw ? null : firstRamDiff(o, c), retO, retC, threw, writes, strayWrite, oracleMachine: o };
+  return { ram: threw ? null : firstRamDiff(o, c, entry.regs.sp), retO, retC, threw, writes, strayWrite, oracleMachine: o };
 }
 
 const mismatched = (r) => r.threw != null || r.ram !== null || r.retO !== r.retC;
@@ -300,7 +303,7 @@ test("EQUAL (captured): driveFireLadderClimb == oracle on every real dispatch", 
       r.strayWrite && `the oracle wrote ${hx(r.strayWrite)} — outside both the record bytes and STACK_SCRATCH`);
   }
   console.log(`  EQUAL/captured: ${caps.length} of ${total} real dispatches replayed (all of them), ` +
-    `${shapes.size} distinct entry shapes, identical on RAM − STACK_SCRATCH + return`);
+    `${shapes.size} distinct entry shapes, identical on RAM − the stack scratch below the entry SP + return`);
 });
 
 // -- 2. EQUAL (crafted): the arms attract never reaches -----------------------
@@ -413,8 +416,9 @@ let BASELINE = null;
 function baselineFrames() {
   if (!BASELINE) {
     const m = new Machine(ROM);
+    const sp = recordFrameSp(m);
     m.runFrames(LIVE_FRAMES);
-    BASELINE = m.frames;
+    BASELINE = Object.assign(m.frames, { sp });
   }
   return BASELINE;
 }
@@ -440,8 +444,9 @@ function liveRun(fn, { charge = true, after = null } = {}) {
     if (charge) mm.step(endPc, cost); // charge the oracle's cycles with a known PC
   }]]);
   const m = new Machine(ROM, { overrides: ov });
+  const sp = recordFrameSp(m);
   m.runFrames(LIVE_FRAMES);
-  return { frames: m.frames, calls };
+  return { frames: Object.assign(m.frames, { sp }), calls };
 }
 
 /**
@@ -454,13 +459,15 @@ function addressTable() {
   return Array.from(probe.dumpState(), (_, i) => probe.stateOffsetToAddr(i));
 }
 
-/** First (frame, address) where two traces differ outside STACK_SCRATCH. */
+/** First (frame, address) where two traces differ outside the stack scratch below each frame's live SP. */
 function firstTraceDiff(a, b, addrOf) {
   const n = Math.min(a.length, b.length);
+  const floors = frameFloors(a.sp, b.sp);
   for (let i = 0; i < n; i++) {
     const A = a[i], B = b[i];
+    const dead = deadStackBelow(STACK_SCRATCH, floors[i]);
     for (let j = 0; j < A.length; j++) {
-      if (A[j] !== B[j] && !inStack(addrOf[j])) return { frame: i, addr: addrOf[j], a: A[j], b: B[j] };
+      if (A[j] !== B[j] && !dead(addrOf[j])) return { frame: i, addr: addrOf[j], a: A[j], b: B[j] };
     }
   }
   return null;

@@ -23,7 +23,7 @@
  *   1. EQUAL (captured) — hook 0x09FE in that driven run, clone the machine at each
  *      true dispatch (FRESH clone per case, since it writes RAM), run the ORACLE on
  *      one clone and restorePlayer2Context on another, and confirm IDENTICAL RAM
- *      everywhere game-visible (minus the dead STACK_SCRATCH). Also confirm the
+ *      everywhere game-visible (minus the stack scratch below the entry SP). Also confirm the
  *      idiomatic routine leaves SP + pc unchanged (JS return replaces the modelled
  *      `ret`) and actually did its work (block == save slot, BOARD == *ptr,
  *      timer/substate armed) so EQUAL is not vacuous.
@@ -58,6 +58,7 @@ import {
   SUBSTATE_TIMER,
   GAME_SUBSTATE,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -80,15 +81,9 @@ const COIN_START_TAPE = [
 ];
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-/**
- * Diff two machines' RAM (work + sprite + video, per dumpState). Returns the first
- * difference OUTSIDE STACK_SCRATCH (game-visible — a real failure) or null, plus a
- * count of bytes that differed inside the dead stack scratch (expected 0 here — the
- * oracle's terminal `ret` pops but writes nothing).
- */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0;
@@ -96,28 +91,20 @@ function ramDiffMinusStack(a, b) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
 }
 
-/**
- * Replay one entry state through the oracle and a candidate on independent FRESH
- * clones (the routine writes RAM), and return the diff.
- */
 function replay(entry, candidate) {
   const a = entry.clone(); // oracle
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return { a, b, ...ramDiffMinusStack(a, b) };
+  return { a, b, ...ramDiffMinusStack(a, b, entry.regs.sp) };
 }
 
-/**
- * The 8 save-slot bytes at entry — the values the restore MUST end up copying into
- * the live block — read straight off the (pre-run) entry machine.
- */
 function saveSlotBytes(m) {
   const out = [];
   for (let i = 0; i < 8; i++) out.push(m.mem.read8(P2_CONTEXT + i));
@@ -141,11 +128,6 @@ function assertRestored(m, expectSlot, label) {
   assert.equal(m.mem.read8(GAME_SUBSTATE), 4, `${label}: GAME_SUBSTATE should be armed to 4`);
 }
 
-/**
- * Hook 0x09FE in the driven 2-coin + START2 run and clone the machine at up to K
- * true dispatches (FRESH clone per case). The wrapper clones the entry state, then
- * delegates to the oracle so the host run proceeds to a clean stop.
- */
 function captureDispatches(K, maxFrames) {
   const caps = [];
   const snapshot = new Map([[TARGET, (mm) => {
@@ -169,10 +151,8 @@ test("EQUAL (captured): restorePlayer2Context == oracle on every real P2-restore
 
     const { bad, stackDiffs } = replay(entry, restorePlayer2Context);
     assert.equal(bad, null, bad && `game-visible RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
-    // The oracle only pops on `ret` (no push, no stack write) — no tolerated residue.
     assert.equal(stackDiffs, 0, `unexpected stack-scratch residue (${stackDiffs} bytes) — the oracle writes no stack`);
 
-    // The idiomatic routine must NOT model the stack: SP and pc unchanged from entry.
     const b = entry.clone();
     const sp0 = b.regs.sp, pc0 = b.pc;
     restorePlayer2Context(b);
@@ -219,7 +199,7 @@ test("EQUAL (crafted): distinct pointers / payloads / dirtied destinations all m
     oracle(a);
     restorePlayer2Context(b);
 
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, entry.regs.sp);
     assert.equal(bad, null, bad && `${label}: game-visible RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
     assertRestored(b, payload, label);
     console.log(`  EQUAL/crafted ${label}: block copied, BOARD=${hx(b.mem.read8(BOARD))}, arm 0x78/4 — identical to oracle`);

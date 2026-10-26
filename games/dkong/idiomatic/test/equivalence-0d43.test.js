@@ -13,7 +13,7 @@
  * on one clone, stampRivetBoardBands (which calls the decompiled stampTwoTileBands
  * directly) on another, and they are compared on the go-forward contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) only.
+ *     RAM (dumpState, minus the stack scratch below the entry SP) only.
  *
  * pc and SP are deliberately NOT compared. The oracle uses push16/m.step/m.ret, so it
  * advances pc and its callees pop SP; both are the modelled step/stack ABI the direct-
@@ -59,7 +59,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0d43 as oracle } from "../../translated/loc_0d43.js";
 import { stampRivetBoardBands } from "../stampRivetBoardBands.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -85,26 +85,21 @@ function writeSetFor(base) {
 // All sixteen cells the routine stamps (both rows).
 const ALL_CELLS = BASES.flatMap(writeSetFor);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
-
 /**
- * First RAM difference between two machines on the go-forward contract: the whole state
- * dump minus the STACK_SCRATCH region (dead scratch — masked per the contract).
- * Returns {addr,a,b,offset} or null.
- *
  * `from` ACCUMULATES the absolute cursor across masked stack diffs. (The sibling gates'
  * copy of this helper reset `from = d.offset + 1` from the subarray-relative offset,
  * which oscillates and never terminates once there are TWO dead-stack diffs — dormant
  * there because those oracles never write the stack, but this oracle's `push16` writes
  * two stack bytes, so the cursor must advance absolutely, not be reassigned.)
  */
-function ramDiffMinusStack(ma, mb) {
+function ramDiffMinusStack(ma, mb, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = ma.dumpState();
   const b = mb.dumpState();
   let from = 0;
   for (;;) {
     const d = firstStateDiff(a.subarray(from), b.subarray(from), (off) => ma.stateOffsetToAddr(off + from));
-    if (!d || !inDeadStack(d.addr)) return d;
+    if (!d || !dead(d.addr)) return d;
     from += d.offset + 1; // advance the absolute cursor past this masked stack byte
   }
 }
@@ -120,11 +115,6 @@ const FORCE_0D43_POKE = [
 ];
 const FRAMES = 110; // the forced dispatch lands ~frame 102
 
-/**
- * Force the real dispatch of 0x0D43 via the board-4 poke and clone the machine at up to
- * K true entries. The wrapper snapshots the entry state, then runs the oracle so the host
- * proceeds. A fresh copy of the poke per machine keeps runs independent.
- */
 function captureDispatches(K) {
   const caps = [];
   const snap = new Map([[TARGET, (mm) => {
@@ -139,7 +129,6 @@ function captureDispatches(K) {
 
 const CAPS = ROM_PRESENT ? captureDispatches(8) : [];
 
-// -- 1. EQUAL (real forced dispatch) ------------------------------------------
 
 test("EQUAL: real forced board-4 dispatch — stampRivetBoardBands == oracle in RAM (−stack)", () => {
   assert.ok(CAPS.length >= 1, `expected >=1 real 0x0D43 dispatch after the board-4 poke, got ${CAPS.length}`);
@@ -150,7 +139,7 @@ test("EQUAL: real forced board-4 dispatch — stampRivetBoardBands == oracle in 
     oracle(o);
     stampRivetBoardBands(c);
 
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, cap.regs.sp);
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} stamp=${d.b}`);
 
     // ...and the candidate genuinely stamped both rows (not merely agreed with the oracle).
@@ -164,7 +153,6 @@ test("EQUAL: real forced board-4 dispatch — stampRivetBoardBands == oracle in 
   console.log(`  EQUAL: ${CAPS.length} real board-4 dispatch(es) identical (RAM −stack); rows ${BASES.map(hx).join(",")}`);
 });
 
-// -- 2. WRITE-SET (captured) --------------------------------------------------
 
 test("WRITE-SET: the oracle writes exactly the 16 tilemap cells; every other change is dead stack", () => {
   for (const cap of CAPS) {
@@ -180,8 +168,9 @@ test("WRITE-SET: the oracle writes exactly the 16 tilemap cells; every other cha
     }
     const want = new Map(ALL_CELLS.map((c) => [c.addr, c.val]));
     const seen = new Set();
+    const dead = deadStackBelow(STACK_SCRATCH, cap.regs.sp);
     for (const ch of changed) {
-      if (inDeadStack(ch.addr)) continue; // the push16 return address — dead scratch, masked
+      if (dead(ch.addr)) continue; // the push16 return address — dead scratch, masked
       assert.ok(want.has(ch.addr), `oracle wrote unexpected addr ${hx(ch.addr)} (${ch.from}->${ch.to})`);
       assert.equal(ch.to, want.get(ch.addr), `wrong value ${hx(ch.to)} at ${hx(ch.addr)}`);
       seen.add(ch.addr);
@@ -191,10 +180,10 @@ test("WRITE-SET: the oracle writes exactly the 16 tilemap cells; every other cha
   }
 });
 
-// -- 3. CRAFTED (overwrite) ---------------------------------------------------
 
 test("CRAFTED: pre-dirtied destination cells are overwritten identically by both sides", () => {
   const o = CAPS[0].clone();
+  const oFloor = o.regs.sp;
   const c = CAPS[0].clone();
   // Identical surgical nudge on BOTH sides: dirty every destination byte to 0xAA.
   for (const cell of ALL_CELLS) {
@@ -204,7 +193,7 @@ test("CRAFTED: pre-dirtied destination cells are overwritten identically by both
   oracle(o);
   stampRivetBoardBands(c);
 
-  const d = ramDiffMinusStack(o, c);
+  const d = ramDiffMinusStack(o, c, oFloor);
   assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} stamp=${d.b}`);
   for (const cell of ALL_CELLS) {
     assert.equal(c.mem.read8(cell.addr), cell.val, `stamp left ${hx(cell.addr)} = ${hx(c.mem.read8(cell.addr))} (expected ${hx(cell.val)})`);
@@ -212,10 +201,10 @@ test("CRAFTED: pre-dirtied destination cells are overwritten identically by both
   console.log("  CRAFTED: 16 destination bytes dirtied to 0xAA -> both stamp 0xFD/0xFC, RAM identical");
 });
 
-// -- 4. CRAFTED (input-independence) ------------------------------------------
 
 test("CRAFTED: garbage in HL/B/C/D/E/A and far RAM (identical both sides) does not change the output", () => {
   const o = CAPS[0].clone();
+  const oFloor = o.regs.sp;
   const c = CAPS[0].clone();
   // Identical unrelated nudge on both sides. The routine reloads HL from ROM immediates,
   // so even garbage in HL on entry must not move the output; ditto the rest of the file
@@ -229,7 +218,7 @@ test("CRAFTED: garbage in HL/B/C/D/E/A and far RAM (identical both sides) does n
   oracle(o);
   stampRivetBoardBands(c);
 
-  const d = ramDiffMinusStack(o, c);
+  const d = ramDiffMinusStack(o, c, oFloor);
   assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} stamp=${d.b}`);
   for (const cell of ALL_CELLS) {
     assert.equal(c.mem.read8(cell.addr), cell.val, `stamp left ${hx(cell.addr)} = ${hx(c.mem.read8(cell.addr))} (expected ${hx(cell.val)})`);
@@ -237,7 +226,6 @@ test("CRAFTED: garbage in HL/B/C/D/E/A and far RAM (identical both sides) does n
   console.log("  CRAFTED: garbage HL/B/C/D/E/A + far RAM identical both sides -> output unchanged (bases are ROM immediates)");
 });
 
-// -- 5. TEETH -----------------------------------------------------------------
 
 /**
  * Broken twin: stamps the second row at base 0x7647 instead of 0x7547 (an off-by-0x100
@@ -258,15 +246,17 @@ function brokenSecondBase(m) {
 test("TEETH: a wrong second-row base is CAUGHT and names 0x7547", () => {
   // Captured state — a wrong second row must be caught somewhere.
   const o = CAPS[0].clone();
+  const oFloor = o.regs.sp;
   const c = CAPS[0].clone();
   oracle(o);
   brokenSecondBase(c);
-  const d = ramDiffMinusStack(o, c);
+  const d = ramDiffMinusStack(o, c, oFloor);
   assert.notEqual(d, null, "the gate FAILED to catch a wrong second-row base — it is worthless");
 
   // Crafted pre-dirtied state — both correct and broken destination cells set to 0xAA, so
   // the first divergence is deterministically 0x7547 (oracle 0xFD, broken leaves 0xAA).
   const o2 = CAPS[0].clone();
+  const o2Floor = o2.regs.sp;
   const c2 = CAPS[0].clone();
   const dirty = [...ALL_CELLS, ...writeSetFor(0x7647)];
   for (const cell of dirty) {
@@ -275,7 +265,7 @@ test("TEETH: a wrong second-row base is CAUGHT and names 0x7547", () => {
   }
   oracle(o2);
   brokenSecondBase(c2);
-  const d2 = ramDiffMinusStack(o2, c2);
+  const d2 = ramDiffMinusStack(o2, c2, o2Floor);
   assert.notEqual(d2, null, "the gate FAILED to catch the wrong base on the crafted state");
   assert.equal(d2.addr, 0x7547, `crafted teeth caught the wrong address ${hx(d2.addr ?? 0)} (expected 0x7547)`);
 

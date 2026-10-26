@@ -9,7 +9,7 @@
  * oracle jp-tails to that same boundary at the same guest SP (a jp pushes nothing), so both sides
  * run the rest of the object loop and, measured, leave RAM outside the stack window and the final SP
  * identical. So this gate asserts:
- *   - RAM EXCLUDING the STACK_SCRATCH window {0x6be0,0x6c00}: the frozen side's call/ret bracket
+ *   - RAM EXCLUDING the stack scratch below the entry SP {0x6be0,0x6c00}: the frozen side's call/ret bracket
  *     writes a return address into that window at an SP the JS side does not push to, so the two
  *     runs legitimately differ there and nowhere else;
  *   - this routine's OWN ordered store sequence — its two writes to the record's velocity bytes,
@@ -31,7 +31,7 @@
  *      natural count is small and test 0 asserts the capture is complete.
  *   3. LIVE (whole attract) — the live-out measurement: the candidate wired at 0x20E1 for a real
  *      4000-frame attract run, its frame trace diffed against the all-oracle baseline on every
- *      cell outside STACK_SCRATCH.
+ *      cell outside the stack scratch below each frame's live SP.
  *      ★ loc_20e1 is cycle-free and, dissolved, so is the whole 0x20C3/0x21BA/0x1F8D fragment below
  *      it; its true oracle cost is measured PER DISPATCH (priceDissolved, up to the frozen walk-step
  *      boundary) and charged back inside the override. Without that the run diverges purely because
@@ -68,6 +68,8 @@ import { loc_20e1 as oracle } from "../../translated/loc_20e1.js";
 import { loc_20e1 } from "../loc_20e1.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, OBJ_X } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
+import { recordFrameSp, frameFloors } from "./_frame-sp.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -95,16 +97,16 @@ const ATTRACT_FRAMES = 4000;
 const LIVE_FRAMES = 4000;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-/** First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -135,7 +137,7 @@ function recordOwnWrites(m, fn) {
 
 /**
  * Run the oracle on one clone and a candidate on another, byte-identical one, and report the
- * DISSOLVED-form contract: RAM − STACK_SCRATCH, this routine's own ordered store sequence, the final
+ * DISSOLVED-form contract: RAM − the stack scratch below the entry SP, this routine's own ordered store sequence, the final
  * guest SP, and the return value. pc and the rest of the register file are dropped with the frozen
  * call bracket that used to make them comparable.
  */
@@ -163,7 +165,7 @@ function comparePair(entry, fn) {
   })();
 
   return {
-    ram: rc.threw ? null : firstRamDiff(o, c),
+    ram: rc.threw ? null : firstRamDiff(o, c, entry.regs.sp),
     writeDiff: rc.threw ? null : firstWriteDiff,
     spO: o.regs.sp, spC: rc.threw ? null : c.regs.sp,
     retO: ro.ret, retC: rc.ret,
@@ -313,7 +315,7 @@ test("EQUAL (captured): loc_20e1 == oracle on every real dispatch", () => {
   assert.equal(after.mem.read8((base + VELOCITY_X_FRACTION) & 0xffff), 0, "oracle must leave the fraction = 0");
 
   console.log(`  EQUAL/captured: ${caps.length} of ${total} real dispatches replayed (all of them) — ` +
-    "identical on RAM − STACK_SCRATCH, this routine's own store sequence, the final guest SP and the return");
+    "identical on RAM − the stack scratch below the entry SP, this routine's own store sequence, the final guest SP and the return");
 });
 
 // -- 3. LIVE (whole attract): the live-out measurement ------------------------
@@ -322,8 +324,9 @@ let BASELINE = null;
 function baselineFrames() {
   if (!BASELINE) {
     const m = new Machine(ROM);
+    const sp = recordFrameSp(m);
     m.runFrames(LIVE_FRAMES);
-    BASELINE = m.frames;
+    BASELINE = Object.assign(m.frames, { sp });
   }
   return BASELINE;
 }
@@ -344,8 +347,9 @@ function liveRun(fn, { charge = true } = {}) {
     return r;
   }]]);
   const m = new Machine(ROM, { overrides: ov });
+  const sp = recordFrameSp(m);
   m.runFrames(LIVE_FRAMES);
-  return { frames: m.frames, calls };
+  return { frames: Object.assign(m.frames, { sp }), calls };
 }
 
 /**
@@ -358,13 +362,15 @@ function addressTable() {
   return Array.from(probe.dumpState(), (_, i) => probe.stateOffsetToAddr(i));
 }
 
-/** First (frame, address) where two traces differ outside STACK_SCRATCH. */
+/** First (frame, address) where two traces differ outside the stack scratch below each frame's live SP. */
 function firstTraceDiff(a, b, addrOf) {
   const n = Math.min(a.length, b.length);
+  const floors = frameFloors(a.sp, b.sp);
   for (let i = 0; i < n; i++) {
     const A = a[i], B = b[i];
+    const dead = deadStackBelow(STACK_SCRATCH, floors[i]);
     for (let j = 0; j < A.length; j++) {
-      if (A[j] !== B[j] && !inStack(addrOf[j])) return { frame: i, addr: addrOf[j], a: A[j], b: B[j] };
+      if (A[j] !== B[j] && !dead(addrOf[j])) return { frame: i, addr: addrOf[j], a: A[j], b: B[j] };
     }
   }
   return null;

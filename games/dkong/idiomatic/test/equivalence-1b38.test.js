@@ -20,7 +20,7 @@
  * own `ret`. The idiomatic routine models no stack (a direct call + a plain JS return), so
  * the harness performs ONE m.ret() on the candidate clone after the call to line pc + SP up
  * with the oracle. Transient push/pop the oracle's deeper callees do lands in STACK_SCRATCH,
- * excluded by the memory-equivalence contract (RAM − STACK_SCRATCH + pc + SP; live-out is
+ * excluded by the memory-equivalence contract (RAM − the stack scratch below the entry SP + pc + SP; live-out is
  * memory-only).
  *
  *   1. EQUAL (real dispatches) — hook 0x1B38 in a real attract run and compare oracle vs
@@ -61,6 +61,7 @@ import { climbMarioDown } from "../climbMarioDown.js";     // ROM 0x1CF2
 import { climbUpWhileHeld } from "../climbUpWhileHeld.js"; // ROM 0x1B45
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, P1_INPUT, MARIO_ON_LADDER, MARIO_MOVE_STEP_TIMER } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -73,33 +74,29 @@ const TARGET = 0x1b38;
 const DOWN_BIT = 0x08; // bit 3 of the cooked control word = Down held
 const UP_BIT = 0x04;   // bit 2 = Up held (the fall-through's selector)
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
-// -- the memory-equivalence contract ------------------------------------------
-
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH (the dead stack
- *  region the standard gate excludes — the oracle's callee `ret`/`call` pops read it). */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
-/** All non-stack RAM addresses that changed between two machines (for the no-write
- *  non-vacuity check on the idle arm). */
-function changedAddrs(a, b) {
+function changedAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.push(addr);
   }
   return out;
@@ -115,9 +112,6 @@ function runOracle(entry) {
   return c;
 }
 
-/** Run a candidate on a fresh (frame-neutralised) clone, then model the path's single net
- *  return with one m.ret() so pc + SP match the oracle's (the idiomatic routine uses the JS
- *  call stack and never touches pc/SP itself). */
 function runCandidate(entry, fn) {
   const c = entry.clone();
   c.nextNmi = Infinity;
@@ -127,25 +121,19 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Compare candidate vs oracle over the contract: RAM − STACK_SCRATCH, pc, SP. NO
- *  registers — live-out is memory-only. Returns human-readable mismatches. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=0x${o.pc.toString(16)} cand=0x${c.pc.toString(16)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=0x${o.regs.sp.toString(16)} cand=0x${c.regs.sp.toString(16)}`);
   return diffs;
 }
 
-// -- capture ------------------------------------------------------------------
-
-/** Hook 0x1B38 in a real attract run and clone the machine at up to K real dispatches. The
- *  wrapper snapshots the entry state, then runs the oracle so the host game proceeds
- *  undisturbed. dispatchMarioMovement reaches here by `m.call(0x1b38)`, resolved through the registry
- *  the override overlays, so every real input-dispatch entry is caught. */
+/** Clone at up to K real 0x1B38 dispatches. dispatchMarioMovement reaches here by `m.call(0x1b38)`,
+ *  resolved through the registry the override overlays, so every real input-dispatch entry is caught. */
 function captureDispatches(K, maxFrames) {
   const caps = [];
   const snapshot = new Map([[TARGET, (mm) => {
@@ -173,8 +161,6 @@ function craft(seed, { input, ladder, timer } = {}) {
   if (timer !== undefined) e.mem.write8(MARIO_MOVE_STEP_TIMER, timer);
   return e;
 }
-
-// -- teeth twins (same shape as loc_1b38, one thing broken) -------------------
 
 /** Broken twin (a): INVERTED-DOWN-GUARD — climbs down when Down is NOT held. */
 function brokenInvertedDownGuard(m) {
@@ -216,10 +202,6 @@ test("REACHABILITY: 0x1B38 is dispatched during attract (Up fall-through natural
   assert.ok(caps.length >= 1, "expected at least one real 0x1B38 dispatch — the movement machine routes here");
   const down = caps.filter((c) => (c.mem.read8(P1_INPUT) & DOWN_BIT) !== 0).length;
   const onLadder = caps.filter((c) => c.mem.read8(MARIO_ON_LADDER) !== 0).length;
-  // The movement machine reaches here only while Mario is on a ladder, and the attract demo
-  // only climbs UP, so every natural 0x1B38 dispatch has Down clear and takes the Up
-  // fall-through arm. The Down arm and the idle (ladder-zero) arm are unreached by attract,
-  // so they are covered by the crafted sweeps below.
   assert.ok(onLadder >= 1, "expected at least one on-ladder dispatch — attract climbs ladders");
   console.log(`  REACHABILITY: ${caps.length} natural 0x1B38 dispatches (${down} Down-held, ${onLadder} on-ladder; Down/idle arms exercised by crafted sweeps)`);
 });
@@ -263,7 +245,7 @@ test("EQUAL (input sweep): all 256 P1_INPUT values match the oracle, ladder set 
   const downEntry = craft(seed, { input: DOWN_BIT, ladder: 0, timer: 0 });
   const afterDown = runOracle(downEntry);
   assert.equal(afterDown.mem.read8(MARIO_MOVE_STEP_TIMER), 3, "Down arm reloads the move-step pacer to 3 (climb-down pace)");
-  assert.ok(changedAddrs(downEntry, afterDown).length >= 1, "Down arm must write memory (it climbs)");
+  assert.ok(changedAddrs(downEntry, afterDown, downEntry.regs.sp).length >= 1, "Down arm must write memory (it climbs)");
 
   // Non-vacuity, Up fall-through arm: Down clear + Up held + on ladder + pacer expired — the
   // oracle falls through to the up-climb driver, which reloads the pacer to 4 (its pace).
@@ -274,7 +256,7 @@ test("EQUAL (input sweep): all 256 P1_INPUT values match the oracle, ladder set 
   // Non-vacuity, idle arm: Down clear + ladder zero — nothing non-stack is written.
   const idleEntry = craft(seed, { input: 0x00, ladder: 0 });
   const afterIdle = runOracle(idleEntry);
-  assert.deepEqual(changedAddrs(idleEntry, afterIdle), [], "idle arm must not write any non-stack RAM");
+  assert.deepEqual(changedAddrs(idleEntry, afterIdle, idleEntry.regs.sp), [], "idle arm must not write any non-stack RAM");
 
   console.log(`  EQUAL/sweep: 512 (input×ladder) entries identical on RAM+pc+SP; Down arm reloads pacer->3, Up fall-through ->4, idle writes nothing`);
 });
@@ -305,7 +287,7 @@ test("TEETH: inverted-down-guard, wrong-bit, and dropped-ladder-guard twins are 
   //     idles (Down clear, not on ladder); the twin drops the ladder gate, delegates to the
   //     up-climb path, and (Up held) climbs — writing memory. Caught, pinning the ladder guard.
   const ladderBait = craft(seed, { input: UP_BIT, ladder: 0, timer: 0 });
-  assert.deepEqual(changedAddrs(ladderBait, runOracle(ladderBait)), [], "ladder bait must idle on the oracle");
+  assert.deepEqual(changedAddrs(ladderBait, runOracle(ladderBait), ladderBait.regs.sp), [], "ladder bait must idle on the oracle");
   const droppedLadder = contractDiffs(ladderBait, brokenDroppedLadderGuard);
   assert.ok(droppedLadder.length > 0, "the dropped-ladder-guard twin escaped — the gate is worthless");
 

@@ -12,10 +12,10 @@
  * The oracle brackets the foot-cell lookup with `push hl` / `push (return)` / `pop de` around
  * its `call 0x2ff0`. The idiomatic routine dissolves that into a direct tileAddrForPixel call
  * and never touches the stack, so those pushed bytes are dead scratch the candidate does not
- * write — the memory-equivalence contract is RAM MINUS STACK_SCRATCH. SP is placed at the top
+ * write — the memory-equivalence contract is RAM MINUS the stack scratch below the entry SP. SP is placed at the top
  * of the scratch region so every push the oracle (and the nested slope cascade) makes lands
  * inside [0x6be0, 0x6c00). Live-out is memory-only; pc/SP are dead (the caller tail-invokes
- * and consumes nothing), so the gate compares RAM only, minus STACK_SCRATCH.
+ * and consumes nothing), so the gate compares RAM only, minus the stack scratch below the entry SP.
  *
  * Decision structure the crafted entries cover:
  *   GATES — three independent early-outs: on-ladder != 0, airborne != 0, edge-flag == 1.
@@ -26,7 +26,7 @@
  *           unconditionally; otherwise the tile one row up decides.
  *
  *   1. REACHABILITY / EQUAL (captured) — hook 0x2A85 in a real boot/attract run, clone at
- *      each dispatch, and confirm startMarioFallWhenGroundGivesWay == oracle (RAM − STACK_SCRATCH) on every real state
+ *      each dispatch, and confirm startMarioFallWhenGroundGivesWay == oracle (RAM − the stack scratch below the entry SP) on every real state
  *      the game produces. The attract tape reaches the keeps-footing / gate exits; the
  *      slope hand-off is a frontier the crafted entries carry.
  *   2. EQUAL (crafted) — poke gate cells, Mario X/Y, and the foot/upper tiles identically on
@@ -62,6 +62,7 @@ import {
   MARIO_START_FALL,
 } from "../names.js";
 import { Machine } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -80,7 +81,6 @@ const SAFE_SP = 0x6c00;
 const RET_ADDR = 0x02cd;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 // The foot-cell address for a given Mario X/Y, mirroring tileAddrForPixel / the oracle's
 // sub_2ff0: probe X = MarioX-3 feeds the tilemap's vertical axis, probe Y = MarioY+0x0C the
@@ -92,15 +92,16 @@ function footCellFor(marioX, marioY) {
 }
 const upperCellOf = (footCell) => (footCell - 0x20) & 0xffff;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region
-// (the memory-equivalence contract is RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
+// (the memory-equivalence contract is RAM − the stack scratch below the entry SP). { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -108,13 +109,14 @@ function firstRamDiff(a, b) {
 
 // All non-stack RAM addresses that changed between two machines (for the no-write
 // non-vacuity check on the gate-return / keeps-footing paths).
-function changedAddrs(a, b) {
+function changedAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.push(addr);
   }
   return out;
@@ -153,13 +155,14 @@ function makeEntry(base, {
 }
 
 // Run the oracle and a candidate on two fresh, byte-identical entries (the routine writes
-// memory, so each side needs its own copy) and diff RAM − STACK_SCRATCH.
+// memory, so each side needs its own copy) and diff RAM − the stack scratch below the entry SP.
 function runPair(base, opts, candidate) {
   const a = makeEntry(base, opts);
+  const aFloor = a.regs.sp;
   const b = makeEntry(base, opts);
   oracle(a);
   candidate(b);
-  return { diff: firstRamDiff(a, b), oracleAfter: a, entry: makeEntry(base, opts) };
+  return { diff: firstRamDiff(a, b, aFloor), oracleAfter: a, entry: makeEntry(base, opts) };
 }
 
 // -- 1. REACHABILITY / EQUAL (captured) ---------------------------------------
@@ -184,7 +187,7 @@ test("EQUAL (captured): startMarioFallWhenGroundGivesWay == oracle on every real
     const b = cap.clone(); b.nextNmi = Infinity; b.nextBoundary = Infinity;
     oracle(a);
     startMarioFallWhenGroundGivesWay(b);
-    const diff = firstRamDiff(a, b);
+    const diff = firstRamDiff(a, b, cap.regs.sp);
     assert.equal(diff, null, diff && `real dispatch diverges at ${hx(diff.addr)} (oracle=${diff.a} cand=${diff.b})`);
     if (a.mem.read8(MARIO_START_FALL) !== cap.mem.read8(MARIO_START_FALL)) sawFall++; else sawQuiet++;
   }
@@ -231,7 +234,7 @@ test("EQUAL (crafted): gate returns, keeps-footing, and both slope arms all matc
       assert.equal(oracleAfter.mem.read8(MARIO_START_FALL), 1, `${name}: expected MARIO_START_FALL raised`);
     } else {
       // No memory changed at all — the path is truly a no-op, so equivalence is not vacuous.
-      assert.deepEqual(changedAddrs(entry, oracleAfter), [], `${name}: expected no non-stack RAM write`);
+      assert.deepEqual(changedAddrs(entry, oracleAfter, entry.regs.sp), [], `${name}: expected no non-stack RAM write`);
     }
   }
   console.log(`  EQUAL/crafted: ${cases.length} arms (3 gates, non-gate edge value, keeps-footing x2, both slope arms with fall taken/not) identical`);

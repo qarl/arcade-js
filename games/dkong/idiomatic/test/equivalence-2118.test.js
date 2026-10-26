@@ -21,7 +21,7 @@
  * routine's own head, plus the dead stack scratch the frozen side's `call`/`ret` bracket touches
  * that the JS side does not.
  *
- * CONTRACT — the resulting RAM state EXCLUDING the STACK_SCRATCH window, this routine's OWN ordered
+ * CONTRACT — the resulting RAM state EXCLUDING the stack scratch below the entry SP, this routine's OWN ordered
  * store sequence (the writes it makes to its record's head fields, isolated by address so the tail
  * chain's writes are not mixed in), the guest stack pointer at completion, and the propagated
  * return value. STACK_SCRATCH is EXCLUDED, not asserted inert: the frozen side reaches loc_1f8d's
@@ -72,6 +72,7 @@ import { loc_2118 } from "../loc_2118.js";
 import { loc_2146 } from "../loc_2146.js";
 import { loc_2153 } from "../loc_2153.js";
 import { OBJ_SPRITE_CODE, OBJ_Y, STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -155,26 +156,28 @@ function instrument(m) {
 }
 
 /** First differing state byte OUTSIDE the excluded stack window; stack-only diffs are ignored. */
-function nonStackDiff(a, b) {
+function nonStackDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   for (let i = 0; i < da.length; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
 /** Does any state byte INSIDE the excluded stack window differ? (necessity of the exclusion). */
-function stackDiffers(a, b) {
+function stackDiffers(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   for (let i = 0; i < da.length; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) return true;
+    if (dead(addr)) return true;
   }
   return false;
 }
@@ -202,6 +205,7 @@ function headSeq(writes, ix) {
  */
 function contractBreach(entry, candidate, poke) {
   const a = rehost(entry);
+  const aFloor = a.regs.sp;
   const b = rehost(entry);
   if (poke) {
     poke(a);
@@ -227,7 +231,7 @@ function contractBreach(entry, candidate, poke) {
     rb = `FAULT ${e.message}`;
   }
 
-  const ram = nonStackDiff(a, b);
+  const ram = nonStackDiff(a, b, aFloor);
   if (ram) return { kind: "ram", detail: `${hx(ram.addr)} oracle=${ram.a} rewrite=${ram.b}` };
 
   const sa = headSeq(wa, ix);
@@ -365,13 +369,14 @@ test("the STACK_SCRATCH exclusion is both NECESSARY and SUFFICIENT over attract"
       "2118": (mm) => {
         checked++;
         const a = rehost(mm);
+        const aFloor = a.regs.sp;
         const b = rehost(mm);
         a.routines.set(WALK_STEP, () => {});
         b.routines.set(WALK_STEP, () => {});
         oracle(a);
         loc_2118(b, cursorOf(b));
-        if (stackDiffers(a, b)) stackDiverged++;
-        if (nonStackDiff(a, b)) outsideDiverged++;
+        if (stackDiffers(a, b, aFloor)) stackDiverged++;
+        if (nonStackDiff(a, b, aFloor)) outsideDiverged++;
         return oracle(mm);
       },
     },
@@ -381,7 +386,7 @@ test("the STACK_SCRATCH exclusion is both NECESSARY and SUFFICIENT over attract"
   assert.equal(
     outsideDiverged,
     0,
-    `the two runs diverged OUTSIDE STACK_SCRATCH on ${outsideDiverged} of ${checked} dispatches — ` +
+    `the two runs diverged OUTSIDE the stack scratch below the entry SP on ${outsideDiverged} of ${checked} dispatches — ` +
       "the exclusion would be hiding a real defect",
   );
   assert.ok(

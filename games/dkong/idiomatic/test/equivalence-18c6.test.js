@@ -58,6 +58,7 @@ import { enqueueTask } from "../enqueueTask.js";
 import { loc_2333 } from "../../translated/loc_2333.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -80,15 +81,15 @@ const GAME_SUBSTATE = 0x600a;
 const TASK_TAIL = 0x60b0;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
  * First differing RAM byte between two machines, EXCLUDING the dead stack-scratch
- * region (the memory-equivalence contract is RAM − STACK_SCRATCH). Returns the first
+ * region (the memory-equivalence contract is RAM − the stack scratch below the entry SP). Returns the first
  * game-visible difference { addr, a, b } or null, plus how many bytes differed inside
  * the tolerated stack scratch.
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0;
@@ -96,7 +97,7 @@ function ramDiffMinusStack(a, b) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -109,7 +110,7 @@ function replay(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return { a, b, ...ramDiffMinusStack(a, b) };
+  return { a, b, ...ramDiffMinusStack(a, b, entry.regs.sp) };
 }
 
 /**
@@ -180,7 +181,7 @@ test("COUNTER SWEEP (exhaustive): runRivetBoardFinaleThenAdvanceLevel == oracle 
     b.mem.write8(PACE_COUNTER, v);
     oracle(a);
     runRivetBoardFinaleThenAdvanceLevel(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, sbase.regs.sp);
     count++;
     if (bad) mismatch = { v, bad };
   }
@@ -333,7 +334,7 @@ test("TEETH: the wrong gate-mask twin (0x0F for 0x07) is CAUGHT by the counter s
     b.mem.write8(PACE_COUNTER, v);
     oracle(a);
     brokenLoc18c6(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, sbase.regs.sp);
     if (bad) caught = { v, bad };
   }
   assert.notEqual(caught, null, "the counter sweep FAILED to catch a wrong every-8th gate mask — it is worthless");

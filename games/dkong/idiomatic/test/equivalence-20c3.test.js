@@ -16,7 +16,7 @@
  *   1. EQUAL (captured) — EVERY captured dispatch is replayed, not a sample: the run produces 49,
  *      far below the point where sampling would be worth its coverage risk. Each is replayed on
  *      two byte-identical clones — oracle on one, loc_20c3 on the other — and compared on
- *      RAM − STACK_SCRATCH, the RETURN VALUE, and the register file. This test ALSO produces the
+ *      RAM − the stack scratch below the entry SP, the RETURN VALUE, and the register file. This test ALSO produces the
  *      coverage holes the routine's GATE: line quotes, as assertions rather than prose: attract
  *      never delivers a reflection with the high bit set, never one with either low bit set, and
  *      never a stored high byte other than 0 — so on its own this arm cannot distinguish a
@@ -107,6 +107,8 @@ import { loc_2407 } from "../loc_2407.js";
 import { Machine } from "../../machine.js";
 import { OBJ_ARRAY_67, STACK_SCRATCH } from "../names.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
+import { recordFrameSp, frameFloors } from "./_frame-sp.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -138,7 +140,6 @@ const EXCLUDED_REGS = new Set(["b_", "c_"]);
 const COMPARED_REGS = REG_FIELDS.filter((k) => !EXCLUDED_REGS.has(k));
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16).padStart(4, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 const rd = (mm, base, off) => mm.mem.read8((base + off) & 0xffff);
 
 /** The reflection the frozen ROM 0x2407 computes for this record, restated independently. */
@@ -151,13 +152,14 @@ function reflectionAt(mm) {
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -165,7 +167,7 @@ function firstRamDiff(a, b) {
 
 /**
  * Run oracle and candidate on two FRESH, byte-identical clones of `entry` and report the contract:
- * RAM − STACK_SCRATCH, the compared register fields, and the RETURN VALUE.
+ * RAM − the stack scratch below the entry SP, the compared register fields, and the RETURN VALUE.
  *
  * STACK_SCRATCH is excluded because this rewrite DISSOLVES the oracle's call bracket around
  * ROM 0x2407 — measured, the residue differs at 0x6BEA on 10 of the 49 captures. The stack
@@ -183,7 +185,7 @@ function contractDiffs(entry, fn) {
   const retB = fn(b);
 
   const diffs = [];
-  const ram = firstRamDiff(a, b);
+  const ram = firstRamDiff(a, b, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   for (const k of COMPARED_REGS) {
     if (a.regs[k] !== b.regs[k]) {
@@ -416,14 +418,15 @@ function headCycleCost() {
   return [...costs][0];
 }
 
-/** First frame+byte where two traces differ, or null. `exStack` applies RAM − STACK_SCRATCH. */
-function firstTraceDiff(base, other, offToAddr, exStack) {
+/** First frame+byte where two traces differ, or null. Per-frame `floors` skip the stack scratch below them. */
+function firstTraceDiff(base, other, offToAddr, floors) {
   for (let f = 0; f < Math.min(base.length, other.length); f++) {
     const a = base[f], b = other[f];
+    const dead = floors ? deadStackBelow(STACK_SCRATCH, floors[f]) : () => false;
     for (let i = 0; i < Math.min(a.length, b.length); i++) {
       if (a[i] === b[i]) continue;
       const addr = offToAddr(i);
-      if (exStack && inStack(addr)) continue;
+      if (dead(addr)) continue;
       return { frame: f, addr, a: a[i], b: b[i] };
     }
   }
@@ -443,8 +446,9 @@ function liveWire(frames, cost) {
       return loc_20c3(mm);
     }]]),
   });
+  const sp = recordFrameSp(m);
   const frameDumps = m.runFrames(frames);
-  return { m, frameDumps, dispatches };
+  return { m, frameDumps, sp, dispatches };
 }
 
 test("LIVE-WIRE: loc_20c3 drives a whole attract run identical to the all-oracle baseline", () => {
@@ -464,7 +468,7 @@ test("LIVE-WIRE: loc_20c3 drives a whole attract run identical to the all-oracle
 
   // The full dump, STACK_SCRATCH included: the unit arms must exclude it, but at frame boundaries
   // both sides have overwritten the dissolved bracket's residue identically.
-  const full = firstTraceDiff(baseFrames, live.frameDumps, (i) => base.stateOffsetToAddr(i), false);
+  const full = firstTraceDiff(baseFrames, live.frameDumps, (i) => base.stateOffsetToAddr(i), null);
   assert.equal(full, null, full
     ? `frame ${full.frame}: ${hx(full.addr)} baseline=${full.a} live=${full.b}`
     : "");
@@ -476,9 +480,10 @@ test("LIVE-WIRE: loc_20c3 drives a whole attract run identical to the all-oracle
 
 test("LIVE-WIRE CONTROL: without the cycle restoration the same rewrite DOES fork", () => {
   const base = new Machine(ROM);
+  const baseSp = recordFrameSp(base);
   const baseFrames = base.runFrames(LIVE_FRAMES);
   const live = liveWire(LIVE_FRAMES, 0);
-  const diff = firstTraceDiff(baseFrames, live.frameDumps, (i) => base.stateOffsetToAddr(i), true);
+  const diff = firstTraceDiff(baseFrames, live.frameDumps, (i) => base.stateOffsetToAddr(i), frameFloors(baseSp, live.sp));
   assert.ok(diff !== null,
     "the un-restored run matched the baseline — the LIVE-WIRE comparison above is then lenient, " +
     "not sensitive, and proves much less than it claims");

@@ -9,7 +9,7 @@
  * per side (never a reused machine). The oracle runs on one clone, enterAttractMode
  * on another, and they are compared on the go-forward contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) + declared live-out (none).
+ *     RAM (dumpState, minus the stack scratch below the entry SP) + declared live-out (none).
  *
  * NEITHER pc NOR SP is compared, and both exclusions are honest live-out, not a
  * dodge. The oracle's terminal step is `m.ret`, which pops the return address (SP+2)
@@ -50,7 +50,7 @@ import { loc_1475 as oracle } from "../../translated/loc_1475.js";
 import { loc_0018 as captureSiteOracle } from "../../translated/loc_0018.js";
 import { enterAttractMode } from "../enterAttractMode.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, GAME_STATE, ATTRACT, GAME_SUBSTATE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -65,19 +65,18 @@ const test = ROM_PRESENT
 const CAPTURE_SITE = 0x0018;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
-
 /**
  * First RAM difference between two machines on the go-forward contract: the whole
- * 5120-byte state dump minus the STACK_SCRATCH region (dead scratch — neither side
+ * 5120-byte state dump minus the stack scratch below the entry SP (dead scratch — neither side
  * writes it here, masked per the contract). Returns {addr,a,b,offset} or null.
  */
-function ramDiffMinusStack(ma, mb) {
+function ramDiffMinusStack(ma, mb, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = ma.dumpState();
   const b = mb.dumpState();
   let d = firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off));
   let from = 0;
-  while (d && inDeadStack(d.addr)) {
+  while (d && dead(d.addr)) {
     from = d.offset + 1;
     d = firstStateDiff(a.subarray(from), b.subarray(from), (off) => ma.stateOffsetToAddr(off + from));
   }
@@ -114,7 +113,7 @@ test("EQUAL: real captured states — enterAttractMode == oracle in RAM (−stac
     oracle(o);
     enterAttractMode(c);
 
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, cap.regs.sp);
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} attract=${d.b}`);
   }
   console.log(`  EQUAL: ${CAPS.length} real captured states identical (RAM −stack)`);
@@ -159,7 +158,7 @@ test("CRAFTED: pre-dirtied 0x6005/0x6007/0x600A is driven to 1/1/0 identically b
   oracle(o);
   enterAttractMode(c);
 
-  const d = ramDiffMinusStack(o, c);
+  const d = ramDiffMinusStack(o, c, base.regs.sp);
   assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} attract=${d.b}`);
   // ...and both genuinely set the target values (not merely agreed).
   assert.equal(c.mem.read8(GAME_STATE), 1, "GAME_STATE must be 1");
@@ -193,7 +192,7 @@ test("TEETH: a wrong GAME_STATE constant is CAUGHT on every case", () => {
     const c = cap.clone();
     oracle(o);
     brokenWrongState(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, cap.regs.sp);
     if (d) { caughtAt = d; break; }
   }
   assert.notEqual(caughtAt, null, "the gate FAILED to catch a wrong GAME_STATE store — it is worthless");
@@ -201,11 +200,12 @@ test("TEETH: a wrong GAME_STATE constant is CAUGHT on every case", () => {
 
   // Crafted dirtied state too (must be caught regardless of prior contents).
   const o = CAPS[0].clone();
+  const oFloor = o.regs.sp;
   const c = CAPS[0].clone();
   for (const a of [GAME_STATE, ATTRACT, GAME_SUBSTATE]) { o.mem.write8(a, 0x77); c.mem.write8(a, 0x77); }
   oracle(o);
   brokenWrongState(c);
-  const d = ramDiffMinusStack(o, c);
+  const d = ramDiffMinusStack(o, c, oFloor);
   assert.notEqual(d, null, "the gate FAILED to catch the wrong store on the crafted state");
   assert.equal(d.addr, GAME_STATE, `crafted teeth caught the wrong address ${hx(d.addr ?? 0)}`);
 
@@ -215,12 +215,13 @@ test("TEETH: a wrong GAME_STATE constant is CAUGHT on every case", () => {
 test("TEETH: skipping the GAME_SUBSTATE clear is CAUGHT (the 0x600A clear is tested)", () => {
   // On a crafted entry whose 0x600A != 0 the missing clear must diverge.
   const o = CAPS[0].clone();
+  const oFloor = o.regs.sp;
   const c = CAPS[0].clone();
   o.mem.write8(GAME_SUBSTATE, 0x77);
   c.mem.write8(GAME_SUBSTATE, 0x77);
   oracle(o);
   brokenSkipSubstate(c);
-  const d = ramDiffMinusStack(o, c);
+  const d = ramDiffMinusStack(o, c, oFloor);
   assert.notEqual(d, null, "the gate FAILED to catch a missing GAME_SUBSTATE clear — the 0x600A check is worthless");
   assert.equal(d.addr, GAME_SUBSTATE, `teeth caught the wrong address ${hx(d.addr ?? 0)}`);
   console.log(`  TEETH/substate: missing 0x600A clear caught at ${hx(d.addr)} (oracle=${d.a} broken=${d.b})`);

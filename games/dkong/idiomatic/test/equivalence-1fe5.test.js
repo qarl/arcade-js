@@ -13,7 +13,7 @@
  * the visible work happens, so this gate is mostly a gate on the FOUR INPUTS the tail is
  * handed — which is what the teeth below are chosen to pin.
  *
- * CONTRACT COMPARED HERE: work/sprite/video RAM minus STACK_SCRATCH plus the return
+ * CONTRACT COMPARED HERE: work/sprite/video RAM minus the stack scratch below the entry SP plus the return
  * value — the required memory-equivalence contract — and, as EXTRAS that happen to hold
  * for this routine, pc, SP and the FULL register file. The extras hold for a derivable
  * reason: this routine models no stack of its own (the oracle has no push/pop either)
@@ -85,8 +85,9 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1fe5 as oracle } from "../../translated/loc_1fe5.js";
 import { stepBarrelRight } from "../stepBarrelRight.js";
 import { OBJ_ARRAY_67, OBJ_X, OBJ_Y, OBJ_SPRITE_CODE, STACK_SCRATCH } from "../names.js";
-import { firstRegDiff } from "../../../../core/equivalence.js";
+import { firstRegDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import { Machine } from "../../machine.js";
+import { recordFrameSp, frameFloors } from "./_frame-sp.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -103,16 +104,16 @@ const TEETH_CAPTURE_LIMIT = 300; // captures swept per twin before falling back 
 const DROPPED_CYCLES = 47; // T-states of the four instructions this rewrite does not charge
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-/** First RAM byte that differs, skipping the dead STACK_SCRATCH region. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -156,7 +157,7 @@ function contractDiffs(entry, fn) {
     return [`threw ${e.constructor.name}: ${e.message}`];
   }
   const out = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) out.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (oret !== cret) out.push(`return oracle=${String(oret)} cand=${String(cret)}`);
   if (o.pc !== c.pc) out.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
@@ -195,15 +196,16 @@ let BASELINE = null;
 function baseline() {
   if (BASELINE) return BASELINE;
   const m = new Machine(ROM);
+  const sp = recordFrameSp(m);
   const frames = m.runFrames(ATTRACT_FRAMES);
   assert.equal(m.stoppedBy, null, `baseline run stopped early: ${m.stoppedBy}`);
-  BASELINE = { m, frames };
+  BASELINE = { m, frames, sp };
   return BASELINE;
 }
 
 /** Wire `body` at 0x1FE5 for a whole attract run and diff every frame against the baseline. */
 function liveRun(body) {
-  const { m: base, frames: baseFrames } = baseline();
+  const { m: base, frames: baseFrames, sp: baseFrameSp } = baseline();
   let fired = 0;
   const deltas = new Set();
   const cand = new Machine(ROM, {
@@ -224,7 +226,9 @@ function liveRun(body) {
       return r;
     }]]),
   });
+  const candFrameSp = recordFrameSp(cand);
   const candFrames = cand.runFrames(ATTRACT_FRAMES);
+  const floors = frameFloors(baseFrameSp, candFrameSp);
   assert.equal(cand.stoppedBy, null, `live run stopped early: ${cand.stoppedBy}`);
   assert.ok(fired > 0, "the override never fired — this case would be vacuous");
   assert.equal(candFrames.length, baseFrames.length, "both runs must reach the frame budget");
@@ -232,10 +236,11 @@ function liveRun(body) {
   let firstBad = null;
   for (let f = 0; f < baseFrames.length && !firstBad; f++) {
     const a = baseFrames[f], b = candFrames[f];
+    const dead = deadStackBelow(STACK_SCRATCH, floors[f]);
     for (let i = 0; i < a.length; i++) {
       if (a[i] === b[i]) continue;
       const addr = base.stateOffsetToAddr(i);
-      if (inStack(addr)) continue;
+      if (dead(addr)) continue;
       firstBad = `frame ${f}: RAM@${hx(addr)} baseline=${a[i]} live=${b[i]}`;
       break;
     }
@@ -455,10 +460,11 @@ function firstRamDivergence(twin) {
   const limit = Math.min(caps.length, TEETH_CAPTURE_LIMIT);
   for (let i = 0; i < limit; i++) {
     const o = rehost(caps[i]);
+    const oFloor = o.regs.sp;
     oracle(o);
     const c = rehost(caps[i]);
     twin(c);
-    const ram = firstRamDiff(o, c);
+    const ram = firstRamDiff(o, c, oFloor);
     if (ram) return { capture: i, addr: ram.addr, cell: ram.addr % RECORD_STRIDE, oracle: ram.a, cand: ram.b };
   }
   return null;

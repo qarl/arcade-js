@@ -9,7 +9,7 @@
  * loc_0b68 WRITES memory and is NOT a leaf: it calls addStrided (0x003D, via `rst 0x38`) to
  * nudge the sprite columns and loc_0da7 (0x0DA7) to draw a board-layout band (which in turn
  * calls the frozen oracle leaf sub_2ff0). So it is gated by capture / clone / replay (docs/decompiler-pipeline)
- * on MEMORY-equivalence against the frozen oracle — RAM − STACK_SCRATCH — never the full
+ * on MEMORY-equivalence against the frozen oracle — RAM − the stack scratch below the entry SP — never the full
  * register file and never cycles, with a FRESH clone per case. SP/pc are the dropped
  * stack/cycle model: the oracle's push/call/ret churn lands in STACK_SCRATCH, and its sentinel
  * arm's sub_2ff0 steps pc — so neither is compared against the oracle. (The idiomatic side is
@@ -52,6 +52,7 @@ import { addStrided } from "../addStrided.js"; // idiomatic leaf, for the teeth 
 import { drawBoardLayout as loc_0da7 } from "../drawBoardLayout.js"; // idiomatic leaf, for the teeth twins
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, FRAME, SUBSTATE_TIMER, INTRO_STEP, SND_TRIGGER, SPRITE_OBJ_BLOCK } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -70,7 +71,6 @@ const OBJ_Y = SPRITE_OBJ_BLOCK + 3; // 0x690B — record 0's Y byte
 const SCRATCH = 0x6100; // scratch RAM the cutscene draw never writes — a safe home for a forced cursor target
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 // A coin+start tape (as in the 0x0a76 / 0x0ae8 tests): coin on IN2 bit7 at frame 10, start1
 // on IN2 bit2 at frame 30. Credits + starts a game so GAME_STATE reaches 3, the opening
@@ -81,15 +81,16 @@ const COIN_START_TAPE = [
 ];
 
 // First game-visible differing RAM byte between two machines, EXCLUDING the dead
-// stack-scratch region (the memory-equivalence contract is RAM − STACK_SCRATCH).
-function ramDiffMinusStack(a, b) {
+// stack-scratch region (the memory-equivalence contract is RAM − the stack scratch below the entry SP).
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -142,6 +143,7 @@ test("REALISM: real captured cutscene 0x0b68 dispatches — RAM(−stack) identi
     );
 
     const a = cap.clone(); // oracle
+    const aFloor = a.regs.sp;
     const b = cap.clone(); // idiomatic
 
     const sp0 = b.regs.sp;
@@ -149,7 +151,7 @@ test("REALISM: real captured cutscene 0x0b68 dispatches — RAM(−stack) identi
     idiomatic(b);
     if (b.regs.sp === sp0) spHeld++;
 
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     assert.equal(
       bad,
       null,
@@ -204,14 +206,14 @@ function runCrafted({ cursorByte, band }) {
 test("CRAFTED: forced scroll / more-bands / last-band advance — RAM(−stack) identical", () => {
   // (a) SCROLL: cursor byte 0x02 (a non-sentinel delta) -> Y += 2, X -= 1 across the block.
   const [as, bs] = runCrafted({ cursorByte: 0x02 });
-  const ds = ramDiffMinusStack(as, bs);
+  const ds = ramDiffMinusStack(as, bs, craftedBase().regs.sp);
   assert.equal(ds.bad, null, ds.bad && `scroll RAM diff at ${hx(ds.bad.addr)} (oracle=${ds.bad.a} idiomatic=${ds.bad.b})`);
   assert.equal(as.mem.read8(OBJ_Y), (craftedBase().mem.read8(OBJ_Y) + 0x02) & 0xff, "oracle must add the delta to record 0's Y");
   assert.equal(as.mem.read8(OBJ_X), (craftedBase().mem.read8(OBJ_X) - 1) & 0xff, "oracle must decrement record 0's X");
 
   // (b) SENTINEL, bands remaining: cursor byte 0x7F, band 3 -> band 2, cursor reset, no advance.
   const [am, bm] = runCrafted({ cursorByte: 0x7f, band: 3 });
-  const dm = ramDiffMinusStack(am, bm);
+  const dm = ramDiffMinusStack(am, bm, craftedBase().regs.sp);
   assert.equal(dm.bad, null, dm.bad && `more-bands RAM diff at ${hx(dm.bad.addr)} (oracle=${dm.bad.a} idiomatic=${dm.bad.b})`);
   assert.equal(am.mem.read8(BAND_COUNT), 2, "oracle must count the band down 3 -> 2");
   assert.equal(am.mem.read16(SCROLL_CURSOR), SCROLL_TABLE, "oracle must loop the cursor back to 0x38cb");
@@ -219,7 +221,7 @@ test("CRAFTED: forced scroll / more-bands / last-band advance — RAM(−stack) 
 
   // (c) SENTINEL, last band: cursor byte 0x7F, band 1 -> band 0: arm timer + advance the step.
   const [aa, ba] = runCrafted({ cursorByte: 0x7f, band: 1 });
-  const da = ramDiffMinusStack(aa, ba);
+  const da = ramDiffMinusStack(aa, ba, craftedBase().regs.sp);
   assert.equal(da.bad, null, da.bad && `advance RAM diff at ${hx(da.bad.addr)} (oracle=${da.bad.a} idiomatic=${da.bad.b})`);
   assert.equal(aa.mem.read8(BAND_COUNT), 0, "oracle must count the last band down 1 -> 0");
   assert.equal(aa.mem.read8(SUBSTATE_TIMER), 0xb0, "oracle must arm SUBSTATE_TIMER=0xB0 on the last band");
@@ -291,6 +293,7 @@ function brokenDropAdvance(m) {
 /** Run oracle vs a twin on fresh clones of a crafted state; return the RAM(−stack) diff. */
 function runTwinCrafted(twin, { cursorByte, band }) {
   const a = craftedBase().clone(), b = craftedBase().clone();
+  const aFloor = a.regs.sp;
   for (const m of [a, b]) {
     m.mem.write8(FRAME, m.mem.read8(FRAME) & 0xfe);
     m.mem.write8(SCRATCH, cursorByte);
@@ -299,7 +302,7 @@ function runTwinCrafted(twin, { cursorByte, band }) {
   }
   oracle(a);
   twin(b);
-  return ramDiffMinusStack(a, b);
+  return ramDiffMinusStack(a, b, aFloor);
 }
 
 test("TEETH (flip-X): the wrong X-scroll direction is CAUGHT on a scroll step at 0x6908", () => {

@@ -12,7 +12,7 @@
  * The idiomatic routine dissolves the oracle's rst-0x30 / rst-0x10 caller-skip stack idiom
  * into two boolean-guard returns and its djnz object loop into a direct advanceSpring call loop.
  *
- * CONTRACT (memory-equivalence): RAM − STACK_SCRATCH (the oracle's rst push16/ret churn and
+ * CONTRACT (memory-equivalence): RAM − the stack scratch below the entry SP (the oracle's rst push16/ret churn and
  * advanceSpring's spawn-arm push/ret return-bracket write dead stack the direct-call candidate
  * never touches), plus pc + SP. The routine's register live-out is DEAD — loc_197a issues
  * its next call without reading A / IX / IY / B / DE — so registers are not compared; pc + SP
@@ -60,6 +60,7 @@ import {
   RANDOM,
   SPIN_COUNT,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -77,18 +78,18 @@ const DEF_SCRATCH = 0x6112;  // walk target holding a normal string byte (0x10) 
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const hx16 = (v) => "0x" + (v & 0xffff).toString(16).padStart(4, "0");
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs, skipping the dead STACK_SCRATCH region (the memory-equivalence
-// contract is RAM − STACK_SCRATCH: the oracle's rst push16/ret and the spawn arm's return
+// First RAM byte that differs, skipping the stack scratch below the entry SP (the memory-equivalence
+// contract is RAM − the stack scratch below the entry SP: the oracle's rst push16/ret and the spawn arm's return
 // bracket write there). null | { addr, a, b }.
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -96,13 +97,14 @@ function firstRamDiff(a, b) {
 
 // All non-stack RAM addresses that changed between two machines (for the skip-path
 // "wrote nothing" non-vacuity check).
-function changedAddrs(a, b) {
+function changedAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.push(addr);
   }
   return out;
@@ -129,12 +131,12 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Full contract diff: RAM − STACK_SCRATCH, pc, SP. Live-out is memory-only. */
+/** Full contract diff: RAM − the stack scratch below the entry SP, pc, SP. Live-out is memory-only. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx16(o.pc)} cand=${hx16(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx16(o.regs.sp)} cand=${hx16(c.regs.sp)}`);
@@ -228,7 +230,7 @@ test("EQUAL (captured): update75mActorObjects == oracle on every real dispatch",
     const diffs = contractDiffs(entry, candidate);
     assert.equal(diffs.length, 0, `captured dispatch: ${diffs.join("; ")}`);
     // Confirm the real path really is the board-gate skip: the oracle wrote nothing non-stack.
-    assert.deepEqual(changedAddrs(entry, runOracle(entry)), [], "captured dispatch was expected to take the board-gate skip");
+    assert.deepEqual(changedAddrs(entry, runOracle(entry), entry.regs.sp), [], "captured dispatch was expected to take the board-gate skip");
   }
   console.log(`  EQUAL/captured: ${caps.length} real dispatches identical to the oracle (all board-gate skips)`);
 });
@@ -248,20 +250,20 @@ test("EQUAL (crafted): the object loop, the alive-gate skip, and every board-mas
   assert.equal(loopO.mem.read8(OBJ_ARRAY_65 + 16 * 6 + OBJ_X), (0x36 + 2) & 0xff, "loop: object 6 X not advanced");
   assert.equal(loopO.mem.read8(OBJ_ARRAY_65 + 16 * 6 + OBJ_Y), (0x46 + 0x10) & 0xff, "loop: object 6 Y not accumulated");
   assert.equal(loopO.mem.read8(OBJ_ARRAY_65 + OBJ_ACTIVE), 1, "loop: inactive slot 0 not activated by the spawn arm");
-  assert.ok(changedAddrs(loop, loopO).length > 0, "loop: oracle wrote no non-stack RAM (vacuous)");
+  assert.ok(changedAddrs(loop, loopO, loop.regs.sp).length > 0, "loop: oracle wrote no non-stack RAM (vacuous)");
 
   // Alive-gate skip: board 3 (board gate open), Mario dead -> return with no writes.
   const dead = craft(base, { board: 3, marioActive: 0 });
   const deadDiffs = contractDiffs(dead, candidate);
   assert.equal(deadDiffs.length, 0, `alive-gate skip: ${deadDiffs.join("; ")}`);
-  assert.deepEqual(changedAddrs(dead, runOracle(dead)), [], "alive-gate skip wrote non-stack RAM");
+  assert.deepEqual(changedAddrs(dead, runOracle(dead), dead.regs.sp), [], "alive-gate skip wrote non-stack RAM");
 
   // Board-gate skip at every non-75m board (mask 0x04 selects the current-board bit only on board 3).
   for (const board of [1, 2, 4]) {
     const skip = craft(base, { board, marioActive: 1 });
     const skipDiffs = contractDiffs(skip, candidate);
     assert.equal(skipDiffs.length, 0, `board-${board} skip: ${skipDiffs.join("; ")}`);
-    assert.deepEqual(changedAddrs(skip, runOracle(skip)), [], `board-${board} skip wrote non-stack RAM`);
+    assert.deepEqual(changedAddrs(skip, runOracle(skip), skip.regs.sp), [], `board-${board} skip wrote non-stack RAM`);
   }
 
   console.log("  EQUAL/crafted: full ten-object loop + alive-gate skip + board 1/2/4 skips identical to the oracle");

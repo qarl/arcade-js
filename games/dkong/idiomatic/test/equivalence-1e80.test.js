@@ -8,7 +8,7 @@
  * In direct-call form both non-local exits are a boolean — the routine returns true on
  * the normal path and false (the unwind / caller-skip signal) on the won path.
  *
- * It is gated on MEMORY-equivalence — RAM (minus STACK_SCRATCH) + pc + SP — plus the
+ * It is gated on MEMORY-equivalence — RAM (minus the stack scratch below the entry SP) + pc + SP — plus the
  * boolean signal, compared directly against the oracle's own boolean return.
  *
  * The two paths leave DIFFERENT Z80 stack effects: the normal path is one `ret` (pops
@@ -59,6 +59,7 @@ import { completeRivetBoardWhenCleared } from "../completeRivetBoardWhenCleared.
 import { enterBoardAdvanceAndUnwind } from "../enterBoardAdvanceAndUnwind.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, RIVETS_LEFT, GAME_SUBSTATE } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -80,15 +81,16 @@ const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STA
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH (the dead
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP (the dead
  *  stack region excluded by contract — the staged/popped returns live there). */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -120,13 +122,13 @@ function runCandidate(entry, fn) {
   return { c, ret };
 }
 
-/** Compare candidate vs oracle over the contract: RAM − STACK_SCRATCH, pc, SP, and the
+/** Compare candidate vs oracle over the contract: RAM − the stack scratch below the entry SP, pc, SP, and the
  *  boolean caller-skip signal. */
 function contractDiffs(entry, fn) {
   const { c: o, ret: oret } = runOracle(entry);
   const { c, ret } = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${hx(ram.a & 0xff)} cand=${hx(ram.b & 0xff)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);

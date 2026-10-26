@@ -55,6 +55,7 @@ import {
   MARIO_CLIMB_LIMIT_B,
   MARIO_MOVE_STEP_TIMER,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -67,32 +68,33 @@ const TARGET = 0x1b4e;
 const UP_BIT = 0x04; // bit 2 of the cooked control word = Up held
 const CLIMB_BASE = 0x621a; // the caller's invariant HL: the block base just below the limit pair
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH (the dead stack
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP (the dead stack
  *  region the dissolved climb tail-call churns — the standard gate excludes it). */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
 /** All non-stack RAM addresses that changed between two machines (for the write-set checks). */
-function changedAddrs(a, b) {
+function changedAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.push(addr);
   }
   return out;
@@ -115,13 +117,13 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Compare candidate vs oracle over the contract: RAM − STACK_SCRATCH, pc, SP. NO registers —
+/** Compare candidate vs oracle over the contract: RAM − the stack scratch below the entry SP, pc, SP. NO registers —
  *  live-out is memory-only. Returns human-readable mismatches. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=0x${o.pc.toString(16)} cand=0x${c.pc.toString(16)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=0x${o.regs.sp.toString(16)} cand=0x${c.regs.sp.toString(16)}`);
@@ -232,7 +234,7 @@ test("EQUAL (crafted): the climb arm and the idle arm both match the oracle", ()
   assert.equal(idleAfter.mem.read8(MARIO_CLIMB_LIMIT_A), 0x33, "idle arm: MARIO_CLIMB_LIMIT_A <- first limit");
   assert.equal(idleAfter.mem.read8(MARIO_CLIMB_LIMIT_B), 0x44, "idle arm: MARIO_CLIMB_LIMIT_B <- second limit");
   // Non-vacuity: the idle arm touches ONLY the two limit cells, nothing else.
-  const idleWrites = changedAddrs(idle, idleAfter);
+  const idleWrites = changedAddrs(idle, idleAfter, idle.regs.sp);
   for (const a of idleWrites) {
     assert.ok(
       a === MARIO_CLIMB_LIMIT_A || a === MARIO_CLIMB_LIMIT_B,

@@ -18,7 +18,7 @@
  * contract for a dissolved push). Real dispatch SP sits at 0x6bec/0x6bee, so the oracle's push lands
  * inside STACK_SCRATCH; the crafted SAFE_SP=0x6bf8 keeps it there too.
  *
- *   1. EQUAL — loc_2c41 == oracle on RAM − STACK_SCRATCH across:
+ *   1. EQUAL — loc_2c41 == oracle on RAM − the stack scratch below the entry SP across:
  *        SEED-SWEEP (exhaustive) — all 256 stirred-seed bytes with a pre-dirtied BARREL_CLAIM_MODE and a
  *          fixed mark != bonus, so the gate is closed for every seed; isolates the low-nibble branch
  *          selection and the delegated scratch writes on both arms (mode-1 vs mode-3).
@@ -51,6 +51,7 @@ import { loc_2c86 } from "../loc_2c86.js"; // ROM 0x2C86
 import { loc_2c49 } from "../loc_2c49.js"; // ROM 0x2C49
 import { RANDOM, FRAME, SPIN_COUNT, BONUS_EVENT_MARK, OBJ_ARRAY_64, STACK_SCRATCH, BARREL_CLAIM_MODE } from "../names.js";
 import { Machine } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -75,19 +76,19 @@ const SAFE_SP = 0x6bf8;
 
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
 const OCCUPIED = [1, 2, 3, 4, 5]; // all non-zero -> no free slot
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
- * First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region (the
- * memory-equivalence contract is RAM − STACK_SCRATCH). { addr, a, b } | null.
+ * First RAM byte that differs between two machines, skipping the stack scratch below the entry SP (the
+ * memory-equivalence contract is RAM − the stack scratch below the entry SP). { addr, a, b } | null.
  */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -120,15 +121,16 @@ function makeEntry(base, { seedByte, c, mark, records = OCCUPIED, req = DIRTY })
 
 /**
  * Run the oracle and the candidate on two FRESH, byte-identical entries and diff the
- * memory-equivalence contract (RAM − STACK_SCRATCH). Both read their inputs from the same registers/
+ * memory-equivalence contract (RAM − the stack scratch below the entry SP). Both read their inputs from the same registers/
  * memory, so both are called with just the machine.
  */
 function runPair(base, opts, candidate) {
   const a = makeEntry(base, opts); // oracle
+  const aFloor = a.regs.sp;
   const b = makeEntry(base, opts); // candidate
   oracle(a);
   candidate(b);
-  return firstRamDiff(a, b);
+  return firstRamDiff(a, b, aFloor);
 }
 
 // Seeds that force each arm: low nibble 0 -> mode-1 (loc_2c49), nonzero -> mode-3 (loc_2c86).
@@ -321,7 +323,7 @@ test("REALISM: real captured 0x2C41 dispatches — loc_2c41 matches oracle RAM",
     if (a.regs.c === a.mem.read8(BONUS_EVENT_MARK)) sawGateOpen++;
     oracle(a);
     loc_2c41(b);
-    const ram = firstRamDiff(a, b);
+    const ram = firstRamDiff(a, b, cap.regs.sp);
     assert.equal(
       ram,
       null,

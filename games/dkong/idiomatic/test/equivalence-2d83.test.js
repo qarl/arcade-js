@@ -7,7 +7,7 @@
  *
  * loc_2d83 WRITES MEMORY (via the tail into stepBarrelAlongReleasePath), so it is gated on memory-
  * equivalence, not a returned scalar, and every case runs on FRESH clones. The contract
- * is RAM (minus STACK_SCRATCH) + pc + SP — the live-out is memory-only.
+ * is RAM (minus the stack scratch below the entry SP) + pc + SP — the live-out is memory-only.
  *
  * The oracle tail-jumps (`jp 0x2d54`, no push) into stepBarrelAlongReleasePath, which ends on ONE terminal
  * `ret` that returns on loc_2d83's behalf. The idiomatic routine calls stepBarrelAlongReleasePath directly
@@ -23,7 +23,7 @@
  *
  *   1. EQUAL (real captured dispatches) — hook 0x2D83 in a real attract run and clone the
  *      machine at each true dispatch. Run the ORACLE on one clone and loc_2d83 on another;
- *      confirm identical RAM (minus STACK_SCRATCH) + pc + SP.
+ *      confirm identical RAM (minus the stack scratch below the entry SP) + pc + SP.
  *
  *   2. EQUAL (crafted) — from a real attract base, place the renderer's object and
  *      destination pointers in writable RAM (loc_2d83 forces the source cursor to the ROM
@@ -51,6 +51,7 @@ import { loc_2d83 } from "../loc_2d83.js";
 import { stepBarrelAlongReleasePath } from "../stepBarrelAlongReleasePath.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, RENDER_STR_PTR, RENDER_OBJ_PTR, RENDER_DST_PTR } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -71,18 +72,18 @@ const OBJ = 0x6120; // RENDER_OBJ_PTR value -> object record (+7/+8 read; +7 wri
 const DST = 0x6a80; // RENDER_DST_PTR value -> destination sprite record (+0..+3 written)
 
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs, skipping the dead STACK_SCRATCH region. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -107,12 +108,12 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Full contract diff: RAM − STACK_SCRATCH, pc, SP. Live-out is memory-only. */
+/** Full contract diff: RAM − the stack scratch below the entry SP, pc, SP. Live-out is memory-only. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=0x${o.pc.toString(16)} cand=0x${c.pc.toString(16)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=0x${o.regs.sp.toString(16)} cand=0x${c.regs.sp.toString(16)}`);
@@ -123,11 +124,12 @@ function contractDiffs(entry, fn) {
 function changedAddrs(entry, fn) {
   const o = runOracle(entry), c = runCandidate(entry, fn);
   const da = o.dumpState(), db = c.dumpState();
+  const dead = deadStackBelow(STACK_SCRATCH, entry.regs.sp);
   const out = new Set();
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = o.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.add(addr);
   }
   return out;

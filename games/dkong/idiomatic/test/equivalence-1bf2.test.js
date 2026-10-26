@@ -15,7 +15,7 @@
  * of every comparison here, so a wrong hand-off surfaces as divergent RAM downstream rather
  * than staying local.
  *
- * MEMORY-EQUIVALENCE CONTRACT. RAM − STACK_SCRATCH [0x6be0,0x6c00), plus the forwarded return
+ * MEMORY-EQUIVALENCE CONTRACT. RAM − the stack scratch below the entry SP [0x6be0,0x6c00), plus the forwarded return
  * value; live-out is otherwise memory-only. pc/SP/registers/flags are NOT compared: the tail
  * m.call(0x1C05) was dissolved to a direct loc_1c05 call, so they are seam artifacts (whole-game
  * SP-inertness guards SP), and no register/flag/pose/velocity survives past the branch — every
@@ -74,6 +74,7 @@ import {
   MARIO_SPRITE_CODE,
   MARIO_FATAL_FALL,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -87,16 +88,16 @@ const FACING_BIT = 0x80; // horizontal-flip bit of MARIO_SPRITE_CODE (1 = facing
 const OFF_SCREEN_RIGHT = 0xf0; // past limitMarioHorizontalTravel's 0xEA right-hand limit — forces the raised verdict
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-/** First differing RAM byte OUTSIDE the dead STACK_SCRATCH region (the declared contract). */
-function firstRamDiff(a, b) {
+/** First differing RAM byte OUTSIDE the stack scratch below the entry SP (the declared contract). */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -115,12 +116,12 @@ function run(entry, fn) {
   return { c, value };
 }
 
-/** The declared contract: RAM − STACK_SCRATCH plus the forwarded return value (pc/SP excluded — seam artifacts). */
+/** The declared contract: RAM − the stack scratch below the entry SP plus the forwarded return value (pc/SP excluded — seam artifacts). */
 function contractDiffs(entry, fn) {
   const o = run(entry, oracle);
   const c = run(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o.c, c.c);
+  const ram = firstRamDiff(o.c, c.c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   // pc/SP dropped: the tail m.call(0x1C05) was dissolved to a direct loc_1c05 call, so pc and
   // SP are now seam artifacts, never game live-outs; the whole-game SP-inertness tests guard SP.

@@ -15,7 +15,7 @@
  * credited game's per-board head, GAME_SUBSTATE 7 / INTRO_STEP 0 — not reached in
  * attract), so — exactly as docs/decompiler-pipeline prescribes for arms attract never reaches — the gate
  * is CRAFTED: a real booted attract machine, cloned, oracle-vs-idiomatic on independent
- * fresh clones. The comparison is game-visible RAM MINUS the dead STACK_SCRATCH region:
+ * fresh clones. The comparison is game-visible RAM MINUS the stack scratch below the entry SP:
  * loc_0da7's leaf sub_2ff0 does an unmatched `ret` on the direct-call path that drifts SP
  * upward (a stack seam, not logic; SP/pc are the dropped stack model, not compared), so
  * both sides are pinned to a crafted SP with headroom inside STACK_SCRATCH.
@@ -50,6 +50,7 @@ import { setupIntroCutsceneStep as idiomatic } from "../setupIntroCutsceneStep.j
 import { drawBoardLayout as loc_0da7 } from "../drawBoardLayout.js"; // idiomatic callee, for the teeth twins
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, SUBSTATE_TIMER, INTRO_STEP } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -71,21 +72,21 @@ const ADDR1 = 0x63ab; // loc_0da7's first-point tile address — nonzero after a
 const SP_CRAFT = 0x6bf8;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
  * First game-visible differing RAM byte between two machines, EXCLUDING the dead
- * stack-scratch region (the memory-equivalence contract is RAM − STACK_SCRATCH). Also
+ * stack-scratch region (the memory-equivalence contract is RAM − the stack scratch below the entry SP). Also
  * returns the stack-diff count, so a test can assert the exclusion is load-bearing.
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -122,9 +123,10 @@ function craftPair(step) {
 
 test("STRUCTURE: crafted step-0 entry — game-visible RAM identical; oracle really did the work", () => {
   const [a, b] = craftPair(0);
+  const aFloor = a.regs.sp;
   oracle(a);
   idiomatic(b);
-  const { bad, stackDiffs } = ramDiffMinusStack(a, b);
+  const { bad, stackDiffs } = ramDiffMinusStack(a, b, aFloor);
   assert.equal(bad, null, bad && `game-visible RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
 
   // The oracle actually did the work — confirm the salient outputs so an EQUAL result is
@@ -142,7 +144,7 @@ test("STRUCTURE: crafted step-0 entry — game-visible RAM identical; oracle rea
   assert.ok(stackDiffs > 0, "the oracle's push/pop must land in STACK_SCRATCH (so excluding it is load-bearing)");
 
   // The crafted SP's margin must cover the oracle's deepest push (SP-6) AND the idiomatic
-  // side's highest unmatched sub_2ff0 pop (SP+4), so excluding STACK_SCRATCH cannot mask a
+  // side's highest unmatched sub_2ff0 pop (SP+4), so excluding the stack scratch below the entry SP cannot mask a
   // game-visible divergence.
   assert.ok((SP_CRAFT - 6) >= STACK_SCRATCH.lo && (SP_CRAFT + 4) <= STACK_SCRATCH.hi,
     `crafted SP must leave push/pop headroom inside STACK_SCRATCH (SP=${hx(SP_CRAFT)})`);
@@ -155,9 +157,10 @@ test("INTRO_STEP (exhaustive): setupIntroCutsceneStep == oracle over all 256 ste
   let count = 0, wraps = 0, mismatch = null;
   for (let s = 0; s < 256 && !mismatch; s++) {
     const [a, b] = craftPair(s);
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     count++;
     assert.equal(a.mem.read8(INTRO_STEP), (s + 1) & 0xff,
       `oracle must set INTRO_STEP to (step+1)&0xFF at step=${hx(s)}`);
@@ -204,9 +207,10 @@ function brokenNoAdvance(m) {
 
 test("TEETH (swapped-seed): swapping the two walk-pointer seeds is CAUGHT and names 0x63C2", () => {
   const [a, b] = craftPair(0);
+  const aFloor = a.regs.sp;
   oracle(a);
   brokenSwappedSeed(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the RAM gate FAILED to catch a swapped walk-pointer seed — it is worthless");
   assert.equal(bad.addr, WALK_PTR_0B06, `expected the caught diff at 0x63C2, got ${hx(bad.addr)}`);
   console.log(`  TEETH/swapped-seed: caught at 0x63C2 (oracle=${bad.a} broken=${bad.b})`);
@@ -216,9 +220,10 @@ test("TEETH (drop-advance): the dropped INTRO_STEP inc is CAUGHT by the sweep an
   let caught = null;
   for (let s = 0; s < 256 && !caught; s++) {
     const [a, b] = craftPair(s);
+    const aFloor = a.regs.sp;
     oracle(a);
     brokenNoAdvance(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     if (bad) caught = { s, bad };
   }
   assert.notEqual(caught, null, "the INTRO_STEP sweep FAILED to catch a dropped advance — it is worthless");
@@ -236,9 +241,10 @@ test("REALISM: replay any real 0x0a8a dispatch; else record that attract never r
 
   for (const entry of caps) {
     const a = entry.clone(), b = entry.clone();
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     assert.equal(bad, null, bad && `real-dispatch RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
   }
   if (caps.length === 0) {

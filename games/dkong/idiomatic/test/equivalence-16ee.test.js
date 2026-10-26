@@ -16,7 +16,7 @@
  * one input byte (0x6388) surgically poked, then oracle-vs-idiomatic on independent fresh
  * clones. Because the only logic input is 0x6388, the crafted sweep is EXHAUSTIVE:
  *
- *   1. STRUCTURE — on a crafted entry, confirm game-visible RAM (RAM − STACK_SCRATCH) is
+ *   1. STRUCTURE — on a crafted entry, confirm game-visible RAM (RAM − the stack scratch below the entry SP) is
  *      identical, and that the oracle actually did the work (block copied from ROM, the
  *      three patches applied, 0x62AF cleared, 0x6388 incremented) so an EQUAL result is not
  *      vacuous. The oracle's own `call 0x004e` / `ret` stack traffic is confined to
@@ -48,6 +48,7 @@ import { reloadObjectBlockAndAdvanceStep as idiomatic } from "../reloadObjectBlo
 import { loadSpriteObjectBlock } from "../loadSpriteObjectBlock.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, SPRITE_OBJ_BLOCK } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -65,20 +66,20 @@ const P6924 = SPRITE_OBJ_BLOCK + 0x1c; // 0x6924
 const P692C = SPRITE_OBJ_BLOCK + 0x24; // 0x692C
 const SP_CRAFT = 0x6bf8; // inside STACK_SCRATCH; headroom for the oracle's call/ret traffic
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
  * First game-visible differing RAM byte between two machines, EXCLUDING the dead
- * stack-scratch region (the memory-equivalence contract is RAM − STACK_SCRATCH).
+ * stack-scratch region (the memory-equivalence contract is RAM − the stack scratch below the entry SP).
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -117,9 +118,10 @@ function craftPair(step) {
 
 test("STRUCTURE: crafted entry — game-visible RAM identical; oracle actually did the work", () => {
   const [a, b] = craftPair(0x10);
+  const aFloor = a.regs.sp;
   oracle(a);
   idiomatic(b);
-  const { bad, stackDiffs } = ramDiffMinusStack(a, b);
+  const { bad, stackDiffs } = ramDiffMinusStack(a, b, aFloor);
   assert.equal(bad, null, bad && `game-visible RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
 
   // Non-vacuous: confirm the salient outputs on the oracle side.
@@ -153,9 +155,10 @@ test("STEP (exhaustive): reload==oracle over all 256 values of 0x6388", () => {
   let count = 0, wraps = 0, mismatch = null;
   for (let s = 0; s < 256 && !mismatch; s++) {
     const [a, b] = craftPair(s);
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     count++;
     assert.equal(a.mem.read8(BOARD_ADVANCE_STEP), (s + 1) & 0xff,
       `oracle must set 0x6388 to (step+1)&0xFF at step=${hx(s)}`);
@@ -213,9 +216,10 @@ function brokenNoClear(m) {
 
 test("TEETH (write-order): patching 0x690C before the copy is CAUGHT and names 0x690C", () => {
   const [a, b] = craftPair(0x10);
+  const aFloor = a.regs.sp;
   oracle(a);
   brokenWriteOrder(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the crafted gate FAILED to catch a write-order corruption — it is worthless");
   assert.equal(bad.addr, P690C, `expected the caught diff at 0x690C, got ${hx(bad.addr)}`);
   console.log(`  TEETH/write-order: caught at 0x690C (oracle=${bad.a} broken=${bad.b})`);
@@ -225,9 +229,10 @@ test("TEETH (drop-advance): the dropped 0x6388 inc is CAUGHT by the STEP sweep a
   let caught = null;
   for (let s = 0; s < 256 && !caught; s++) {
     const [a, b] = craftPair(s);
+    const aFloor = a.regs.sp;
     oracle(a);
     brokenNoAdvance(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     if (bad) caught = { s, bad };
   }
   assert.notEqual(caught, null, "the STEP sweep FAILED to catch a dropped advance — it is worthless");
@@ -237,9 +242,10 @@ test("TEETH (drop-advance): the dropped 0x6388 inc is CAUGHT by the STEP sweep a
 
 test("TEETH (drop-clear): the dropped 0x62AF clear is CAUGHT and names 0x62AF", () => {
   const [a, b] = craftPair(0x10);
+  const aFloor = a.regs.sp;
   oracle(a);
   brokenNoClear(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the crafted gate FAILED to catch a dropped 0x62AF clear — it is worthless");
   assert.equal(bad.addr, BOARD_OBJECT_SCRATCH, `expected the caught diff at 0x62AF, got ${hx(bad.addr)}`);
   console.log(`  TEETH/drop-clear: caught at 0x62AF (oracle=${bad.a} broken=${bad.b})`);
@@ -255,9 +261,10 @@ test("REALISM: replay any real 0x16ee dispatch; else record that attract never r
 
   for (const entry of caps) {
     const a = entry.clone(), b = entry.clone();
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     assert.equal(bad, null, bad && `real-dispatch RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
   }
   if (caps.length === 0) {

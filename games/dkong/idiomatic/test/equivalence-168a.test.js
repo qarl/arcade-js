@@ -57,6 +57,7 @@ import { loadSpriteObjectBlock } from "../loadSpriteObjectBlock.js";
 import { advanceInterludeStepAndLiftKongFigure } from "../advanceInterludeStepAndLiftKongFigure.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, SUBSTATE_TIMER, SPRITE_OBJ_BLOCK } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -82,17 +83,17 @@ const BK_SENTINEL = 0x77; // nonzero value planted at 0x62AF so a dropped clear 
 // its advanceInterludeStepAndLiftKongFigure final `ret` pop (up to SP+2); the idiomatic side touches the stack not at all.
 const SP_CRAFT = 0x6bf8;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /** First game-visible differing RAM byte, EXCLUDING the dead stack-scratch region. */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -137,10 +138,11 @@ function craftPair(timer, board) {
 test("STRUCTURE: expiry arm (0x6009=1) does the work; skip arm (0x6009=5) leaves the body untouched", () => {
   // Expiry arm — timer decrements 1 -> 0, so the copy + re-stamp + clears + tail run.
   const [a, b] = craftPair(1, 0x01);
+  const aFloor = a.regs.sp;
   const selBefore = a.mem.read8(SELECTOR);
   oracle(a);
   idiomatic(b);
-  const { bad, stackDiffs } = ramDiffMinusStack(a, b);
+  const { bad, stackDiffs } = ramDiffMinusStack(a, b, aFloor);
   assert.equal(bad, null, bad && `game-visible RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
 
   // Non-vacuous: the oracle side actually did the work.
@@ -157,10 +159,11 @@ test("STRUCTURE: expiry arm (0x6009=1) does the work; skip arm (0x6009=5) leaves
 
   // Skip arm — timer decrements 5 -> 4, so the body must NOT run.
   const [c, d] = craftPair(5, 0x01);
+  const cFloor = c.regs.sp;
   const selSkip = c.mem.read8(SELECTOR);
   oracle(c);
   idiomatic(d);
-  const skip = ramDiffMinusStack(c, d);
+  const skip = ramDiffMinusStack(c, d, cFloor);
   assert.equal(skip.bad, null, skip.bad && `skip-arm RAM diff at ${hx(skip.bad.addr)} (oracle=${skip.bad.a} idiomatic=${skip.bad.b})`);
   assert.equal(c.mem.read8(SUBSTATE_TIMER), 4, "skip arm must decrement the timer to 4");
   assert.equal(c.mem.read8(SELECTOR), selSkip, "skip arm must leave the step selector untouched");
@@ -175,10 +178,11 @@ test("TIMER (exhaustive): stageKongClimbPose == oracle over all 256 SUBSTATE_TIM
   let count = 0, worked = 0, skipped = 0, mismatch = null;
   for (let timer = 0; timer < 256 && !mismatch; timer++) {
     const [a, b] = craftPair(timer, 0x01);
+    const aFloor = a.regs.sp;
     const selBefore = a.mem.read8(SELECTOR);
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     count++;
     // Classify from the oracle: the work arm advances the step selector (via the tail).
     if (a.mem.read8(SELECTOR) !== selBefore) worked++; else skipped++;
@@ -199,9 +203,10 @@ test("BOARD (exhaustive): on the expiry arm stageKongClimbPose == oracle over al
   let count = 0, ran = 0, notRan = 0, mismatch = null;
   for (let board = 0; board < 256 && !mismatch; board++) {
     const [a, b] = craftPair(1, board);
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     count++;
     // The tail's per-board gate runs the strided field-3 subtract (0x690B -= 4) only on its
     // set arm; 0x690B copied = ROM[0x388F] = 0x3C, so 0x38 => subtract ran, 0x3C => it did not.
@@ -263,9 +268,10 @@ function brokenGatePolarity(m) {
 
 test("TEETH (no-stamp): dropping the 0x690C re-stamp is CAUGHT and names 0x690C", () => {
   const [a, b] = craftPair(1, 0x01);
+  const aFloor = a.regs.sp;
   oracle(a);
   brokenNoStamp(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the sweep FAILED to catch a dropped re-stamp — it is worthless");
   assert.equal(bad.addr, STAMP_ADDR, `expected the caught diff at 0x690C, got ${hx(bad.addr)}`);
   console.log(`  TEETH/no-stamp: caught at 0x690C (oracle=${bad.a} broken=${bad.b})`);
@@ -273,9 +279,10 @@ test("TEETH (no-stamp): dropping the 0x690C re-stamp is CAUGHT and names 0x690C"
 
 test("TEETH (no-clear): dropping the 0x62AF clear is CAUGHT and names 0x62AF", () => {
   const [a, b] = craftPair(1, 0x01);
+  const aFloor = a.regs.sp;
   oracle(a);
   brokenNoClear(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the sweep FAILED to catch a dropped clear — it is worthless");
   assert.equal(bad.addr, BOARD_BOOKKEEPING, `expected the caught diff at 0x62AF, got ${hx(bad.addr)}`);
   console.log(`  TEETH/no-clear: caught at 0x62AF (oracle=${bad.a} broken=${bad.b})`);
@@ -283,9 +290,10 @@ test("TEETH (no-clear): dropping the 0x62AF clear is CAUGHT and names 0x62AF", (
 
 test("TEETH (gate-polarity): inverting the timer gate is CAUGHT on the expiry arm", () => {
   const [a, b] = craftPair(1, 0x01);
+  const aFloor = a.regs.sp;
   oracle(a);
   brokenGatePolarity(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the sweep FAILED to catch an inverted gate polarity — it is worthless");
   console.log(`  TEETH/gate-polarity: caught at ${hx(bad.addr)} (oracle=${bad.a} broken=${bad.b})`);
 });
@@ -300,9 +308,10 @@ test("REALISM: replay any real 0x168a dispatch; else record that attract never r
 
   for (const entry of caps) {
     const a = entry.clone(), b = entry.clone();
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     assert.equal(bad, null, bad && `real-dispatch RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
   }
   if (caps.length === 0) {

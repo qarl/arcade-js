@@ -4,7 +4,7 @@
  * animation: on the gate's expiry frame it points his sprite at tile 0x78, primes
  * DEATH_ANIM_TICKS_LEFT=13, clears sprite runs, fires the death sound line, advances the phase.
  *
- * Gated on MEMORY-equivalence: RAM − STACK_SCRATCH, on FRESH clones. pc/SP are NOT compared —
+ * Gated on MEMORY-equivalence: RAM − the stack scratch below the entry SP, on FRESH clones. pc/SP are NOT compared —
  * the idiomatic routine calls its callees (tickSubstateTimer, clearSpriteColumns) as plain JS
  * leaves and never touches the guest stack, so it leaves pc/SP two apart from the oracle. A pure
  * seam artifact (the oracle's pushes land in STACK_SCRATCH, popped bytes never re-enter RAM); the
@@ -36,6 +36,7 @@ import {
 } from "../names.js";
 import { tickSubstateTimer } from "../tickSubstateTimer.js";
 import { loc_30bd } from "../../translated/loc_30bd.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -50,7 +51,6 @@ const TARGET = 0x128b;
 const SPRITE_CODE = MARIO_SPRITE_RECORD + 1; // 0x694D
 
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // -- branch classifier (reads the ENTRY state) --------------------------------
 
@@ -61,18 +61,19 @@ const gateExpires = (e) => ((e.mem.read8(SUBSTATE_TIMER) - 1) & 0xff) === 0;
 // -- the memory-equivalence contract ------------------------------------------
 
 /**
- * First RAM byte that differs between two machines, skipping STACK_SCRATCH — the dead
+ * First RAM byte that differs between two machines, skipping the stack scratch below the entry SP — the dead
  * stack region the standard gate excludes. The oracle transiently pushes the rst / call
  * return addresses into this region; the idiomatic routine (JS call stack) never writes
  * it, so excluding it is exactly the contract, not a fudge.
  */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -92,13 +93,13 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Compare over RAM − STACK_SCRATCH (memory-eq). No pc/SP and no registers — live-out is
+/** Compare over RAM − the stack scratch below the entry SP (memory-eq). No pc/SP and no registers — live-out is
  *  memory-only. Returns a list of human-readable mismatches (empty when equal). */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   return diffs;
 }

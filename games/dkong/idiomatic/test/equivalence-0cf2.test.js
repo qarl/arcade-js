@@ -11,7 +11,7 @@
  * setup continuation carries state, so every case uses a FRESH clone per side and the
  * two are compared on the go-forward contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) only.
+ *     RAM (dumpState, minus the stack scratch below the entry SP) only.
  *
  * pc and SP are deliberately NOT compared: the oracle models its CALL/RET brackets with
  * push16/step/ret (return addresses left in the dead stack region), the plumbing the
@@ -54,7 +54,7 @@ import { setUp75mBoard as idiomatic } from "../setUp75mBoard.js";
 import { stamp75mBoardTiles } from "../stamp75mBoardTiles.js";
 import { loc_0cc6 } from "../loc_0cc6.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   SND_BGM,
@@ -75,33 +75,30 @@ const TARGET = 0x0cf2;
 const FIRST_MOTIF_CELL = 0x770d; // first elevator-motif tilemap cell (holds tile 0xFD)
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inStackScratch = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 /**
- * First RAM difference between two machines on the go-forward contract: the whole state
- * dump minus the STACK_SCRATCH region (dead scratch — the oracle pushes return addresses
- * there while the direct-call idiomatic side does not). Returns {addr,a,b,offset} or null.
- *
  * dumpState() returns a fresh array per call, so the dead-stack bytes are neutralised by
  * copying them across before the single diff — masking, not an advancing sub-scan (the
  * oracle leaves several adjacent stack bytes, which an advancing-`from` idiom oscillates on).
  */
-function ramDiffMinusStack(ma, mb) {
+function ramDiffMinusStack(ma, mb, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = ma.dumpState();
   const b = mb.dumpState();
   for (let off = 0; off < a.length; off++) {
-    if (inDeadStack(ma.stateOffsetToAddr(off))) b[off] = a[off]; // mask dead scratch
+    if (dead(ma.stateOffsetToAddr(off))) b[off] = a[off]; // mask dead scratch
   }
   return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off));
 }
 
-/** How many of the masked-away diffs actually fell in the dead stack region. */
-function stackDiffCount(ma, mb) {
+function stackDiffCount(ma, mb, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = ma.dumpState();
   const b = mb.dumpState();
   let n = 0;
   for (let off = 0; off < a.length; off++) {
-    if (a[off] !== b[off] && inDeadStack(ma.stateOffsetToAddr(off))) n++;
+    if (a[off] !== b[off] && dead(ma.stateOffsetToAddr(off))) n++;
   }
   return n;
 }
@@ -137,21 +134,20 @@ function captureDispatches(K) {
 
 const CAPS = ROM_PRESENT ? captureDispatches(4) : [];
 
-// -- 1. EQUAL (real forced dispatch) ------------------------------------------
 
 test("EQUAL: real forced board-3 dispatch — setUp75mBoard == oracle in RAM (−stack)", () => {
   assert.ok(CAPS.length >= 1, `expected the real 0x0CF2 dispatch on board 3; got ${CAPS.length}`);
 
   for (const cap of CAPS) {
     assert.equal(cap.mem.read8(BOARD), 3, "the forced dispatch must be the 75m board build (BOARD == 3)");
-    assert.ok(inDeadStack(cap.regs.sp), `entry SP must sit in STACK_SCRATCH for the exclusion to be sound (SP=${hx(cap.regs.sp)})`);
+    assert.ok(inStackScratch(cap.regs.sp), `entry SP must sit in STACK_SCRATCH for the exclusion to be sound (SP=${hx(cap.regs.sp)})`);
 
     const o = cap.clone();
     const c = cap.clone();
     oracle(o);
     idiomatic(c);
 
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, cap.regs.sp);
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} idiomatic=${d.b}`);
 
     // Non-vacuous: the oracle side shows the whole arm+tail chain executed.
@@ -161,12 +157,11 @@ test("EQUAL: real forced board-3 dispatch — setUp75mBoard == oracle in RAM (�
     // ...and the idiomatic side genuinely reproduced them, not merely agreed on unchanged bytes.
     assert.equal(c.mem.read8(SND_BGM), 0x0a, "idiomatic must select the 75m tune (SND_BGM = 0x0A)");
     assert.equal(c.mem.read8(FIRST_MOTIF_CELL), 0xfd, "idiomatic must stamp the first elevator motif cell");
-    assert.ok(stackDiffCount(o, c) > 0, "the oracle's stack traffic must differ (so the STACK_SCRATCH mask is load-bearing)");
+    assert.ok(stackDiffCount(o, c, cap.regs.sp) > 0, "the oracle's stack traffic must differ (so the STACK_SCRATCH mask is load-bearing)");
   }
   console.log(`  EQUAL: ${CAPS.length} real board-3 dispatch(es) identical (RAM −stack); tune+stamp+continuation confirmed`);
 });
 
-// -- 2. TEETH (music) ---------------------------------------------------------
 
 /** Broken twin: correct stamp + layout, but writes the WRONG background tune. */
 function brokenWrongMusic(m) {
@@ -182,13 +177,12 @@ test("TEETH (music): a wrong background tune is CAUGHT at SND_BGM", () => {
   const c = cap.clone();
   oracle(o);
   brokenWrongMusic(c);
-  const d = ramDiffMinusStack(o, c);
+  const d = ramDiffMinusStack(o, c, cap.regs.sp);
   assert.notEqual(d, null, "the gate FAILED to catch a wrong music tune — it is worthless");
   assert.equal(d.addr, SND_BGM, `teeth caught the wrong address ${hx(d.addr ?? 0)} (expected SND_BGM ${hx(SND_BGM)})`);
   console.log(`  TEETH(music): wrong tune caught at ${hx(d.addr)} (oracle=${hx(d.a)} broken=${hx(d.b)})`);
 });
 
-// -- 3. TEETH (layout / DE marshalling) ---------------------------------------
 
 /** Broken twin: correct stamp + tune, but points the tail at the 25m table (0x3AE4),
  *  so the shared draw tail walks a DIFFERENT board — the DE live-in is wrong. */
@@ -205,9 +199,9 @@ test("TEETH (layout/DE): pointing the tail at the wrong layout table is CAUGHT i
   const c = cap.clone();
   oracle(o);
   brokenWrongLayout(c);
-  const d = ramDiffMinusStack(o, c);
+  const d = ramDiffMinusStack(o, c, cap.regs.sp);
   assert.notEqual(d, null, "the gate FAILED to catch a wrong layout pointer — the DE marshalling is untested");
-  assert.equal(inDeadStack(d.addr), false, "the caught diff must be game-visible (the wrongly drawn board), not stack scratch");
+  assert.equal(inStackScratch(d.addr), false, "the caught diff must be game-visible (the wrongly drawn board), not stack scratch");
   console.log(`  TEETH(layout/DE): wrong table caught at ${hx(d.addr)} (oracle=${hx(d.a)} broken=${hx(d.b)})`);
 });
 
@@ -227,8 +221,8 @@ test("TEETH (stamp): dropping the elevator tile stamp is CAUGHT at the motif cel
   const c = cap.clone();
   oracle(o);
   brokenSkipStamp(c);
-  const d = ramDiffMinusStack(o, c);
+  const d = ramDiffMinusStack(o, c, cap.regs.sp);
   assert.notEqual(d, null, "the gate FAILED to catch a dropped tile stamp — it is worthless");
-  assert.equal(inDeadStack(d.addr), false, "the caught diff must be game-visible (a tilemap cell), not stack scratch");
+  assert.equal(inStackScratch(d.addr), false, "the caught diff must be game-visible (a tilemap cell), not stack scratch");
   console.log(`  TEETH(stamp): dropped stamp caught at ${hx(d.addr)} (oracle=${hx(d.a)} broken=${hx(d.b)})`);
 });

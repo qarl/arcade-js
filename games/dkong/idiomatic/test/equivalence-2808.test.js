@@ -6,7 +6,7 @@
  * result − 1 (= 0) into MARIO_ACTIVE, marking him dead; on a miss (result 0) do nothing.
  *
  * This is NOT a leaf — it runs a full collision handler that sweeps object records — so it
- * is validated by MEMORY-equivalence against the frozen oracle (RAM − STACK_SCRATCH),
+ * is validated by MEMORY-equivalence against the frozen oracle (RAM − the stack scratch below the entry SP),
  * never the full register file and never cycles, with a FRESH clone per case. The
  * result byte (A) and the search's IX are DEAD after the routine — the caller (loc_197a,
  * 0x19b6) issues its next collision call without reading them — so they are excluded from
@@ -62,6 +62,7 @@ import {
   OBJ_X,
   OBJ_Y,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -79,20 +80,21 @@ const HIT_X = 0x80;
 const HIT_Y = 0x40;
 
 // First differing RAM byte between two dumps, EXCLUDING the dead stack-scratch region (the
-// memory-equivalence contract is RAM − STACK_SCRATCH; the oracle leaves its dropped call/ret
+// memory-equivalence contract is RAM − the stack scratch below the entry SP; the oracle leaves its dropped call/ret
 // bracket words there and this routine does not). Returns { addr, a, b } or null.
-function firstRamDiffExStack(a, b, offToAddr) {
+function firstRamDiffExStack(a, b, offToAddr, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] === b[i]) continue;
     const addr = offToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { addr, a: a[i], b: b[i] };
   }
   return null;
 }
 
-// Contract diff: RAM − STACK_SCRATCH. Live-out is memory-only (MARIO_ACTIVE); the result byte A
+// Contract diff: RAM − the stack scratch below the entry SP. Live-out is memory-only (MARIO_ACTIVE); the result byte A
 // and the search's IX are dead after the routine, so they are not compared. pc/SP are NOT compared:
 // the dissolved handler chain does no guest-stack ops, so the candidate leaves the caller return on
 // the stack while the oracle's tail-dispatch consumes it — a seam artifact, not a live-out. The
@@ -103,7 +105,7 @@ function contractDiffs(entry, fn) {
   oracle(a);
   fn(b);
   const diffs = [];
-  const ram = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o));
+  const ram = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   return diffs;
 }

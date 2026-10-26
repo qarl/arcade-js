@@ -9,7 +9,7 @@
  * side. The oracle runs on one clone, fillTileRowPair on another, and they are compared
  * on the go-forward contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) only.
+ *     RAM (dumpState, minus the stack scratch below the entry SP) only.
  *
  * pc and SP are deliberately NOT compared. The oracle ends in m.ret, so it pops the
  * caller's return address (pc→target, SP+2); both are the modelled step/stack ABI the
@@ -52,7 +52,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0d30 as oracle } from "../../translated/loc_0d30.js";
 import { fillTileRowPair } from "../fillTileRowPair.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -65,19 +65,18 @@ const test = ROM_PRESENT
 const TARGET = 0x0d30;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
-
 /**
  * First RAM difference between two machines on the go-forward contract: the whole state
- * dump minus the STACK_SCRATCH region (dead scratch — masked per the contract). Returns
+ * dump minus the stack scratch below the entry SP (dead scratch — masked per the contract). Returns
  * {addr,a,b,offset} or null.
  */
-function ramDiffMinusStack(ma, mb) {
+function ramDiffMinusStack(ma, mb, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = ma.dumpState();
   const b = mb.dumpState();
   let d = firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off));
   let from = 0;
-  while (d && inDeadStack(d.addr)) {
+  while (d && dead(d.addr)) {
     from = d.offset + 1;
     d = firstStateDiff(a.subarray(from), b.subarray(from), (off) => ma.stateOffsetToAddr(off + from));
   }
@@ -137,7 +136,7 @@ test("EQUAL: real forced board-3 dispatches — fillTileRowPair == oracle in RAM
     oracle(o);
     fillTileRowPair(c);
 
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, cap.regs.sp);
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} idiomatic=${d.b} (HL=${hx(cap.regs.hl)})`);
   }
   // Confirm we actually saw the real board-3 write pointers, not some incidental entry.
@@ -189,7 +188,7 @@ test("CRAFTED: varied HL over dirtied cells — both stamp the motif, RAM identi
     oracle(o);
     fillTileRowPair(c);
 
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, base.regs.sp);
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} idiomatic=${d.b} (HL=${hx(hl)})`);
     // ...and the idiomatic side genuinely stamped the motif over the dirt (not merely agreed).
     for (const [addr, val] of want) {
@@ -213,7 +212,7 @@ test("CRAFTED: unrelated entry state (registers + far RAM) does not change the o
   oracle(o);
   fillTileRowPair(c);
 
-  const d = ramDiffMinusStack(o, c);
+  const d = ramDiffMinusStack(o, c, base.regs.sp);
   assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} idiomatic=${d.b}`);
   for (const [addr, val] of expectedWrites(base.regs.hl)) {
     assert.equal(c.mem.read8(addr), val, `idiomatic left ${hx(addr)} = ${hx(c.mem.read8(addr))} (expected ${hx(val)})`);
@@ -237,7 +236,7 @@ test("TEETH: a wrong tile value at the first cell (HL) is CAUGHT and names that 
   const c = cap.clone();
   oracle(o);
   brokenFill(c);
-  const d = ramDiffMinusStack(o, c);
+  const d = ramDiffMinusStack(o, c, cap.regs.sp);
   assert.notEqual(d, null, "the gate FAILED to catch a wrong tile store — it is worthless");
   assert.equal(d.addr, firstCell, `teeth caught the wrong address ${hx(d.addr ?? 0)} (expected ${hx(firstCell)})`);
 
@@ -249,7 +248,7 @@ test("TEETH: a wrong tile value at the first cell (HL) is CAUGHT and names that 
   for (const addr of expectedWrites(hl).keys()) { o2.mem.write8(addr, 0xaa); c2.mem.write8(addr, 0xaa); }
   oracle(o2);
   brokenFill(c2);
-  const d2 = ramDiffMinusStack(o2, c2);
+  const d2 = ramDiffMinusStack(o2, c2, cap.regs.sp);
   assert.notEqual(d2, null, "the gate FAILED to catch the wrong store on the crafted state");
   assert.equal(d2.addr, hl, `crafted teeth caught the wrong address ${hx(d2.addr ?? 0)} (expected ${hx(hl)})`);
 

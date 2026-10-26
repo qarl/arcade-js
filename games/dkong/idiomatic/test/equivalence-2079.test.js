@@ -6,7 +6,7 @@
  * The idiomatic routine writes two record bytes and hands the frame on with m.call(0x21BA), still
  * the frozen oracle. The ENTIRE tail chain runs on both sides — 0x21BA, the walk's loop advance at
  * 0x1F8D, every remaining slot, and the return to ROM 0x1986 — so the compared contract can
- * include pc, SP and the propagated return value alongside RAM − STACK_SCRATCH. That makes this
+ * include pc, SP and the propagated return value alongside RAM − the stack scratch below the entry SP. That makes this
  * gate stronger than a leaf gate: a register or flag the chain really consumed would surface here
  * as a difference rather than having to be argued about.
  *
@@ -46,6 +46,8 @@ import { loc_2079 as oracle } from "../../translated/loc_2079.js";
 import { loc_2079 } from "../loc_2079.js";
 import { Machine } from "../../machine.js";
 import { OBJ_ACTIVE, OBJ_ARRAY_67, OBJ_X, STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
+import { recordFrameSp, frameFloors } from "./_frame-sp.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -68,20 +70,20 @@ const COIN_START_TAPE = [
 
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
 const hx16 = (v) => "0x" + (v & 0xffff).toString(16).padStart(4, "0");
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 // -- the contract --------------------------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
  *  (the tail chain churns the guest stack identically on both sides, and the oracle's own
  *  push/ret residue lives there). */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -106,7 +108,7 @@ function runOn(entry, fn) {
   return { m: c, ret };
 }
 
-/** Compare a candidate against the oracle: RAM − STACK_SCRATCH, pc, SP, and the return value. */
+/** Compare a candidate against the oracle: RAM − the stack scratch below the entry SP, pc, SP, and the return value. */
 function contractDiffs(entry, fn) {
   const o = runOn(entry, oracle);
   let c;
@@ -116,7 +118,7 @@ function contractDiffs(entry, fn) {
     return [`candidate threw: ${e.message}`];
   }
   const diffs = [];
-  const ram = firstRamDiff(o.m, c.m);
+  const ram = firstRamDiff(o.m, c.m, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx16(ram.addr)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   if (o.m.pc !== c.m.pc) diffs.push(`pc oracle=${hx16(o.m.pc)} cand=${hx16(c.m.pc)}`);
   if (o.m.regs.sp !== c.m.regs.sp) diffs.push(`SP oracle=${hx16(o.m.regs.sp)} cand=${hx16(c.m.regs.sp)}`);
@@ -365,8 +367,9 @@ let BASELINE = null;
 function baselineFrames() {
   if (!BASELINE) {
     const m = new Machine(ROM);
+    const sp = recordFrameSp(m);
     m.runFrames(LIVE_FRAMES);
-    BASELINE = m.frames;
+    BASELINE = Object.assign(m.frames, { sp });
   }
   return BASELINE;
 }
@@ -395,8 +398,9 @@ function liveRun(fn, { charge = true } = {}) {
     return fn(mm);
   }]]);
   const m = new Machine(ROM, { overrides: ov });
+  const sp = recordFrameSp(m);
   m.runFrames(LIVE_FRAMES);
-  return { frames: m.frames, calls, headCycles };
+  return { frames: Object.assign(m.frames, { sp }), calls, headCycles };
 }
 
 /** state-offset -> RAM-address table. Array.from, NOT dumpState().map — the latter is a
@@ -406,13 +410,15 @@ function addressTable() {
   return Array.from(probe.dumpState(), (_, i) => probe.stateOffsetToAddr(i));
 }
 
-/** First (frame, address) where two traces differ outside STACK_SCRATCH. */
+/** First (frame, address) where two traces differ outside the stack scratch below each frame's live SP. */
 function firstTraceDiff(a, b, addrOf) {
   const n = Math.min(a.length, b.length);
+  const floors = frameFloors(a.sp, b.sp);
   for (let i = 0; i < n; i++) {
     const A = a[i], B = b[i];
+    const dead = deadStackBelow(STACK_SCRATCH, floors[i]);
     for (let j = 0; j < A.length; j++) {
-      if (A[j] !== B[j] && !inStack(addrOf[j])) return { frame: i, addr: addrOf[j], a: A[j], b: B[j] };
+      if (A[j] !== B[j] && !dead(addrOf[j])) return { frame: i, addr: addrOf[j], a: A[j], b: B[j] };
     }
   }
   return null;

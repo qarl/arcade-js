@@ -46,6 +46,7 @@ import { loc_07ad as oracle } from "../../translated/loc_07ad.js";
 import { writeDigitPairWithCarry } from "../writeDigitPairWithCarry.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -65,19 +66,19 @@ const CRAFT_BAND = { lo: 0x7550, hi: 0x75a0 };
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const hx8 = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 // -- comparison plumbing ------------------------------------------------------
 
-/** First GAME-VISIBLE RAM byte that differs (outside STACK_SCRATCH), or null. */
-function ramDiffMinusStack(a, b) {
+/** First GAME-VISIBLE RAM byte that differs (outside the stack scratch below the entry SP), or null. */
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { bad: { addr, a: da[i], b: db[i] } };
   }
   return { bad: null };
@@ -99,7 +100,7 @@ function replay(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return { a, b, ram: ramDiffMinusStack(a, b), regs: liveOutRegDiff(a, b) };
+  return { a, b, ram: ramDiffMinusStack(a, b, entry.regs.sp), regs: liveOutRegDiff(a, b) };
 }
 
 /**
@@ -189,9 +190,10 @@ test("EQUAL (crafted): digit + tens-carry breadth matches the oracle (D incl. 10
     for (const d of DS) {
       for (const e of ES) {
         const { a, b } = craftPair(base, { d, e, sentinel });
+        const aFloor = a.regs.sp;
         oracle(a);
         writeDigitPairWithCarry(b);
-        const { bad } = ramDiffMinusStack(a, b);
+        const { bad } = ramDiffMinusStack(a, b, aFloor);
         const rd = liveOutRegDiff(a, b);
         n++;
         assert.equal(
@@ -243,9 +245,10 @@ test("TEETH: wrong-stride and carry-drop twins are CAUGHT", () => {
   // twin vs the oracle's D), and also on real captures.
   {
     const { a, b } = craftPair(base, { d: 0x02, e: 0x01, sentinel: 0xee });
+    const aFloor = a.regs.sp;
     oracle(a);
     brokenStride(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     assert.notEqual(bad, null, "the RAM gate FAILED to catch the wrong-column-stride twin — it is worthless");
 
     const caps = captureDispatches(64, 400);
@@ -255,7 +258,7 @@ test("TEETH: wrong-stride and carry-drop twins are CAUGHT", () => {
       const tb = cap.clone();
       oracle(oa);
       brokenStride(tb);
-      if (ramDiffMinusStack(oa, tb).bad) { caughtReal = true; break; }
+      if (ramDiffMinusStack(oa, tb, cap.regs.sp).bad) { caughtReal = true; break; }
     }
     assert.ok(caughtReal, "the wrong-stride twin was not caught on any real capture");
   }
@@ -264,16 +267,18 @@ test("TEETH: wrong-stride and carry-drop twins are CAUGHT", () => {
   // (so the teeth is specific to the carry logic, not a blunt mismatch).
   {
     const { a, b } = craftPair(base, { d: 0x0a, e: 0x05, sentinel: 0xee });
+    const aFloor = a.regs.sp;
     oracle(a);
     brokenCarry(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     assert.notEqual(bad, null, "the RAM gate FAILED to catch the carry-drop twin on D==10 — it is worthless");
 
     const { a: a2, b: b2 } = craftPair(base, { d: 0x02, e: 0x05, sentinel: 0xee });
+    const a2Floor = a2.regs.sp;
     oracle(a2);
     brokenCarry(b2);
     assert.equal(
-      ramDiffMinusStack(a2, b2).bad,
+      ramDiffMinusStack(a2, b2, a2Floor).bad,
       null,
       "the carry-drop twin should be identical to the oracle when D != 10 (teeth must be specific)",
     );

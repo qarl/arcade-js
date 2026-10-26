@@ -12,7 +12,7 @@
  *      are produced by THIS test, not asserted from memory.
  *
  *   1. EQUAL (real dispatches) — replay every captured entry: oracle vs candidate on
- *      RAM − STACK_SCRATCH + pc + SP.
+ *      RAM − the stack scratch below the entry SP + pc + SP.
  *
  *   2. R IS DEAD ABI — the oracle takes a second argument (dispatchMarioMovement's IX-relative address
  *      helper) that the candidate drops. Run the oracle WITH and WITHOUT it on every captured
@@ -56,6 +56,7 @@ import { limitMarioHorizontalTravel } from "../limitMarioHorizontalTravel.js";  
 import { walkMarioRight } from "../walkMarioRight.js"; // ROM 0x1C8F — used by the teeth twins
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, P1_INPUT, MARIO_X } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -71,18 +72,18 @@ const CONTROL_LEFT = 0x02;  // P1_INPUT bit 1
 const RIGHT_EDGE_X = 0xea;  // the position gate's far-right threshold (X >= this -> E = 1)
 
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -109,18 +110,18 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Compare two finished machines over the contract: RAM − STACK_SCRATCH, pc, SP. No registers —
+/** Compare two finished machines over the contract: RAM − the stack scratch below the entry SP, pc, SP. No registers —
  *  live-out is memory-only. */
-function diffMachines(o, c) {
+function diffMachines(o, c, liveFloor) {
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, liveFloor);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=0x${o.pc.toString(16)} cand=0x${c.pc.toString(16)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=0x${o.regs.sp.toString(16)} cand=0x${c.regs.sp.toString(16)}`);
   return diffs;
 }
 
-const contractDiffs = (entry, fn) => diffMachines(runOracle(entry), runCandidate(entry, fn));
+const contractDiffs = (entry, fn) => diffMachines(runOracle(entry), runCandidate(entry, fn), entry.regs.sp);
 
 // -- capture (memoised — attract is deterministic) ----------------------------
 
@@ -224,7 +225,7 @@ test("EQUAL (real dispatches): walkRightWhileHeld == oracle on every captured 0x
 test("R IS DEAD ABI: the oracle behaves identically with and without the address helper", () => {
   const caps = getCaps();
   for (const cap of caps) {
-    const diffs = diffMachines(runOracle(cap, true), runOracle(cap, false));
+    const diffs = diffMachines(runOracle(cap, true), runOracle(cap, false), cap.regs.sp);
     assert.equal(diffs.length, 0, `the helper is live after all: ${diffs.join("; ")}`);
   }
   console.log(`  R DEAD: ${caps.length} dispatches identical with the helper passed and omitted`);

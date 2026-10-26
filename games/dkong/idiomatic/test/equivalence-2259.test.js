@@ -34,7 +34,7 @@
  * two-level hit-test skip only READ the stack, so live-out is memory-only and pc/SP are not
  * compared.
  *
- *   1. EQUAL (object tick, exhaustive) — slide50mObjectDown == oracle on RAM − STACK_SCRATCH across
+ *   1. EQUAL (object tick, exhaustive) — slide50mObjectDown == oracle on RAM − the stack scratch below the caller frame across
  *      the timer sweep and the counter sweep on both records, plus non-vacuity: the mirror
  *      really copies the stepped counter to the record's selected sprite cell (leaving the
  *      other untouched) and the state byte really advances at counter 120.
@@ -79,6 +79,7 @@ import {
   SPRITE_CODE,
   SPRITE_Y,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -129,18 +130,19 @@ const SP_TOP = 0x6c00;
 const CALLER_RET = 0x199e; // plausible terminal-return target (pc is not compared)
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const fieldOf = (recordBase, n) => (recordBase & 0xff00) | ((recordBase + n) & 0xff);
+const POPPED_ARG = 2; // ROM opens with `pop hl`: the stacked word at entry SP is consumed, so the caller frame starts above it
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region
-// (the memory-equivalence contract is RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the caller frame
+// (the memory-equivalence contract is RAM − the stack scratch below the caller frame). { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -203,14 +205,15 @@ function makeClimbEntry(base, recordBase, marioY, { marioX = TARGET_X, airborne 
 }
 
 // Run the oracle and a candidate on two fresh, byte-identical crafted entries and diff the
-// memory-equivalence contract (RAM − STACK_SCRATCH). Fresh entries because the routine WRITES
+// memory-equivalence contract (RAM − the stack scratch below the caller frame). Fresh entries because the routine WRITES
 // memory. Returns the RAM diff (or null) and the finished oracle machine (for non-vacuity).
 function runPair(makeEntry, candidate, recordBase, ...args) {
   const a = makeEntry(...args); // oracle
+  const aFloor = a.regs.sp;
   const b = makeEntry(...args); // candidate
   oracle(a);
   candidate(b, recordBase);
-  return { ram: firstRamDiff(a, b), a };
+  return { ram: firstRamDiff(a, b, aFloor + POPPED_ARG), a };
 }
 
 // -- 1. EQUAL — object tick (exhaustive by factorisation) ---------------------
@@ -472,7 +475,7 @@ test("REALISM: 0x2259 attract dispatches match the oracle (attract never reaches
     const recordBase = b.mem.read8(b.regs.sp) | (b.mem.read8((b.regs.sp + 1) & 0xffff) << 8);
     oracle(a);
     slide50mObjectDown(b, recordBase);
-    const ram = firstRamDiff(a, b);
+    const ram = firstRamDiff(a, b, cap.regs.sp + POPPED_ARG);
     assert.equal(ram, null, ram && `real dispatch diverged at ${hx(ram.addr ?? 0)} (oracle=${ram.a} cand=${ram.b})`);
   }
 

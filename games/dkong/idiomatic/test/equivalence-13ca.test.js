@@ -8,7 +8,7 @@
  * loc_1344 on their LIVES-hit-zero branch. It is NOT dispatched in attract, nor by a
  * brief coin+start run (verified: 0 dispatches over 9000 attract frames and a
  * coin+start tape), and it WRITES MEMORY + has a caller-skip guard, so it is validated
- * by MEMORY-equivalence against the frozen oracle over RAM (minus STACK_SCRATCH) + pc +
+ * by MEMORY-equivalence against the frozen oracle over RAM (minus the stack scratch below the entry SP) + pc +
  * SP — never the full register file, never cycles — on a FRESH clone per case, using
  * CRAFTED entries (doc-06: a real attract-base machine + a surgical poke):
  *
@@ -48,6 +48,7 @@ import { loc_13ca as oracle } from "../../translated/loc_13ca.js";
 import { loc_13ca } from "../loc_13ca.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -64,17 +65,17 @@ const P2_SCORE = 0x60b5;
 const RET_ADDR = 0x1312;   // a plausible caller return (loc_12f2's site after the call)
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region
-// (the memory-equivalence contract is RAM − STACK_SCRATCH). Returns { addr, a, b } or null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
+// (the memory-equivalence contract is RAM − the stack scratch below the entry SP). Returns { addr, a, b } or null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -82,13 +83,14 @@ function firstRamDiff(a, b) {
 
 // All non-stack RAM addresses that changed between two machines (for the guard-skip
 // non-vacuity check: prove ONLY 0x61C6 moved).
-function changedAddrs(a, b) {
+function changedAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.push(addr);
   }
   return out;
@@ -113,13 +115,13 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Full contract diff: RAM − STACK_SCRATCH, pc, SP. Live-out is memory-only, so the
+/** Full contract diff: RAM − the stack scratch below the entry SP, pc, SP. Live-out is memory-only, so the
  *  register file is deliberately NOT compared. Returns human-readable mismatches. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);
@@ -183,7 +185,7 @@ test("EQUAL (guard skip): ATTRACT set — loc_13ca == oracle, and only 0x61C6 is
     assert.equal(diffs.length, 0, `${name}: ${diffs.join("; ")}`);
 
     // The guard skipped the body: the ONLY non-stack RAM change is 0x61C6 = A.
-    const changed = changedAddrs(entry, runOracle(entry));
+    const changed = changedAddrs(entry, runOracle(entry), entry.regs.sp);
     assert.deepEqual(changed, [PARAM_SLOT], `${name}: guard did not skip cleanly — changed ${changed.map(hx)}`);
     assert.equal(runOracle(entry).mem.read8(PARAM_SLOT), a, `${name}: 0x61C6 should hold A`);
   }
@@ -232,7 +234,7 @@ test("EQUAL (full body): ATTRACT clear — loc_13ca == oracle across every sort 
     const diffs = contractDiffs(entry, loc_13ca);
     assert.equal(diffs.length, 0, `${name}: ${diffs.join("; ")}`);
     // non-vacuous: the body actually wrote RAM.
-    assert.ok(changedAddrs(entry, runOracle(entry)).length > 0, `${name}: body wrote nothing — vacuous`);
+    assert.ok(changedAddrs(entry, runOracle(entry), entry.regs.sp).length > 0, `${name}: body wrote nothing — vacuous`);
   }
 
   // Coverage assertion: the 5-pass case must actually reach pass 5 (swap span low = 0x6107).

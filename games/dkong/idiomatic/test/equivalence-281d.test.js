@@ -6,7 +6,7 @@
  *
  * recordHammerHitOnObject is NOT a leaf: it dispatches the full board collision handler (through the
  * idiomatic dispatchBoardCollision, which selects the board arm and returns a JS tuple). So it is
- * validated by MEMORY-equivalence against the frozen oracle — RAM − STACK_SCRATCH — with a
+ * validated by MEMORY-equivalence against the frozen oracle — RAM − the stack scratch below the entry SP — with a
  * FRESH clone per case and the FULL oracle handler running on the oracle side. Two things:
  *   - live-out is memory-only: the caller (loc_197a) issues its next call without reading
  *     any register this routine leaves, so no register is in the contract; pc/SP are NOT compared
@@ -51,6 +51,7 @@ import {
   COLLIDED_OBJECT_STRIDE,
   COLLIDED_OBJECT_INDEX,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -67,35 +68,36 @@ const REC1_FLAG = OBJ_PAIR_6680 + 0x10 + 1;   // 0x6691 — record 1 active flag
 const RECORD_CELLS = [0x6350, COLLIDED_OBJECT_BASE, 0x6352, COLLIDED_OBJECT_STRIDE, COLLIDED_OBJECT_INDEX];
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First differing RAM byte between two machines, EXCLUDING the dead STACK_SCRATCH region
-// (the memory-equivalence contract is RAM − STACK_SCRATCH; the folded rst-0x28 trampoline
+// First differing RAM byte between two machines, EXCLUDING the stack scratch below the entry SP
+// (the memory-equivalence contract is RAM − the stack scratch below the entry SP; the folded rst-0x28 trampoline
 // leaves its table-base word there). Returns { addr, a, b } or null.
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
 // Count how many diffs land INSIDE the excluded stack region (diagnostic only).
-function stackDiffCount(a, b) {
+function stackDiffCount(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   let c = 0;
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
-    if (inStack(a.stateOffsetToAddr(i))) c++;
+    if (dead(a.stateOffsetToAddr(i))) c++;
   }
   return c;
 }
 
-// Contract diff: RAM − STACK_SCRATCH. Live-out is memory-only, so no register is compared.
+// Contract diff: RAM − the stack scratch below the entry SP. Live-out is memory-only, so no register is compared.
 // pc/SP are NOT compared: the dissolved handler chain returns a JS tuple and does no guest-stack
 // ops, so the candidate leaves the caller return on the stack where the oracle's terminal returns
 // consume it — a seam artifact, not a live-out. The whole-game SP tests guard SP-correctness now.
@@ -103,7 +105,7 @@ function contractDiffs(entry, fn) {
   const a = entry.clone(); oracle(a);
   const b = entry.clone(); fn(b);
   const diffs = [];
-  const ram = firstRamDiff(a, b);
+  const ram = firstRamDiff(a, b, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   return diffs;
 }
@@ -166,7 +168,7 @@ test("EQUAL (captured): recordHammerHitOnObject == oracle on every real attract 
       // record whether the folded trampoline left a (correctly-excluded) stack difference
       const b = cap.clone(); candidate(b);
       const a = cap.clone(); oracle(a);
-      stackExcluded += stackDiffCount(a, b);
+      stackExcluded += stackDiffCount(a, b, cap.regs.sp);
     }
   }
   console.log(

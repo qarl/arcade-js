@@ -18,7 +18,7 @@
  * call and does not seat SP at all: the idiomatic layer fires the vblank NMI as a direct
  * JS call and uses no guest stack, so the seat is vestigial (runbook §4, "Retiring SP").
  *
- * The contract compared here is RAM − STACK_SCRATCH, pc, the io device state (the
+ * The contract compared here is RAM − the stack scratch below STACK_TOP (the routine reseats SP there), pc, the io device state (the
  * display/sound hardware latches bootInit sets are board outputs, not RAM), the
  * discard-write counter (proving the faithful 0x6C00-0x6FFF over-run), and the
  * candidate's SP unmoved from entry (SP-inert).
@@ -47,7 +47,8 @@ import { clearRamAndInitHardware } from "../clearRamAndInitHardware.js";
 import { bootInit } from "../boot.js";
 import { silenceSound } from "../silenceSound.js";
 import { Machine } from "../../machine.js";
-import { STACK_SCRATCH, TASK_TAIL, TASK_HEAD, TASK_RING } from "../names.js";
+import { STACK_SCRATCH, STACK_TOP, TASK_TAIL, TASK_HEAD, TASK_RING } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -57,17 +58,17 @@ const test = ROM_PRESENT
   : (name, fn) => nodeTest(name, { skip: "skipped: ROM not built — run 'make -C games/dkong rom'" }, fn);
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH
-// region (the memory-equivalence contract is RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the floor
+// region (the memory-equivalence contract is RAM − the stack scratch below STACK_TOP). { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -106,13 +107,13 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Full contract diff: RAM − STACK_SCRATCH, pc, io device state, discard counter, candidate SP unmoved. */
+/** Full contract diff: RAM − the stack scratch below STACK_TOP, pc, io device state, discard counter, candidate SP unmoved. */
 function contractDiffs(entry, fn, oracleFn = oracle) {
   const o = entry.clone();
   oracleFn(o);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, STACK_TOP); // the routine reseats SP at STACK_TOP: no caller frame survives it
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (c.regs.sp !== entry.regs.sp) diffs.push(`SP moved: entry=${hx(entry.regs.sp)} cand=${hx(c.regs.sp)}`);

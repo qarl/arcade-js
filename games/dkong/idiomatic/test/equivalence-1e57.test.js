@@ -19,7 +19,7 @@
  *   false — the board was won and the cascade unwound (0x1E85's two-level unwind), so the
  *           caller must NOT continue.
  *
- * MEMORY-equivalence contract: RAM (minus STACK_SCRATCH) + pc + SP, plus the boolean return.
+ * MEMORY-equivalence contract: RAM (minus the stack scratch below the entry SP) + pc + SP, plus the boolean return.
  * The oracle brackets its exits with stack ops the idiomatic routine drops (it uses the JS
  * call stack): the normal arms' single `ret`, and the board-won arms' two-level unwind
  * (0x1E85 discards its own return then rets to the grandparent). Both are modeled on the
@@ -74,6 +74,7 @@ import {
   SPRITE_CODE,
   GAME_SUBSTATE,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -99,15 +100,16 @@ const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STA
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH (the dead stack
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP (the dead stack
  *  region excluded by contract — the staged/popped return bytes live there). */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -115,13 +117,14 @@ function firstRamDiff(a, b) {
 
 /** All non-stack RAM addresses that changed between two machines (for the no-write
  *  non-vacuity check on the normal-return arms). */
-function changedAddrs(a, b) {
+function changedAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.push(addr);
   }
   return out;
@@ -155,7 +158,7 @@ function evalCase(entry, fn) {
   const o = runOracle(entry);
   const { c, ret } = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${hx(ram.a & 0xff)} cand=${hx(ram.b & 0xff)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);
@@ -260,7 +263,7 @@ test("EQUAL (crafted): loc_1e57 == oracle on RAM+pc+SP across every arm, and ret
   // Rivet NOT-won (rivets != 0): normal single return, nothing written.
   const rivetGo = craftEntry({ board: 0x04, y: 0x00, x: 0x80, rivets: 0x03 });
   const rivetGoO = runOracle(rivetGo);
-  assert.deepEqual(changedAddrs(rivetGo, rivetGoO), [], "rivet not-won: oracle writes no non-stack RAM");
+  assert.deepEqual(changedAddrs(rivetGo, rivetGoO, rivetGo.regs.sp), [], "rivet not-won: oracle writes no non-stack RAM");
   assert.equal(rivetGoO.regs.sp, SP_TOP - 2, "rivet not-won: oracle pops one level");
   assert.equal(rivetGoO.pc, OWN_RET, "rivet not-won: oracle rets to the own return");
   assert.equal(runCandidate(rivetGo, loc_1e57).ret, true, "rivet not-won: idiomatic returns true (keep going)");
@@ -275,7 +278,7 @@ test("EQUAL (crafted): loc_1e57 == oracle on RAM+pc+SP across every arm, and ret
     "girder Y=0x30: still the won arm (proves the < 0x31 boundary)");
   const girderGo = craftEntry({ board: 0x01, y: RESCUE_ROW, x: 0x80, rivets: 0x11 });
   const girderGoO = runOracle(girderGo);
-  assert.deepEqual(changedAddrs(girderGo, girderGoO), [], "girder Y=0x31: normal arm writes no non-stack RAM");
+  assert.deepEqual(changedAddrs(girderGo, girderGoO, girderGo.regs.sp), [], "girder Y=0x31: normal arm writes no non-stack RAM");
   assert.equal(girderGoO.pc, OWN_RET, "girder normal: oracle rets to the own return");
 
   // Climb WON with X high bit SET -> facing 0x00; with X high bit CLEAR -> facing 0x80.
@@ -288,7 +291,7 @@ test("EQUAL (crafted): loc_1e57 == oracle on RAM+pc+SP across every arm, and ret
     "climb Y=0x50: still the won arm (proves the < 0x51 boundary)");
   const climbGo = craftEntry({ board: 0x00, y: CLIMB_LINE, x: 0x80, rivets: 0x22 });
   const climbGoO = runOracle(climbGo);
-  assert.deepEqual(changedAddrs(climbGo, climbGoO), [], "climb Y=0x51: normal arm writes no non-stack RAM");
+  assert.deepEqual(changedAddrs(climbGo, climbGoO, climbGo.regs.sp), [], "climb Y=0x51: normal arm writes no non-stack RAM");
   assert.equal(climbGoO.regs.sp, SP_TOP - 2, "climb normal: oracle pops one level");
 
   // The stack exclusion is load-bearing: the staged returns really sit in STACK_SCRATCH.

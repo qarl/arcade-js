@@ -28,7 +28,7 @@
  * The oracle's entry `pop hl` and terminal `ret` only READ the stack, so they never affect
  * compared memory; live-out is memory-only, so pc/SP are not compared.
  *
- *   1. EQUAL (crafted, exhaustive) — raise50mObjectAndPark == oracle on RAM − STACK_SCRATCH across both
+ *   1. EQUAL (crafted, exhaustive) — raise50mObjectAndPark == oracle on RAM − the stack scratch below the caller frame across both
  *      sweeps on both records (1024 combos), plus non-vacuity: the oracle really mirrors the
  *      byte to the record's selected sprite cell (leaving the other untouched) and really
  *      rewrites +1 and +0 on the reset.
@@ -60,6 +60,7 @@ import { raise50mObjectAndPark } from "../raise50mObjectAndPark.js";
 import { publish50mObjectYToSprite } from "../publish50mObjectYToSprite.js"; // the mirror the broken twins still call
 import { STACK_SCRATCH, BOARD_OBJ_SCRATCH, SPRITE_BUFFER } from "../names.js";
 import { Machine } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -93,17 +94,17 @@ const SP_TOP = 0x6c00;
 const CALLER_RET = 0x199e; // plausible target for the terminal return (pc is not compared)
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const POPPED_ARG = 2;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region
-// (the memory-equivalence contract is RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the caller frame. { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -141,24 +142,18 @@ function makeEntry(base, recordBase, countdown, position) {
   return e;
 }
 
-/**
- * Run the oracle and a candidate on two FRESH, byte-identical crafted entries and diff the
- * memory-equivalence contract (RAM − STACK_SCRATCH). A fresh entry per side because the
- * routine WRITES memory. Returns the RAM diff (or null) and the oracle machine (non-vacuity).
- */
+// Run the oracle and a candidate on two FRESH, byte-identical crafted entries (the routine WRITES memory) and diff
+// the memory-equivalence contract. Returns the RAM diff (or null) and the oracle machine (non-vacuity).
 function runPair(base, recordBase, countdown, position, candidate) {
   const a = makeEntry(base, recordBase, countdown, position); // oracle
+  const aFloor = a.regs.sp;
   const b = makeEntry(base, recordBase, countdown, position); // candidate
   oracle(a);
   candidate(b, recordBase);
-  return { ram: firstRamDiff(a, b), a };
+  return { ram: firstRamDiff(a, b, aFloor + POPPED_ARG), a };
 }
 
-/**
- * The two disjoint sweeps over both records. Returns the first candidate-vs-oracle mismatch
- * (or null) and the total combos compared. By the factorisation in the file header these
- * cover the whole (countdown, position, record) observable space.
- */
+// The two disjoint sweeps over both records: the first candidate-vs-oracle mismatch (or null) and the total combos compared.
 function fullSweep(base, candidate) {
   let count = 0;
   for (const recordBase of RECORDS) {
@@ -309,7 +304,7 @@ test("REALISM: 0x22A2 attract dispatches match the oracle (attract never reaches
     const recordBase = b.mem.read8(b.regs.sp) | (b.mem.read8((b.regs.sp + 1) & 0xffff) << 8);
     oracle(a);
     raise50mObjectAndPark(b, recordBase);
-    const ram = firstRamDiff(a, b);
+    const ram = firstRamDiff(a, b, cap.regs.sp + POPPED_ARG);
     assert.equal(ram, null, ram && `real dispatch diverged at ${hx(ram.addr ?? 0)} (oracle=${ram.a} cand=${ram.b})`);
   }
 

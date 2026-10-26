@@ -52,6 +52,7 @@ import {
   STACK_SCRATCH,
   MARIO_X, MARIO_Y, MARIO_SPRITE_CODE, MARIO_SPRITE_ATTR, MARIO_ON_LADDER,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -63,23 +64,16 @@ const test = ROM_PRESENT
 const TARGET = 0x1d67;
 const CLIMB_TOGGLE = 0x6219; // unnamed climb-toggle scratch (names.js reject); kept hex
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
-// -- the memory-equivalence contract ------------------------------------------
-
-/**
- * First RAM byte that differs between two machines, skipping STACK_SCRATCH — the dead
- * stack region the standard gate excludes. The oracle's `ret` (via its 0x1DA6 tail)
- * pops a return address out of this region; the idiomatic routine (JS call stack)
- * never writes it, so excluding it is exactly the contract, not a fudge.
- */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -92,12 +86,6 @@ function runOracle(entry) {
   return c;
 }
 
-/**
- * Run a candidate on a fresh clone, then model its return with ONE m.ret() so pc + SP
- * match the oracle's (the idiomatic routine replaces the Z80 stack with the JS call
- * stack, so it never touches pc/SP itself — the harness supplies the single net return
- * the oracle performs at the end of its 0x1DA6 tail).
- */
 function runCandidate(entry, fn) {
   const c = entry.clone();
   fn(c);
@@ -105,21 +93,16 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Compare candidate vs oracle over the contract: RAM − STACK_SCRATCH, pc, SP. NO
- *  registers — the live-out is memory-only, and comparing the oracle's dead residual
- *  A/B/HL/flags would fail on values nothing reads. Returns human-readable mismatches. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=0x${o.pc.toString(16)} cand=0x${c.pc.toString(16)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=0x${o.regs.sp.toString(16)} cand=0x${c.regs.sp.toString(16)}`);
   return diffs;
 }
-
-// -- capture ------------------------------------------------------------------
 
 /**
  * Hook 0x1d67 in a real attract run and clone the machine at up to K real dispatches.
@@ -153,8 +136,6 @@ function craft(seed, { x, code, attr, y, tog, lad }) {
   e.regs.sp = 0x6bfe; // the ret's pop lands in STACK_SCRATCH, well clear of work RAM
   return e;
 }
-
-// -- teeth twins --------------------------------------------------------------
 
 /** Broken twin (a): KEEP-ON-LADDER — omits clearing MARIO_ON_LADDER (0x6215), leaving
  *  it at its entry value. Diverges whenever 0x6215 != 0 on entry (it is 1 — on a ladder

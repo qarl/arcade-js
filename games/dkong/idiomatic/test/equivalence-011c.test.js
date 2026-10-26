@@ -9,7 +9,7 @@
  * FRESH clone per side (never a reused machine). The oracle is run on one clone,
  * silenceSound on another, and they are compared on the go-forward contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) + pc + declared live-out (none).
+ *     RAM (dumpState, minus the stack scratch below the entry SP) + pc + declared live-out (none).
  *
  * SP is deliberately NOT compared: the oracle's only SP mutation is its terminal
  * `ret` (a pop, SP+2), the modelled stack ABI the direct-call layer replaces with a
@@ -39,7 +39,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_011c as oracle } from "../../translated/loc_011c.js";
 import { silenceSound } from "../silenceSound.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, SND_BGM } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -52,19 +52,18 @@ const test = ROM_PRESENT
 const TARGET = 0x011c;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
-
 /**
  * First RAM difference between two machines on the go-forward contract: the whole
- * state dump minus the STACK_SCRATCH region (dead scratch — neither side writes it
+ * state dump minus the stack scratch below the entry SP (dead scratch — neither side writes it
  * here, masked per the contract). Returns {addr,a,b} or null.
  */
-function ramDiffMinusStack(ma, mb) {
+function ramDiffMinusStack(ma, mb, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = ma.dumpState();
   const b = mb.dumpState();
   let d = firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off));
   let from = 0;
-  while (d && inDeadStack(d.addr)) {
+  while (d && dead(d.addr)) {
     from = d.offset + 1;
     d = firstStateDiff(a.subarray(from), b.subarray(from), (off) => ma.stateOffsetToAddr(off + from));
   }
@@ -102,7 +101,7 @@ test("EQUAL: real captured dispatches — silenceSound == oracle in RAM (−stac
     oracle(o);
     silenceSound(c);
 
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, cap.regs.sp);
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} silence=${d.b}`);
     assert.equal(c.pc, o.pc, "pc must match the oracle");
   }
@@ -148,7 +147,7 @@ test("CRAFTED: pre-dirtied 0x6080-0x608B is zeroed identically by both sides", (
   oracle(o);
   silenceSound(c);
 
-  const d = ramDiffMinusStack(o, c);
+  const d = ramDiffMinusStack(o, c, base.regs.sp);
   assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} silence=${d.b}`);
   // ...and both genuinely cleared the dirt (not merely agreed).
   for (let a = 0x6080; a <= 0x608b; a++) {
@@ -173,7 +172,7 @@ test("TEETH: a wrong output value at SND_BGM is CAUGHT on every case", () => {
     const c = cap.clone();
     oracle(o);
     brokenSilenceSound(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, cap.regs.sp);
     if (d) { caughtAt = d; break; }
   }
   assert.notEqual(caughtAt, null, "the gate FAILED to catch a wrong SND_BGM store — it is worthless");
@@ -186,7 +185,7 @@ test("TEETH: a wrong output value at SND_BGM is CAUGHT on every case", () => {
   for (let a = 0x6080; a <= 0x608b; a++) { o.mem.write8(a, 0xaa); c.mem.write8(a, 0xaa); }
   oracle(o);
   brokenSilenceSound(c);
-  const d = ramDiffMinusStack(o, c);
+  const d = ramDiffMinusStack(o, c, base.regs.sp);
   assert.notEqual(d, null, "the gate FAILED to catch the wrong store on the crafted state");
   assert.equal(d.addr, SND_BGM, `crafted teeth caught the wrong address ${hx(d.addr ?? 0)}`);
 

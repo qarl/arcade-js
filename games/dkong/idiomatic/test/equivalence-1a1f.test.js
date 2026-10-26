@@ -11,10 +11,10 @@
  * handler leaves behind. Everything else the oracle touches (SP via `ret`, PC via the
  * step model, the residual A/HL/F) is the Z80 return mechanism the direct-call model
  * drops; the `ret` only reads (pops) the stack, so nothing lands outside the contract,
- * which is therefore RAM (minus STACK_SCRATCH). That admits the strongest gate available:
+ * which is therefore RAM (minus the stack scratch below the entry SP). That admits the strongest gate available:
  *
  *   1. EQUAL (exhaustive) — advanceBonusExpiredStepWhenDelayExpires == oracle over ALL
- *      256 values of BONUS_EXPIRED_DELAY, compared on RAM (minus STACK_SCRATCH). 0x6386 is
+ *      256 values of BONUS_EXPIRED_DELAY, compared on RAM (minus the stack scratch below the entry SP). 0x6386 is
  *      seeded to a non-3 sentinel so the advance-to-3 is an observable RAM change (the
  *      routine never reads it, so this cannot affect the branch). 256 is the complete
  *      input space — a proof, not a sample.
@@ -46,6 +46,7 @@ import { loc_1a07 as dispatcherOracle } from "../../translated/loc_1a07.js";
 import { advanceBonusExpiredStepWhenDelayExpires } from "../advanceBonusExpiredStepWhenDelayExpires.js";
 import { BONUS_EXPIRED_DELAY, BONUS_EXPIRED_STEP, STACK_SCRATCH } from "../names.js";
 import { Machine } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -67,36 +68,27 @@ const SAFE_SP = 0x6bf8;
 
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
 
-/**
- * First differing RAM byte between two machines, EXCLUDING STACK_SCRATCH, or null.
- * The oracle exercises the stack region via its `ret`; the direct-call candidate does
- * not, so that region is dead scratch and outside the contract.
- */
-function ramDiffNoStack(mA, mB) {
+function ramDiffNoStack(mA, mB, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = mA.dumpState();
   const b = mB.dumpState();
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] === b[i]) continue;
     const addr = mA.stateOffsetToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { offset: i, addr, a: a[i], b: b[i] };
   }
   return null;
 }
 
-/**
- * Run the oracle and the candidate on two FRESH clones of `entry` (the routine WRITES
- * memory, so a clone per side — docs/decompiler-pipeline: only a pure read-only leaf may reuse one) and
- * diff RAM minus STACK_SCRATCH. loc_1a1f returns nothing consumed, so RAM is the whole
- * contract.
- */
+/** Oracle and candidate on FRESH clones of `entry` (a writer needs one per side); diff RAM minus stack scratch. */
 function runPair(entry, candidate) {
   const a = entry.clone(); // oracle
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return ramDiffNoStack(a, b);
+  return ramDiffNoStack(a, b, entry.regs.sp);
 }
 
 /** A synthetic entry: `base` with the delay byte set, a sentinel step, and a safe stack. */
@@ -108,10 +100,6 @@ function makeEntry(base, delay) {
   return e;
 }
 
-/**
- * Sweep a candidate against the oracle over all 256 BONUS_EXPIRED_DELAY values.
- * Returns the first RAM mismatch (minus stack), or null, plus the count compared.
- */
 function sweep(base, candidate) {
   let count = 0;
   for (let delay = 0; delay < 256; delay++) {

@@ -23,11 +23,11 @@
  * across 2000 attract frames — so validation is CRAFTED over a real attract base: poke
  * the six object records and the spawn timer identically on both sides to drive every
  * arm (rising/landing, falling/deactivate, inactive, off-beat tick, spawn-into-free-slot,
- * all-slots-busy), diff the whole RAM dump minus STACK_SCRATCH, and check the published
+ * all-slots-busy), diff the whole RAM dump minus the stack scratch below the entry SP, and check the published
  * sprite records against the post-motion object records (non-vacuity).
  *
  *   1. EQUAL (crafted) — three full-array scenarios (mixed motion + off-beat tick;
- *      spawn into a free slot; all slots busy) match the oracle over RAM − STACK_SCRATCH,
+ *      spawn into a free slot; all slots busy) match the oracle over RAM − the stack scratch below the entry SP,
  *      and each object's published sprite X/Y equals its record's post-service X/Y.
  *   2. TEETH — five broken twins the crafted scenarios MUST catch: wrong publish stride,
  *      swapped X/Y source fields, a short (5-object) count, publishing BEFORE advancing,
@@ -57,6 +57,7 @@ import {
   SPAWN_TIMER,
   STACK_SCRATCH,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -78,17 +79,17 @@ const SPRITE_Y_OFF = 3;              // Y byte offset within a 4-byte sprite rec
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const objBase = (i) => OBJ_ARRAY_66 + i * OBJ_STRIDE;
 const spriteBase = (i) => PUBLISH_BASE + i * SPRITE_STRIDE;
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH
-// region (the memory-equivalence contract is RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
+// region (the memory-equivalence contract is RAM − the stack scratch below the entry SP). { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -134,13 +135,13 @@ function runOracle(entry) {
 
 /**
  * Run the oracle and a candidate on two FRESH, byte-identical clones of `entry` and
- * diff the RAM dump minus STACK_SCRATCH. A fresh clone per side because the routine
+ * diff the RAM dump minus the stack scratch below the entry SP. A fresh clone per side because the routine
  * WRITES memory.
  */
 function diffPair(entry, candidate) {
   const a = entry.clone(); oracle(a);
   const b = entry.clone(); candidate(b);
-  return firstRamDiff(a, b);
+  return firstRamDiff(a, b, entry.regs.sp);
 }
 
 // Rising objects (OBJ_STATE bit3 set) drift Y down and land at 96, snapping X to 119

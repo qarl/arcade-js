@@ -17,7 +17,7 @@
  * (the compare overwrites the carry it then feeds to loc_1e6d), and the callees read no other
  * register or RAM. So the gate is EXHAUSTIVE over all 256 Y values.
  *
- * It is gated on MEMORY-equivalence — RAM (minus STACK_SCRATCH) + pc + SP — plus the boolean
+ * It is gated on MEMORY-equivalence — RAM (minus the stack scratch below the entry SP) + pc + SP — plus the boolean
  * return. The oracle brackets its two exits with stack ops the idiomatic routine drops (it
  * uses the JS call stack): the normal arm's single `ret`, and the board-won arm's two-level
  * unwind (loc_1e85 discards its own return then rets to the grandparent). Both are modeled on
@@ -57,6 +57,7 @@ import { completeBoardWhenMarioReachesRescueRow } from "../completeBoardWhenMari
 import { loc_1e6d } from "../loc_1e6d.js"; // the shared callee — the twins call it directly to isolate completeBoardWhenMarioReachesRescueRow's own logic
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, MARIO_SPRITE_RECORD, SPRITE_CODE, GAME_SUBSTATE } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -80,15 +81,16 @@ const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STA
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH (the dead stack
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP (the dead stack
  *  region excluded by contract — the staged/popped return bytes live there). */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -96,13 +98,14 @@ function firstRamDiff(a, b) {
 
 /** All non-stack RAM addresses that changed between two machines (for the no-write
  *  non-vacuity check on the normal-return arm). */
-function changedAddrs(a, b) {
+function changedAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.push(addr);
   }
   return out;
@@ -131,12 +134,12 @@ function runCandidate(entry, fn) {
   return { c, ret };
 }
 
-/** Compare candidate vs oracle over the contract: RAM − STACK_SCRATCH, pc, SP. */
+/** Compare candidate vs oracle over the contract: RAM − the stack scratch below the entry SP, pc, SP. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const { c } = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${hx(ram.a & 0xff)} cand=${hx(ram.b & 0xff)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);
@@ -212,7 +215,7 @@ test("EQUAL (exhaustive): completeBoardWhenMarioReachesRescueRow == oracle on RA
   // Non-vacuity — the normal arm at the boundary wrote nothing, popped one level, returned true.
   const normal = craftEntry(THRESHOLD);
   const o2 = runOracle(normal);
-  assert.deepEqual(changedAddrs(normal, o2), [], "normal arm: oracle must write no non-stack RAM");
+  assert.deepEqual(changedAddrs(normal, o2, normal.regs.sp), [], "normal arm: oracle must write no non-stack RAM");
   assert.equal(o2.mem.read8(SPRITE_FLAG), SENTINEL_SPRITE, "normal arm: sprite byte untouched");
   assert.equal(o2.regs.sp, SP_TOP - 2, "normal arm: oracle pops one level (SP+2)");
   assert.equal(o2.pc, OWN_RET, "normal arm: oracle rets to sub_1e57's own return");

@@ -11,7 +11,7 @@
  * overwrites). So it is validated by capture/clone/replay on a FRESH clone per case — never
  * reusing one machine, never the full register file, never cycles. The compared contract is:
  *
- *   RAM (minus STACK_SCRATCH)  +  io.flipScreen (the 0x7D82 latch)
+ *   RAM (minus the stack scratch below the entry SP)  +  io.flipScreen (the 0x7D82 latch)
  *
  * The flip latch is a board io output, NOT in the RAM dump; comparing io.flipScreen is
  * load-bearing because it is the only place the player-key A value (0 here, forced) surfaces
@@ -60,6 +60,7 @@ import { selectPlayer2AndComposeScreen as candidate } from "../selectPlayer2AndC
 import { configureFlipScreenAndComposeScreen } from "../configureFlipScreenAndComposeScreen.js";
 import { Machine } from "../../machine.js";
 import { CURRENT_PLAYER, DIP_UPRIGHT, SUBSTATE_TIMER, GAME_SUBSTATE, STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -85,23 +86,21 @@ const COIN_START_TAPE = [
 ];
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-
-// -- comparison plumbing ------------------------------------------------------
 
 /**
  * First observable difference between two machines after each ran its routine: a RAM byte
- * (skipping the dead STACK_SCRATCH) OR the flip-screen board latch (io.flipScreen — the
+ * (skipping the stack scratch below the entry SP) OR the flip-screen board latch (io.flipScreen — the
  * 0x7D82 output, not in the RAM dump). RAM first, then the latch. Null if identical.
  */
-function firstDiffOutsideStack(a, b) {
+function firstDiffOutsideStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { kind: "ram", addr, a: da[i], b: db[i] };
   }
   if (a.io.flipScreen !== b.io.flipScreen) {
@@ -121,10 +120,8 @@ function diffAgainstOracle(entry, cand) {
   const b = entry.clone(); // candidate
   oracle(a);
   cand(b);
-  return firstDiffOutsideStack(a, b);
+  return firstDiffOutsideStack(a, b, entry.regs.sp);
 }
-
-// -- entry capture (real loc_141e dispatch, single-byte upstream nudge) --------
 
 /**
  * Drive a coin+start game to the real loc_141e dispatch (game over, state 3 / sub 0x14),
@@ -152,8 +149,6 @@ function craftDip(dip) {
   w.mem.write8(DIP_UPRIGHT, dip);
   return w;
 }
-
-// -- 1. REALISM ---------------------------------------------------------------
 
 test("REALISM: real loc_144f dispatch — RAM (ex-stack) + flip match the oracle", () => {
   assert.ok(ENTRY, "loc_144f never dispatched via the nudged loc_141e — reachability broke");
@@ -193,8 +188,6 @@ test("REALISM: real loc_144f dispatch — RAM (ex-stack) + flip match the oracle
   console.log("  REALISM: real loc_144f entry — RAM (ex-stack) + flip identical; oracle sets index=1, flip=DIP");
 });
 
-// -- 2. CRAFTED (DIP matrix) --------------------------------------------------
-
 test("CRAFTED: flip = A(0)|DIP matches the oracle across DIP in {0,1}", () => {
   assert.ok(ENTRY, "need a captured entry to craft the DIP matrix from");
 
@@ -211,8 +204,6 @@ test("CRAFTED: flip = A(0)|DIP matches the oracle across DIP in {0,1}", () => {
   }
   console.log("  CRAFTED/DIP-matrix: DIP=0 -> flip off, DIP=1 -> flip on; RAM (ex-stack) + flip identical");
 });
-
-// -- 3. TEETH -----------------------------------------------------------------
 
 /** Twin (a): skips the CURRENT_PLAYER (0x600D) write — player 2 is never selected. */
 function brokenSkipCurrentPlayer(m) {

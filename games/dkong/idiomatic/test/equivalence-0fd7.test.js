@@ -10,7 +10,7 @@
  * records it wrote itself, inside seedSpriteObjectPair). So it is validated by
  * capture/clone/replay on a FRESH clone per case — never by reusing one machine, and
  * never on the full register file, cycles, SP or PC. The contract compared is RAM
- * (minus STACK_SCRATCH) only: LIVE-OUT is memory-only (the `ret` returns to a `call`
+ * (minus the stack scratch below the entry SP) only: LIVE-OUT is memory-only (the `ret` returns to a `call`
  * that reads no register this routine leaves — see the routine header).
  *
  *   1. REALISM — hook 0x0FD7 in a real attract run and clone the machine at each real
@@ -48,6 +48,7 @@ import { loc_11fa } from "../loc_11fa.js";
 import { seedSpriteObjectPair } from "../seedSpriteObjectPair.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -60,32 +61,28 @@ const TARGET = 0x0fd7;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-// -- comparison plumbing ------------------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH, or null. */
-function firstRamDiffOutsideStack(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP, or null. */
+function firstRamDiffOutsideStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
-/**
- * Run the oracle and a candidate on two FRESH clones of `entry` (a memory-writing
- * routine demands a fresh clone per side) and diff RAM (ex-stack).
- */
 function diffRam(entry, candidate) {
   const a = entry.clone(); // oracle
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return firstRamDiffOutsideStack(a, b);
+  return firstRamDiffOutsideStack(a, b, entry.regs.sp);
 }
 
 /**

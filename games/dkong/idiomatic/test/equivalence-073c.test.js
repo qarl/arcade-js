@@ -23,6 +23,7 @@ import { loc_073c as oracle } from "../../translated/loc_073c.js";
 import { runAttractState } from "../runAttractState.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, CREDITS, GAME_STATE, GAME_SUBSTATE } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -33,14 +34,14 @@ const test = ROM_PRESENT
 
 const TARGET = 0x073c;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
- * Diff two machines' RAM. Returns the first difference OUTSIDE STACK_SCRATCH
+ * Diff two machines' RAM. Returns the first difference OUTSIDE the stack scratch below the entry SP
  * (game-visible — a real failure) or null, plus how many bytes differed inside the
  * dead stack scratch (the tolerated rst-push / ret residue).
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0;
@@ -48,7 +49,7 @@ function ramDiffMinusStack(a, b) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -63,7 +64,7 @@ function replay(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return { a, b, ...ramDiffMinusStack(a, b) };
+  return { a, b, ...ramDiffMinusStack(a, b, entry.regs.sp) };
 }
 
 /**
@@ -153,7 +154,7 @@ test("EQUAL (crafted): CREDIT and every sub-state 0-7 forced on a real entry mat
     const sp0 = b.regs.sp, pc0 = b.pc;
     oracle(a);
     runAttractState(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, entry.regs.sp);
     assert.equal(bad, null, bad && `CREDIT: game-visible RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
     assert.equal(b.mem.read8(GAME_SUBSTATE), 0x00, "CREDIT must reset GAME_SUBSTATE to 0");
     assert.equal(b.mem.read8(GAME_STATE), (entry.mem.read8(GAME_STATE) + 1) & 0xff, "CREDIT must advance GAME_STATE by 1");
@@ -171,7 +172,7 @@ test("EQUAL (crafted): CREDIT and every sub-state 0-7 forced on a real entry mat
     a.mem.write8(GAME_SUBSTATE, s); b.mem.write8(GAME_SUBSTATE, s);
     oracle(a);
     runAttractState(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, entry.regs.sp);
     assert.equal(
       bad,
       null,

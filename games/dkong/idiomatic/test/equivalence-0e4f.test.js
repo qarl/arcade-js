@@ -11,7 +11,7 @@
  * a FRESH clone per side (never a reused machine). The oracle (translated loc_0e4f) is
  * run on one clone and drawGirderSpan on another, then compared on the go-forward contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) + SP + declared live-out DE.
+ *     RAM (dumpState, minus the stack scratch below the entry SP) + SP + declared live-out DE.
  *
  * dumpState covers work + sprite + VIDEO RAM, so both the 0x63B1/0x63B5 scratch and the
  * tile stamps — this routine's whole point — are inside the compared state. DE is the
@@ -64,7 +64,7 @@ import { loc_0e4f as oracle } from "../../translated/loc_0e4f.js";
 import { drawGirderSpan } from "../drawGirderSpan.js";
 import { drawCappedTileColumn } from "../drawCappedTileColumn.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -82,18 +82,18 @@ const XDELTA = 0x63b2; // 0 = straight; sign of nonzero picks the slant directio
 const TILECODE = 0x63b5; // live girder tile code (seeded then nudged as it descends)
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 /**
  * First RAM difference on the go-forward contract: the whole state dump (work +
- * sprite + video) minus the dead STACK_SCRATCH region. Returns {addr,a,b} or null.
+ * sprite + video) minus the stack scratch below the entry SP. Returns {addr,a,b} or null.
  */
-function ramDiffMinusStack(ma, mb) {
+function ramDiffMinusStack(ma, mb, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = ma.dumpState();
   const b = mb.dumpState();
   let d = firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off));
   let from = 0;
-  while (d && inDeadStack(d.addr)) {
+  while (d && dead(d.addr)) {
     from = d.offset + 1;
     d = firstStateDiff(a.subarray(from), b.subarray(from), (off) => ma.stateOffsetToAddr(off + from));
   }
@@ -101,8 +101,8 @@ function ramDiffMinusStack(ma, mb) {
 }
 
 /** Full contract diff: RAM (−stack), then SP, then the DE live-out. null if equal. */
-function contractDiff(o, c) {
-  const d = ramDiffMinusStack(o, c);
+function contractDiff(o, c, liveFloor) {
+  const d = ramDiffMinusStack(o, c, liveFloor);
   if (d) return `RAM at ${hx(d.addr ?? 0)}: oracle=${d.a} cand=${d.b}`;
   if (o.regs.sp !== c.regs.sp) return `SP: oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`;
   if (o.regs.de !== c.regs.de) return `DE: oracle=${hx(o.regs.de)} cand=${hx(c.regs.de)}`;
@@ -146,7 +146,7 @@ test("EQUAL: real captured dispatches — drawGirderSpan == oracle in RAM (−st
     oracle(o);
     drawGirderSpan(c);
 
-    const diff = contractDiff(o, c);
+    const diff = contractDiff(o, c, cap.regs.sp);
     assert.equal(diff, null, diff);
   }
   const asHex = (s) => [...s].sort((a, b) => a - b).map((v) => hx(v)).join(", ");
@@ -197,7 +197,7 @@ test("CRAFTED: kind != 2 hands off to drawCappedTileColumn — oracle == drawGir
     oracle(o); // translated loc_0e4f -> m.call(0x0EE8) -> translated loc_0ee8
     drawGirderSpan(c); // -> drawCappedTileColumn directly
 
-    const diff = contractDiff(o, c);
+    const diff = contractDiff(o, c, base.regs.sp);
     assert.equal(diff, null, `kind=${hx(kind)}: ${diff}`);
   }
   // Sanity: the idiomatic delegate is the one this arm calls (guards against a silent
@@ -217,6 +217,7 @@ test("CRAFTED: slant-right row-boundary early exit — oracle == drawGirderSpan,
   const START = 0x7420; // row-aligned tilemap column, deep enough inside VRAM to stay in it
   const HEIGHT_IN = 0x40; // 64 px — two 8-px descents happen, then the boundary exit
   const o = CAPS[0].clone();
+  const oFloor = o.regs.sp;
   const c = CAPS[0].clone();
   for (const mm of [o, c]) {
     mm.mem.write8(KIND, 0x02);
@@ -228,7 +229,7 @@ test("CRAFTED: slant-right row-boundary early exit — oracle == drawGirderSpan,
   oracle(o);
   drawGirderSpan(c);
 
-  const diff = contractDiff(o, c);
+  const diff = contractDiff(o, c, oFloor);
   assert.equal(diff, null, diff);
 
   // Prove the run exited on the row boundary, not by exhausting the height: exactly two
@@ -301,7 +302,7 @@ test("TEETH: a wrong paired tile (−0x08) is CAUGHT in the tilemap on a capture
     const c = cap.clone();
     oracle(o);
     brokenPairedTile(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, cap.regs.sp);
     if (d) { caught = d; break; }
   }
   assert.notEqual(caught, null, "the gate FAILED to catch a wrong paired tile — it is worthless");
@@ -326,8 +327,8 @@ test("TEETH: forgetting to advance DE is CAUGHT by the DE comparison", () => {
   brokenNoDeAdvance(c);
 
   // RAM alone must NOT catch this (proves the DE check is load-bearing, not redundant).
-  assert.equal(ramDiffMinusStack(o, c), null, "RAM unexpectedly differs — this teeth no longer isolates DE");
-  const diff = contractDiff(o, c);
+  assert.equal(ramDiffMinusStack(o, c, cap.regs.sp), null, "RAM unexpectedly differs — this teeth no longer isolates DE");
+  const diff = contractDiff(o, c, cap.regs.sp);
   assert.notEqual(diff, null, "the gate FAILED to catch a stalled DE cursor — the walk could desync silently");
   assert.match(diff, /^DE:/, `expected a DE mismatch, got: ${diff}`);
   console.log(`  TEETH/DE: stalled cursor caught — ${diff}`);

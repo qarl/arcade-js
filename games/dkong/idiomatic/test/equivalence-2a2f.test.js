@@ -24,13 +24,13 @@
  * The oracle brackets the cell lookup with `push hl` / `push (return)` / `pop de` around its
  * `call 0x2FF0`; the idiomatic routine dissolves that into a direct tileAddrForPixel call and
  * never touches the stack, so those pushed bytes are dead scratch the candidate does not write.
- * The memory-equivalence contract is therefore RAM MINUS STACK_SCRATCH. For crafted entries SP
+ * The memory-equivalence contract is therefore RAM MINUS the stack scratch below the entry SP. For crafted entries SP
  * is seated at the top of the scratch region so every push the oracle makes lands inside
  * [0x6be0, 0x6c00); pc/SP are dead (a caller reads only the returned flag), so they are not
  * compared.
  *
  *   1. REACHABILITY / EQUAL (captured) — hook 0x2A2F in a real boot/attract run, clone at each
- *      dispatch, and confirm loc_2a2f == oracle (RAM − STACK_SCRATCH, return) on every real
+ *      dispatch, and confirm loc_2a2f == oracle (RAM − the stack scratch below the entry SP, return) on every real
  *      state the game produces. The attract demo reaches BOTH arms (the landing rewrite fires
  *      for rolling objects), so captures span passable and landing alike.
  *   2. EQUAL (crafted) — poke the object record and the foot tile identically on both sides to
@@ -56,6 +56,7 @@ import { tileAddrForPixel } from "../tileAddrForPixel.js";
 import { STACK_SCRATCH } from "../names.js";
 import { u8 } from "../../../../core/int.js";
 import { Machine } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -76,22 +77,22 @@ const RET_ADDR = 0x02cd;
 const OBJ_PTR = 0x6700;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 // The tilemap cell the routine probes for a given object X/Y, mirroring the oracle: the object's
 // X feeds the tilemap's vertical axis and its Y + 4 (the 4 px probe nudge downward) the
 // horizontal one — the 90-degree display rotation. Used to plant the foot tile.
 const cellFor = (objX, objY) => tileAddrForPixel(objX, u8(objY + 4));
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region
-// (the memory-equivalence contract is RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
+// (the memory-equivalence contract is RAM − the stack scratch below the entry SP). { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -99,13 +100,14 @@ function firstRamDiff(a, b) {
 
 // All non-stack RAM addresses that changed between two machines (for the no-write non-vacuity
 // check on the passable / no-land paths).
-function changedAddrs(a, b) {
+function changedAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.push(addr);
   }
   return out;
@@ -152,12 +154,12 @@ function runCandidate(entry, fn) {
   return { c, ret };
 }
 
-// Full contract diff: RAM − STACK_SCRATCH, plus the boolean return vs the oracle's contact flag.
+// Full contract diff: RAM − the stack scratch below the entry SP, plus the boolean return vs the oracle's contact flag.
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const { c, ret } = runCandidate(entry, fn);
   const out = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) out.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   const oracleContact = o.regs.a !== 0;
   if (ret !== oracleContact) out.push(`return oracle=${oracleContact} cand=${ret}`);
@@ -235,7 +237,7 @@ test("EQUAL (crafted): passable exits, every slope class, and both landing arms 
       assert.equal(after.regs.a, 1, `${name}: oracle did not report contact`);
     } else {
       // No landing: nothing non-stack was written and no contact reported.
-      assert.deepEqual(changedAddrs(entry, after), [], `${name}: passable/no-land path wrote non-stack RAM`);
+      assert.deepEqual(changedAddrs(entry, after, entry.regs.sp), [], `${name}: passable/no-land path wrote non-stack RAM`);
       assert.equal(after.regs.a, 0, `${name}: oracle reported contact on a passable path`);
     }
   }

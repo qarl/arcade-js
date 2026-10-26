@@ -10,7 +10,7 @@
  * side. The oracle runs on one clone, stampTwoTileBands on another, and they are compared
  * on the go-forward contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) only.
+ *     RAM (dumpState, minus the stack scratch below the entry SP) only.
  *
  * pc and SP are deliberately NOT compared. The oracle uses m.step + m.ret, so it advances
  * pc to its return target and pops SP+2; both are the modelled step/stack ABI the direct-
@@ -57,7 +57,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0d4c as oracle } from "../../translated/loc_0d4c.js";
 import { stampTwoTileBands } from "../stampTwoTileBands.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -78,19 +78,18 @@ function writeSetFor(base) {
   return cells;
 }
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
-
 /**
  * First RAM difference between two machines on the go-forward contract: the whole state
- * dump minus the STACK_SCRATCH region (dead scratch — masked per the contract).
+ * dump minus the stack scratch below the entry SP (dead scratch — masked per the contract).
  * Returns {addr,a,b,offset} or null.
  */
-function ramDiffMinusStack(ma, mb) {
+function ramDiffMinusStack(ma, mb, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = ma.dumpState();
   const b = mb.dumpState();
   let d = firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off));
   let from = 0;
-  while (d && inDeadStack(d.addr)) {
+  while (d && dead(d.addr)) {
     from = d.offset + 1;
     d = firstStateDiff(a.subarray(from), b.subarray(from), (off) => ma.stateOffsetToAddr(off + from));
   }
@@ -141,7 +140,7 @@ test("EQUAL: real forced board-4 dispatches — stampTwoTileBands == oracle in R
     oracle(o);
     stampTwoTileBands(c);
 
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, cap.regs.sp);
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} stamp=${d.b}`);
   }
   // The two real row bases sub_0d43 uses.
@@ -183,13 +182,14 @@ const CRAFTED_BASES = [0x7400, 0x7500, 0x7620, 0x76f0, 0x7780];
 test("CRAFTED: repointed to other video-RAM bases — stampTwoTileBands == oracle, and it really stamped", () => {
   for (const base of CRAFTED_BASES) {
     const o = CAPS[0].clone();
+    const oFloor = o.regs.sp;
     const c = CAPS[0].clone();
     o.regs.hl = base;
     c.regs.hl = base;
     oracle(o);
     stampTwoTileBands(c);
 
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, oFloor);
     assert.equal(d, null, d && `base ${hx(base)}: RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} stamp=${d.b}`);
     // ...and the candidate genuinely laid both bands at THIS base (not merely agreed).
     for (const cell of writeSetFor(base)) {
@@ -208,6 +208,7 @@ test("CRAFTED: pre-dirtied destination cells are overwritten identically by both
   const base = CAPS[0].regs.hl & 0xffff;
   const cells = writeSetFor(base);
   const o = CAPS[0].clone();
+  const oFloor = o.regs.sp;
   const c = CAPS[0].clone();
   // Identical surgical nudge on BOTH sides: dirty every destination byte to 0xAA.
   for (const cell of cells) {
@@ -217,7 +218,7 @@ test("CRAFTED: pre-dirtied destination cells are overwritten identically by both
   oracle(o);
   stampTwoTileBands(c);
 
-  const d = ramDiffMinusStack(o, c);
+  const d = ramDiffMinusStack(o, c, oFloor);
   assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} stamp=${d.b}`);
   for (const cell of cells) {
     assert.equal(c.mem.read8(cell.addr), cell.val, `stamp left ${hx(cell.addr)} = ${hx(c.mem.read8(cell.addr))} (expected ${hx(cell.val)})`);
@@ -228,6 +229,7 @@ test("CRAFTED: pre-dirtied destination cells are overwritten identically by both
 test("CRAFTED: garbage in B/DE/A and far RAM (identical both sides) does not change the output", () => {
   const base = CAPS[0].regs.hl & 0xffff;
   const o = CAPS[0].clone();
+  const oFloor = o.regs.sp;
   const c = CAPS[0].clone();
   // Identical unrelated nudge on both sides: the routine reads only HL, so garbage in the
   // register file (except HL) and in RAM it never touches must not move the output.
@@ -239,7 +241,7 @@ test("CRAFTED: garbage in B/DE/A and far RAM (identical both sides) does not cha
   oracle(o);
   stampTwoTileBands(c);
 
-  const d = ramDiffMinusStack(o, c);
+  const d = ramDiffMinusStack(o, c, oFloor);
   assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} stamp=${d.b}`);
   for (const cell of writeSetFor(base)) {
     assert.equal(c.mem.read8(cell.addr), cell.val, `stamp left ${hx(cell.addr)} = ${hx(c.mem.read8(cell.addr))} (expected ${hx(cell.val)})`);
@@ -269,15 +271,17 @@ test("TEETH: a wrong second-band gap is CAUGHT and names base+0x20", () => {
 
   // Captured state.
   const o = CAPS[0].clone();
+  const oFloor = o.regs.sp;
   const c = CAPS[0].clone();
   oracle(o);
   brokenGapStamp(c);
-  const d = ramDiffMinusStack(o, c);
+  const d = ramDiffMinusStack(o, c, oFloor);
   assert.notEqual(d, null, "the gate FAILED to catch a wrong gap — it is worthless");
   assert.equal(d.addr, wantAddr, `teeth caught the wrong address ${hx(d.addr ?? 0)} (expected ${hx(wantAddr)})`);
 
   // Crafted dirtied state too (must be caught regardless of prior contents).
   const o2 = CAPS[0].clone();
+  const o2Floor = o2.regs.sp;
   const c2 = CAPS[0].clone();
   for (const cell of writeSetFor(base)) {
     o2.mem.write8(cell.addr, 0xaa);
@@ -285,7 +289,7 @@ test("TEETH: a wrong second-band gap is CAUGHT and names base+0x20", () => {
   }
   oracle(o2);
   brokenGapStamp(c2);
-  const d2 = ramDiffMinusStack(o2, c2);
+  const d2 = ramDiffMinusStack(o2, c2, o2Floor);
   assert.notEqual(d2, null, "the gate FAILED to catch the wrong gap on the crafted state");
   assert.equal(d2.addr, wantAddr, `crafted teeth caught the wrong address ${hx(d2.addr ?? 0)} (expected ${hx(wantAddr)})`);
 

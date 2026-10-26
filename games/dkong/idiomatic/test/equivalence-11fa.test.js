@@ -5,13 +5,13 @@
  *
  * The routine WRITES MEMORY and leaves NO live registers (both callers reload HL/DE
  * and never read A/IX/flags — live-out is memory-only), so it is gated on
- * memory-equivalence over RAM (minus STACK_SCRATCH) + pc + SP, and every case runs
+ * memory-equivalence over RAM (minus the stack scratch below the entry SP) + pc + SP, and every case runs
  * on a FRESH clone (a reused clone is only safe for a read-only leaf):
  *
  *   1. EQUAL (real captured dispatches) — hook 0x11fa in a real attract run and
  *      clone the machine at each true dispatch. Attract dispatches it from loc_0fd7
  *      (HL=0x3DF4). For each capture, run the ORACLE on one clone and loc_11fa on
- *      another and confirm identical RAM (minus STACK_SCRATCH) + pc + SP.
+ *      another and confirm identical RAM (minus the stack scratch below the entry SP) + pc + SP.
  *
  *   2. EQUAL (crafted arms + edges) — the source the real run never reaches, from
  *      real captured RAM with a surgical HL poke: (a) the second caller's real ROM
@@ -46,6 +46,7 @@ import { loc_11fa as oracle } from "../../translated/loc_11fa.js";
 import { loc_11fa } from "../loc_11fa.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -56,21 +57,19 @@ const test = ROM_PRESENT
 
 const TARGET = 0x11fa;
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
-
-// -- the memory-equivalence contract ------------------------------------------
 
 /**
- * First RAM byte that differs between two machines, skipping STACK_SCRATCH — the
+ * First RAM byte that differs between two machines, skipping the stack scratch below the entry SP — the
  * dead stack region the standard gate excludes.
  */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -96,7 +95,7 @@ function runCandidate(entry, fn) {
 }
 
 /**
- * Compare candidate vs oracle over the full contract: RAM − STACK_SCRATCH, pc, SP.
+ * Compare candidate vs oracle over the full contract: RAM − the stack scratch below the entry SP, pc, SP.
  * Live-out is memory-only (no live registers), so the register file is deliberately
  * NOT compared — that is the whole point of the memory-equivalence gate. Returns a
  * list of human-readable mismatches (empty when equal).
@@ -105,14 +104,12 @@ function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=0x${o.pc.toString(16)} cand=0x${c.pc.toString(16)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=0x${o.regs.sp.toString(16)} cand=0x${c.regs.sp.toString(16)}`);
   return diffs;
 }
-
-// -- capture ------------------------------------------------------------------
 
 /**
  * Hook 0x11fa in a real attract run and clone the machine at up to K real
@@ -129,8 +126,6 @@ function captureDispatches(K, maxFrames) {
   host.runFrames(maxFrames);
   return caps;
 }
-
-// -- broken twins -------------------------------------------------------------
 
 /**
  * Broken twin (a): the ROM's load-bearing out-of-order pair inverted — writes byte 3
@@ -176,8 +171,6 @@ function brokenWrongTag(m) {
   mem.write8(0x6a2b, b(3));
 }
 
-// -- 1. EQUAL (real captured dispatches) --------------------------------------
-
 test("EQUAL (real dispatches): loc_11fa == oracle on every captured 0x11fa entry", () => {
   const caps = captureDispatches(64, 4000);
   assert.ok(caps.length >= 1, "expected at least one real 0x11fa dispatch during attract");
@@ -188,8 +181,6 @@ test("EQUAL (real dispatches): loc_11fa == oracle on every captured 0x11fa entry
   const shapes = caps.map((c) => `HL=0x${c.regs.hl.toString(16)} SP=0x${c.regs.sp.toString(16)}`);
   console.log(`  EQUAL/real: ${caps.length} captured dispatches identical\n    ` + shapes.join("\n    "));
 });
-
-// -- 2. EQUAL (crafted arms + edges) ------------------------------------------
 
 test("EQUAL (crafted): the unreached loc_101f source + a distinct-byte pattern match the oracle", () => {
   const caps = captureDispatches(1, 4000);
@@ -220,8 +211,6 @@ test("EQUAL (crafted): the unreached loc_101f source + a distinct-byte pattern m
   }
   console.log(`  EQUAL/crafted: ${cases.length} arms identical to the oracle (incl. non-zero +0x09 and full-field pin)`);
 });
-
-// -- 3. TEETH -----------------------------------------------------------------
 
 test("TEETH: the field-swap twin and the wrong-tag twin are CAUGHT", () => {
   const caps = captureDispatches(8, 4000);

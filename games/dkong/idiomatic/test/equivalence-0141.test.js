@@ -10,7 +10,7 @@
  * on one clone, blitSpritesViaDma on another, and they are compared on the go-forward
  * contract, which here is:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus the stack scratch below the entry SP).
  *
  * pc AND SP are BOTH excluded, unlike a routine whose oracle leaves them untouched.
  * The sub_0141 oracle models the full Z80 instruction stream and ENDS IN `ret`, so it
@@ -55,7 +55,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0141 as oracle } from "../../translated/loc_0141.js";
 import { blitSpritesViaDma } from "../blitSpritesViaDma.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, SPRITE_BUFFER } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -74,19 +74,18 @@ const SPRITE_RAM_BASE = 0x7000;
 const BLIT_LEN = 385;
 const BLIT_END = SPRITE_RAM_BASE + BLIT_LEN - 1; // 0x7180
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
-
 /**
  * First RAM difference between two machines on the go-forward contract: the whole
- * state dump minus the STACK_SCRATCH region (dead scratch — neither side writes it
+ * state dump minus the stack scratch below the entry SP (dead scratch — neither side writes it
  * here, masked per the contract). Returns {addr,a,b} or null.
  */
-function ramDiffMinusStack(ma, mb) {
+function ramDiffMinusStack(ma, mb, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = ma.dumpState();
   const b = mb.dumpState();
   let d = firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off));
   let from = 0;
-  while (d && inDeadStack(d.addr)) {
+  while (d && dead(d.addr)) {
     from = d.offset + 1;
     d = firstStateDiff(a.subarray(from), b.subarray(from), (off) => ma.stateOffsetToAddr(off + from));
   }
@@ -139,7 +138,7 @@ test("EQUAL: real captured dispatches — blitSpritesViaDma == oracle in RAM (�
     oracle(o);
     blitSpritesViaDma(c);
 
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, cap.regs.sp);
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} blit=${d.b}`);
   }
   console.log(`  EQUAL: ${CAPS.length} real dispatches identical (RAM −stack)`);
@@ -189,7 +188,7 @@ test("CRAFTED: a pre-dirtied blit target is overwritten with the shadow buffer, 
   oracle(o);
   blitSpritesViaDma(c);
 
-  const d = ramDiffMinusStack(o, c);
+  const d = ramDiffMinusStack(o, c, base.regs.sp);
   assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} blit=${d.b}`);
 
   // ...and blitSpritesViaDma genuinely copied the shadow buffer over the 0xAA dirt:
@@ -237,7 +236,7 @@ test("TEETH: a twin that never pulses DRQ high (no blit) is CAUGHT", () => {
   }
   oracle(o);
   brokenBlitSpritesViaDma(c);
-  const d = ramDiffMinusStack(o, c);
+  const d = ramDiffMinusStack(o, c, base.regs.sp);
   assert.notEqual(d, null, "the gate FAILED to catch a missing DRQ pulse (no blit) — it is worthless");
   assert.ok(
     d.addr >= SPRITE_RAM_BASE && d.addr <= BLIT_END,
@@ -252,7 +251,7 @@ test("TEETH: a twin that never pulses DRQ high (no blit) is CAUGHT", () => {
     const rc = realCap.clone();
     oracle(ro);
     brokenBlitSpritesViaDma(rc);
-    caughtReal = ramDiffMinusStack(ro, rc);
+    caughtReal = ramDiffMinusStack(ro, rc, realCap.regs.sp);
     assert.notEqual(caughtReal, null, "the gate FAILED to catch the missing blit on a real non-trivial frame");
   }
 

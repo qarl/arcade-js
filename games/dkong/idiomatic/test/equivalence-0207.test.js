@@ -13,7 +13,7 @@
  * and the strongest possible gate is available:
  *
  *   1. EQUAL (exhaustive) — decodeDipSwitches == oracle over all 256 DSW0 values,
- *      compared on the RAM dump minus STACK_SCRATCH (the routine writes no stack; the
+ *      compared on the RAM dump minus the stack scratch below the entry SP (the routine writes no stack; the
  *      exclusion is the documented contract, not a workaround). A FRESH clone per side
  *      because the routine WRITES memory (docs/decompiler-pipeline: only a pure read-only leaf may reuse
  *      a clone). 256 values is the complete input space, so this is a proof, not a
@@ -44,7 +44,7 @@ import { loc_0207 as oracle } from "../../translated/loc_0207.js";
 import { decodeDipSwitches } from "../decodeDipSwitches.js";
 import { STACK_SCRATCH } from "../names.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -59,23 +59,20 @@ const DIP_BONUS_LIFE = 0x6021;
 
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
 
-// The routine writes no stack; still, compare on the DOCUMENTED contract — RAM minus
-// STACK_SCRATCH — so a stray push (a future regression) could not hide there.
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
-
 /**
- * First RAM difference (minus STACK_SCRATCH) between two machines. firstStateDiff
+ * First RAM difference (minus the stack scratch below the entry SP) between two machines. firstStateDiff
  * returns the first differing byte anywhere; we re-scan skipping the stack window so
- * the contract is exactly RAM − STACK_SCRATCH.
+ * the contract is exactly RAM − the stack scratch below the entry SP.
  */
-function ramDiffExStack(a, b) {
+function ramDiffExStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -102,7 +99,7 @@ function captureEntry(maxFrames = 240) {
 /**
  * Run the oracle and `candidate` on two FRESH clones of `entry`, both with DSW0
  * forced to `dsw0` (undefined = leave the entry's real DSW0), and return the first
- * RAM difference (minus STACK_SCRATCH) or null.
+ * RAM difference (minus the stack scratch below the entry SP) or null.
  */
 function runPair(entry, dsw0, candidate) {
   const a = entry.clone(); // oracle
@@ -113,7 +110,7 @@ function runPair(entry, dsw0, candidate) {
   }
   oracle(a);
   candidate(b);
-  return ramDiffExStack(a, b);
+  return ramDiffExStack(a, b, entry.regs.sp);
 }
 
 /**
@@ -143,7 +140,7 @@ test("EQUAL (exhaustive): decodeDipSwitches == oracle over all 256 DSW0 values",
         `(oracle ${mismatch.ram.a} -> idiomatic ${mismatch.ram.b})`,
   );
   assert.equal(count, 256, "must have compared all 256 DSW0 values");
-  console.log(`  EQUAL/exhaustive: ${count} DSW0 values — RAM (minus STACK_SCRATCH) identical to the oracle`);
+  console.log(`  EQUAL/exhaustive: ${count} DSW0 values — RAM (minus the stack scratch below the entry SP) identical to the oracle`);
 });
 
 // -- 2. TEETH (exhaustive) ----------------------------------------------------
@@ -223,13 +220,14 @@ test("REALISM: the real power-on dispatch — oracle writes only 0x6020-0x6026 +
   oracle(after);
   const db = before.dumpState();
   const da = after.dumpState();
+  const dead = deadStackBelow(STACK_SCRATCH, entry.regs.sp);
   for (let i = 0; i < Math.min(db.length, da.length); i++) {
     if (db[i] === da[i]) continue;
     const addr = after.stateOffsetToAddr(i);
     const inSettings = addr >= 0x6020 && addr <= 0x6026;
     const inTable = addr >= 0x6100 && addr <= 0x61a9;
     assert.ok(
-      inSettings || inTable || inStack(addr),
+      inSettings || inTable || dead(addr),
       `oracle wrote outside the expected regions at 0x${(addr ?? 0).toString(16)} (${db[i]} -> ${da[i]})`,
     );
   }

@@ -15,7 +15,7 @@
  * cursor HL and fill tile 0x63B5 are then staged exactly as 0x0F1B would, identically
  * on both sides.
  *
- * The comparison is RAM − STACK_SCRATCH (the dead stack region the oracle's push/call/
+ * The comparison is RAM − the stack scratch below the entry SP (the dead stack region the oracle's push/call/
  * ret traffic lands in; the direct-call layer drops it) plus DE (the record-pointer
  * live-out / walk-integrity cross-check).
  *
@@ -46,6 +46,7 @@ import { loc_0e4f } from "../../translated/loc_0e4f.js"; // live capture sibling
 import { drawBoardLayout as loc_0da7 } from "../drawBoardLayout.js"; // idiomatic callee, for the teeth twins
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -66,15 +67,16 @@ const FILL_TILES = [0xe0, 0xb0, 0xfe];
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-/** First game-visible RAM byte that differs (EXCLUDING STACK_SCRATCH), or null. */
-function ramDiffMinusStack(a, b) {
+/** First game-visible RAM byte that differs (EXCLUDING the stack scratch below the entry SP), or null. */
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     if (!bad) { bad = { addr, a: da[i], b: db[i] }; break; }
   }
   return bad;
@@ -101,7 +103,7 @@ function replay(entry, cfg, cand) {
   stage(b, cfg);
   oracle(a);
   cand(b);
-  return { bad: ramDiffMinusStack(a, b), deOracle: a.regs.de & 0xffff, deCand: b.regs.de & 0xffff };
+  return { bad: ramDiffMinusStack(a, b, entry.regs.sp), deOracle: a.regs.de & 0xffff, deCand: b.regs.de & 0xffff };
 }
 
 /** Hook loc_0e4f (dispatched once per kind-2 record in the 25m attract draw) and clone. */

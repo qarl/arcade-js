@@ -29,7 +29,7 @@
  * too.
  *
  *   0. REACHABILITY — count natural 0x26FA dispatches; validate each against the oracle.
- *   1. EQUAL (crafted, all arms) — service75mBoard == oracle over RAM − STACK_SCRATCH + pc + SP
+ *   1. EQUAL (crafted, all arms) — service75mBoard == oracle over RAM − the stack scratch below the entry SP + pc + SP
  *      across: gate closed (no write), edge reset (killMarioAtEndOfLiftTravel), both cadence branches into
  *      serviceBoardObjects and loc_271e on level 1 and a later level, and the level-1
  *      idle phases — each with its callee's signature write asserted (non-vacuity), and
@@ -55,7 +55,7 @@ import { killMarioAtEndOfLiftTravel } from "../killMarioAtEndOfLiftTravel.js";
 import { serviceBoardObjects } from "../serviceBoardObjects.js";
 import { loc_271e } from "../loc_271e.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   BOARD,
@@ -98,17 +98,17 @@ const OBJ_STRIDE = 16;
 const OBJ0_X = 0x37; // object 0's X, published to PUBLISH_BASE by serviceBoardObjects
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH
-// region (the memory-equivalence contract is RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
+// region (the memory-equivalence contract is RAM − the stack scratch below the entry SP). { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -116,13 +116,14 @@ function firstRamDiff(a, b) {
 
 // Every NON-STACK RAM address that changed between two machines (the oracle's push
 // churn in STACK_SCRATCH is excluded, so this is a genuine live-write set).
-function changedAddrs(a, b) {
+function changedAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.push(addr);
   }
   return out;
@@ -148,12 +149,12 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Full contract diff: RAM − STACK_SCRATCH, pc, SP. Live-out is memory-only. */
+/** Full contract diff: RAM − the stack scratch below the entry SP, pc, SP. Live-out is memory-only. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);
@@ -267,7 +268,7 @@ test("EQUAL (crafted): every dispatch arm matches the oracle over RAM − stack 
     // Non-vacuity: the oracle took the expected arm and left its signature.
     const after = runOracle(entry);
     if (arm === "skip" || arm === "idle") {
-      assert.deepEqual(changedAddrs(entry, after), [], `${name}: expected no live write, got ${changedAddrs(entry, after).map(hx)}`);
+      assert.deepEqual(changedAddrs(entry, after, entry.regs.sp), [], `${name}: expected no live write, got ${changedAddrs(entry, after, entry.regs.sp).map(hx)}`);
     } else if (arm === "edge") {
       assert.equal(after.mem.read8(MARIO_ACTIVE), 0, `${name}: edge reset must clear MARIO_ACTIVE`);
       assert.equal(after.mem.read8(EDGE_REPOSITION_FLAG), 0, `${name}: edge reset must clear EDGE_REPOSITION_FLAG`);
@@ -295,13 +296,13 @@ test("BOUNDED EXCLUSION: the ONLY whole-dump oracle-vs-candidate diff lands in S
   const c = entry.clone(); service75mBoard(c); c.ret();
 
   // Stack excluded -> identical.
-  assert.equal(firstRamDiff(o, c), null, "stack-excluded contract must be identical on a loc_271e body arm");
+  assert.equal(firstRamDiff(o, c, entry.regs.sp), null, "stack-excluded contract must be identical on a loc_271e body arm");
 
   // Whole-dump diff is non-null and inside STACK_SCRATCH — proving the oracle really
   // does push (so the exclusion is load-bearing) and that the push is all it hides.
   const whole = firstStateDiff(o.dumpState(), c.dumpState(), (off) => o.stateOffsetToAddr(off));
   assert.notEqual(whole, null, "expected the oracle's stack churn to show up in the whole-dump diff");
-  assert.ok(inStack(whole.addr), `the only whole-dump diff must be in STACK_SCRATCH, got ${hx(whole.addr)}`);
+  assert.ok(deadStackBelow(STACK_SCRATCH, entry.regs.sp)(whole.addr), `the only whole-dump diff must be in the stack scratch below the entry SP, got ${hx(whole.addr)}`);
 
   console.log(`  BOUNDED EXCLUSION: live RAM identical; the sole whole-dump diff is at ${hx(whole.addr)} (dead stack scratch)`);
 });

@@ -14,13 +14,13 @@
  * The oracle pushes the packed byte and a call-return onto the stack and addToScoreTask nests further
  * pushes; on this crafted base all of that lands inside STACK_SCRATCH, which the memory-equivalence
  * contract excludes. The idiomatic candidate models no stack (plain JS returns + a direct addToScoreTask
- * call), so it never writes the stack — the compared region (RAM − STACK_SCRATCH) is clean on both
+ * call), so it never writes the stack — the compared region (RAM − the stack scratch below the entry SP) is clean on both
  * sides. Live-out is memory-only, so pc/SP are not compared (loc_062a tail-jumps in and no caller
  * reads a register back).
  *
  *   1. REACHABILITY — probe how often 0x0691 is dispatched in boot/attract (loc_062a's task-10
  *      A==0 arm). It may be rare or zero; the exhaustive sweep is the proof either way.
- *   2. EQUAL (exhaustive, P1) — awardRemainingBonusToScore == oracle over RAM − STACK_SCRATCH for all 256 values of
+ *   2. EQUAL (exhaustive, P1) — awardRemainingBonusToScore == oracle over RAM − the stack scratch below the entry SP for all 256 values of
  *      BONUS_DISPLAY on a crafted P1 base (ATTRACT cleared; a score under a lower high score so adds and a
  *      promotion are observable), plus a non-vacuity check that byte 0x11 really added +100 then
  *      +1000 on both sides.
@@ -51,6 +51,7 @@ import {
   P2_SCORE,
   HIGH_SCORE,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -64,17 +65,17 @@ const RET_ADDR = 0x02bf; // a plausible caller return (lands in STACK_SCRATCH, e
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const hb = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region
-// (the memory-equivalence contract is RAM − STACK_SCRATCH). Returns { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
+// (the memory-equivalence contract is RAM − the stack scratch below the entry SP). Returns { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -116,13 +117,14 @@ function makeEntry(craftedBase, byte) {
   return e;
 }
 
-// Run the oracle and a candidate on two FRESH, byte-identical entries and diff RAM − STACK_SCRATCH.
+// Run the oracle and a candidate on two FRESH, byte-identical entries and diff RAM − the stack scratch below the entry SP.
 function runPair(craftedBase, byte, candidate) {
   const a = makeEntry(craftedBase, byte); // oracle
+  const aFloor = a.regs.sp;
   const b = makeEntry(craftedBase, byte); // candidate
   oracle(a);
   candidate(b);
-  return firstRamDiff(a, b);
+  return firstRamDiff(a, b, aFloor);
 }
 
 // Sweep all 256 input bytes; return the first mismatch (or null) and the count compared.

@@ -47,6 +47,7 @@ import { loc_0a1b as oracle } from "../../translated/loc_0a1b.js";
 import { loc_0a1b } from "../loc_0a1b.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, GAME_SUBSTATE, GAME_STATE, TWO_PLAYER_GAME, TASK_TAIL } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -65,22 +66,22 @@ const IN2 = 0x7d00;
 const COIN1 = 1 << 7, START2 = 1 << 3;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
  * Diff two machines' RAM (work + sprite + video, per dumpState). Returns the first
- * difference OUTSIDE STACK_SCRATCH (game-visible — a real failure) or null, plus the
+ * difference OUTSIDE the stack scratch below the entry SP (game-visible — a real failure) or null, plus the
  * count of bytes that differed inside the dead stack scratch (the oracle's push
  * residue; loc_0a1b models no stack, so a diff there is expected and tolerated).
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -124,7 +125,7 @@ function replay(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return { a, b, ...ramDiffMinusStack(a, b) };
+  return { a, b, ...ramDiffMinusStack(a, b, entry.regs.sp) };
 }
 
 // -- 1. EQUAL (crafted ring arms) ---------------------------------------------

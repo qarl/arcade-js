@@ -9,7 +9,7 @@
  *
  * Like the renderer it tails into (renderBcdColumn 0x057c, renderBcdColumnFixedCell
  * 0x0578, expandBcdDigits 0x0583, storeDigitAndAdvance 0x0593), this routine WRITES
- * MEMORY and loops, so it is gated on memory-equivalence (RAM - STACK_SCRATCH + pc +
+ * MEMORY and loops, so it is gated on memory-equivalence (RAM - the stack scratch below the entry SP + pc +
  * SP + reproduced registers), not a returned scalar, and every case runs on a FRESH
  * clone.
  *
@@ -44,6 +44,7 @@ import { loc_056b } from "../loc_056b.js";
 import { renderBcdColumn } from "../renderBcdColumn.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -56,22 +57,22 @@ const TARGET = 0x056b; // the column-selecting BCD renderer front end
 const COLUMN_IF_ZERO = 0x7781;    // destination column the oracle picks when the selector is zero
 const COLUMN_IF_NONZERO = 0x7521; // destination column the oracle picks when the selector is nonzero
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // -- the memory-equivalence contract ------------------------------------------
 
 /**
- * First RAM byte that differs between two machines, skipping STACK_SCRATCH — the dead
+ * First RAM byte that differs between two machines, skipping the stack scratch below the entry SP — the dead
  * stack region the standard gate excludes. The oracle's per-digit push16/pop touch
  * only bytes inside it.
  */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -84,11 +85,6 @@ function runOracle(entry) {
   return c;
 }
 
-/**
- * Run a candidate on a fresh clone, then model its return with one m.ret() so pc + SP
- * match the oracle's (the idiomatic routine replaces the Z80 stack with the JS call
- * stack, so it does not touch pc/SP itself — the harness supplies the caller-return pop).
- */
 function runCandidate(entry, fn) {
   const c = entry.clone();
   fn(c);
@@ -97,7 +93,7 @@ function runCandidate(entry, fn) {
 }
 
 /**
- * Compare candidate vs oracle over the full contract: RAM - STACK_SCRATCH, pc, SP, and
+ * Compare candidate vs oracle over the full contract: RAM - the stack scratch below the entry SP, pc, SP, and
  * every register the routine reproduces (A/B/HL/IX/DE). LIVE-OUT is memory-only — the
  * caller reads no output register — but the registers are reproduced identically to the
  * oracle and pinned here for extra teeth (the twins are caught via IX as well as RAM).
@@ -114,7 +110,7 @@ function contractDiffs(entry, fn) {
     return [`candidate threw: ${e.message}`];
   }
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   if (o.regs.a !== c.regs.a) diffs.push(`A oracle=${hx(o.regs.a)} cand=${hx(c.regs.a)}`);
   if (o.regs.b !== c.regs.b) diffs.push(`B oracle=${hx(o.regs.b)} cand=${hx(c.regs.b)}`);
@@ -199,7 +195,6 @@ test("EQUAL (real): loc_056b == oracle on every real captured 0x056B dispatch", 
       0,
       `a=${hx(entry.regs.a)} de=0x${entry.regs.de.toString(16)}: ${diffs.join("; ")}`,
     );
-    // The oracle establishes the expected column for this selector.
     assert.equal(
       runOracle(entry).regs.ix,
       (expectedColumn(entry) - 0xc0) & 0xffff, // six -0x20 steps advance IX by 0xC0 past the base

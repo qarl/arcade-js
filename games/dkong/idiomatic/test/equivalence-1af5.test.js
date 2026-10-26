@@ -9,7 +9,7 @@
  * picks — so what is really being gated is the BRANCH. Both arms end by tailing into a callee
  * whose chain nets exactly one caller-return, so the harness performs ONE m.ret() on the
  * candidate to line pc + SP up with the oracle (the same pattern as equivalence-1cab and
- * equivalence-1afe). The contract is RAM − STACK_SCRATCH + pc + SP + the return value; no
+ * equivalence-1afe). The contract is RAM − the stack scratch below the entry SP + pc + SP + the return value; no
  * register file, because the live-out is memory-only plus that return (see the routine header).
  * Real dispatches sit at SP 0x6BEA..0x6BEE, so all the dissolved call/return churn stays inside
  * STACK_SCRATCH.
@@ -54,6 +54,7 @@ import { walkMarioRight } from "../walkMarioRight.js"; // ROM 0x1C8F — the mir
 import { armMarioClimbAtLadderEnd } from "../armMarioClimbAtLadderEnd.js";             // ROM 0x1AFE — used by the teeth twins
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, P1_INPUT, MARIO_X, MARIO_WALK_ANIM, MARIO_SPRITE_CODE } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -68,22 +69,22 @@ const MAX_CLONES = 400;
 const LEFT_HELD = 0x02;
 const LEFT_BLOCKED = 1;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 /** Which arm the oracle takes, from the two register live-ins alone. */
 const armOf = (a, d) => (d === LEFT_BLOCKED ? "blocked" : (a & LEFT_HELD) !== 0 ? "walk-left" : "fall-through");
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH (the dead stack the
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP (the dead stack the
  *  oracle's dissolved tail-call returns churn; the candidate uses the JS call stack). */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -105,12 +106,12 @@ function runCandidate(entry, fn) {
   return { m: c, ret };
 }
 
-/** Compare candidate vs oracle over the contract: RAM − STACK_SCRATCH, pc, SP, return value. */
+/** Compare candidate vs oracle over the contract: RAM − the stack scratch below the entry SP, pc, SP, return value. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o.m, c.m);
+  const ram = firstRamDiff(o.m, c.m, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.m.pc !== c.m.pc) diffs.push(`pc oracle=${hx(o.m.pc)} cand=${hx(c.m.pc)}`);
   if (o.m.regs.sp !== c.m.regs.sp) diffs.push(`SP oracle=${hx(o.m.regs.sp)} cand=${hx(c.m.regs.sp)}`);
@@ -240,7 +241,7 @@ test("EQUAL (crafted): all 256 control words x four left-verdict values, incl. t
   // animation step when the sub-step pacer has expired).
   const walk = runOracle(craft(seed, { control: LEFT_HELD, leftLimit: 0 })).m;
   const blocked = runOracle(craft(seed, { control: LEFT_HELD, leftLimit: LEFT_BLOCKED })).m;
-  assert.ok(firstRamDiff(walk, blocked) !== null, "walk arm and blocked arm must differ in RAM");
+  assert.ok(firstRamDiff(walk, blocked, seed.regs.sp) !== null, "walk arm and blocked arm must differ in RAM");
   const movedX = walk.mem.read8(MARIO_X) !== seed.mem.read8(MARIO_X);
   const steppedAnim = walk.mem.read8(MARIO_WALK_ANIM) !== seed.mem.read8(MARIO_WALK_ANIM);
   assert.ok(movedX || steppedAnim, "the walk arm must actually move Mario or advance his walk cycle");

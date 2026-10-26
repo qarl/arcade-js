@@ -10,7 +10,7 @@
  * side, never the full register file, never cycles. The routine's ONLY data-dependent
  * input is record 2's entry X (0x6910), which sets the re-anchoring shift; sweeping it
  * over all 256 values is exhaustive over that surface. The contract compared is RAM
- * (minus STACK_SCRATCH); live-out is memory-only (the rst-0x28 return path in dispatchBoardClearedInterlude
+ * (minus the stack scratch below the entry SP); live-out is memory-only (the rst-0x28 return path in dispatchBoardClearedInterlude
  * reads none of the residual regs).
  *
  *   1. EQUAL (exhaustive over 0x6910) — from a real attract RAM base, sweep the stored
@@ -34,10 +34,6 @@
  *      by the 0x6910 sweep. This guards the read-before-copy ordering the direct-call
  *      rewrite has to preserve.
  *
- * NOT COMPARED, deliberately: SP, PC, the full register file, cycles. The oracle's `ret`
- * pops the stack and vectors PC; the idiomatic layer drops that (the JS call stack
- * replaces it). Residual A/B/C/HL/DE/flags are dead ABI, backstopped by the RAM gate.
- *
  * Run: node --test games/dkong/idiomatic/test/equivalence-16a3.test.js
  */
 
@@ -52,6 +48,7 @@ import { loadSpriteObjectBlock } from "../loadSpriteObjectBlock.js";
 import { addToSpriteObjectColumn } from "../addToSpriteObjectColumn.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, SPRITE_OBJ_BLOCK, SND_PRIORITY } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -67,17 +64,16 @@ const OBJ_BLOCK_BYTES = 0x28; // ten 4-byte sprite records
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-// -- comparison plumbing ------------------------------------------------------
-
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH, or null. */
-function firstRamDiffOutsideStack(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP, or null. */
+function firstRamDiffOutsideStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -98,11 +94,11 @@ function craftEntry(base, record2X, stepByte) {
 
 /** Run oracle and candidate on two fresh clones of `entry`; return first RAM diff. */
 function diffAgainstOracle(entry, cand) {
-  const a = entry.clone(); // oracle
-  const b = entry.clone(); // candidate
+  const a = entry.clone();
+  const b = entry.clone();
   oracle(a);
   cand(b);
-  return firstRamDiffOutsideStack(a, b);
+  return firstRamDiffOutsideStack(a, b, entry.regs.sp);
 }
 
 /** A real attract RAM base: booted machine, work RAM populated, no overrides so the
@@ -112,8 +108,6 @@ function attractBase() {
   host.runFrames(600);
   return host.clone();
 }
-
-// -- 1. EQUAL (exhaustive over record 2's entry X) ----------------------------
 
 test("EQUAL (exhaustive): all 256 record-2 X values match the oracle (RAM ex-stack)", () => {
   const base = attractBase();
@@ -126,8 +120,6 @@ test("EQUAL (exhaustive): all 256 record-2 X values match the oracle (RAM ex-sta
   assert.equal(count, 256, "must have swept all 256 record-2 X values");
   console.log(`  EQUAL/exhaustive: ${count} record-2 X values identical to the oracle (RAM ex-stack)`);
 });
-
-// -- 2. EQUAL (0x6388 step breadth) -------------------------------------------
 
 test("EQUAL (step breadth): all 256 step-selector values match the oracle (incl. wrap)", () => {
   const base = attractBase();
@@ -142,8 +134,6 @@ test("EQUAL (step breadth): all 256 step-selector values match the oracle (incl.
   assert.equal(count, 256, "must have swept all 256 step-selector values");
   console.log(`  EQUAL/step-breadth: ${count} step-selector values identical to the oracle`);
 });
-
-// -- 3. ARMS (the sweep is not vacuous) ---------------------------------------
 
 test("ARMS: stamp + re-anchor + step-advance + spawn all fire with distinctive effects", () => {
   const base = attractBase();
@@ -182,8 +172,6 @@ test("ARMS: stamp + re-anchor + step-advance + spawn all fire with distinctive e
   }
   console.log("  ARMS: stamp, re-anchor invariant, uniform X-column shift, step-advance, and spawn all exercised");
 });
-
-// -- 4. TEETH (exhaustive) ----------------------------------------------------
 
 /**
  * Broken twin: reads record 2's X AFTER the block copy overwrites it (so it measures the

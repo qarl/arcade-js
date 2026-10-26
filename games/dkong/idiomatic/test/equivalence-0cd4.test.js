@@ -9,7 +9,7 @@
  * idiomatic loc_0cc6, and hands the tail its layout pointer through the register image
  * (the tail's record walk reads DE). It WRITES memory through the whole shared tail, so it
  * is gated by clone / replay with a FRESH clone per case. The memory-equivalence contract
- * is RAM − STACK_SCRATCH: the oracle's push/call/ret traffic lands in the dead stack
+ * is RAM − the stack scratch below the entry SP: the oracle's push/call/ret traffic lands in the dead stack
  * region, which the compare excludes; the direct-call layer drops it entirely.
  *
  * Attract builds the 25m board, so it dispatches 0x0CD4 naturally (the board-1 setup arm,
@@ -38,6 +38,7 @@ import { setup25mGirderBoard as idiomatic } from "../setup25mGirderBoard.js";
 import { loc_0cc6 } from "../loc_0cc6.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, SND_BGM, BOARD, SUBSTATE_TIMER, GAME_SUBSTATE } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -57,16 +58,17 @@ const inVram = (a) => a >= VRAM_LO && a < VRAM_HI;
 
 /**
  * First game-visible differing RAM byte between two machines, EXCLUDING the dead
- * stack-scratch region (the memory-equivalence contract is RAM − STACK_SCRATCH).
+ * stack-scratch region (the memory-equivalence contract is RAM − the stack scratch below the entry SP).
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -103,10 +105,11 @@ test("STRUCTURE: real board-1 entry — game-visible RAM identical; oracle ran t
 
   const subBefore = entry.mem.read8(GAME_SUBSTATE);
   const a = entry.clone(), b = entry.clone();
+  const aFloor = a.regs.sp;
   oracle(a);
   idiomatic(b);
 
-  const { bad, stackDiffs } = ramDiffMinusStack(a, b);
+  const { bad, stackDiffs } = ramDiffMinusStack(a, b, aFloor);
   assert.equal(bad, null, bad && `game-visible RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
 
   // Non-vacuous: the arm queued its tune and the tail ran the continuation.
@@ -136,9 +139,10 @@ function brokenWrongTable(m) {
 
 test("TEETH (wrong-tune): queuing the wrong tune is CAUGHT at the tune latch", () => {
   const a = base().clone(), b = base().clone();
+  const aFloor = a.regs.sp;
   oracle(a);
   brokenWrongTune(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the gate FAILED to catch a wrong queued tune — it is worthless");
   assert.equal(bad.addr, SND_BGM, `expected the caught diff at the tune latch ${hx(SND_BGM)}, got ${hx(bad.addr)}`);
   console.log(`  TEETH/wrong-tune: caught at ${hx(bad.addr)} (oracle=${bad.a} broken=${bad.b})`);
@@ -146,9 +150,10 @@ test("TEETH (wrong-tune): queuing the wrong tune is CAUGHT at the tune latch", (
 
 test("TEETH (wrong-table): selecting the wrong layout table is CAUGHT in the drawn tilemap", () => {
   const a = base().clone(), b = base().clone();
+  const aFloor = a.regs.sp;
   oracle(a);
   brokenWrongTable(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the gate FAILED to catch a wrong layout-table selection — it is worthless");
   assert.ok(inVram(bad.addr), `expected the caught diff in tile-map video RAM, got ${hx(bad.addr)}`);
   console.log(`  TEETH/wrong-table: caught at ${hx(bad.addr)} (oracle=${bad.a} broken=${bad.b})`);
@@ -161,9 +166,10 @@ test("REALISM: replay every real 0x0cd4 dispatch — game-visible RAM identical 
   assert.ok(caps.length >= 1, "expected at least one real 0x0cd4 dispatch in a long attract run");
   for (const entry of caps) {
     const a = entry.clone(), b = entry.clone();
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     assert.equal(bad, null, bad && `real-dispatch RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
   }
   console.log(`  REALISM: ${caps.length} real 0x0cd4 dispatch(es) — game-visible RAM identical to the oracle`);

@@ -46,6 +46,7 @@ import { loc_0141 } from "../../translated/loc_0141.js";
 import { Machine } from "../../machine.js";
 import { DIP_UPRIGHT, P1_INPUT, P1_INPUT_RAW, ATTRACT, STACK_SCRATCH } from "../names.js";
 import { NotImplemented } from "../../../../boards/dkong/io.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -75,13 +76,14 @@ function threw(fn) {
 }
 
 // First differing RAM byte between two dumps, EXCLUDING the dead stack-scratch region
-// (the memory-equivalence contract is RAM − STACK_SCRATCH). Returns { addr, a, b } or null.
-function firstRamDiffExStack(a, b, offToAddr) {
+// (the memory-equivalence contract is RAM − the stack scratch below the entry SP). Returns { addr, a, b } or null.
+function firstRamDiffExStack(a, b, offToAddr, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] === b[i]) continue;
     const addr = offToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { addr, a: a[i], b: b[i] };
   }
   return null;
@@ -316,7 +318,7 @@ test("REALISM + PURITY: real captured in-game dispatches — footprint {0x6010,0
     const tA = threw(() => oracle(a));
     const tB = threw(() => candidate(b));
     assert.equal(tB, tA, "throw-parity diverged on a real dispatch");
-    const ramDiff = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o));
+    const ramDiff = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), cap.regs.sp);
     assert.equal(
       ramDiff,
       null,

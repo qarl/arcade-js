@@ -30,7 +30,7 @@
  *   1. REACHABILITY — 0x2AD3 is NOT dispatched during attract (documents why the gate is
  *      crafted; if this ever becomes nonzero, add captured coverage).
  *   2. EQUAL (crafted sweep) — loc_2ad3 == oracle over Y-band x all-256-prior-X x parity
- *      (RAM - STACK_SCRATCH, pc, SP).
+ *      (RAM - the stack scratch below the entry SP, pc, SP).
  *   3. TEETH — three broken twins, each MUST be caught:
  *      (a) dropped prior-X marshal -> the movers add the step to a stale X -> MARIO_X diverges.
  *      (b) swapped row-to-step pick (object-1 row reads object-3's step) -> MARIO_X diverges.
@@ -59,6 +59,7 @@ import {
   M50_OBJ2_STEP_NEG,
   M50_OBJ3_STEP,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -86,17 +87,17 @@ const STEP_OBJ3 = 0x07; // 0x63A6 — object-3 row (Y == 0xC8)
 const PRIOR_X_SENTINEL = 0x11;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region
-// (the memory-equivalence contract is RAM - STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
+// (the memory-equivalence contract is RAM - the stack scratch below the entry SP). { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -125,12 +126,12 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Full contract diff: RAM - STACK_SCRATCH, pc, SP. Live-out is memory-only. */
+/** Full contract diff: RAM - the stack scratch below the entry SP, pc, SP. Live-out is memory-only. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);
@@ -206,7 +207,7 @@ test("EQUAL (crafted sweep): loc_2ad3 == oracle over Y-band x all-prior-X x pari
   const { mismatch, count } = sweep(loc_2ad3);
   assert.equal(mismatch, null, describe(mismatch));
   assert.equal(count, YBANDS.length * BOARDS.length * 256, "must have compared the full crafted space");
-  console.log(`  EQUAL/crafted: ${count} (Y, board, prior-X) combos — RAM - STACK_SCRATCH, pc, SP identical to the oracle`);
+  console.log(`  EQUAL/crafted: ${count} (Y, board, prior-X) combos — RAM - the stack scratch below the entry SP, pc, SP identical to the oracle`);
 });
 
 // -- 3. TEETH -----------------------------------------------------------------

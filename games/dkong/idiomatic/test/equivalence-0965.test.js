@@ -39,6 +39,7 @@ import { loc_0965 as oracle } from "../../translated/loc_0965.js";
 import { enqueueTaskBatch } from "../enqueueTaskBatch.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -51,21 +52,21 @@ const TARGET = 0x0965;
 const TASK_TAIL = 0x60b0;
 const RING_LO = 0x60c0, RING_HI = 0x60ff; // 32 slots x 2 bytes
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
- * Diff two machines' RAM. Returns the first difference OUTSIDE STACK_SCRATCH
+ * Diff two machines' RAM. Returns the first difference OUTSIDE the stack scratch below the entry SP
  * (game-visible — a real failure) or null, plus how many bytes differed inside the
  * dead stack scratch (the tolerated push residue).
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -77,7 +78,7 @@ function replay(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return { a, b, ...ramDiffMinusStack(a, b) };
+  return { a, b, ...ramDiffMinusStack(a, b, entry.regs.sp) };
 }
 
 /**
@@ -144,10 +145,11 @@ test("EQUAL (crafted): CLEAN / FULL / WRAP ring arms match the oracle, exact pay
 
   for (const [label, craft] of [["CLEAN", CLEAN], ["FULL", FULL], ["WRAP", WRAP]]) {
     const a = entry.clone(), b = entry.clone();
+    const aFloor = a.regs.sp;
     craft(a); craft(b);
     oracle(a);
     enqueueTaskBatch(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     assert.equal(
       bad,
       null,
@@ -209,10 +211,11 @@ test("TEETH: the five-of-six off-by-one twin is CAUGHT (captured + deterministic
 
   // Deterministic clean-ring catch, independent of whatever ring state attract minted.
   const a = caps[0].clone(), b = caps[0].clone();
+  const aFloor = a.regs.sp;
   CLEAN(a); CLEAN(b);
   oracle(a);
   brokenEnqueueTaskBatch(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "clean-ring sweep FAILED to catch the short batch");
   console.log(`  TEETH: caught at ${hx(caught.addr)} (captured) and ${hx(bad.addr)} (clean ring)`);
 });

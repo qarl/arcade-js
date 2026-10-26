@@ -14,7 +14,7 @@
  * The idiomatic routine models no stack (direct calls + plain JS returns), so the harness does
  * ONE m.ret() on the candidate after it runs, lining pc + SP up with the oracle. The dissolved
  * `call 0x236e`, the push-af/pop-af bracket, and the tail-call return brackets all churn dead
- * STACK_SCRATCH — excluded by the memory-equivalence contract (RAM − STACK_SCRATCH + pc + SP;
+ * STACK_SCRATCH — excluded by the memory-equivalence contract (RAM − the stack scratch below the entry SP + pc + SP;
  * live-out is memory-only). Real dispatches have SP ~0x6bea, so that churn stays inside
  * STACK_SCRATCH.
  *
@@ -22,7 +22,7 @@
  *      hammer-gate early-out, the tag-0 arm, and the tag-1/flag-0 arm.
  *
  *   2. EQUAL (real dispatches) — hook 0x1AFE in a real attract run and compare oracle vs
- *      candidate on RAM − STACK_SCRATCH + pc + SP for every captured entry.
+ *      candidate on RAM − the stack scratch below the entry SP + pc + SP for every captured entry.
  *
  *   3. EQUAL (crafted) — from a real base, plant a controlled table (+ fix Mario's cell) to drive
  *      the two arms attract does not reach: the not-found MISS (writes nothing live) and the
@@ -66,6 +66,7 @@ import {
   MARIO_CLIMB_LIMIT_B,
   OBJ_PARAM_TABLE0,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -79,7 +80,6 @@ const CLIMB_FLAG = 0x621a; // the shared board flag this routine writes (unnamed
 const NEAR = 0x15;         // near paired-slot offset past a matched table byte (findOppositeLadderEnd stride)
 const FAR = 0x2a;          // far paired-slot offset past a matched table byte (findOppositeLadderEnd stride)
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // A fixed cell + table layout for the crafted arms. searchKey = (X|3)&0xfb always has its low
 // three bits == 0b011, so a 0xFF filler can never alias it; yLimit = (Y+8).
@@ -92,28 +92,30 @@ const FILLER = 0xff;                        // table filler; (FILLER & 7) != (SE
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH (the dead stack the
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP (the dead stack the
  *  dissolved call/push-af/tail-call churn writes — the standard gate excludes it). */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
 /** All non-stack RAM addresses that changed between two machines (write-set checks). */
-function changedAddrs(a, b) {
+function changedAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.push(addr);
   }
   return out;
@@ -135,13 +137,13 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Compare candidate vs oracle over the contract: RAM − STACK_SCRATCH, pc, SP. NO registers —
+/** Compare candidate vs oracle over the contract: RAM − the stack scratch below the entry SP, pc, SP. NO registers —
  *  live-out is memory-only. Returns human-readable mismatches. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=0x${o.pc.toString(16)} cand=0x${c.pc.toString(16)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=0x${o.regs.sp.toString(16)} cand=0x${c.regs.sp.toString(16)}`);
@@ -281,7 +283,7 @@ test("EQUAL (crafted): MISS, tag1/flag1 (ret), tag1/flag0 (swapped pair) all mat
   const miss = craftMiss(seed);
   assert.equal(classify(miss), "miss", "craftMiss must actually miss");
   assert.equal(contractDiffs(miss, armMarioClimbAtLadderEnd).length, 0, "MISS arm diverged");
-  assert.equal(changedAddrs(miss, runOracle(miss)).length, 0, "MISS arm wrote live RAM (should be inert)");
+  assert.equal(changedAddrs(miss, runOracle(miss), miss.regs.sp).length, 0, "MISS arm wrote live RAM (should be inert)");
 
   // tag 1, flag 1 — match near the end of the scan: stamp sprite code + flag, then return; no
   // limit writes.

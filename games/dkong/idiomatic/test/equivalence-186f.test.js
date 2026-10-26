@@ -55,6 +55,7 @@ import { tickSubstateTimer } from "../tickSubstateTimer.js";
 import { loadSpriteObjectBlock } from "../loadSpriteObjectBlock.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, SUBSTATE_TIMER, SPRITE_OBJ_BLOCK, SND_TRIGGER } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -73,17 +74,17 @@ const COPY_DEST = Array.from({ length: 0x28 }, (_, k) => SPRITE_OBJ_BLOCK + k);
 // its final unmatched `ret` pop (up to SP+2); the idiomatic side touches the stack not at all.
 const SP_CRAFT = 0x6bf8;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /** First game-visible differing RAM byte, EXCLUDING the dead stack-scratch region. */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -127,9 +128,10 @@ function craftPair(timer, selector) {
 test("STRUCTURE: expiry arm (0x6009=1) does the work; skip arm (0x6009=5) leaves the body untouched", () => {
   // Expiry arm — timer decrements 1 -> 0, so the copy + latch + step advance run.
   const [a, b] = craftPair(1, 0x40);
+  const aFloor = a.regs.sp;
   oracle(a);
   idiomatic(b);
-  const { bad, stackDiffs } = ramDiffMinusStack(a, b);
+  const { bad, stackDiffs } = ramDiffMinusStack(a, b, aFloor);
   assert.equal(bad, null, bad && `game-visible RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
 
   // Non-vacuous: the oracle side actually did the work.
@@ -146,9 +148,10 @@ test("STRUCTURE: expiry arm (0x6009=1) does the work; skip arm (0x6009=5) leaves
 
   // Skip arm — timer decrements 5 -> 4, so the body must NOT run.
   const [c, d] = craftPair(5, 0x40);
+  const cFloor = c.regs.sp;
   oracle(c);
   idiomatic(d);
-  const skip = ramDiffMinusStack(c, d);
+  const skip = ramDiffMinusStack(c, d, cFloor);
   assert.equal(skip.bad, null, skip.bad && `skip-arm RAM diff at ${hx(skip.bad.addr)} (oracle=${skip.bad.a} idiomatic=${skip.bad.b})`);
   assert.equal(c.mem.read8(SUBSTATE_TIMER), 4, "skip arm must decrement the timer to 4");
   assert.equal(c.mem.read8(STEP_SELECTOR), 0x40, "skip arm must leave the step selector untouched");
@@ -166,9 +169,10 @@ test("TIMER (exhaustive): loc_186f == oracle over all 256 SUBSTATE_TIMER values 
   let count = 0, worked = 0, skipped = 0, mismatch = null;
   for (let timer = 0; timer < 256 && !mismatch; timer++) {
     const [a, b] = craftPair(timer, 0x40);
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     count++;
     // Classify from the oracle: the work arm advances the step selector.
     if (a.mem.read8(STEP_SELECTOR) !== 0x40) worked++; else skipped++;
@@ -189,9 +193,10 @@ test("STEP (exhaustive): on the expiry arm the 0x6388 inc wraps 8-bit, oracle ==
   let mismatch = null;
   for (let sel = 0; sel < 256 && !mismatch; sel++) {
     const [a, b] = craftPair(1, sel);
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     if (bad) { mismatch = { sel, bad }; break; }
     const want = (sel + 1) & 0xff;
     if (a.mem.read8(STEP_SELECTOR) !== want) mismatch = { sel, bad: { addr: STEP_SELECTOR, a: a.mem.read8(STEP_SELECTOR), b: want } };
@@ -237,9 +242,10 @@ function brokenGatePolarity(m) {
 
 test("TEETH (no-step): dropping the 0x6388 inc is CAUGHT and names 0x6388", () => {
   const [a, b] = craftPair(1, 0x40);
+  const aFloor = a.regs.sp;
   oracle(a);
   brokenNoStep(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the sweep FAILED to catch a dropped step inc — it is worthless");
   assert.equal(bad.addr, STEP_SELECTOR, `expected the caught diff at 0x6388, got ${hx(bad.addr)}`);
   console.log(`  TEETH/no-step: caught at 0x6388 (oracle=${bad.a} broken=${bad.b})`);
@@ -247,9 +253,10 @@ test("TEETH (no-step): dropping the 0x6388 inc is CAUGHT and names 0x6388", () =
 
 test("TEETH (no-latch): dropping the 0x6084 sound latch is CAUGHT and names 0x6084", () => {
   const [a, b] = craftPair(1, 0x40);
+  const aFloor = a.regs.sp;
   oracle(a);
   brokenNoLatch(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the sweep FAILED to catch a dropped sound latch — it is worthless");
   assert.equal(bad.addr, SND_LATCH, `expected the caught diff at 0x6084, got ${hx(bad.addr)}`);
   console.log(`  TEETH/no-latch: caught at 0x6084 (oracle=${bad.a} broken=${bad.b})`);
@@ -257,9 +264,10 @@ test("TEETH (no-latch): dropping the 0x6084 sound latch is CAUGHT and names 0x60
 
 test("TEETH (gate-polarity): inverting the timer gate is CAUGHT on the expiry arm", () => {
   const [a, b] = craftPair(1, 0x40);
+  const aFloor = a.regs.sp;
   oracle(a);
   brokenGatePolarity(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the sweep FAILED to catch an inverted gate polarity — it is worthless");
   console.log(`  TEETH/gate-polarity: caught at ${hx(bad.addr)} (oracle=${bad.a} broken=${bad.b})`);
 });
@@ -274,9 +282,10 @@ test("REALISM: replay any real 0x186f dispatch; else record that attract never r
 
   for (const entry of caps) {
     const a = entry.clone(), b = entry.clone();
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     assert.equal(bad, null, bad && `real-dispatch RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
   }
   if (caps.length === 0) {

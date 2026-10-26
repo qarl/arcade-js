@@ -22,7 +22,7 @@
  *            the phase write is skipped.
  *        (e) retireAlreadyLatched — latch already holding 2, so the latch write is skipped and its
  *            value must survive (reachability not claimed; the arm pins the comparison).
- *   3. CONTRACT: work/sprite/video RAM MINUS STACK_SCRATCH plus the returned protocol value. The
+ *   3. CONTRACT: work/sprite/video RAM MINUS the stack scratch below the entry SP plus the returned protocol value. The
  *      dissolved candidate is a plain JS call owning no guest stack; the oracle still splices through
  *      it (its retire arm pops the caller's return), so SP, pc and dead scratch below SP legitimately
  *      differ and are excluded.
@@ -47,6 +47,7 @@ import { retireBarrelIntoOilDrum } from "../retireBarrelIntoOilDrum.js";
 import { OBJ_ACTIVE, OBJ_X, OBJ_Y, OBJ_ARRAY_67, SND_TRIGGER, STACK_SCRATCH } from "../names.js";
 import { runCycleFree } from "../../../../core/frame-stepped.js";
 import manifest from "../../manifest.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -154,7 +155,7 @@ function sweepAttract(candidate, { prep = null, frames = ATTRACT_FRAMES } = {}) 
     tally(bases, mm.regs.ix);
 
     // The dissolved rewrite is a DIRECT JS call (oracle runs the guest-stack path): it owns no guest
-    // stack, so SP/pc aren't compared — the contract is RAM−STACK_SCRATCH + the returned protocol value.
+    // stack, so SP/pc aren't compared — the contract is RAM − the stack scratch below the entry SP + the returned protocol value.
     const a = rehost(mm, null); // oracle, run directly (still splices through the guest stack)
     const b = rehost(mm, null); // candidate, called directly
     // Cut the walk to the one slot under test: the dissolved chain publishes one slot and returns (no
@@ -168,6 +169,7 @@ function sweepAttract(candidate, { prep = null, frames = ATTRACT_FRAMES } = {}) 
     // AFTER the craft.
     const cur = { page: b.regs.h_ * 256, cursor: b.regs.l_ };
 
+    const dead = deadStackBelow(STACK_SCRATCH, a.regs.sp);
     let oracleValue, oracleDump;
     try {
       oracleValue = oracle(a);
@@ -185,7 +187,7 @@ function sweepAttract(candidate, { prep = null, frames = ATTRACT_FRAMES } = {}) 
         if (oracleDump[i] === candidateDump[i]) continue;
         const addr = a.stateOffsetToAddr(i);
         // The oracle's splice pops the guest stack; the rewrite does not — dead scratch, excluded.
-        if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+        if (dead(addr)) continue;
         breach = { kind: "RAM", addr, a: oracleDump[i], b: candidateDump[i] };
         break;
       }
@@ -284,7 +286,7 @@ test("EQUAL: retireBarrelIntoOilDrum matches the oracle on every one of the real
   console.log(
     `  EQUAL: all ${NATURAL.dispatches} real 0x24B4 dispatches in ${ATTRACT_FRAMES} attract frames replayed inline ` +
       `(first at frame ${NATURAL.firstFrame}); ${NATURAL.bases.size} record bases; arms: ${census}; ` +
-      "full state dump MINUS STACK_SCRATCH, plus the returned protocol value",
+      "full state dump MINUS the stack scratch below the entry SP, plus the returned protocol value",
   );
 });
 

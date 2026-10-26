@@ -32,7 +32,7 @@
  * Together these sweeps cover the full (counter, code, attr, C) input space by that
  * factorisation, so this is a proof, not a sample.
  *
- *   1. EQUAL (exhaustive) — advanceBarrelSpriteOrientation == oracle on RAM − STACK_SCRATCH across all four
+ *   1. EQUAL (exhaustive) — advanceBarrelSpriteOrientation == oracle on RAM − the stack scratch below the entry SP across all four
  *      sweeps. The oracle's refresh beat brackets its nextAnimationStep call with a push16, so
  *      the compared RAM excludes the dead stack scratch that dissolved push writes;
  *      advanceBarrelSpriteOrientation calls nextAnimationStep directly and touches no stack.
@@ -65,6 +65,7 @@ import { advanceBarrelSpriteOrientation } from "../advanceBarrelSpriteOrientatio
 import { nextAnimationStep } from "../nextAnimationStep.js";
 import { STACK_SCRATCH, OBJ_SPRITE_CODE, OBJ_SPRITE_ATTR } from "../names.js";
 import { Machine } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -95,17 +96,16 @@ const LOW7_CODE = 0x3c; // 0b0111100
 const LOW7_ATTR = 0x2b; // 0b0101011
 
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH
-// region (the memory-equivalence contract is RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the entry SP. { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -130,17 +130,15 @@ function makeEntry(base, { counter, code, attr, c }) {
   return e;
 }
 
-/**
- * Run the oracle and the candidate on two FRESH, byte-identical entries and diff the
- * memory-equivalence contract (RAM − STACK_SCRATCH). A fresh entry per side because the
- * routine WRITES memory — a reused machine would carry the previous run forward.
- */
+// Run the oracle and the candidate on two FRESH, byte-identical entries (the routine WRITES memory) and diff the
+// memory-equivalence contract (RAM − the stack scratch below the entry SP).
 function runPair(base, inputs, candidate) {
   const a = makeEntry(base, inputs); // oracle
+  const aFloor = a.regs.sp;
   const b = makeEntry(base, inputs); // candidate
   oracle(a);
   candidate(b);
-  return { ram: firstRamDiff(a, b) };
+  return { ram: firstRamDiff(a, b, aFloor) };
 }
 
 // Build a record whose two top bits encode a given 2-bit selector, over the fixed low
@@ -148,11 +146,7 @@ function runPair(base, inputs, candidate) {
 const codeForSel = (sel) => (((sel >> 1) & 1) << 7) | LOW7_CODE;
 const attrForSel = (sel) => ((sel & 1) << 7) | LOW7_ATTR;
 
-/**
- * The four disjoint factored sweeps, run in sequence. Returns the first mismatch (or
- * null) and the total combos compared. By the factorisation in the file header these
- * sweeps together cover the whole (counter, code, attr, C) input space.
- */
+// The four disjoint factored sweeps, run in sequence: the first mismatch (or null) and the total combos compared.
 function fullSweep(base, candidate) {
   let count = 0;
   const step = (inputs) => {
@@ -206,7 +200,7 @@ test("EQUAL (exhaustive): advanceBarrelSpriteOrientation == oracle across all fo
   assert.equal(mismatch, null, describeMismatch(mismatch));
   // 256 counter + 256*4 (C, selector) + 256 code + 256 attr
   assert.equal(count, 256 + 256 * 4 + 256 + 256, "must have compared the full factored input space");
-  console.log(`  EQUAL/exhaustive: ${count} (counter, code, attr, C) combos — RAM == oracle (minus STACK_SCRATCH)`);
+  console.log(`  EQUAL/exhaustive: ${count} (counter, code, attr, C) combos — RAM == oracle (minus the stack scratch below the entry SP)`);
 });
 
 // -- 2. TEETH (exhaustive) ----------------------------------------------------
@@ -337,7 +331,7 @@ test("REALISM: real captured 0x23DE dispatches — advanceBarrelSpriteOrientatio
     const counterBefore = a.mem.read8((a.regs.ix + OBJ_COUNTDOWN) & 0xffff);
     oracle(a);
     advanceBarrelSpriteOrientation(b);
-    const ram = firstRamDiff(a, b);
+    const ram = firstRamDiff(a, b, cap.regs.sp);
     assert.equal(
       ram,
       null,

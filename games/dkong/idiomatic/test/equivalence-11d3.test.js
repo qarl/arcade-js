@@ -7,7 +7,7 @@
  * sub_11d3 WRITES memory (4·B bytes at HL) and reads implicit inputs (IX record
  * contents), so it is validated by capture/clone/replay on a FRESH clone per case —
  * never by reusing one machine, and never on the full register file or cycles. The
- * contract compared is RAM (minus STACK_SCRATCH) + the declared live-out registers
+ * contract compared is RAM (minus the stack scratch below the entry SP) + the declared live-out registers
  * A/B/HL/IX:
  *
  *   1. REALISM — hook 0x11d3 in a real attract run and clone the machine at each real
@@ -47,6 +47,7 @@ import { loc_11d3 as oracle } from "../../translated/loc_11d3.js";
 import { gatherSpriteRecords } from "../gatherSpriteRecords.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -60,17 +61,16 @@ const LIVE_REGS = ["a", "b", "hl", "ix"]; // the gather's terminal register outp
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-// -- comparison plumbing ------------------------------------------------------
-
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH, or null. */
-function firstRamDiffOutsideStack(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP, or null. */
+function firstRamDiffOutsideStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -93,7 +93,7 @@ function diffAgainstOracle(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return { ram: firstRamDiffOutsideStack(a, b), reg: firstLiveRegDiff(a, b) };
+  return { ram: firstRamDiffOutsideStack(a, b, entry.regs.sp), reg: firstLiveRegDiff(a, b) };
 }
 
 /**
@@ -134,8 +134,6 @@ function craftEntry(cap, { ix, hl, b, stride, base = 0x10 }) {
   return w;
 }
 
-// -- 1. REALISM (captured dispatches) -----------------------------------------
-
 test("REALISM: real captured 0x11d3 dispatches — RAM (ex-stack) + A/B/HL/IX match the oracle", () => {
   const caps = captureDispatches(64, 1200);
   assert.ok(caps.length >= 1, "expected at least one real 0x11d3 dispatch during attract");
@@ -157,8 +155,6 @@ test("REALISM: real captured 0x11d3 dispatches — RAM (ex-stack) + A/B/HL/IX ma
   }
   console.log(`  REALISM: ${caps.length} real 0x11d3 dispatches — identical RAM (ex-stack) + A/B/HL/IX`);
 });
-
-// -- 2. CRAFTED (count / stride / content / edges) ----------------------------
 
 test("CRAFTED: the arms attract never reaches (other B/DE, arbitrary content, L-wrap, B==0) match", () => {
   const [base] = captureDispatches(1, 1200);
@@ -187,8 +183,6 @@ test("CRAFTED: the arms attract never reaches (other B/DE, arbitrary content, L-
   }
   console.log(`  CRAFTED: ${cases.length} non-attract arms (counts, strides, L-wrap, B==0) identical to the oracle`);
 });
-
-// -- 3. TEETH -----------------------------------------------------------------
 
 /**
  * Broken twin: a NON-permuting gather — reads +3,+4,+5,+6 sequentially instead of the

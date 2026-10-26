@@ -10,7 +10,7 @@
  * loc_08b2 is NOT reached in plain attract (attract holds GAME_STATE 0/1); it fires only once
  * a coin has been accepted and the credited-state setup runs. It is not a leaf — it dispatches
  * a sub-state handler that clears the playfield, sets up 1P/2P and advances the game state. So
- * it is validated by MEMORY-equivalence against the frozen oracle: RAM − STACK_SCRATCH, never
+ * it is validated by MEMORY-equivalence against the frozen oracle: RAM − the stack scratch below the entry SP, never
  * SP, never pc, never the full register file, never cycles. The dissolved form deliberately
  * does not seat a guest-stack return, so SP/pc legitimately differ from the oracle and are
  * outside the compare. Two arms:
@@ -40,6 +40,7 @@ import { enterCreditScreen } from "../enterCreditScreen.js";
 import { commitGameStart } from "../commitGameStart.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -58,13 +59,14 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const COIN_TAPE = [{ port: 0x7d00, bits: 0x80, frame: 10, dur: 6 }];
 
 // First differing RAM byte between two dumps, EXCLUDING the dead stack-scratch region
-// (the memory-equivalence contract is RAM − STACK_SCRATCH). Returns { addr, a, b } or null.
-function firstRamDiffExStack(a, b, offToAddr) {
+// (the memory-equivalence contract is RAM − the stack scratch below the entry SP). Returns { addr, a, b } or null.
+function firstRamDiffExStack(a, b, offToAddr, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] === b[i]) continue;
     const addr = offToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { addr, a: a[i], b: b[i] };
   }
   return null;
@@ -111,7 +113,7 @@ test("REALISM: real captured credited-state 0x08b2 dispatches — RAM(−stack) 
     oracle(a);
     dispatchCreditedSubstate(b);
 
-    const ramDiff = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o));
+    const ramDiff = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), cap.regs.sp);
     assert.equal(
       ramDiff,
       null,
@@ -151,7 +153,7 @@ test("MAPPING TOOTH: the swapped-handler twin is CAUGHT by the realism cross-che
     const b = cap.clone(); // broken twin (swapped mapping)
     oracle(a);
     brokenSwappedDispatch(b);
-    const ramDiff = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o));
+    const ramDiff = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), cap.regs.sp);
     if (ramDiff) { caught++; if (!example) example = { sub: s, ramDiff }; }
   }
   assert.ok(caught >= 1, "the realism cross-check FAILED to catch the swapped-handler twin — the mapping is untested");

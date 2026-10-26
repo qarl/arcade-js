@@ -20,18 +20,16 @@
  * effect). What the gate here proves is the snap arithmetic loc_2b7a does itself (the nonzero
  * arm), the marshalling into each callee, the committed X, the A live-out, and the unwind.
  *
- * In the oracle, loc_2b7a tail-dispatches (`m.call`) through the registry to the STILL-
- * TRANSLATED loc_2b8b/loc_2b91, so the oracle really performs the two-level unwind (SP += 4,
- * pc -> the grandparent return). The idiomatic routine calls the idiomatic callees directly;
- * they model that unwind as a boolean and touch no stack, so the harness's runCandidate adds
- * one discarded `pop16` + one net `ret` after it, lining pc + SP up with the oracle. Both the
+ * In the oracle, loc_2b7a tail-dispatches (`m.call`) through the registry to the STILL-TRANSLATED loc_2b8b/loc_2b91,
+ * so the oracle really performs the two-level unwind (SP += 4, pc -> the grandparent return). The idiomatic routine
+ * calls the idiomatic callees directly; they model that unwind as a boolean and touch no stack, so the harness's
+ * runCandidate adds one discarded `pop16` + one net `ret` after it, lining pc + SP up with the oracle. Both the
  * discarded return and the popped bytes sit in STACK_SCRATCH, excluded by the contract.
  *
- * Gated on MEMORY-equivalence — RAM (minus STACK_SCRATCH) + pc + SP — plus the LIVE result
- * register A (the grandparent reads it back with `dec a`) and the boolean unwind signal. HL
- * and the flags are dead ABI and are NOT compared. loc_2b7a reads no register live-in (it
- * loads its inputs from memory), so the entry accumulator is poisoned to make a dropped
- * marshalling observable.
+ * Gated on MEMORY-equivalence — RAM (minus the stack scratch below the entry SP) + pc + SP — plus the LIVE result
+ * register A (the grandparent reads it back with `dec a`) and the boolean unwind signal. HL and the flags are dead
+ * ABI and are NOT compared. loc_2b7a reads no register live-in (it loads its inputs from memory), so the entry
+ * accumulator is poisoned to make a dropped marshalling observable.
  *
  *   1. EQUAL (factored proof) — the memory effect is a pure function of MARIO_X, so three
  *      sweeps cover the space: the ZERO arm (velocity high byte 0) over all 256 X, the
@@ -48,9 +46,8 @@
  *      (c) zero-arm no-marshal — zero arm forgets to load Mario's X into the accumulator, so
  *                                loc_2b8b snaps the poisoned entry value; caught at MARIO_X.
  *      (d) wrong-A             — leaves 2 in the result register instead of 1; caught by A.
- *      (e) no-unwind           — returns true instead of false; RAM+pc+SP+A identical (the
- *                                harness models the unwind either way), so ONLY the boolean
- *                                signal catches it.
+ *      (e) no-unwind           — returns true instead of false; RAM+pc+SP+A identical (the harness models
+ *                                the unwind either way), so ONLY the boolean signal catches it.
  *
  *   3. REALISM — hook 0x2b7a over a long attract run; replay any real dispatch, else record
  *      that attract never reaches it (why the crafted factored sweep is the gate).
@@ -68,6 +65,7 @@ import { loc_2b8b } from "../loc_2b8b.js";
 import { loc_2b91 } from "../loc_2b91.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, MARIO_AIR_VX_HI, MARIO_X, MARIO_SPRITE_RECORD, SPRITE_X } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -91,32 +89,31 @@ const snap = (x) => (((x - 8) | 0x07) + 4) & 0xff;
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH (the dead stack
- *  region excluded by contract — the dissolved unwind's popped bytes live there). */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
-/** Run the ORACLE on a fresh clone. Its `m.call` reaches the translated loc_2b8b/loc_2b91,
- *  which write MARIO_X + the sprite X, set A=1, then `pop hl` + `ret` (SP += 4, pc -> the
- *  staged grandparent). Returns {machine, ret}. */
+/** Run the ORACLE on a fresh clone. Its `m.call` reaches the translated loc_2b8b/loc_2b91, which write MARIO_X +
+ *  the sprite X, set A=1, then `pop hl` + `ret` (SP += 4, pc -> the staged grandparent). Returns {machine, ret}. */
 function runOracle(entry) {
   const c = entry.clone();
   const ret = oracle(c);
   return { c, ret };
 }
 
-/** Run a candidate on a fresh clone, then model the dissolved two-level unwind with one
- *  discarded pop + one net return so pc + SP align (the idiomatic routine uses the JS call
- *  stack and returns a boolean; it never touches pc/SP itself). Returns {machine, ret}. */
+/** Run a candidate on a fresh clone, then model the dissolved two-level unwind with one discarded pop + one net
+ *  return so pc + SP align (the idiomatic routine uses the JS call stack and returns a boolean; it never touches
+ *  pc/SP itself). Returns {machine, ret}. */
 function runCandidate(entry, fn) {
   const c = entry.clone();
   const ret = fn(c);
@@ -125,13 +122,13 @@ function runCandidate(entry, fn) {
   return { c, ret };
 }
 
-/** Compare candidate vs oracle over the contract: RAM − STACK_SCRATCH, pc, SP, and the LIVE
+/** Compare candidate vs oracle over the contract: RAM − the stack scratch below the entry SP, pc, SP, and the LIVE
  *  result register A. HL and the flags are dead ABI and are not compared. */
 function contractDiffs(entry, fn) {
   const { c: o } = runOracle(entry);
   const { c } = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=0x${(ram.a & 0xff).toString(16)} cand=0x${(ram.b & 0xff).toString(16)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);
@@ -139,8 +136,7 @@ function contractDiffs(entry, fn) {
   return diffs;
 }
 
-// A real booted attract machine, built once and reused as the base for every crafted entry
-// (cloned per case, never mutated).
+// A real booted attract machine, built once and reused as the base for every crafted entry (cloned per case, never mutated).
 let _base = null;
 function base() {
   if (!_base) {
@@ -152,11 +148,10 @@ function base() {
   return _base;
 }
 
-/** A fresh crafted entry: real attract RAM; the velocity high byte and Mario's X poked into
- *  memory (loc_2b7a's real inputs); the sprite-record X pre-poked to a per-input SENTINEL
- *  (!= snap) so a skipped write shows; a poisoned entry accumulator (the routine reads no
- *  register live-in, so it must overwrite this); and a controlled return stack — the discarded
- *  caller return then the grandparent return staged in STACK_SCRATCH. */
+/** A fresh crafted entry: real attract RAM; the velocity high byte and Mario's X poked into memory (loc_2b7a's real
+ *  inputs); the sprite-record X pre-poked to a per-input SENTINEL (!= snap) so a skipped write shows; a poisoned
+ *  entry accumulator (the routine reads no register live-in, so it must overwrite this); and a controlled return
+ *  stack — the discarded caller return then the grandparent return staged in STACK_SCRATCH. */
 function craftEntry(vxHi, x, grandRet = GRAND_RET) {
   const e = base().clone();
   e.nextNmi = Infinity;      // neutralise the frame machinery so the oracle's `m.step`
@@ -171,9 +166,8 @@ function craftEntry(vxHi, x, grandRet = GRAND_RET) {
   return e;
 }
 
-/** Sweep `candidate` across both arms — the zero arm and a representative nonzero arm — over
- *  all 256 X; return the first mismatch (or null). Covers loc_2b7a's own arithmetic (nonzero
- *  arm) and its marshalling into both callees. */
+/** Sweep `candidate` across both arms — the zero arm and a representative nonzero arm — over all 256 X; return the
+ *  first mismatch (or null). */
 function fullSweep(candidate) {
   for (const vxHi of [0x00, 0x01]) {
     for (let x = 0; x < 256; x++) {
@@ -232,8 +226,7 @@ function brokenNoUnwind(m) {
 test("EQUAL: loc_2b7a == oracle on RAM+pc+SP+A over both arms (all 256 X) and all 256 selector values", () => {
   let compared = 0;
 
-  // The two arms, each over the full 256-value X space. The memory effect is a pure function
-  // of MARIO_X, so these two sweeps exhaust the arithmetic and marshalling for both callees.
+  // The two arms, each over the full 256-value X space.
   for (const vxHi of [0x00, 0x01]) {
     for (let x = 0; x < 256; x++) {
       const entry = craftEntry(vxHi, x);
@@ -244,9 +237,7 @@ test("EQUAL: loc_2b7a == oracle on RAM+pc+SP+A over both arms (all 256 X) and al
     }
   }
 
-  // The arm SELECTOR over all 256 velocity-high-byte values at a fixed X — confirms every
-  // value is handled (and, since both arms are memory-equivalent, produces the right result
-  // whichever arm the zero test picks).
+  // The arm SELECTOR over all 256 velocity-high-byte values at a fixed X.
   const selX = 0x84;
   for (let vxHi = 0; vxHi < 256; vxHi++) {
     const diffs = contractDiffs(craftEntry(vxHi, selX), loc_2b7a);
@@ -255,8 +246,7 @@ test("EQUAL: loc_2b7a == oracle on RAM+pc+SP+A over both arms (all 256 X) and al
   }
   assert.equal(compared, 256 + 256 + 256, "must have compared both arms over all X plus the full selector sweep");
 
-  // Non-vacuity, per arm: the oracle really writes the snapped X to BOTH cells (over the
-  // sentinel), leaves A=1, and unwinds two levels (SP += 4, pc -> the staged grandparent).
+  // Non-vacuity, per arm.
   const x = 0x84; // snap(0x84) = 0x83 != 0x84, so the MARIO_X write is observable
   assert.notEqual(snap(x), x, "the non-vacuity X must have snap(X) != X so the MARIO_X write shows");
   for (const vxHi of [0x00, 0x01]) {
@@ -295,8 +285,7 @@ test("TEETH: wrong-adjust, no-snap, zero-arm-no-marshal, wrong-A and no-unwind t
   assert.ok(wrongA.mismatch.diffs.some((d) => d.startsWith("A ")),
     `wrong-A should diverge on A, got ${wrongA.mismatch.diffs.join("; ")}`);
 
-  // (e) no-unwind: RAM+pc+SP+A are identical (the harness models the unwind either way), so
-  // ONLY the boolean signal catches it.
+  // (e) no-unwind: RAM+pc+SP+A are identical (the harness models the unwind either way), so ONLY the boolean signal catches it.
   const entry = craftEntry(0x01, 0x84);
   const goodRet = runCandidate(entry, loc_2b7a).ret;
   const badRet = runCandidate(entry, brokenNoUnwind).ret;

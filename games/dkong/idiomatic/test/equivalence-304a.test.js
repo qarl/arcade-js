@@ -5,7 +5,7 @@
  * 0x75C0+i one tilemap row up (to −0x20), then decrement the scroll index at 0x638E.
  *
  * Like copyByteDisplaced (its 0x3064 callee) this routine WRITES MEMORY, so it is
- * gated on memory-equivalence — RAM (minus STACK_SCRATCH) + pc + SP — never on a
+ * gated on memory-equivalence — RAM (minus the stack scratch below the entry SP) + pc + SP — never on a
  * returned scalar and never on the full register file. Its declared LIVE-OUT is
  * memory-only: the two copied video-RAM bytes plus the decremented 0x638E. The
  * oracle's residual `dec (hl)` flags and the HL/A/F churn copyByteDisplaced leaves are
@@ -52,6 +52,7 @@ import { scrollClimbGraphicStep } from "../scrollClimbGraphicStep.js";
 import { copyByteDisplaced } from "../copyByteDisplaced.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -64,18 +65,18 @@ const SCROLL_INDEX = 0x638e;
 const RET_ADDR = 0x0b3b; // loc_0b06's real return site after `call 0x304A`
 const SAFE_SP = 0x6bfe; // inside STACK_SCRATCH → the oracle's `ret` pops excluded bytes
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -100,12 +101,12 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Compare candidate vs oracle over RAM − STACK_SCRATCH, pc, SP. LIVE-OUT memory-only. */
+/** Compare candidate vs oracle over RAM − the stack scratch below the entry SP, pc, SP. LIVE-OUT memory-only. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=0x${o.pc.toString(16)} cand=0x${c.pc.toString(16)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=0x${o.regs.sp.toString(16)} cand=0x${c.regs.sp.toString(16)}`);

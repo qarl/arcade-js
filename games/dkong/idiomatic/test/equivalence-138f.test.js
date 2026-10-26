@@ -47,6 +47,7 @@ import { loc_138f as oracle } from "../../translated/loc_138f.js";
 import { loc_138f as idiomatic } from "../loc_138f.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, SUBSTATE_TIMER, GAME_SUBSTATE, P2_CONTEXT } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -60,20 +61,20 @@ const SP_CRAFT = 0x6bf8; // inside STACK_SCRATCH, headroom both sides for the or
 const SUB_SENTINEL = 0x99; // a GAME_SUBSTATE value that is neither 0x14 nor 0x17, so any
                            //   wrongful write to it on a non-expiry frame is visible
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
  * First game-visible differing RAM byte between two machines, EXCLUDING the dead
- * stack-scratch region (the memory-equivalence contract is RAM − STACK_SCRATCH).
+ * stack-scratch region (the memory-equivalence contract is RAM − the stack scratch below the entry SP).
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -110,9 +111,10 @@ function craftPair(timer, p2, sub = SUB_SENTINEL) {
 
 test("STRUCTURE: crafted expiry entry — game-visible RAM identical, SP/pc unmodelled by idiomatic", () => {
   const [a, b] = craftPair(1, 0x03); // timer 1 = expire; P2 live -> 0x17
+  const aFloor = a.regs.sp;
   oracle(a);
   idiomatic(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.equal(bad, null, bad && `game-visible RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
   assert.equal(a.mem.read8(GAME_SUBSTATE), 0x17, "oracle must advance GAME_SUBSTATE to 0x17 for a live P2");
   assert.equal(a.mem.read8(SUBSTATE_TIMER), 1, "oracle must re-arm SUBSTATE_TIMER to 1 on expiry");
@@ -139,9 +141,10 @@ test("TIMER (exhaustive): loc_138f == oracle over all 256 SUBSTATE_TIMER values 
     let count = 0, expired = 0, counting = 0, mismatch = null;
     for (let t = 0; t < 256 && !mismatch; t++) {
       const [a, b] = craftPair(t, p2);
+      const aFloor = a.regs.sp;
       oracle(a);
       idiomatic(b);
-      const { bad } = ramDiffMinusStack(a, b);
+      const { bad } = ramDiffMinusStack(a, b, aFloor);
       count++;
       // Classify the arm from the oracle: expiry re-arms 0x6009 to 1 AND writes 0x600A.
       if (a.mem.read8(GAME_SUBSTATE) !== SUB_SENTINEL) expired++; else counting++;
@@ -163,9 +166,10 @@ test("P2_CONTEXT (exhaustive): at expiry, loc_138f == oracle over all 256 contex
   let count = 0, live = 0, dead = 0, mismatch = null;
   for (let p2 = 0; p2 < 256 && !mismatch; p2++) {
     const [a, b] = craftPair(1, p2); // timer 1 forces the expiry / branch path
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     count++;
     const sub = a.mem.read8(GAME_SUBSTATE);
     if (sub === 0x17) live++; else if (sub === 0x14) dead++;
@@ -208,9 +212,10 @@ test("TEETH (invert-branch): the swapped-branch twin is CAUGHT by the P2 sweep a
   let caught = null;
   for (let p2 = 0; p2 < 256 && !caught; p2++) {
     const [a, b] = craftPair(1, p2);
+    const aFloor = a.regs.sp;
     oracle(a);
     brokenInvertBranch(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     if (bad) caught = { p2, bad };
   }
   assert.notEqual(caught, null, "the P2 sweep FAILED to catch an inverted branch — it is worthless");
@@ -222,9 +227,10 @@ test("TEETH (drop-re-arm): the no-re-arm twin is CAUGHT by the TIMER sweep and n
   let caught = null;
   for (let t = 0; t < 256 && !caught; t++) {
     const [a, b] = craftPair(t, 0x03);
+    const aFloor = a.regs.sp;
     oracle(a);
     brokenNoRearm(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     if (bad) caught = { t, bad };
   }
   assert.notEqual(caught, null, "the TIMER sweep FAILED to catch a dropped re-arm — it is worthless");
@@ -242,9 +248,10 @@ test("REALISM: replay any real 0x138f dispatch; else record that attract never r
 
   for (const entry of caps) {
     const a = entry.clone(), b = entry.clone();
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     assert.equal(bad, null, bad && `real-dispatch RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
   }
   if (caps.length === 0) {

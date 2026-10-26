@@ -4,7 +4,7 @@
  * run it, and on a normal probe result run the 0x29AF object-collision follow-up and hand back a
  * zeroed result pair.
  *
- * THE CONTRACT: RAM minus STACK_SCRATCH, plus the two result bytes loc_1c05 reads back (`dec a`,
+ * THE CONTRACT: RAM minus the stack scratch below the entry SP, plus the two result bytes loc_1c05 reads back (`dec a`,
  * then `dec b` on the arm that takes), plus the return value — the idiomatic loc_2b1c now RETURNS
  * the descent verdict (equal to the first result byte A) that loc_1c05 formerly read from A; the
  * frozen oracle still returns undefined, so the candidate return is checked against the oracle's A.
@@ -70,6 +70,7 @@ import {
   EDGE_REPOSITION_FLAG,
   OBJ_ARRAY_66,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -90,35 +91,36 @@ const IX_POISON = 0x6b00;                                        // a pointer th
 const IX_POISON_Y = 0xff;                                        // its +5 field, so a missing pointer load shows
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // tileAddrForPixel (ROM 0x2FF0), replicated to poke the tile cell under a probe point.
 const tileAddr = (y, x) => (0x7400 + (((~y) & 0xff) >> 3) * 32 + ((x >> 3) & 0x1f)) & 0xffff;
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH (the dead stack
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP (the dead stack
  *  region excluded by contract — the oracle's push/pop/return churn lives there). */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
 /** All non-stack RAM addresses that changed between two machines (for non-vacuity). */
-function changedAddrs(a, b) {
+function changedAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.push(addr);
   }
   return out;
@@ -136,13 +138,13 @@ function run(entry, fn) {
   return { c, ret, dispatched };
 }
 
-/** Compare a candidate against the oracle over the contract: RAM − STACK_SCRATCH, both result
+/** Compare a candidate against the oracle over the contract: RAM − the stack scratch below the entry SP, both result
  *  bytes, and the return value. pc and SP are excluded (see the header). */
 function contractDiffs(entry, fn) {
   const { c: o, ret: oret } = run(entry, oracle);
   const { c, ret } = run(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=0x${(ram.a & 0xff).toString(16)} cand=0x${(ram.b & 0xff).toString(16)}`);
   if (o.regs.a !== c.regs.a) diffs.push(`first result byte oracle=0x${(o.regs.a & 0xff).toString(16)} cand=0x${(c.regs.a & 0xff).toString(16)}`);
   if (o.regs.b !== c.regs.b) diffs.push(`second result byte oracle=0x${(o.regs.b & 0xff).toString(16)} cand=0x${(c.regs.b & 0xff).toString(16)}`);
@@ -377,7 +379,7 @@ test("CRAFTED: loc_2b1c == oracle on RAM + both result bytes + return across all
 
     // The paths that touch nothing must write no work RAM at all.
     if (quiet) {
-      const wrote = changedAddrs(entry, o);
+      const wrote = changedAddrs(entry, o, entry.regs.sp);
       assert.deepEqual(wrote, [], `${name}: this path must write no non-stack RAM (wrote ${wrote.map(hx).join(" ")})`);
     }
 

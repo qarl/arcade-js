@@ -6,7 +6,7 @@
  * read + a write, both at (HL)) and calls nothing. Its behaviour is a TOTAL function
  * of the one input byte — only bit 7 of (HL) is read — so it is gated the strongest
  * way a memory-writing leaf can be: EXHAUSTIVELY over all 256 possible (HL) values,
- * on a real captured attract machine, compared on RAM (minus STACK_SCRATCH) + pc + SP.
+ * on a real captured attract machine, compared on RAM (minus the stack scratch below the entry SP) + pc + SP.
  * Every case runs on a FRESH clone (the routine WRITES memory, so no clone is reused).
  *
  * Live-out is memory-only (the byte at (HL)): the three callers read no register/flag
@@ -22,7 +22,7 @@
  *   1. EQUAL (exhaustive) — for each real target address (0x62A1/0x62A3/0x62A6, the
  *      addresses the real callers point HL at) sweep ALL 256 (HL) values, staged like
  *      a real call (return 0x264C on the stack), and confirm reverseStepDirection ==
- *      oracle on RAM-STACK_SCRATCH + pc + SP. 768 cases cover the whole input domain.
+ *      oracle on RAM - the stack scratch below the entry SP + pc + SP. 768 cases cover the whole input domain.
  *
  *   2. EQUAL (crafted arms) — the two explicit arms (bit 7 set -> +2, bit 7 clear ->
  *      -2), each confirmed identical to the oracle and cross-checked against the exact
@@ -54,6 +54,7 @@ import { loc_2333 as oracle2333 } from "../../translated/loc_2333.js";
 import { reverseStepDirection } from "../reverseStepDirection.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -66,18 +67,18 @@ const TARGET = 0x26de;
 // The addresses the real callers point HL at (sub_2602/sub_262f/sub_2679, all under sub_25f2).
 const TARGET_ADDRS = [0x62a1, 0x62a3, 0x62a6];
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -102,12 +103,12 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Compare candidate vs oracle over RAM − STACK_SCRATCH + pc + SP (live-out is memory-only). */
+/** Compare candidate vs oracle over RAM − the stack scratch below the entry SP + pc + SP (live-out is memory-only). */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=0x${o.pc.toString(16)} cand=0x${c.pc.toString(16)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=0x${o.regs.sp.toString(16)} cand=0x${c.regs.sp.toString(16)}`);
@@ -232,11 +233,12 @@ test("FOOTPRINT: the oracle writes exactly one non-stack byte — (HL) — and n
       const entry = craft(BASE, addr, v);
       const before = entry.dumpState();
       const after = runOracle(entry).dumpState();
+      const dead = deadStackBelow(STACK_SCRATCH, entry.regs.sp);
       let touched = null, extra = false;
       for (let i = 0; i < Math.min(before.length, after.length); i++) {
         if (before[i] === after[i]) continue;
         const a = entry.stateOffsetToAddr(i);
-        if (inStack(a)) continue; // the ret's stack pop is not a write anyway
+        if (dead(a)) continue; // the ret's stack pop is not a write anyway
         if (a === addr) touched = a;
         else extra = true;
       }

@@ -9,7 +9,7 @@
  * and reads NOTHING register-wise: every operand is an immediate or the fixed
  * 0x600A byte. So it is validated by capture/clone/replay on a FRESH clone per case
  * — never by reusing one machine, never on the full register file, never on cycles.
- * The contract compared is RAM (minus STACK_SCRATCH); there are no live-out
+ * The contract compared is RAM (minus the stack scratch below the entry SP); there are no live-out
  * registers (the `inc (hl)` leaves Z/S/A dead — the rst-0x28 sub-state dispatch
  * returns up the NMI path, which consumes none of them). SP/PC are not compared —
  * the idiomatic layer drops the `ret`'s stack/PC bookkeeping (JS call stack).
@@ -46,6 +46,7 @@ import { clearScreenAndAdvanceSubstate } from "../clearScreenAndAdvanceSubstate.
 import { clearPlayfieldAndSprites } from "../clearPlayfieldAndSprites.js";
 import { Machine } from "../../machine.js";
 import { SPRITE_BUFFER, GAME_SUBSTATE, STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -61,30 +62,27 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
 // -- comparison plumbing ------------------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH, or null. */
-function firstRamDiffOutsideStack(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP, or null. */
+function firstRamDiffOutsideStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
-/**
- * Run the oracle and a candidate on two FRESH clones of `entry` (a memory-writing
- * routine demands a fresh clone per side) and diff RAM outside the dead stack.
- */
 function diffAgainstOracle(entry, candidate) {
   const a = entry.clone(); // oracle
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return firstRamDiffOutsideStack(a, b);
+  return firstRamDiffOutsideStack(a, b, entry.regs.sp);
 }
 
 /**
@@ -139,7 +137,6 @@ test("REALISM: real captured 0x07c3 dispatches — RAM (ex-stack) matches the or
   assert.ok(caps.length >= 1, "expected at least one real 0x07c3 dispatch during attract");
 
   for (const cap of caps) {
-    // Confirm it fired where we think (state-1 sub-state 5) — documents reachability.
     assert.equal(cap.mem.read8(GAME_SUBSTATE), 5, "0x07c3 is table index 5 → GAME_SUBSTATE==5 at entry");
     const ram = diffAgainstOracle(cap, clearScreenAndAdvanceSubstate);
     assert.equal(ram, null, ram && `RAM diff at ${hx(ram.addr)}: oracle=${ram.a} cand=${ram.b}`);
@@ -152,7 +149,6 @@ test("REALISM: real captured 0x07c3 dispatches — RAM (ex-stack) matches the or
 test("CRAFTED: sentinel + 0x600A sweep pin the clear footprint AND the wrapping inc", () => {
   const base = craftedBase();
 
-  // Sub-state values incl. the 8-bit wrap edge (0xFF -> 0x00) and the natural 5.
   const SUBSTATES = [0x00, 0x01, 0x04, 0x05, 0x7f, 0x80, 0xfe, 0xff];
   // Sentinels distinct from the fill bytes (0x10 playfield/columns, 0x00 sprite buf).
   const SENTINELS = [0xee, 0x55, 0xaa, 0x01, 0xff];
@@ -193,7 +189,6 @@ function brokenSkipClear(m) {
 test("TEETH: double-increment and skip-clear twins are both CAUGHT", () => {
   const base = craftedBase();
 
-  // (a) Double-increment: caught by the 0x600A byte on a plain crafted entry.
   const eDouble = craftSentinelEntry(base, 0xee, 0x05);
   const dDouble = diffAgainstOracle(eDouble, brokenDoubleInc);
   assert.notEqual(dDouble, null, "the RAM gate FAILED to catch a double-increment of GAME_SUBSTATE — it is worthless");

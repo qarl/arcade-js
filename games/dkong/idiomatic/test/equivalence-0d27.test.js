@@ -11,7 +11,7 @@
  * a FRESH clone per side. The oracle runs on one clone, stamp75mBoardTiles on another,
  * and they are compared on the go-forward contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) only.
+ *     RAM (dumpState, minus the stack scratch below the entry SP) only.
  *
  * pc and SP are deliberately NOT compared: the oracle models the CALL/RET with
  * push16/step/ret (pc→target, SP moved, the return address left in the dead stack), the
@@ -53,7 +53,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0d27 as oracle } from "../../translated/loc_0d27.js";
 import { stamp75mBoardTiles } from "../stamp75mBoardTiles.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -66,24 +66,18 @@ const test = ROM_PRESENT
 const TARGET = 0x0d27;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
-
 /**
- * First RAM difference between two machines on the go-forward contract: the whole state
- * dump minus the STACK_SCRATCH region (dead scratch — the oracle pushes its return
- * address there while the direct-call idiomatic side does not). Returns {addr,a,b,offset}
- * or null.
- *
  * dumpState() returns a fresh array per call, so the dead-stack bytes are neutralised by
  * copying them across before the single diff — masking, not an advancing sub-scan. (The
  * advancing-`from` idiom used elsewhere is only correct for a lone stack diff; sub_0d27's
  * push16 leaves TWO adjacent stack bytes, which that idiom oscillates on.)
  */
-function ramDiffMinusStack(ma, mb) {
+function ramDiffMinusStack(ma, mb, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = ma.dumpState();
   const b = mb.dumpState();
   for (let off = 0; off < a.length; off++) {
-    if (inDeadStack(ma.stateOffsetToAddr(off))) b[off] = a[off]; // mask dead scratch
+    if (dead(ma.stateOffsetToAddr(off))) b[off] = a[off]; // mask dead scratch
   }
   return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off));
 }
@@ -144,7 +138,7 @@ test("EQUAL: real forced board-3 dispatch — stamp75mBoardTiles == oracle in RA
     oracle(o);
     stamp75mBoardTiles(c);
 
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, cap.regs.sp);
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} idiomatic=${d.b}`);
   }
   console.log(`  EQUAL: ${CAPS.length} real board-3 dispatch(es) identical (RAM −stack)`);
@@ -159,6 +153,7 @@ test("WRITE-SET: the oracle's only non-stack writes are the 68 motif bytes", () 
   const m = CAPS[0].clone();
   for (const addr of want.keys()) m.mem.write8(addr, 0xaa);
   const before = m.dumpState();
+  const dead = deadStackBelow(STACK_SCRATCH, m.regs.sp);
   oracle(m);
   const after = m.dumpState();
 
@@ -166,7 +161,7 @@ test("WRITE-SET: the oracle's only non-stack writes are the 68 motif bytes", () 
   for (let off = 0; off < before.length; off++) {
     if (before[off] === after[off]) continue;
     const addr = m.stateOffsetToAddr(off);
-    if (inDeadStack(addr)) continue; // the oracle's return-address push — dead scratch
+    if (dead(addr)) continue; // the oracle's return-address push — dead scratch
     changed.push({ addr, from: before[off], to: after[off] });
   }
   assert.equal(changed.length, 68, `expected 68 changed non-stack bytes, got ${changed.length}`);
@@ -193,7 +188,7 @@ test("CRAFTED: fresh-boot machine (never saw the poke) — both stamp the motif,
   oracle(o);
   stamp75mBoardTiles(c);
 
-  const d = ramDiffMinusStack(o, c);
+  const d = ramDiffMinusStack(o, c, 0x6bfe);
   assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} idiomatic=${d.b}`);
   // ...and the idiomatic side genuinely stamped the motif over the dirt (not merely agreed).
   for (const [addr, val] of want) {
@@ -218,7 +213,7 @@ test("CRAFTED: garbage registers + far RAM identical both sides — output uncha
   oracle(o);
   stamp75mBoardTiles(c);
 
-  const d = ramDiffMinusStack(o, c);
+  const d = ramDiffMinusStack(o, c, base.regs.sp);
   assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} idiomatic=${d.b}`);
   for (const [addr, val] of want) {
     assert.equal(c.mem.read8(addr), val, `idiomatic left ${hx(addr)} = ${hx(c.mem.read8(addr))} (expected ${hx(val)})`);
@@ -259,7 +254,7 @@ test("TEETH: a wrong tile at the first cell (0x770D) is CAUGHT and names that ce
   const c = cap.clone();
   oracle(o);
   brokenWrongFirstCell(c);
-  const d = ramDiffMinusStack(o, c);
+  const d = ramDiffMinusStack(o, c, cap.regs.sp);
   assert.notEqual(d, null, "the gate FAILED to catch a wrong tile store — it is worthless");
   assert.equal(d.addr, 0x770d, `teeth caught the wrong address ${hx(d.addr ?? 0)} (expected 0x770d)`);
   console.log(`  TEETH(a): wrong first-cell store caught at ${hx(d.addr)} (oracle=${hx(d.a)} broken=${hx(d.b)})`);
@@ -274,7 +269,7 @@ test("TEETH: omitting the second motif (0x760D) is CAUGHT and names that cell", 
   for (const mm of [o, c]) for (const addr of want.keys()) mm.mem.write8(addr, 0xaa);
   oracle(o);
   brokenOmitSecondMotif(c);
-  const d = ramDiffMinusStack(o, c);
+  const d = ramDiffMinusStack(o, c, base.regs.sp);
   assert.notEqual(d, null, "the gate FAILED to catch the omitted second motif — it is worthless");
   assert.equal(d.addr, 0x760d, `teeth caught the wrong address ${hx(d.addr ?? 0)} (expected 0x760d)`);
   console.log(`  TEETH(b): omitted second motif caught at ${hx(d.addr)} (oracle=${hx(d.a)} broken=${hx(d.b)})`);

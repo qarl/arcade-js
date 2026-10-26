@@ -16,7 +16,7 @@
  * stay unreached" check and a replay loop with nothing in it. This gate used to go fully green
  * in that state — it skipped its replay block and reported a pass. It now fails instead.
  *
- * THE CONTRACT IS RAM − STACK_SCRATCH plus the return value; pc and SP are NOT compared. The
+ * THE CONTRACT IS RAM − the stack scratch below the entry SP plus the return value; pc and SP are NOT compared. The
  * oracle pushes IX once per column of the tile-block copy and its payout arm nests further
  * pushes and rets, all of which land in the dead STACK_SCRATCH region; the idiomatic rewrite
  * models no stack at all. Live-out is memory-only (see the routine's header), so the residual
@@ -86,6 +86,8 @@ import {
   BONUS_DISPLAY,
   BONUS_DISPLAY_ZEROED,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
+import { recordFrameSp, frameFloors } from "./_frame-sp.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -107,28 +109,29 @@ const RET_ADDR = 0x02bd; // what the task dispatcher pushes before jumping to a 
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const hb = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-/** First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
 /** Same diff over two raw frame dumps from a live run. */
-function firstFrameDiff(da, db, toAddr) {
+function firstFrameDiff(da, db, toAddr, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = toAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -181,15 +184,16 @@ function makeEntry(base, poke) {
 }
 
 /**
- * Run the oracle and a candidate on two FRESH, byte-identical entries; diff RAM − STACK_SCRATCH
+ * Run the oracle and a candidate on two FRESH, byte-identical entries; diff RAM − the stack scratch below the entry SP
  * AND the return value. A fresh entry per side because the routine writes memory.
  */
 function runPair(base, poke, candidate) {
   const a = makeEntry(base, poke); // oracle
+  const aFloor = a.regs.sp;
   const b = makeEntry(base, poke); // candidate
   const ra = oracle(a);
   const rb = candidate(b);
-  return { ram: firstRamDiff(a, b), ret: ra === rb ? null : { a: ra, b: rb }, a, b };
+  return { ram: firstRamDiff(a, b, aFloor), ret: ra === rb ? null : { a: ra, b: rb }, a, b };
 }
 
 /** Sweep `values` through `poke`; return the first mismatch (or null) and the count compared. */
@@ -362,11 +366,11 @@ test("EQUAL (crafted): latch-set arm writes nothing, on both sides", () => {
 
   // The arm's whole content is that it does nothing: the oracle must leave RAM as it found it.
   const untouched = makeEntry(base, pokeLatched);
-  assert.equal(firstRamDiff(untouched, a), null, "the latch-set arm must write no RAM at all");
+  assert.equal(firstRamDiff(untouched, a, untouched.regs.sp), null, "the latch-set arm must write no RAM at all");
 
   // ...and the SAME entry with the latch clear must write, so the check above is not vacuous.
   const { a: reseeded } = runPair(base, (e) => pokeLatched(e) || e.mem.write8(BONUS_DISPLAY_ZEROED, 0x00), loc_062a);
-  assert.notEqual(firstRamDiff(untouched, reseeded), null,
+  assert.notEqual(firstRamDiff(untouched, reseeded, untouched.regs.sp), null,
     "non-vacuity: with the latch clear the same entry must re-seed and write");
   console.log("  EQUAL/latched (crafted, attract never reaches this arm): both sides inert; latch-clear twin does write");
 });
@@ -374,7 +378,9 @@ test("EQUAL (crafted): latch-set arm writes nothing, on both sides", () => {
 // -- 7. EQUAL (live-wire, whole attract) --------------------------------------
 
 test("EQUAL (live): the rewrite wired at 0x062A reproduces the all-oracle attract trace", () => {
-  const baseline = new Machine(ROM).runFrames(LIVE_FRAMES);
+  const stock = new Machine(ROM);
+  const stockSp = recordFrameSp(stock);
+  const baseline = stock.runFrames(LIVE_FRAMES);
 
   let dispatches = 0;
   const wired = new Machine(ROM, {
@@ -391,17 +397,19 @@ test("EQUAL (live): the rewrite wired at 0x062A reproduces the all-oracle attrac
       return r;
     }]]),
   });
+  const wiredSp = recordFrameSp(wired);
   const trace = wired.runFrames(LIVE_FRAMES);
+  const floors = frameFloors(stockSp, wiredSp);
 
   assert.equal(wired.stoppedBy, null, `wired run stopped early: ${wired.stoppedBy}`);
   assert.equal(trace.length, baseline.length, "both runs must capture the same number of frames");
   assert.ok(dispatches > 0, "the wired run must actually have dispatched 0x062A");
 
   for (let i = 0; i < baseline.length; i++) {
-    const d = firstFrameDiff(baseline[i], trace[i], (off) => wired.stateOffsetToAddr(off));
+    const d = firstFrameDiff(baseline[i], trace[i], (off) => wired.stateOffsetToAddr(off), floors[i]);
     assert.equal(d, null, d && `frame ${i}: RAM diverges at ${hx(d.addr ?? 0)} (${d.a}->${d.b})`);
   }
-  console.log(`  EQUAL/live: ${LIVE_FRAMES} frames identical to the all-oracle baseline over RAM − STACK_SCRATCH (${dispatches} dispatches wired)`);
+  console.log(`  EQUAL/live: ${LIVE_FRAMES} frames identical to the all-oracle baseline over RAM − the stack scratch below each frame's live SP (${dispatches} dispatches wired)`);
 });
 
 // -- 8. TEETH -----------------------------------------------------------------

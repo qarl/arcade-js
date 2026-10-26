@@ -7,7 +7,7 @@
  * bits — with the facing-right bit LEFT CLEAR — to beginWalkStep.
  *
  * The routine WRITES MEMORY and both arms end by tailing into a callee's `ret`, so it is
- * gated on MEMORY-equivalence — RAM (minus the dead STACK_SCRATCH) + pc + SP — never on a
+ * gated on MEMORY-equivalence — RAM (minus the stack scratch below the entry SP) + pc + SP — never on a
  * register file (its live-out is memory-only; see the routine header). Every case runs on
  * a FRESH clone, since this writes.
  *
@@ -65,6 +65,7 @@ import {
   STACK_SCRATCH, MARIO_MOVE_STEP_TIMER, MARIO_WALK_ANIM,
   MARIO_X, MARIO_Y, MARIO_SPRITE_CODE, BOARD,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -77,7 +78,6 @@ const TARGET = 0x1cab;
 const FRAMES = 1400;      // first natural dispatch lands between frames 1000 and 1200
 const RET_ADDR = 0x1afe;  // a plausible caller-return; only pc-equality matters, not its value
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 /** MARIO_WALK_ANIM values nextAnimationStep terminates on, derived independently of nextAnimationStep: its
  *  selector is the walk-anim byte, decremented first when bit 2 is set, and the leftward
@@ -93,16 +93,17 @@ const LEFT_RING_NEXT = { 0: 1, 1: 4, 2: 0, 3: 2, 4: 2 };
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
  *  region (the oracle's push16(0x1CBD) and the chain's returns land there; the idiomatic
  *  routine uses the JS call stack, so excluding it is the contract, not a fudge). */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -124,13 +125,13 @@ function runCandidate(entry, fn) {
   return { m: c, ret };
 }
 
-/** Compare candidate vs oracle over the contract: RAM − STACK_SCRATCH, pc, SP, and the
+/** Compare candidate vs oracle over the contract: RAM − the stack scratch below the entry SP, pc, SP, and the
  *  return value the cascade propagates. NO registers — the live-out is memory-only. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o.m, c.m);
+  const ram = firstRamDiff(o.m, c.m, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.m.pc !== c.m.pc) diffs.push(`pc oracle=${hx(o.m.pc)} cand=${hx(c.m.pc)}`);
   if (o.m.regs.sp !== c.m.regs.sp) diffs.push(`SP oracle=${hx(o.m.regs.sp)} cand=${hx(c.m.regs.sp)}`);

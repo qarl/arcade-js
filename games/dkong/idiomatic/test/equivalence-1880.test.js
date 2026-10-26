@@ -71,6 +71,7 @@ import { drawBoardLayout as loc_0da7 } from "../drawBoardLayout.js";
 import { loc_1826 } from "../../translated/loc_1826.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, SPRITE_OBJ_BLOCK, SPRITE_BUFFER, SND_TRIGGER } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -94,20 +95,20 @@ const GATE_FIRE = 0xcf; // pre-nudge gate value that becomes 0xD0 after the +1 (
 const SP_CRAFT = 0x6bf8; // inside STACK_SCRATCH; headroom for the oracle's nested rst/call pushes
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
  * First game-visible differing RAM byte between two machines, EXCLUDING the dead
- * stack-scratch region (the memory-equivalence contract is RAM − STACK_SCRATCH).
+ * stack-scratch region (the memory-equivalence contract is RAM − the stack scratch below the entry SP).
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -146,9 +147,10 @@ test("STRUCTURE: LANDED scene build — work RAM identical, salient outputs asse
 
   // LANDED: gate 0xCF -> 0xD0 after the nudge, step poked to 0x40 so its advance is visible.
   const [a, b] = craftPair(GATE_FIRE, 0x40);
+  const aFloor = a.regs.sp;
   oracle(a);
   idiomatic(b);
-  const { bad, stackDiffs } = ramDiffMinusStack(a, b);
+  const { bad, stackDiffs } = ramDiffMinusStack(a, b, aFloor);
   assert.equal(bad, null, bad && `game-visible RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
 
   // The oracle actually built the scene — confirm the salient outputs so EQUAL is not vacuous.
@@ -171,10 +173,11 @@ test("STRUCTURE: LANDED scene build — work RAM identical, salient outputs asse
 
   // DESCEND: gate 0x00 -> 0x01 after the nudge (never 0xD0) — only slides the block.
   const [c, d] = craftPair(0x00, 0x40);
+  const cFloor = c.regs.sp;
   const dsp = d.regs.sp, dpc = d.pc;
   oracle(c);
   idiomatic(d);
-  const descend = ramDiffMinusStack(c, d);
+  const descend = ramDiffMinusStack(c, d, cFloor);
   assert.equal(descend.bad, null, descend.bad && `DESCEND RAM diff at ${hx(descend.bad.addr)}`);
   assert.equal(c.mem.read8(STEP_SELECTOR), 0x40, "DESCEND must NOT advance the step (no scene built)");
   assert.equal(c.mem.read8(PACE_COUNTER) === 0x00 && c.mem.read8(SND_LATCH) === 0x03, false,
@@ -193,9 +196,10 @@ test("GATE (exhaustive): loc_1880 == oracle over all 256 gate-byte values (0x691
   let count = 0, fired = 0, slid = 0, mismatch = null;
   for (let v = 0; v < 256 && !mismatch; v++) {
     const [a, b] = craftPair(v); // do NOT poke step — detect payload via the step advance
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     count++;
     if (a.mem.read8(STEP_SELECTOR) !== baseStep) fired++; else slid++;
     if (bad) mismatch = { v, bad };
@@ -215,9 +219,10 @@ test("STEP (exhaustive): at LANDED, loc_1880 == oracle over all 256 step bytes",
   let count = 0, wraps = 0, mismatch = null;
   for (let s = 0; s < 256 && !mismatch; s++) {
     const [a, b] = craftPair(GATE_FIRE, s); // gate 0xCF forces the payload
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     count++;
     assert.equal(a.mem.read8(STEP_SELECTOR), (s + 1) & 0xff,
       `oracle must set 0x6388 to (step+1)&0xFF at step=${hx(s)}`);
@@ -281,9 +286,10 @@ test("TEETH (drop-advance): the dropped 0x6388 inc is CAUGHT by the step sweep a
   let caught = null;
   for (let s = 0; s < 256 && !caught; s++) {
     const [a, b] = craftPair(GATE_FIRE, s);
+    const aFloor = a.regs.sp;
     oracle(a);
     brokenNoAdvance(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     if (bad) caught = { s, bad };
   }
   assert.notEqual(caught, null, "the step sweep FAILED to catch a dropped advance — it is worthless");
@@ -293,9 +299,10 @@ test("TEETH (drop-advance): the dropped 0x6388 inc is CAUGHT by the step sweep a
 
 test("TEETH (drop-sound): the dropped 0x6082 sound latch is CAUGHT at LANDED and names 0x6082", () => {
   const [a, b] = craftPair(GATE_FIRE, 0x40);
+  const aFloor = a.regs.sp;
   oracle(a);
   brokenNoSound(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the LANDED entry FAILED to catch a dropped sound latch — it is worthless");
   assert.equal(bad.addr, SND_LATCH, `expected the caught diff at 0x6082, got ${hx(bad.addr)}`);
   console.log(`  TEETH/drop-sound: caught at 0x6082 (oracle=${bad.a} broken=${bad.b})`);
@@ -303,9 +310,10 @@ test("TEETH (drop-sound): the dropped 0x6082 sound latch is CAUGHT at LANDED and
 
 test("TEETH (wrong-gate): a wrong gate constant that skips the whole scene build is CAUGHT at LANDED", () => {
   const [a, b] = craftPair(GATE_FIRE, 0x40);
+  const aFloor = a.regs.sp;
   oracle(a);
   brokenWrongGate(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the LANDED entry FAILED to catch a wrong gate constant — it is worthless");
   console.log(`  TEETH/wrong-gate: caught at ${hx(bad.addr)} (oracle=${bad.a} broken=${bad.b})`);
 });
@@ -320,9 +328,10 @@ test("REALISM: replay any real 0x1880 dispatch; else record that attract never r
 
   for (const entry of caps) {
     const a = entry.clone(), b = entry.clone();
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     assert.equal(bad, null, bad && `real-dispatch RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
   }
   if (caps.length === 0) {

@@ -6,7 +6,7 @@
  * board-render sequence step (dispatchRivetBoardInterludeStep: `ld a,(0x6388)` -> rst 0x28 @ ROM 0x1648).
  *
  * runRivetBoardInterludeFrame is NOT reached in plain attract — a board is never completed there — so it is
- * validated by MEMORY-equivalence against the frozen oracle (RAM − STACK_SCRATCH; never
+ * validated by MEMORY-equivalence against the frozen oracle (RAM − the stack scratch below the entry SP; never
  * the full register file, never cycles, never SP/pc: the idiomatic effect-machine state-1
  * arm leaves SP/pc where the oracle's return chain does not, and no caller reads them),
  * with a FRESH clone per case and CRAFTED entries (doc-06: a real state + a surgical poke):
@@ -41,6 +41,7 @@ import { dispatchRivetBoardInterludeStep } from "../dispatchRivetBoardInterludeS
 import { Machine } from "../../machine.js";
 import { ORACLE_ROUTINES } from "../../routines.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -54,17 +55,17 @@ const STEP = 0x6388;  // board-render sequence step selector (0..5)
 const EFFECT_STATES = [0, 1, 2];
 const RENDER_STEPS = [0, 1, 2, 3, 4, 5];
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 // First game-visible RAM difference between two state dumps, EXCLUDING the dead
-// STACK_SCRATCH region (the memory-equivalence contract is RAM − STACK_SCRATCH). Returns
+// STACK_SCRATCH region (the memory-equivalence contract is RAM − the stack scratch below the entry SP). Returns
 // { addr, a, b } or null.
-function firstNonStackDiff(da, db, m) {
+function firstNonStackDiff(da, db, m, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = m.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -88,7 +89,7 @@ function replay(entry, candidate) {
   b.overrides = oracleCatchAll();
   oracle(a);
   candidate(b);
-  return firstNonStackDiff(a.dumpState(), b.dumpState(), a);
+  return firstNonStackDiff(a.dumpState(), b.dumpState(), a, entry.regs.sp);
 }
 
 /**
@@ -162,12 +163,12 @@ test("FULL-HANDLER: runRivetBoardInterludeFrame == oracle over effect-state {0,1
       oracle(a);
       runRivetBoardInterludeFrame(b);
 
-      const bad = firstNonStackDiff(a.dumpState(), b.dumpState(), a);
+      const bad = firstNonStackDiff(a.dumpState(), b.dumpState(), a, entry.regs.sp);
       if (bad && !mismatch) mismatch = { state, step, bad };
       seen.add(`${state}:${step}`);
 
       // Non-vacuous: the composition actually mutated game-visible RAM vs the base.
-      if (firstNonStackDiff(before, a.dumpState(), a)) mutated++;
+      if (firstNonStackDiff(before, a.dumpState(), a, entry.regs.sp)) mutated++;
     }
   }
 

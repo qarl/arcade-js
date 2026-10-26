@@ -11,7 +11,7 @@
  * pre-existing +3/+5 fields of the 0x6500 and 0x65A0 object blocks that the two gathers
  * permute into X/Y), so every case runs on a FRESH clone per side and is compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) + pc + SP.
+ *     RAM (dumpState, minus the stack scratch below the entry SP) + pc + SP.
  *
  * NO register safety margin (unlike the 0x1186 gate): live-out here is memory-only and
  * this routine deliberately drops the terminal `ldir` register-advance and the `ld a,1`,
@@ -65,6 +65,7 @@ import { loc_11fa } from "../loc_11fa.js";
 import { seedSpriteObjectPair } from "../seedSpriteObjectPair.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -76,19 +77,18 @@ const test = ROM_PRESENT
 const TARGET = 0x101f;
 const MARKER = 0x62b9;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
-// -- comparison plumbing ------------------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH, or null. */
-function ramDiffMinusStack(ma, mb) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP, or null. */
+function ramDiffMinusStack(ma, mb, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = ma.dumpState();
   const b = mb.dumpState();
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] === b[i]) continue;
     const addr = ma.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: a[i], b: b[i] };
   }
   return null;
@@ -106,14 +106,13 @@ function contractDiffs(entry, fn) {
   fn(c);
   c.ret(); // model seed50mBoardObjects's own terminal `ret` so pc + SP line up
   const diffs = [];
-  const ram = ramDiffMinusStack(o, c);
+  const ram = ramDiffMinusStack(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr ?? 0)} oracle=${ram.a} cand=${ram.b}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);
   return diffs;
 }
 
-// -- capture: force the board-2 setup that dispatches 0x101f ------------------
 
 const POKE_FRAME = 100;
 const FRAMES = 120;
@@ -126,11 +125,6 @@ function boardPoke(board) {
   ];
 }
 
-/**
- * Force the real dispatches of 0x101f via the board poke and clone the machine at up to K
- * true entries. The wrapper snapshots the entry state, then runs the oracle so the host
- * proceeds. A fresh copy of the poke per machine keeps runs independent.
- */
 function captureDispatches(board, K) {
   const caps = [];
   const snap = new Map([[TARGET, (mm) => {
@@ -171,7 +165,6 @@ function craftZeroMarker(entry) {
   return w;
 }
 
-// -- 1. EQUAL (real forced dispatches) ----------------------------------------
 
 test("EQUAL: real forced board-2 dispatches of 0x101f match the oracle", () => {
   assert.ok(CAPS2.length >= 1, `expected >=1 real 0x101f dispatch after BOARD=2 poke, got ${CAPS2.length}`);
@@ -185,7 +178,6 @@ test("EQUAL: real forced board-2 dispatches of 0x101f match the oracle", () => {
   );
 });
 
-// -- 2. CRAFTED (distinctive record content) ----------------------------------
 
 test("CRAFTED: distinctive object-record content (identical both sides) matches the oracle", () => {
   const w = craftDistinctive(CAPS2[0]);
@@ -194,7 +186,6 @@ test("CRAFTED: distinctive object-record content (identical both sides) matches 
   console.log("  CRAFTED: distinctive +3/+5 X/Y content in the 0x6500 + 0x65A0 blocks identical to the oracle");
 });
 
-// -- 3. TEETH -----------------------------------------------------------------
 
 /** Broken twin (a): MISSING-MARKER — everything correct except the 0x62B9 = 1 write. */
 function missingMarkerTwin(m) {
@@ -234,7 +225,6 @@ function copyRom(mem, src, dst, n) {
 }
 
 test("TEETH: the missing-marker twin and the skip-pair twin are CAUGHT", () => {
-  // (a) missing-marker: run on an entry forced to 0x62B9 = 0 so the omitted write shows.
   const z = craftZeroMarker(CAPS2[0]);
   const markerDiffs = contractDiffs(z, missingMarkerTwin);
   assert.ok(markerDiffs.length > 0, "the missing-marker twin escaped — the gate is worthless");

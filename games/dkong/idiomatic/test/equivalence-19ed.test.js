@@ -55,6 +55,7 @@ import { loc_19ed as oracle } from "../../translated/loc_19ed.js";
 import { confirmObjectHit as idiomatic } from "../confirmObjectHit.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, MARIO_Y } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -78,16 +79,17 @@ const recAddr = (slot, off) => (slot & 0xff00) | ((slot + off) & 0xff);
 
 /**
  * First game-visible differing RAM byte between two machines, EXCLUDING the dead
- * stack-scratch region (the memory-equivalence contract is RAM − STACK_SCRATCH).
+ * stack-scratch region (the memory-equivalence contract is RAM − the stack scratch below the entry SP).
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -135,10 +137,11 @@ const registered = (m) => m.mem.read8(HIT_STATE) !== SENTINEL; // trio written i
 
 test("STRUCTURE: crafted register entry — trio written, game-visible RAM identical, SP/pc unmodelled", () => {
   const [a, b] = craftPair(SLOT, 0x50, 0x50, 0x00); // Y matches, bit 3 clear -> register
+  const aFloor = a.regs.sp;
   oracle(a);
   idiomatic(b);
 
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.equal(bad, null, bad && `game-visible RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
 
   // The oracle must have registered the hit into the trio.
@@ -169,9 +172,10 @@ test("Y-GATE (exhaustive): confirmObjectHit == oracle over all 256 Mario-Y value
   let count = 0, hits = 0, mismatch = null;
   for (let y = 0; y < 256 && !mismatch; y++) {
     const [a, b] = craftPair(SLOT, y, recY, 0x00); // flag byte eligible (bit 3 clear)
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     count++;
     if (registered(a)) hits++;
     if (bad) mismatch = { y, bad };
@@ -190,9 +194,10 @@ test("ELIGIBILITY-GATE (exhaustive): confirmObjectHit == oracle over all 256 fla
   let count = 0, hits = 0, mismatch = null;
   for (let flags = 0; flags < 256 && !mismatch; flags++) {
     const [a, b] = craftPair(SLOT, 0x50, 0x50, flags); // Y matched; sweep eligibility flag byte
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     count++;
     if (registered(a)) hits++;
     if (bad) mismatch = { flags, bad };
@@ -212,9 +217,10 @@ test("L-WRAP: confirmObjectHit == oracle for records whose +1/+3 offsets wrap th
   const RECORDS = [0x6a0c, 0x6afc, 0x6afd, 0x6afe, 0x6aff, 0x6a00, 0x6a01];
   for (const record of RECORDS) {
     const [a, b] = craftPair(record, 0x50, 0x50, 0x00); // Y matched, eligible -> register
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     assert.equal(bad, null,
       bad && `record ${hx(record)}: RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
     assert.equal(a.mem.read8(HIT_STATE), 0x01, `record ${hx(record)}: oracle must register the hit`);
@@ -257,9 +263,10 @@ test("TEETH (wrong-bit): the bit-2 eligibility twin is CAUGHT by the ELIGIBILITY
   let caught = null;
   for (let flags = 0; flags < 256 && !caught; flags++) {
     const [a, b] = craftPair(SLOT, 0x50, 0x50, flags);
+    const aFloor = a.regs.sp;
     oracle(a);
     brokenWrongBit(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     if (bad) caught = { flags, bad };
   }
   assert.notEqual(caught, null, "the ELIGIBILITY sweep FAILED to catch a wrong eligibility bit — it is worthless");
@@ -271,6 +278,7 @@ test("TEETH (16-bit-walk): the no-wrap HL twin is CAUGHT at a wrap record, names
   const record = 0x6afe; // (+3) wraps to 0x6a01; a 16-bit walk wrongly reads 0x6b01
   const wrongAddr = (record + 3) & 0xffff; // 0x6b01 — the byte the buggy walk reads
   const a = base().clone(), b = base().clone();
+  const aFloor = SP_CRAFT;
   for (const m of [a, b]) {
     m.regs.hl = record;
     m.regs.sp = SP_CRAFT;
@@ -285,7 +293,7 @@ test("TEETH (16-bit-walk): the no-wrap HL twin is CAUGHT at a wrap record, names
   }
   oracle(a); //          reads wrapped 0x6a01 (0x50) -> match + eligible -> registers
   broken16bitWalk(b); // reads 0x6b01 (0x00) -> Y mismatch -> no-op
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the L-WRAP setup FAILED to catch a 16-bit (non-wrapping) offset walk — it is worthless");
   assert.equal(bad.addr, HIT_STATE, `expected the caught diff at 0x6340, got ${hx(bad.addr)}`);
   console.log(`  TEETH/16-bit-walk: caught at record ${hx(record)} (0x6340 oracle=${bad.a} broken=${bad.b})`);
@@ -301,9 +309,10 @@ test("REALISM: replay any real 0x19ED dispatch; else record that attract never r
 
   for (const entry of caps) {
     const a = entry.clone(), b = entry.clone();
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     assert.equal(bad, null, bad && `real-dispatch RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
   }
   if (caps.length === 0) {

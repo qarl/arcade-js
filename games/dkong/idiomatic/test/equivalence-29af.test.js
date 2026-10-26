@@ -9,7 +9,7 @@
  * skips the caller), kill (clears MARIO_ACTIVE, returns normally), or snap sideways (writes
  * MARIO_X + MARIO_SPRITE_RECORD's X, skips the caller).
  *
- * THE CONTRACT COMPARED HERE is RAM minus STACK_SCRATCH, the boolean return, and — where the
+ * THE CONTRACT COMPARED HERE is RAM minus the stack scratch below the entry SP, the boolean return, and — where the
  * board gate OPENED — the register the frozen continuation reads back (A the verdict, B the
  * count-minus-index; the search's inputs C/DE/H/L/IX/IY are read by no caller, derived below).
  * pc/SP are NOT compared: the idiomatic routine replaces the Z80 stack with the JS call
@@ -88,6 +88,7 @@ import {
   SPRITE_X,
   STACK_SCRATCH,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -108,7 +109,6 @@ const RET_TO_CALLER = 0x2b26; // where loc_2b1c resumes on a plain return
 const RET_TO_CALLERS_CALLER = 0x1c08; // where the airborne handler resumes on a caller-skip
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /** Does the board gate open for this board? The vector rotates the mask BOARD times and reads
  *  the carry, which selects bit (BOARD - 1) — the same derivation boardBitGate's own gate pins. */
@@ -116,14 +116,15 @@ const gateOpens = (board) => ((BOARD_MASK >> ((board - 1) & 7)) & 1) === 1;
 
 // -- the contract --------------------------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -138,7 +139,7 @@ function firstRamDiff(a, b) {
 // a rewrite that drops the seats. D scratch; F, pc, SP out (see header).
 const REG_NAMES = ["a", "b"];
 
-/** Full contract diff on a shared entry: RAM − STACK_SCRATCH, the boolean return, and (only when
+/** Full contract diff on a shared entry: RAM − the stack scratch below the entry SP, the boolean return, and (only when
  *  the board gate opens) the register file. */
 function contractDiffs(entry, fn) {
   const o = entry.clone();
@@ -151,7 +152,7 @@ function contractDiffs(entry, fn) {
     return [`candidate threw: ${e.message}`];
   }
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (ro !== rc) diffs.push(`return oracle=${ro} cand=${rc}`);
   if (gateOpens(entry.mem.read8(BOARD))) {

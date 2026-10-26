@@ -44,6 +44,7 @@ import { stageAward300Popup as idiomatic } from "../stageAward300Popup.js";
 import { stageAwardPopupAtHitObject } from "../stageAwardPopupAtHitObject.js"; // idiomatic callee, for the teeth twins
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -59,14 +60,14 @@ const SND = 0x6085;       // sound latch (gate-open, written by stampScorePopupS
 const TASK_TAIL = 0x60b0; // low byte of the task ring's next write slot
 const PAGE = 0x6000;      // fixed high byte of every task-ring slot address
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
  * First differing RAM byte between two machines, EXCLUDING the dead stack-scratch region
- * (the memory-equivalence contract is RAM − STACK_SCRATCH). Returns the first game-visible
+ * (the memory-equivalence contract is RAM − the stack scratch below the entry SP). Returns the first game-visible
  * difference { addr, a, b } or null, plus the count tolerated inside the stack.
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0;
@@ -74,7 +75,7 @@ function ramDiffMinusStack(a, b) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -89,7 +90,7 @@ function replay(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return { a, b, ...ramDiffMinusStack(a, b) };
+  return { a, b, ...ramDiffMinusStack(a, b, entry.regs.sp) };
 }
 
 /**
@@ -167,7 +168,7 @@ test("BOARD (exhaustive): stageAward300Popup == oracle over all 256 BOARD values
     for (const m of [a, b]) { m.mem.write8(BOARD, v); m.mem.write8(SND, 0x00); } // clean SND probe
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, base.regs.sp);
     count++;
     if (a.mem.read8(SND) === 3) opened++; else closed++; // stampScorePopupSprite's gate fired or not
     if (bad) mismatch = { v, bad };
@@ -193,7 +194,7 @@ test("DROP arm: an occupied ring slot makes enqueueTask drop — composition mat
   for (const m of [a, b]) m.mem.write8(slot, 0x00); // bit7 clear -> slot occupied -> drop
   oracle(a);
   idiomatic(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, base.regs.sp);
   assert.equal(bad, null, bad && `drop-arm RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
   // Prove we actually took the drop arm: the tail did NOT advance on either side.
   assert.equal(a.mem.read8(TASK_TAIL), tail, "oracle must leave TASK_TAIL untouched on the drop arm");

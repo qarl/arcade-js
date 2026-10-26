@@ -58,6 +58,7 @@ import { blinkSpritePairOn } from "../blinkSpritePairOn.js";
 import { storeBlinkSpriteCode } from "../storeBlinkSpriteCode.js";
 import { Machine } from "../../machine.js";
 import { SPRITE_BUFFER, STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -141,15 +142,16 @@ function sweepBytes(cand, b1s, b5s, cs) {
 
 // -- whole-machine plumbing (realism / crafted gates) -------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH, or null. */
-function firstRamDiffOutsideStack(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP, or null. */
+function firstRamDiffOutsideStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -162,14 +164,16 @@ function firstRamDiffOutsideStack(a, b) {
  */
 function diffAgainstOracle(entry, candidate) {
   const a = installOracleTail(entry.clone()); // oracle
+  const aFloor = a.regs.sp;
   const b = entry.clone(); // candidate (calls the idiomatic tail directly)
   oracle(a);
   candidate(b);
-  return firstRamDiffOutsideStack(a, b);
+  return firstRamDiffOutsideStack(a, b, aFloor);
 }
 
-/** Every RAM addr (outside STACK_SCRATCH) whose byte the oracle changed on `entry`. */
+/** Every RAM addr (outside the stack scratch below the entry SP) whose byte the oracle changed on `entry`. */
 function oracleWriteFootprint(entry) {
+  const dead = deadStackBelow(STACK_SCRATCH, entry.regs.sp);
   const m = installOracleTail(entry.clone());
   const before = m.dumpState();
   oracle(m);
@@ -178,7 +182,7 @@ function oracleWriteFootprint(entry) {
   for (let i = 0; i < before.length; i++) {
     if (before[i] === after[i]) continue;
     const addr = m.stateOffsetToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     addrs.push(addr);
   }
   return addrs;

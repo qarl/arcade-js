@@ -15,7 +15,7 @@
  * STACK_SCRATCH, excluded by the memory-equivalence contract). The idiomatic routine
  * models no stack — it calls writeMarioSpriteRecord directly and returns — so the harness
  * performs ONE m.ret() on the candidate to line pc + SP up with the oracle. Contract:
- * RAM (minus STACK_SCRATCH) + pc + SP, never a register file (live-out is memory-only).
+ * RAM (minus the stack scratch below the entry SP) + pc + SP, never a register file (live-out is memory-only).
  *
  *   1. EQUAL (exhaustive) — all 65536 (MARIO_Y, MARIO_AIR_START_Y) pairs; both arms and
  *      the byte-width wrap (MARIO_Y < 15) are covered by construction, and the sweep is
@@ -47,6 +47,7 @@ import {
   MARIO_FATAL_FALL,
   SND_TRIGGER,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -64,17 +65,17 @@ const MARIO_SPRITE_RECORD_END = 0x694f; // slot +3 (Y) of Mario's sprite record
 const SAFE_SP = 0x6bf8;
 
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH
-// region — exactly the memory-equivalence contract (RAM − STACK_SCRATCH).
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
+// region — exactly the memory-equivalence contract (RAM − the stack scratch below the entry SP).
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -93,16 +94,17 @@ function makeEntry(base, y, startY) {
 }
 
 // Run the oracle on one fresh entry and the candidate on another, byte-identical entry,
-// then diff the contract: RAM − STACK_SCRATCH, pc, SP. The candidate models the tail's
+// then diff the contract: RAM − the stack scratch below the entry SP, pc, SP. The candidate models the tail's
 // single net `ret` with one m.ret() so pc + SP line up with the oracle. Fresh entries per
 // side because the routine WRITES memory.
 function contractDiffAt(base, y, startY, candidate) {
   const o = makeEntry(base, y, startY);
+  const oFloor = o.regs.sp;
   const c = makeEntry(base, y, startY);
   oracle(o);
   candidate(c);
   c.ret();
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, oFloor);
   if (ram) return { addr: ram.addr, a: ram.a, b: ram.b, kind: "RAM" };
   if (o.pc !== c.pc) return { kind: "pc", a: o.pc, b: c.pc };
   if (o.regs.sp !== c.regs.sp) return { kind: "SP", a: o.regs.sp, b: c.regs.sp };
@@ -164,7 +166,7 @@ test("EQUAL (real dispatches): markFatalFallByHeight == oracle on every captured
     oracle(o);
     markFatalFallByHeight(c);
     c.ret();
-    const ram = firstRamDiff(o, c);
+    const ram = firstRamDiff(o, c, cap.regs.sp);
     assert.equal(ram, null, ram && `real dispatch RAM diverges at 0x${(ram.addr ?? 0).toString(16)} (${ram.a}->${ram.b})`);
     assert.equal(o.pc, c.pc, "real dispatch pc mismatch");
     assert.equal(o.regs.sp, c.regs.sp, "real dispatch SP mismatch");

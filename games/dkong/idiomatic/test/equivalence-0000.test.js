@@ -7,7 +7,7 @@
  * BOUND + FRAME TICK as in equivalence-02bd: one idiomatic `.next()` == one oracle loop trip
  * (`step(0x02bf)` to the next), so pass 1 is boot init + the first main-loop pass. Between
  * passes one service, identical on both sides, fires the oracle engine's NMI (push PC, 0x0066,
- * mask-gated) at runIdiomaticGame's cadence. Per pass: RAM − STACK_SCRATCH, io latches, the port
+ * mask-gated) at runIdiomaticGame's cadence. Per pass: RAM − the stack scratch below boot's reseated SP, io latches, the port
  * log (every latch/DMA write and every IN2 read = watchdog kick, in program order, the service's own
  * excluded; compared exactly), and SP: the generator's must not move; the oracle's is asserted at
  * 0x6c00, where boot reseats it (0x02b2 ld sp,0x6c00) and every loop trip leaves it.
@@ -26,6 +26,7 @@ import { boot, bootInit } from "../boot.js";
 import { mainLoop } from "../mainLoop.js";
 import { clearRamAndInitHardware } from "../clearRamAndInitHardware.js";
 import { NMI_ENABLE, STACK_SCRATCH, TASK_HEAD, TASK_RING, FRAME_SEEN } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -40,7 +41,6 @@ const BOUND = Symbol("boot-bound");
 const NO_YIELD = Symbol("no-yield");
 const GUARD = 4096; // TASK_HEAD reads in one generator pass before it counts as a lost yield
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 const ORACLE_SP = 0x6c00;
 const PORT_WRITES = ["writeSoundLatch3d", "writeSoundLatch6h", "writeAudioIrq", "writeNmiMask", "writeFlipScreen",
@@ -126,7 +126,8 @@ function runGenerator(entry, gen, schedule) {
   return { snaps, early: null };
 }
 
-function breach(entry, oracleRun, cand) {
+function breach(entry, oracleRun, cand, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   if (oracleRun.fault) return `oracle fault: ${oracleRun.fault}`;
   if (cand.early !== null) return `generator ${cand.early}`;
   const os = oracleRun.snaps;
@@ -135,7 +136,7 @@ function breach(entry, oracleRun, cand) {
     for (let i = 0; i < o.state.length; i++) {
       if (o.state[i] === c.state[i]) continue;
       const addr = entry.stateOffsetToAddr(i);
-      if (!inStack(addr)) return `pass ${p + 1} RAM@${hx(addr)} oracle=${o.state[i]} cand=${c.state[i]}`;
+      if (!dead(addr)) return `pass ${p + 1} RAM@${hx(addr)} oracle=${o.state[i]} cand=${c.state[i]}`;
     }
     if (o.log !== c.log) return `pass ${p + 1} port log oracle=[${o.log}] cand=[${c.log}]`;
     const io = o.io.findIndex((v, i) => v !== c.io[i]);
@@ -173,7 +174,8 @@ function breachesOver(gen) {
   const out = [];
   for (const [sname, sch] of Object.entries(SCHEDULES)) {
     for (const [ename, e] of ENTRIES) {
-      const b = breach(e, runOracle(e, sch), runGenerator(e, gen, sch));
+      // boot reseats SP (0x02b2 ld sp,0x6c00): the stack below its own seat is its scratch
+      const b = breach(e, runOracle(e, sch), runGenerator(e, gen, sch), ORACLE_SP);
       if (b) out.push(`${sname}/${ename}: ${b}`);
     }
   }

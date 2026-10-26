@@ -16,7 +16,7 @@
  *
  *   1. EQUAL (exhaustive) — advanceSequenceStepWhenTimerExpires == oracle over ALL 256×256 combos of
  *      (SUBSTATE_TIMER, target byte) with the pointer aimed at a real step cell, compared
- *      on RAM (minus STACK_SCRATCH). 65,536 is the complete input space for that pointer —
+ *      on RAM (minus the stack scratch below the entry SP). 65,536 is the complete input space for that pointer —
  *      a proof of the gate polarity and the inc-with-wrap, not a sample.
  *
  *   2. INDIRECTION (crafted) — force expiry and sweep the pointer over several distinct
@@ -55,6 +55,7 @@ import { advanceSequenceStepWhenTimerExpires } from "../advanceSequenceStepWhenT
 import { tickSubstateTimer } from "../tickSubstateTimer.js";
 import { SUBSTATE_TIMER, SEQ_ADVANCE_PTR, STACK_SCRATCH } from "../names.js";
 import { Machine } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -78,19 +79,16 @@ const setPtr = (m, addr) => {
   m.mem.write8(SEQ_ADVANCE_PTR + 1, (addr >> 8) & 0xff);
 };
 
-/**
- * First differing RAM byte between two machines, EXCLUDING STACK_SCRATCH, or null.
- * The oracle writes its `rst` return address into the stack region; the direct-call
- * candidate does not, so that region is dead scratch and outside the contract.
- */
-function ramDiffNoStack(mA, mB) {
+/** First differing RAM byte between two machines, EXCLUDING the stack scratch below the entry SP, or null. */
+function ramDiffNoStack(mA, mB, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const a = mA.dumpState();
   const b = mB.dumpState();
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] === b[i]) continue;
     const addr = mA.stateOffsetToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { offset: i, addr, a: a[i], b: b[i] };
   }
   return null;
@@ -98,7 +96,7 @@ function ramDiffNoStack(mA, mB) {
 
 /**
  * Run the oracle and the candidate on two FRESH clones of `entry` (the routine WRITES
- * memory, so a clone per side) and diff RAM minus STACK_SCRATCH. advanceSequenceStepWhenTimerExpires returns a
+ * memory, so a clone per side) and diff RAM minus the stack scratch below the entry SP. advanceSequenceStepWhenTimerExpires returns a
  * constant true nothing consumes, so RAM is the whole contract.
  */
 function runPair(entry, candidate) {
@@ -106,7 +104,7 @@ function runPair(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return ramDiffNoStack(a, b);
+  return ramDiffNoStack(a, b, entry.regs.sp);
 }
 
 /** A synthetic entry: the gate byte and target byte set, the pointer aimed at `ptr`, a safe stack. */
@@ -119,11 +117,8 @@ function makeEntry(base, timer, targetByte, ptr = PTR_TARGET) {
   return e;
 }
 
-/**
- * Sweep a candidate against the oracle over all 65,536 (timer, targetByte) combos with
- * the pointer aimed at PTR_TARGET. Returns the first RAM mismatch (minus stack), or null,
- * plus the count compared.
- */
+// Sweep a candidate against the oracle over all 65,536 (timer, targetByte) combos with the pointer aimed at
+// PTR_TARGET. Returns the first RAM mismatch (minus stack), or null, plus the count compared.
 function sweep(base, candidate) {
   let count = 0;
   for (let timer = 0; timer < 256; timer++) {

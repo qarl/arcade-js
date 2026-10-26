@@ -5,7 +5,7 @@
  *
  * loc_2679 WRITES MEMORY (the reversal-timer countdown at 0x62A5, and — on expiry, via
  * reverseStepDirection — the M50_OBJ3_STEP_DIR latch), so it is gated on memory-equivalence:
- * RAM (minus the dead STACK_SCRATCH) + pc + SP. LIVE-OUT is memory-only — the tail's exit
+ * RAM (minus the stack scratch below the entry SP) + pc + SP. LIVE-OUT is memory-only — the tail's exit
  * successor (sub_2AD3) reloads the accumulator with Mario's X before reading it, so no
  * register this routine leaves is consumed downstream.
  *
@@ -48,6 +48,7 @@ import { reverseStepDirection } from "../reverseStepDirection.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, FRAME, M50_OBJ3_STEP_DIR } from "../names.js";
 import { u8 } from "../../../../core/int.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -64,18 +65,18 @@ const PAIR_P = 0x69f5;          // the tail's sprite-pair counter (advanced only
 const PAIR_P4 = 0x69f9;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -100,12 +101,12 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Contract diff: RAM − STACK_SCRATCH, pc, SP. Live-out is memory-only. */
+/** Contract diff: RAM − the stack scratch below the entry SP, pc, SP. Live-out is memory-only. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);

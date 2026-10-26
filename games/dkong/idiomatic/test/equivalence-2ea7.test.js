@@ -14,7 +14,7 @@
  * advanceToNextObject (0x2E78); the idiomatic routine dissolves both into direct calls to
  * the already-idiomatic callees.
  *
- * CONTRACT (memory-equivalence): RAM − STACK_SCRATCH (the oracle's push16 return-bracket
+ * CONTRACT (memory-equivalence): RAM − the stack scratch below the entry SP (the oracle's push16 return-bracket
  * writes two dead stack bytes the direct-call candidate never writes — excluded), SP
  * (unchanged: the oracle's push/ret balance, the candidate touches no stack), and the
  * routine's declared REGISTER live-out — the two advanced cursors (ix, iy), the
@@ -68,6 +68,7 @@ import {
   FRAME,
   SPIN_COUNT,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -88,17 +89,17 @@ const OBJ_ANIM_PTR = 0x0e;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const hx16 = (v) => "0x" + (v & 0xffff).toString(16).padStart(4, "0");
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs, skipping the dead STACK_SCRATCH region (the memory-equivalence
-// contract is RAM − STACK_SCRATCH: the oracle's push16 return-bracket writes there). null | {addr,a,b}.
-function firstRamDiff(a, b) {
+// First RAM byte that differs, skipping the stack scratch below the entry SP (the memory-equivalence
+// contract is RAM − the stack scratch below the entry SP: the oracle's push16 return-bracket writes there). null | {addr,a,b}.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -113,9 +114,9 @@ function regLiveOutDiff(o, c) {
   return null;
 }
 
-// Full contract: RAM − STACK_SCRATCH + SP (unchanged) + register live-out. null | string.
-function contractDiff(o, c) {
-  const ram = firstRamDiff(o, c);
+// Full contract: RAM − the stack scratch below the entry SP + SP (unchanged) + register live-out. null | string.
+function contractDiff(o, c, liveFloor) {
+  const ram = firstRamDiff(o, c, liveFloor);
   if (ram) return `RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`;
   if (o.regs.sp !== c.regs.sp) return `SP oracle=${hx16(o.regs.sp)} cand=${hx16(c.regs.sp)}`;
   return regLiveOutDiff(o, c);
@@ -158,11 +159,12 @@ function fullSweep(base, candidate) {
   // 1. request byte over all 256 values (only bit0 may switch the arm), a fixed seed.
   for (let req = 0; req < 256; req++) {
     const om = prep(base, OBJ_BASE, req, 0xa5, 0x00, 0x00);
+    const omFloor = om.regs.sp;
     const cm = prep(base, OBJ_BASE, req, 0xa5, 0x00, 0x00);
     oracle(om);
     candidate(cm);
     count++;
-    const d = contractDiff(om, cm);
+    const d = contractDiff(om, cm, omFloor);
     if (d) return { mismatch: `request=${hx(req)}: ${d}`, count };
   }
 
@@ -170,11 +172,12 @@ function fullSweep(base, candidate) {
   for (const [frame, spin] of [[0x00, 0x00], [0x37, 0x91], [0xff, 0xff]]) {
     for (let rnd = 0; rnd < 256; rnd++) {
       const om = prep(base, OBJ_BASE, 0x01, rnd, frame, spin);
+      const omFloor = om.regs.sp;
       const cm = prep(base, OBJ_BASE, 0x01, rnd, frame, spin);
       oracle(om);
       candidate(cm);
       count++;
-      const d = contractDiff(om, cm);
+      const d = contractDiff(om, cm, omFloor);
       if (d) return { mismatch: `seed rnd=${hx(rnd)} frame=${hx(frame)} spin=${hx(spin)}: ${d}`, count };
     }
   }
@@ -183,11 +186,12 @@ function fullSweep(base, candidate) {
   for (let k = 0; k < 10; k++) {
     const ix = (OBJ_BASE + 16 * k) & 0xffff;
     const om = prep(base, ix, 0x01, 0x3c, 0x00, 0x00);
+    const omFloor = om.regs.sp;
     const cm = prep(base, ix, 0x01, 0x3c, 0x00, 0x00);
     oracle(om);
     candidate(cm);
     count++;
-    const d = contractDiff(om, cm);
+    const d = contractDiff(om, cm, omFloor);
     if (d) return { mismatch: `slot k=${k} (ix=${hx16(ix)}): ${d}`, count };
   }
 
@@ -220,7 +224,7 @@ test("EQUAL: loc_2ea7 == oracle over the request sweep, seed sweep, and slot gri
   assert.equal(noSpawn.mem.read8(OBJ_BASE + OBJ_ACTIVE), before, "no-spawn arm must not activate the slot");
   assert.equal(noSpawn.regs.ix, (OBJ_BASE + 16) & 0xffff, "no-spawn arm must still advance the cursor");
 
-  console.log(`  EQUAL: ${count} (request, seed, slot) combos — RAM − STACK_SCRATCH + SP + live-out identical to the oracle`);
+  console.log(`  EQUAL: ${count} (request, seed, slot) combos — RAM − the stack scratch below the entry SP + SP + live-out identical to the oracle`);
 });
 
 // -- 4. EQUAL (input independence) --------------------------------------------
@@ -231,6 +235,7 @@ test("EQUAL (independence): output depends only on the request/seed/cursor, not 
   for (const de of [0x0000, 0x0004, 0x1234, 0xffff]) {
     for (const b of [0x01, 0x0a, 0xff]) {
       const om = prep(base, OBJ_BASE, 0x01, 0x9c, 0x00, 0x00);
+      const omFloor = om.regs.sp;
       const cm = prep(base, OBJ_BASE, 0x01, 0x9c, 0x00, 0x00);
       for (const m of [om, cm]) {
         m.regs.de = de; m.regs.b = b;
@@ -239,7 +244,7 @@ test("EQUAL (independence): output depends only on the request/seed/cursor, not 
       }
       oracle(om);
       loc_2ea7(cm);
-      const d = contractDiff(om, cm);
+      const d = contractDiff(om, cm, omFloor);
       assert.equal(d, null, d ? `de=${hx16(de)} b=${hx(b)}: ${d}` : "");
       // And the spawn produced the expected record regardless of the ignored inputs.
       assert.equal(cm.mem.read8(OBJ_BASE + OBJ_ACTIVE), 1, "slot must be activated regardless of de/b");
@@ -295,12 +300,12 @@ test("REALISM: real captured 0x2ea7 dispatches — loc_2ea7 matches the oracle o
     if ((cap.mem.read8(SPAWN_REQUEST) & 0x01) !== 0) sawSpawn++; else sawAdvance++;
     oracle(o);
     loc_2ea7(c);
-    const d = contractDiff(o, c);
+    const d = contractDiff(o, c, cap.regs.sp);
     assert.equal(d, null, d ? `real dispatch ${i} (ix=${hx16(cap.regs.ix)}): ${d}` : "");
   });
   assert.equal(sawSpawn, 1, "exactly the first inactive slot should consume the pending spawn");
   assert.equal(sawAdvance, 9, "the remaining nine slots should see the request already consumed");
-  console.log(`  REALISM: ${caps.length} real 0x2ea7 dispatches (${sawSpawn} spawn, ${sawAdvance} advance) — RAM − STACK_SCRATCH + SP + live-out == oracle`);
+  console.log(`  REALISM: ${caps.length} real 0x2ea7 dispatches (${sawSpawn} spawn, ${sawAdvance} advance) — RAM − the stack scratch below the entry SP + SP + live-out == oracle`);
 });
 
 // -- 6. TEETH -----------------------------------------------------------------

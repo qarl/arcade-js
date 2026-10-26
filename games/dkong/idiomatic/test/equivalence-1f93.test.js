@@ -13,7 +13,7 @@
  * which is why the checks below pin the branch choice directly as well as through the RAM
  * the branch then writes.
  *
- * CONTRACT COMPARED HERE: the work/sprite/video state dump minus STACK_SCRATCH plus the
+ * CONTRACT COMPARED HERE: the work/sprite/video state dump minus the stack scratch below the entry SP plus the
  * return value — the required memory-equivalence contract — and, as EXTRAS that legitimately
  * hold for this routine, the STACK_SCRATCH window itself, pc, SP and the FULL register file.
  * The extras hold for a derivable reason: the rewrite keeps the oracle's tail dispatch, so
@@ -91,8 +91,9 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1f93 as oracle } from "../../translated/loc_1f93.js";
 import { advanceBarrelMotion } from "../advanceBarrelMotion.js";
 import { OBJ_ARRAY_67, STACK_SCRATCH } from "../names.js";
-import { firstRegDiff } from "../../../../core/equivalence.js";
+import { firstRegDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import { Machine } from "../../machine.js";
+import { recordFrameSp, frameFloors } from "./_frame-sp.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -118,29 +119,30 @@ const SELECT = 1;
 const MODE_BITS = 2;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-/** First differing RAM byte outside the dead STACK_SCRATCH window, or null. */
-function firstRamDiff(a, b) {
+/** First differing RAM byte outside the stack scratch below the entry SP, or null. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
 /** First differing byte INSIDE STACK_SCRATCH, or null — asserted as an extra, see the header. */
-function firstStackDiff(a, b) {
+function firstStackDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) return { addr, a: da[i], b: db[i] };
+    if (dead(addr)) return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
@@ -208,10 +210,10 @@ function contractDiffs(entry, fn) {
     return [`threw ${e.constructor.name}: ${e.message}`];
   }
   const out = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) out.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (oret !== cret) out.push(`return oracle=${String(oret)} cand=${String(cret)}`);
-  const stack = firstStackDiff(o, c);
+  const stack = firstStackDiff(o, c, entry.regs.sp);
   if (stack) out.push(`STACK@${hx(stack.addr)} oracle=${stack.a} cand=${stack.b}`);
   if (o.pc !== c.pc) out.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) out.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);
@@ -274,9 +276,10 @@ let BASELINE = null;
 function baseline() {
   if (BASELINE) return BASELINE;
   const m = new Machine(ROM, { overrides: new Map([[TARGET, (mm) => oracle(mm)]]) });
+  const sp = recordFrameSp(m);
   const frames = m.runFrames(ATTRACT_FRAMES);
   assert.equal(m.stoppedBy, null, `baseline run stopped early: ${m.stoppedBy}`);
-  BASELINE = { m, frames };
+  BASELINE = { m, frames, sp };
   return BASELINE;
 }
 
@@ -291,7 +294,7 @@ function baseline() {
  * rehost, which is also what keeps this O(1) rather than re-running the rest of the walk.
  */
 function liveRun(body, { restoreCycles = true, install } = {}) {
-  const { m: base, frames: baseFrames } = baseline();
+  const { m: base, frames: baseFrames, sp: baseFrameSp } = baseline();
   let fired = 0;
   const deltas = new Set();
   const cand = new Machine(ROM, {
@@ -305,7 +308,9 @@ function liveRun(body, { restoreCycles = true, install } = {}) {
     }]]),
   });
   if (install) install(cand);
+  const candFrameSp = recordFrameSp(cand);
   const candFrames = cand.runFrames(ATTRACT_FRAMES);
+  const floors = frameFloors(baseFrameSp, candFrameSp);
   assert.equal(cand.stoppedBy, null, `live run stopped early: ${cand.stoppedBy}`);
   assert.ok(fired > 0, "the override never fired — this case would be vacuous");
   assert.equal(candFrames.length, baseFrames.length, "both runs must reach the frame budget");
@@ -314,10 +319,11 @@ function liveRun(body, { restoreCycles = true, install } = {}) {
   let firstStackBad = null;
   for (let f = 0; f < baseFrames.length && !firstBad; f++) {
     const a = baseFrames[f], b = candFrames[f];
+    const dead = deadStackBelow(STACK_SCRATCH, floors[f]);
     for (let i = 0; i < a.length; i++) {
       if (a[i] === b[i]) continue;
       const addr = base.stateOffsetToAddr(i);
-      if (inStack(addr)) {
+      if (dead(addr)) {
         if (!firstStackBad) firstStackBad = `frame ${f}: STACK@${hx(addr)} baseline=${a[i]} live=${b[i]}`;
         continue;
       }

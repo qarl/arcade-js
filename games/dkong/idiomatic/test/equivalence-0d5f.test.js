@@ -8,7 +8,7 @@
  * The routine WRITES memory and is NOT a leaf — it drives loc_0f56 (the oracle, incl.
  * its rst-0x28 per-board setup dispatch), loadBoardObjectRecords, loadSpriteObjectBlock,
  * and the add-strided leaves — so it is gated by clone / replay (docs/decompiler-pipeline) with a FRESH
- * clone per case. The memory-equivalence contract is RAM − STACK_SCRATCH: the oracle's
+ * clone per case. The memory-equivalence contract is RAM − the stack scratch below the entry SP: the oracle's
  * push16 / m.call / ret stack traffic (and the whole board-setup call chain) lands in the
  * dead stack region, which the compare excludes; the direct-call layer drops it entirely.
  *
@@ -17,7 +17,7 @@
  * reached — exactly as docs/decompiler-pipeline prescribes for arms attract never takes — by a
  * Karl-sanctioned BOARD poke (2/3/4) applied identically on both sides of the real entry.
  *
- *   1. STRUCTURE — on the real board-1 entry, game-visible RAM (RAM − STACK_SCRATCH) is
+ *   1. STRUCTURE — on the real board-1 entry, game-visible RAM (RAM − the stack scratch below the entry SP) is
  *      identical, and the oracle actually did the work (SUBSTATE_TIMER = 0x40, the
  *      GAME_SUBSTATE inc, the sprite block copied from the 0x385C template, the head copy
  *      into 0x6900, and the 25m Y-column −4). stackDiffs > 0 proves the exclusion is
@@ -50,6 +50,7 @@ import { addToSpriteObjectColumn } from "../addToSpriteObjectColumn.js";
 import { addStrided } from "../addStrided.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, SUBSTATE_TIMER, GAME_SUBSTATE, BOARD, SPRITE_OBJ_BLOCK, SPRITE_BUFFER } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -68,16 +69,17 @@ const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
  * First game-visible differing RAM byte between two machines, EXCLUDING the dead
- * stack-scratch region (the memory-equivalence contract is RAM − STACK_SCRATCH).
+ * stack-scratch region (the memory-equivalence contract is RAM − the stack scratch below the entry SP).
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -114,10 +116,11 @@ test("STRUCTURE: real board-1 entry — game-visible RAM identical; oracle actua
 
   const subBefore = entry.mem.read8(GAME_SUBSTATE);
   const a = entry.clone(), b = entry.clone();
+  const aFloor = a.regs.sp;
   oracle(a);
   idiomatic(b);
 
-  const { bad, stackDiffs } = ramDiffMinusStack(a, b);
+  const { bad, stackDiffs } = ramDiffMinusStack(a, b, aFloor);
   assert.equal(bad, null, bad && `game-visible RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
 
   // Non-vacuous: the salient outputs on the oracle side.
@@ -138,12 +141,13 @@ test("STRUCTURE: real board-1 entry — game-visible RAM identical; oracle actua
 test("BOARDS (crafted): loc_0d5f == oracle for BOARD 1/2/3/4, with the per-board offset", () => {
   for (const board of [1, 2, 3, 4]) {
     const a = base().clone(), b = base().clone();
+    const aFloor = a.regs.sp;
     a.mem.write8(BOARD, board);
     b.mem.write8(BOARD, board);
     oracle(a);
     idiomatic(b);
 
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     assert.equal(bad, null, bad && `BOARD ${board}: RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
 
     // Observable per-board offset on the oracle side (non-vacuous).
@@ -213,9 +217,10 @@ function brokenWrongOffset(m) {
 
 test("TEETH (drop-advance): the dropped GAME_SUBSTATE inc is CAUGHT and names 0x600A", () => {
   const a = base().clone(), b = base().clone();
+  const aFloor = a.regs.sp;
   oracle(a);
   brokenNoAdvance(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the gate FAILED to catch a dropped GAME_SUBSTATE advance — it is worthless");
   assert.equal(bad.addr, GAME_SUBSTATE, `expected the caught diff at 0x600A, got ${hx(bad.addr)}`);
   console.log(`  TEETH/drop-advance: caught at 0x600A (oracle=${bad.a} broken=${bad.b})`);
@@ -223,9 +228,10 @@ test("TEETH (drop-advance): the dropped GAME_SUBSTATE inc is CAUGHT and names 0x
 
 test("TEETH (wrong-offset): a 25m X-column shift instead of Y is CAUGHT and names 0x6908", () => {
   const a = base().clone(), b = base().clone();
+  const aFloor = a.regs.sp;
   oracle(a);
   brokenWrongOffset(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the gate FAILED to catch a wrong-column offset — it is worthless");
   assert.equal(bad.addr, P6908, `expected the caught diff at 0x6908, got ${hx(bad.addr)}`);
   console.log(`  TEETH/wrong-offset: caught at 0x6908 (oracle=${bad.a} broken=${bad.b})`);
@@ -238,9 +244,10 @@ test("REALISM: replay every real 0x0d5f dispatch — game-visible RAM identical 
   assert.ok(caps.length >= 1, "expected at least one real 0x0d5f dispatch in a long attract run");
   for (const entry of caps) {
     const a = entry.clone(), b = entry.clone();
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     assert.equal(bad, null, bad && `real-dispatch RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
   }
   console.log(`  REALISM: ${caps.length} real 0x0d5f dispatch(es) — game-visible RAM identical to the oracle`);

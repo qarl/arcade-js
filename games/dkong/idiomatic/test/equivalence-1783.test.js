@@ -17,7 +17,7 @@
  *      control arm (all-clear; first / middle / last slot occupied; several strides;
  *      high-bit non-zero), on FRESH clones both sides: the oracle writes NO RAM
  *      (justifying the read-only signature) and allSlotsClear returns the oracle's
- *      boolean, with RAM (minus STACK_SCRATCH) identical.
+ *      boolean, with RAM (minus the stack scratch below the entry SP) identical.
  *
  *   3. EQUAL (randomized differential) — thousands of random (base, stride, pattern)
  *      states, each compared boolean + RAM against the oracle. Broadens coverage past
@@ -46,6 +46,7 @@ import { loc_1783 as oracle } from "../../translated/loc_1783.js";
 import { allSlotsClear } from "../allSlotsClear.js";
 import { Machine } from "../../machine.js";
 import { SPRITE_OBJ_BLOCK, STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -57,19 +58,20 @@ const test = ROM_PRESENT
 const TARGET = 0x1783;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-// -- state-diff plumbing (RAM minus STACK_SCRATCH) ----------------------------
+// -- state-diff plumbing (RAM minus the stack scratch below the entry SP) ----------------------------
 
 /**
  * First differing RAM byte between two dumps, skipping the STACK_SCRATCH region.
  * The oracle's caller-skip path pops/rets off the Z80 stack; those are reads, not
  * writes, but the exclusion mirrors the doc-06 contract (compare RAM minus stack).
  */
-function firstRamDiffExStack(a, b, m) {
+function firstRamDiffExStack(a, b, m, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] !== b[i]) {
       const addr = m.stateOffsetToAddr(i);
-      if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+      if (dead(addr)) continue;
       return { offset: i, addr, a: a[i], b: b[i] };
     }
   }
@@ -101,7 +103,7 @@ function runOracle(crafted) {
   const before = m.dumpState();
   const bool = oracle(m);
   const after = m.dumpState();
-  const wrote = firstRamDiffExStack(before, after, m);
+  const wrote = firstRamDiffExStack(before, after, m, crafted.regs.sp);
   return { bool, wrote, ram: after, m };
 }
 
@@ -112,13 +114,13 @@ function runCandidate(crafted) {
   const bool = allSlotsClear(m.mem8, m.regs.hl, m.regs.de);
   const after = m.dumpState();
   // candidate is read-only; confirm it too mutated nothing
-  const wrote = firstRamDiffExStack(before, after, m);
+  const wrote = firstRamDiffExStack(before, after, m, crafted.regs.sp);
   return { bool, wrote, ram: after, m };
 }
 
 /**
  * Full memory-equivalence check on one crafted state: oracle writes no RAM, candidate
- * reproduces the oracle's boolean, and RAM (minus STACK_SCRATCH) is identical.
+ * reproduces the oracle's boolean, and RAM (minus the stack scratch below the entry SP) is identical.
  */
 function assertEquiv(crafted, label) {
   const o = runOracle(crafted);
@@ -126,7 +128,7 @@ function assertEquiv(crafted, label) {
   assert.equal(o.wrote, null, `${label}: oracle wrote RAM at ${o.wrote && hx(o.wrote.addr)} — not read-only`);
   assert.equal(c.wrote, null, `${label}: candidate wrote RAM at ${c.wrote && hx(c.wrote.addr)} — not read-only`);
   assert.equal(c.bool, o.bool, `${label}: boolean mismatch — oracle=${o.bool} candidate=${c.bool}`);
-  const rd = firstRamDiffExStack(o.ram, c.ram, o.m);
+  const rd = firstRamDiffExStack(o.ram, c.ram, o.m, crafted.regs.sp);
   assert.equal(rd, null, rd && `${label}: RAM diverged at ${hx(rd.addr)} oracle=${hx(rd.a)} cand=${hx(rd.b)}`);
   return o.bool;
 }

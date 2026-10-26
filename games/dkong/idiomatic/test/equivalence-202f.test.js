@@ -21,7 +21,7 @@
  *     the WHOLE frozen chain below it — the record tail at 0x2038, the sprite copy at 0x21BA, and
  *     the rest of that frame's ten-slot object loop — on both sides before anything is compared.
  *     The comparison is therefore of the loop's finished work, not of two stores.
- *   - WHAT IS COMPARED. RAM minus STACK_SCRATCH (the memory-equivalence contract), plus the
+ *   - WHAT IS COMPARED. RAM minus the stack scratch below the entry SP (the memory-equivalence contract), plus the
  *     forwarded return value. NOT pc and NOT SP: cycle-free code cannot preserve them.
  *   - LIVE-WIRED, as well as replayed. The last test wires the rewrite into a real 1500-frame
  *     attract run and diffs every frame against the all-oracle baseline on the same contract.
@@ -45,6 +45,7 @@ import { loc_202f as oracle } from "../../translated/loc_202f.js";
 import { loc_202f } from "../loc_202f.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -63,17 +64,17 @@ const STEP_LO = 0x11; // per-frame horizontal step, low byte
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const hb = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region
-// (the memory-equivalence contract is RAM − STACK_SCRATCH). Returns { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
+// (the memory-equivalence contract is RAM − the stack scratch below the entry SP). Returns { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -113,7 +114,7 @@ function runPair(entry, candidate) {
   b.routines.set(WALK_LOOPBACK, () => {});
   const retA = oracle(a);
   const retB = candidate(b, cursorOf(b));
-  return { ram: firstRamDiff(a, b), retA, retB, after: b };
+  return { ram: firstRamDiff(a, b, entry.regs.sp), retA, retB, after: b };
 }
 
 // Replay a list of entry states; return the first case that diverges (RAM or return), or null.
@@ -183,7 +184,7 @@ test("REACHABILITY: 0x202F is dispatched in attract, across several record bases
 
 // -- 1. EQUAL on every real dispatch ------------------------------------------
 
-test("EQUAL (all real captures): loc_202f == oracle over RAM − STACK_SCRATCH + return value", () => {
+test("EQUAL (all real captures): loc_202f == oracle over RAM − the stack scratch below the entry SP + return value", () => {
   const caps = captures();
   const bad = sweep(caps, loc_202f);
   assert.equal(bad, null, describe(bad));

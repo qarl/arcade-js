@@ -6,7 +6,7 @@
  * sub_004e WRITES memory (40 bytes into SPRITE_OBJ_BLOCK) and its source is an
  * implicit input (HL, caller-supplied), so it is validated by capture/clone/replay
  * on a FRESH clone per case — never by reusing one machine, and never on the full
- * register file or cycles. The contract compared is RAM (minus STACK_SCRATCH) + the
+ * register file or cycles. The contract compared is RAM (minus the stack scratch below the entry SP) + the
  * declared live-out registers HL/DE/BC:
  *
  *   1. REALISM — hook 0x004e in a real attract run and clone the machine at each real
@@ -41,6 +41,7 @@ import { loc_004e as oracle } from "../../translated/loc_004e.js";
 import { loadSpriteObjectBlock } from "../loadSpriteObjectBlock.js";
 import { Machine } from "../../machine.js";
 import { SPRITE_OBJ_BLOCK, STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -57,15 +58,16 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
 // -- comparison plumbing ------------------------------------------------------
 
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH, or null. */
-function firstRamDiffOutsideStack(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP, or null. */
+function firstRamDiffOutsideStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -88,7 +90,7 @@ function diffAgainstOracle(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return { ram: firstRamDiffOutsideStack(a, b), reg: firstLiveRegDiff(a, b) };
+  return { ram: firstRamDiffOutsideStack(a, b, entry.regs.sp), reg: firstLiveRegDiff(a, b) };
 }
 
 /**

@@ -9,7 +9,7 @@
  * routine and the thing this gate has to pin.
  *
  * Because the routine ends by tail-jumping into the renderer (whose shared loop performs the
- * final `ret`), it is gated on MEMORY-EQUIVALENCE — RAM − STACK_SCRATCH + pc + SP + the
+ * final `ret`), it is gated on MEMORY-EQUIVALENCE — RAM − the stack scratch below the entry SP + pc + SP + the
  * registers it reproduces — not a returned scalar, and every case runs on a FRESH clone. The
  * idiomatic routine models the Z80 `ret` as a plain JS return (no stack modelling), so the
  * harness performs one m.ret() on the candidate clone AFTER the call to line pc + SP up with
@@ -44,6 +44,7 @@ import { drawHighScore } from "../drawHighScore.js";
 import { renderBcdColumnFixedCell } from "../renderBcdColumnFixedCell.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, HIGH_SCORE } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -60,21 +61,21 @@ const DEST_CELLS = [0x7641, 0x7621, 0x7601, 0x75e1, 0x75c1, 0x75a1];
 const SENTINEL = 0xee; // a non-digit tile pre-written to the dest cells to make the paint observable
 const SAFE_SP = 0x6bfe; // inside STACK_SCRATCH: the renderer's pushes/pops + the final ret land here
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // -- the memory-equivalence contract ------------------------------------------
 
 /**
- * First RAM byte that differs between two machines, skipping STACK_SCRATCH — the dead stack
+ * First RAM byte that differs between two machines, skipping the stack scratch below the entry SP — the dead stack
  * region the standard gate excludes (the renderer's internal per-digit push16/pop lives there).
  */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -92,18 +93,12 @@ function paintsColumn(entry) {
   return DEST_CELLS.every((cell) => c.mem.read8(cell) !== SENTINEL);
 }
 
-/** Run the ORACLE on a fresh clone. Its renderer chain performs the final `ret`, so pc/SP advance. */
 function runOracle(entry) {
   const c = entry.clone();
   oracle(c);
   return c;
 }
 
-/**
- * Run a candidate on a fresh clone, then model its return with one m.ret() so pc + SP match the
- * oracle's (the idiomatic routine replaces the Z80 stack with the JS call stack, so it does not
- * touch pc/SP itself — the harness supplies the caller-return pop).
- */
 function runCandidate(entry, fn) {
   const c = entry.clone();
   fn(c);
@@ -112,7 +107,7 @@ function runCandidate(entry, fn) {
 }
 
 /**
- * Compare candidate vs oracle over the full contract: RAM − STACK_SCRATCH, pc, SP, and every
+ * Compare candidate vs oracle over the full contract: RAM − the stack scratch below the entry SP, pc, SP, and every
  * register the routine reproduces (A/B/HL/IX/DE). LIVE-OUT is memory-only — the caller reads no
  * output register — but the registers are reproduced identically to the oracle and pinned here
  * for extra teeth. Returns human-readable mismatches (empty = equal).
@@ -127,7 +122,7 @@ function contractDiffs(entry, fn) {
     return [`candidate threw: ${e.message}`];
   }
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   if (o.regs.a !== c.regs.a) diffs.push(`A oracle=${hx(o.regs.a)} cand=${hx(c.regs.a)}`);
   if (o.regs.b !== c.regs.b) diffs.push(`B oracle=${hx(o.regs.b)} cand=${hx(c.regs.b)}`);
@@ -141,10 +136,6 @@ function contractDiffs(entry, fn) {
 
 // -- capture / base -----------------------------------------------------------
 
-/**
- * Hook 0x05DA in a real attract run and clone the machine at up to K real dispatches. The
- * wrapper snapshots the entry state, then runs the oracle so the host game proceeds undisturbed.
- */
 function captureTargetStates(K, maxFrames) {
   const caps = [];
   const ov = new Map([[TARGET, (mm, ...args) => {
@@ -156,8 +147,6 @@ function captureTargetStates(K, maxFrames) {
   return caps;
 }
 
-// A real, self-consistent machine (boot + a stretch of attract) to seed crafted entries with
-// realistic RAM. clone() neutralises the frame machinery (nextNmi/nextBoundary = Infinity).
 function attractBase(frames = 300) {
   const m = new Machine(ROM);
   m.runFrames(frames);
@@ -179,21 +168,11 @@ function craft(base, { hs, srcReg = 0x1234, colReg = 0x7521, extra } = {}) {
 
 // -- broken twins -------------------------------------------------------------
 
-/**
- * Broken twin (a): KEEPS the caller's stale source register instead of forcing HS_MSB, so it
- * renders whatever counter the caller's DE points at into the high-score cells. Caught via RAM
- * (wrong digit tiles) whenever that source differs from the high score.
- */
 function brokenKeepSource(m) {
   // BUG: the `regs.de = HIGH_SCORE + 2` source override is missing.
   renderBcdColumnFixedCell(m);
 }
 
-/**
- * Broken twin (b): forces the correct source but enters the renderer in caller-column mode,
- * skipping the fixed 0x7641 store — so it paints into the caller's stale destination cell.
- * Caught via RAM (wrong cells) and IX.
- */
 function brokenCallerColumn(m) {
   const { regs } = m;
   regs.de = HS_MSB; // correct source (HIGH_SCORE + 2)
@@ -209,7 +188,6 @@ test("EQUAL (real): drawHighScore == oracle on real captured 0x05DA dispatches",
   for (const entry of caps) {
     const diffs = contractDiffs(entry, drawHighScore);
     assert.equal(diffs.length, 0, `de=0x${entry.regs.de.toString(16)} ix=0x${entry.regs.ix.toString(16)}: ${diffs.join("; ")}`);
-    // The captured dispatch must actually paint the column (non-vacuous grounding).
     assert.ok(paintsColumn(entry), "captured 0x05DA dispatch painted no high-score column cell — grounding is vacuous");
   }
   console.log(`  EQUAL/real: ${caps.length} real dispatch(es) identical to the oracle (renders HIGH_SCORE up 0x${HS_COLUMN.toString(16)})`);
@@ -234,7 +212,6 @@ test("EQUAL (crafted): varied digits + garbage incoming registers all match the 
     const entry = craft(base, { hs, srcReg, colReg });
     const diffs = contractDiffs(entry, drawHighScore);
     assert.equal(diffs.length, 0, `${name}: ${diffs.join("; ")}`);
-    // Non-vacuous: the render always paints six digits up the fixed column.
     assert.ok(paintsColumn(entry), `${name}: the high-score column was not painted`);
   }
   console.log(`  EQUAL/crafted: ${cases.length} arms identical to the oracle`);
@@ -253,7 +230,6 @@ test("TEETH: the stale-source twin and the caller-column twin are CAUGHT", () =>
     srcReg: 0x60b7,         // stale caller source — the neighbouring counter
     extra: (e) => { e.mem.write8(0x60b5, 0x11); e.mem.write8(0x60b6, 0x22); e.mem.write8(0x60b7, 0x33); },
   });
-  // Sanity: the correct routine matches the oracle on this exact entry.
   assert.equal(contractDiffs(staleEntry, drawHighScore).length, 0, "correct routine diverged on the stale-source entry setup");
   const staleDiffs = contractDiffs(staleEntry, brokenKeepSource);
   assert.ok(staleDiffs.length > 0, "the stale-source twin escaped — the fixed HIGH_SCORE override is unguarded");

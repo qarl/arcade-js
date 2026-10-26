@@ -15,7 +15,7 @@
  * already-idiomatic callees, handing the shared tails the last string byte and the advanced
  * walk pointer through registers (the still-translated scan loop's register ABI).
  *
- * CONTRACT (memory-equivalence): RAM − STACK_SCRATCH (the inactive arm's spawn tail brackets
+ * CONTRACT (memory-equivalence): RAM − the stack scratch below the entry SP (the inactive arm's spawn tail brackets
  * its stirRandomSeed call with push16/ret — two dead stack bytes the direct-call candidate never
  * writes, excluded; the other three arms perform no push/pop), SP (unchanged: the spawn arm's
  * push/ret balance, the candidate touches no stack), and the routine's declared REGISTER
@@ -72,6 +72,7 @@ import {
   SPIN_COUNT,
   SND_TRIGGER,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -92,17 +93,17 @@ const DEST_SENTINEL = 0xee;     // pre-stamped sprite X/Y cells so a dropped/mis
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const hx16 = (v) => "0x" + (v & 0xffff).toString(16).padStart(4, "0");
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs, skipping the dead STACK_SCRATCH region (the memory-equivalence
-// contract is RAM − STACK_SCRATCH: the spawn arm's push16 return-bracket writes there). null | {addr,a,b}.
-function firstRamDiff(a, b) {
+// First RAM byte that differs, skipping the stack scratch below the entry SP (the memory-equivalence
+// contract is RAM − the stack scratch below the entry SP: the spawn arm's push16 return-bracket writes there). null | {addr,a,b}.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -117,9 +118,9 @@ function regLiveOutDiff(o, c) {
   return null;
 }
 
-// Full contract: RAM − STACK_SCRATCH + SP (unchanged) + register live-out. null | string.
-function contractDiff(o, c) {
-  const ram = firstRamDiff(o, c);
+// Full contract: RAM − the stack scratch below the entry SP + SP (unchanged) + register live-out. null | string.
+function contractDiff(o, c, liveFloor) {
+  const ram = firstRamDiff(o, c, liveFloor);
   if (ram) return `RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`;
   if (o.regs.sp !== c.regs.sp) return `SP oracle=${hx16(o.regs.sp)} cand=${hx16(c.regs.sp)}`;
   return regLiveOutDiff(o, c);
@@ -167,10 +168,11 @@ function prep(base, ix, iy, {
 // Run one entry through oracle vs `impl` at a record pair; full contract diff.
 function compareOne(base, ix, iy, opts, impl) {
   const om = prep(base, ix, iy, opts);
+  const omFloor = om.regs.sp;
   const cm = prep(base, ix, iy, opts);
   oracle(om);
   impl(cm);
-  return contractDiff(om, cm);
+  return contractDiff(om, cm, omFloor);
 }
 
 // The full arm-selector + toggle sweep, run in sequence; returns the first mismatch (or null)
@@ -272,7 +274,7 @@ test("EQUAL (sweeps): advanceSpring == oracle over all four arms + the sprite-co
   oracle(noTog);
   assert.equal(noTog.mem.read8(iy + SPRITE_CODE), 0x11, "toggle: sprite code untouched off-phase");
 
-  console.log(`  EQUAL/sweeps: ${count} entries (4 arms + toggle) — RAM − STACK_SCRATCH + SP + live-out identical to the oracle`);
+  console.log(`  EQUAL/sweeps: ${count} entries (4 arms + toggle) — RAM − the stack scratch below the entry SP + SP + live-out identical to the oracle`);
 });
 
 // -- 2. EQUAL (grid over the in-game cursor sequence) -------------------------
@@ -303,6 +305,7 @@ test("EQUAL (independence): output depends ONLY on the cursors + their fields, n
   for (const de of [0x0000, 0x0004, 0x1234, 0xffff]) {
     for (const b of [0x01, 0x0a, 0xff]) {
       const om = prep(base, ix, iy, { active: 1, state: 0, strByte: 0x10, objX: 0x40, objY: 0x30, frame: 0x05 });
+      const omFloor = om.regs.sp;
       const cm = prep(base, ix, iy, { active: 1, state: 0, strByte: 0x10, objX: 0x40, objY: 0x30, frame: 0x05 });
       for (const m of [om, cm]) {
         m.regs.de = de; m.regs.b = b;
@@ -311,7 +314,7 @@ test("EQUAL (independence): output depends ONLY on the cursors + their fields, n
       }
       oracle(om);
       candidate(cm);
-      const d = contractDiff(om, cm);
+      const d = contractDiff(om, cm, omFloor);
       assert.equal(d, null, d ? `de=${hx16(de)} b=${hx(b)}: ${d}` : "");
       assert.equal(cm.mem.read8(ix + OBJ_X), (0x40 + 2) & 0xff, "X must advance by 2 regardless of de/b");
       assert.equal(cm.mem.read8(ix + OBJ_Y), (0x30 + 0x10) & 0xff, "Y must accumulate the byte regardless of de/b");
@@ -403,14 +406,14 @@ test("REALISM: real captured 0x2e12 dispatches — advanceSpring matches the ora
     c.nextNmi = Infinity; c.nextBoundary = Infinity;
     oracle(o);
     candidate(c);
-    const d = contractDiff(o, c);
+    const d = contractDiff(o, c, cap.regs.sp);
     assert.equal(d, null, d ? `real dispatch ${i} (ix=${hx16(cap.regs.ix)}, arm=${armOf(cap)}): ${d}` : "");
   });
 
   for (const arm of ["inactive", "state4", "terminator", "default"]) {
     assert.ok(seen.has(arm), `the captured mix should exercise the ${arm} arm`);
   }
-  console.log(`  REALISM: ${caps.length} real 0x2e12 dispatches across ${[...seen].sort().join(", ")} — RAM − STACK_SCRATCH + SP + live-out == oracle`);
+  console.log(`  REALISM: ${caps.length} real 0x2e12 dispatches across ${[...seen].sort().join(", ")} — RAM − the stack scratch below the entry SP + SP + live-out == oracle`);
 });
 
 // -- 5. TEETH -----------------------------------------------------------------

@@ -7,13 +7,13 @@
  * loc_0a37 is a credited-game (GAME_STATE 3) sub-state handler — NOT reached in plain
  * attract (attract holds GAME_STATE 0) — and it WRITES memory (task ring, sub-state
  * byte, video RAM) via two decompiled callees. So it is gated by MEMORY-equivalence
- * against the frozen oracle (RAM − STACK_SCRATCH), with a FRESH clone per case, never
+ * against the frozen oracle (RAM − the stack scratch below the entry SP), with a FRESH clone per case, never
  * the full register file and never cycles:
  *
  *   1. REALISM (captured driven dispatch) — drive a coin+start into a credited game so
  *      the intro sequence reaches sub-state 5, hook 0x0A37, and clone the machine at
  *      the real dispatch. Run the ORACLE on one clone and the idiomatic routine on
- *      another and prove game-visible RAM (everything outside the dead STACK_SCRATCH)
+ *      another and prove game-visible RAM (everything outside the stack scratch below the entry SP)
  *      is byte-identical. The real dispatch has an empty ring (tail 0xEE, slots 0xFF),
  *      so it exercises the plain no-wrap post arm. The idiomatic routine models no
  *      stack, so it must also leave SP and pc unchanged from entry (the oracle's four
@@ -25,7 +25,7 @@
  *          tail is left untouched — only the sub-state + marker change.
  *        - WRAP: set TASK_TAIL near the top (0xFC) so the 8-byte batch wraps 0xFF→0xC0
  *          mid-batch, pinning enqueueTask's wrap math across the whole batch.
- *      Each compared oracle vs idiomatic on RAM − STACK_SCRATCH.
+ *      Each compared oracle vs idiomatic on RAM − the stack scratch below the entry SP.
  *
  *   3. TEETH — two deliberately-broken twins the diff MUST catch: (a) one that skips the
  *      GAME_SUBSTATE advance (a hung-intro bug), caught at 0x600A; (b) one that posts a
@@ -43,6 +43,7 @@ import { loc_0a37 as oracle } from "../../translated/loc_0a37.js";
 import { composeScreenAndAdvanceSubstate } from "../composeScreenAndAdvanceSubstate.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -66,22 +67,22 @@ const COIN_START_TAPE = [
 ];
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
  * Diff two machines' RAM (work + sprite + video). Returns the first game-visible
- * difference (outside STACK_SCRATCH — a real failure) or null, plus a count of bytes
+ * difference (outside the stack scratch below the entry SP — a real failure) or null, plus a count of bytes
  * that differed inside the dead stack scratch (the oracle's `call`/`ret` push residue,
  * which the idiomatic routine does not model — expected, tolerated, excluded).
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -94,7 +95,7 @@ function replay(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return { a, b, ...ramDiffMinusStack(a, b) };
+  return { a, b, ...ramDiffMinusStack(a, b, entry.regs.sp) };
 }
 
 /**
@@ -175,7 +176,7 @@ test("CRAFTED: matches the oracle across FULL-ring (all posts dropped) and WRAP 
     poke(a); poke(b);
     oracle(a);
     composeScreenAndAdvanceSubstate(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, entry.regs.sp);
     assert.equal(
       bad,
       null,

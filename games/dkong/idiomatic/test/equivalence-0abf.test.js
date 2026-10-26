@@ -57,6 +57,7 @@ import {
   STACK_SCRATCH, SUBSTATE_TIMER, INTRO_STEP,
   SND_PRIORITY, SND_PRIORITY_FRAMES, SPRITE_OBJ_BLOCK,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -70,20 +71,20 @@ const CUTSCENE_BYTE_638E = 0x638e;
 const SP_CRAFT = 0x6bf8; // inside STACK_SCRATCH; headroom for the oracle's pushes AND for
                          //   the idiomatic side's two unmatched loc_0038 pops (SP -> 0x6bfc).
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
  * First game-visible differing RAM byte between two machines, EXCLUDING the dead
- * stack-scratch region (the memory-equivalence contract is RAM − STACK_SCRATCH).
+ * stack-scratch region (the memory-equivalence contract is RAM − the stack scratch below the entry SP).
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -119,9 +120,10 @@ function craftPair(timer, step) {
 test("STRUCTURE: crafted expiry entry — work RAM identical; ABORT entry leaves SP/pc untouched", () => {
   // WORK branch (timer 1): game-visible RAM identical to the oracle.
   const [a, b] = craftPair(1, 1);
+  const aFloor = a.regs.sp;
   oracle(a);
   idiomatic(b);
-  const { bad, stackDiffs } = ramDiffMinusStack(a, b);
+  const { bad, stackDiffs } = ramDiffMinusStack(a, b, aFloor);
   assert.equal(bad, null, bad && `game-visible RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
 
   // The oracle actually did the work — confirm the salient outputs so an EQUAL result is
@@ -156,9 +158,10 @@ test("TIMER (exhaustive): runIntroClimbStep == oracle over all 256 SUBSTATE_TIME
   let count = 0, expired = 0, counting = 0, mismatch = null;
   for (let t = 0; t < 256 && !mismatch; t++) {
     const [a, b] = craftPair(t, 1); // step 1 = the natural INTRO_STEP for this handler
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     count++;
     // Classify from the oracle: expiry advances INTRO_STEP (1 -> 2); counting leaves it at 1.
     if (a.mem.read8(INTRO_STEP) !== 1) expired++; else counting++;
@@ -179,9 +182,10 @@ test("INTRO_STEP (exhaustive): at expiry, runIntroClimbStep == oracle over all 2
   let count = 0, wraps = 0, mismatch = null;
   for (let s = 0; s < 256 && !mismatch; s++) {
     const [a, b] = craftPair(1, s); // timer 1 forces the body / the `inc (INTRO_STEP)` path
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     count++;
     assert.equal(a.mem.read8(INTRO_STEP), (s + 1) & 0xff,
       `oracle must set INTRO_STEP to (step+1)&0xFF at step=${hx(s)}`);
@@ -228,9 +232,10 @@ function brokenNoAdvance(m) {
 
 test("TEETH (write-order): zeroing 0x690C before the add-passes is CAUGHT and names 0x690C", () => {
   const [a, b] = craftPair(1, 1);
+  const aFloor = a.regs.sp;
   oracle(a);
   brokenWriteOrder(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the work sweep FAILED to catch a write-order corruption — it is worthless");
   assert.equal(bad.addr, SPRITE_OBJ_BLOCK + 4, `expected the caught diff at 0x690C, got ${hx(bad.addr)}`);
   console.log(`  TEETH/write-order: caught at 0x690C (oracle=${bad.a} broken=${bad.b})`);
@@ -240,9 +245,10 @@ test("TEETH (drop-advance): the dropped INTRO_STEP inc is CAUGHT by the sweep an
   let caught = null;
   for (let s = 0; s < 256 && !caught; s++) {
     const [a, b] = craftPair(1, s);
+    const aFloor = a.regs.sp;
     oracle(a);
     brokenNoAdvance(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     if (bad) caught = { s, bad };
   }
   assert.notEqual(caught, null, "the INTRO_STEP sweep FAILED to catch a dropped advance — it is worthless");
@@ -260,9 +266,10 @@ test("REALISM: replay any real 0x0abf dispatch; else record that attract never r
 
   for (const entry of caps) {
     const a = entry.clone(), b = entry.clone();
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     assert.equal(bad, null, bad && `real-dispatch RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
   }
   if (caps.length === 0) {

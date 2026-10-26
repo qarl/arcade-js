@@ -47,6 +47,7 @@ import { scanObjectsAtMarioX as idiomatic } from "../scanObjectsAtMarioX.js";
 import { confirmObjectHit } from "../confirmObjectHit.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, MARIO_X, MARIO_Y } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -68,19 +69,20 @@ const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
  * First game-visible differing RAM byte between two machines, EXCLUDING the dead
- * stack-scratch region (the memory-equivalence contract is RAM − STACK_SCRATCH). We do
+ * stack-scratch region (the memory-equivalence contract is RAM − the stack scratch below the entry SP). We do
  * NOT diff pc/SP: the oracle's ret/call mutate them while the idiomatic side models
  * neither — that non-modelling is proven separately in STRUCTURE, not by a false-failing
  * direct compare.
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -140,10 +142,11 @@ function sweepPokes(marioX) {
 
 test("STRUCTURE: crafted X-match at slot 0 — trio written, game-visible RAM identical, SP/pc unmodelled", () => {
   const [a, b] = craftPair(sweepPokes(0x40)); // Mario's X == slot 0's X -> match + register
+  const aFloor = a.regs.sp;
   oracle(a);
   idiomatic(b);
 
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.equal(bad, null, bad && `game-visible RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
 
   // The oracle must have registered the hit into the trio, pointing at slot 0.
@@ -172,9 +175,10 @@ test("EQUAL (Mario-X exhaustive): scanObjectsAtMarioX == oracle over all 256 Mar
   let count = 0, hits = 0, mismatch = null, ptrBad = null;
   for (let x = 0; x < 256 && !mismatch; x++) {
     const [a, b] = craftPair(sweepPokes(x));
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     count++;
     if (registered(a)) {
       hits++;
@@ -238,9 +242,10 @@ test("TEETH (stride): the stride-1 twin is CAUGHT — matches a mid-record byte 
     [0x6a0d, 0x77], // stride-1 twin matches here on its 2nd step
     [0x6a0e, 0x00], // twin record (0x6A0D) +1 -> eligible
   ]);
+  const aFloor = a.regs.sp;
   oracle(a);
   brokenStride(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the crafted stride setup FAILED to catch a stride-1 walk — it is worthless");
   assert.equal(bad.addr, HIT_STATE, `expected the caught diff at 0x6340, got ${hx(bad.addr)}`);
   console.log(`  TEETH/stride: caught at 0x6340 (oracle=${bad.a} broken=${bad.b})`);
@@ -254,9 +259,10 @@ test("TEETH (loop-count): the 2-record twin is CAUGHT — it never inspects slot
     [0x6a0c, 0x11], [0x6a10, 0x22], [0x6a14, 0x99], // only slot 2 X == 0x99
     [0x6a17, 0x50], [0x6a15, 0x00], //               slot 2 Y-aligned + eligible
   ]);
+  const aFloor = a.regs.sp;
   oracle(a);
   brokenLoopCount(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the crafted loop-count setup FAILED to catch a 2-record walk — it is worthless");
   assert.equal(bad.addr, HIT_STATE, `expected the caught diff at 0x6340, got ${hx(bad.addr)}`);
   console.log(`  TEETH/loop-count: caught at 0x6340 (oracle=${bad.a} broken=${bad.b})`);
@@ -271,9 +277,10 @@ test("TEETH (hand-off): the fixed-base twin is CAUGHT — it registers the wrong
     [0x6a17, 0x50], [0x6a15, 0x00], //               slot 2 Y-aligned + eligible (correct target)
     [0x6a0f, 0x50], [0x6a0d, 0x00], //               slot 0 Y-aligned + eligible (twin's bogus target)
   ]);
+  const aFloor = a.regs.sp;
   oracle(a);
   brokenHandoff(b);
-  const { bad } = ramDiffMinusStack(a, b);
+  const { bad } = ramDiffMinusStack(a, b, aFloor);
   assert.notEqual(bad, null, "the crafted hand-off setup FAILED to catch a fixed-base hand-off — it is worthless");
   assert.equal(bad.addr, HIT_PTR, `expected the caught diff at 0x6343 (the pointer), got ${hx(bad.addr)}`);
   assert.equal(a.mem.read16(HIT_PTR), SLOT[2], "oracle must register slot 2's base");
@@ -293,13 +300,14 @@ test("REALISM: replay every real 0x19DA dispatch — idiomatic == oracle on auth
   let anyWrote = false;
   for (const cap of caps) {
     const a = cap.clone(), b = cap.clone();
+    const aFloor = a.regs.sp;
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, aFloor);
     assert.equal(bad, null, bad && `real-dispatch RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`);
     // Did this real dispatch take the confirm/register arm? Diff the oracle result against
     // the untouched capture (RAM − stack): a change means the table had an X-match here.
-    if (ramDiffMinusStack(a, cap).bad) anyWrote = true;
+    if (ramDiffMinusStack(a, cap, aFloor).bad) anyWrote = true;
   }
   console.log(`  REALISM: ${caps.length} real 0x19DA dispatch(es) — RAM identical to the oracle` +
     (anyWrote ? " (some took the confirm arm — natural match-path coverage)" : " (all no-match — the 0x6A0C table has no X-match in attract)"));

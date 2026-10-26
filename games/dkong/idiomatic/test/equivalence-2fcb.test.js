@@ -13,7 +13,7 @@
  * caller-return pop on every path. loc_2fcb models no stack (the boolean gate return + a
  * plain JS return replace it), so runCandidate performs ONE m.ret() after it to line pc + SP
  * up with the oracle. The oracle's rst push (and the enqueue call's push) land in dead
- * STACK_SCRATCH, so the memory-equivalence contract (RAM − STACK_SCRATCH, pc, SP) is exact.
+ * STACK_SCRATCH, so the memory-equivalence contract (RAM − the stack scratch below the entry SP, pc, SP) is exact.
  *
  * Attract dispatches 0x2FCB 1197× over 2000 frames, but every one is the 25m demo
  * (BOARD == 1), where the mask 0x0E leaves the gate CLOSED — so real captures only ever
@@ -54,6 +54,7 @@ import {
   SPAWN_REQUEST,
   TASK_TAIL,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -68,31 +69,32 @@ const BOOKKEEP_62B9 = 0x62b9; // the spawn-request sibling byte, unnamed in name
 const PAGE = 0x6000;       // fixed high byte of every task-ring slot
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH
+// First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
 // region, plus a count of how many bytes differed inside it (the tolerated push residue).
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
 }
 
 // All non-stack RAM addresses that changed between two machines (for no-write checks).
-function changedAddrs(a, b) {
+function changedAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.push(addr);
   }
   return out;
@@ -117,12 +119,12 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Full contract diff: RAM − STACK_SCRATCH, pc, SP. Live-out is memory-only. */
+/** Full contract diff: RAM − the stack scratch below the entry SP, pc, SP. Live-out is memory-only. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const { bad } = ramDiffMinusStack(o, c);
+  const { bad } = ramDiffMinusStack(o, c, entry.regs.sp);
   if (bad) diffs.push(`RAM@${hx(bad.addr)} oracle=${bad.a} cand=${bad.b}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);
@@ -183,7 +185,7 @@ test("EQUAL (captured): loc_2fcb == oracle on every real attract dispatch (diff 
     assert.equal(diffs.length, 0, `captured dispatch (tick=${entry.mem.read8(BONUS_TICK)}): ${diffs.join("; ")}`);
     // Gate-closed arm: the oracle must touch no game-visible RAM (only the rst push,
     // which lands in dead stack scratch), so BONUS_TICK is untouched.
-    assert.deepEqual(changedAddrs(entry, runOracle(entry)), [], "attract dispatch must be the gate-closed no-op arm");
+    assert.deepEqual(changedAddrs(entry, runOracle(entry), entry.regs.sp), [], "attract dispatch must be the gate-closed no-op arm");
     // The oracle's rst push target must sit inside STACK_SCRATCH so excluding it is safe.
     assert.ok((entry.regs.sp - 2) >= STACK_SCRATCH.lo && entry.regs.sp <= STACK_SCRATCH.hi,
       `oracle's rst push target must be inside STACK_SCRATCH (SP=${hx(entry.regs.sp)})`);
@@ -203,7 +205,7 @@ test("EQUAL (crafted): closed / tick-only / period-elapsed / bonus-expired arms 
   {
     const entry = craft({ board: 1, tick: 5 });
     assert.equal(contractDiffs(entry, loc_2fcb).length, 0, "closed arm diverged");
-    assert.deepEqual(changedAddrs(entry, runOracle(entry)), [], "closed arm must write no game-visible RAM");
+    assert.deepEqual(changedAddrs(entry, runOracle(entry), entry.regs.sp), [], "closed arm must write no game-visible RAM");
   }
 
   // (b) TICK-ONLY — BOARD=2, tick 5 -> 4, nothing else runs.
@@ -212,7 +214,7 @@ test("EQUAL (crafted): closed / tick-only / period-elapsed / bonus-expired arms 
     assert.equal(contractDiffs(entry, loc_2fcb).length, 0, "tick-only arm diverged");
     const o = runOracle(entry);
     assert.equal(o.mem.read8(BONUS_TICK), 4, "tick must decrement 5 -> 4");
-    assert.deepEqual(changedAddrs(entry, o), [BONUS_TICK], "tick-only arm must write ONLY BONUS_TICK");
+    assert.deepEqual(changedAddrs(entry, o, entry.regs.sp), [BONUS_TICK], "tick-only arm must write ONLY BONUS_TICK");
   }
 
   // (c) PERIOD-ELAPSED — BOARD=3, tick 1 -> 0: post spawn + enqueue, reload tick, bonus 5 -> 4.

@@ -4,7 +4,7 @@
  * `HANDLERS[m.mem8[DEATH_ANIM_PHASE]](m)` (phase 0 -> beginMarioDeathAnimation, 1 ->
  * stepMarioDeathAnimation, 2 -> loc_12de) — no ROM jump table, no computed target, no
  * loc_00ca/m.call/m.overrides seam (the retired table-math/stub-sweep/wrap TEETH are gone).
- * Validated by MEMORY-equivalence vs the frozen oracle loc_127f: RAM − STACK_SCRATCH, never
+ * Validated by MEMORY-equivalence vs the frozen oracle loc_127f: RAM − the stack scratch below the entry SP, never
  * SP/pc/registers/cycles (the dissolved form does not seat a guest return, so SP/pc differ).
  * Two arms:
  *   1. FULL-HANDLER — on a real attract base, poke DEATH_ANIM_PHASE (0x639D) to each reachable
@@ -26,6 +26,7 @@ import { stepMarioDeathAnimation } from "../stepMarioDeathAnimation.js";
 import { loc_12de } from "../loc_12de.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, DEATH_ANIM_PHASE, SUBSTATE_TIMER } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -39,13 +40,14 @@ const test = ROM_PRESENT
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
 // First differing RAM byte between two dumps, EXCLUDING the dead stack-scratch region
-// (the memory-equivalence contract is RAM − STACK_SCRATCH). Returns { addr, a, b } or null.
-function firstRamDiffExStack(a, b, offToAddr) {
+// (the memory-equivalence contract is RAM − the stack scratch below the entry SP). Returns { addr, a, b } or null.
+function firstRamDiffExStack(a, b, offToAddr, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] === b[i]) continue;
     const addr = offToAddr(i);
-    if (addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi) continue;
+    if (dead(addr)) continue;
     return { addr, a: a[i], b: b[i] };
   }
   return null;
@@ -81,13 +83,14 @@ test("FULL-HANDLER: dispatchDeathAnimationPhase == oracle on real bases poked to
   let mutatedAny = false;
   for (const phase of REACHABLE) {
     const a = craftEntry(base, phase); // oracle
+    const aFloor = a.regs.sp;
     const b = craftEntry(base, phase); // candidate
     const before = a.dumpState();
 
     oracle(a);
     dispatchDeathAnimationPhase(b);
 
-    const ramDiff = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o));
+    const ramDiff = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), aFloor);
     assert.equal(
       ramDiff,
       null,
@@ -96,7 +99,7 @@ test("FULL-HANDLER: dispatchDeathAnimationPhase == oracle on real bases poked to
     );
 
     // Non-vacuous: the arm body actually ran and wrote RAM (else the replay proves nothing).
-    if (firstRamDiffExStack(before, a.dumpState(), (o) => a.stateOffsetToAddr(o))) mutatedAny = true;
+    if (firstRamDiffExStack(before, a.dumpState(), (o) => a.stateOffsetToAddr(o), aFloor)) mutatedAny = true;
   }
   assert.ok(mutatedAny, "no reachable arm mutated RAM — the gate was never open, replay is vacuous");
   console.log(`  FULL-HANDLER: phases {0x00,0x01,0x02} — full oracle arm run both sides, RAM(−stack) identical`);
@@ -125,10 +128,11 @@ test("MAPPING TOOTH: the swapped-handler twin is CAUGHT by the full-handler cros
   let example = null;
   for (const phase of REACHABLE) {
     const a = craftEntry(base, phase); // oracle (correct mapping)
+    const aFloor = a.regs.sp;
     const b = craftEntry(base, phase); // broken twin (swapped mapping)
     oracle(a);
     brokenSwappedDispatch(b);
-    const ramDiff = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o));
+    const ramDiff = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), aFloor);
     if (ramDiff) { caught++; if (!example) example = { phase, ramDiff }; }
   }
   assert.ok(caught >= 1, "the full-handler cross-check FAILED to catch the swapped-handler twin — the mapping is untested");

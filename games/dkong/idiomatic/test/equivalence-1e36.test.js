@@ -43,6 +43,7 @@ import { loc_1e36 as oracle } from "../../translated/loc_1e36.js";
 import { stampScorePopupSprite as idiomatic } from "../stampScorePopupSprite.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -56,14 +57,14 @@ const BOARD = 0x6227;
 const REC = 0x6a30; // sprite-record slot
 const SND = 0x6085; // sound latch
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
  * First differing RAM byte between two machines, EXCLUDING the dead stack-scratch
- * region (the memory-equivalence contract is RAM − STACK_SCRATCH). Returns the first
+ * region (the memory-equivalence contract is RAM − the stack scratch below the entry SP). Returns the first
  * game-visible difference { addr, a, b } or null, plus the count tolerated in stack.
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0;
@@ -71,7 +72,7 @@ function ramDiffMinusStack(a, b) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -86,7 +87,7 @@ function replay(entry, candidate) {
   const b = entry.clone(); // candidate
   oracle(a);
   candidate(b);
-  return { a, b, ...ramDiffMinusStack(a, b) };
+  return { a, b, ...ramDiffMinusStack(a, b, entry.regs.sp) };
 }
 
 /**
@@ -157,7 +158,7 @@ test("BOARD (exhaustive): stampScorePopupSprite == oracle over all 256 BOARD val
     b.mem.write8(BOARD, v);
     oracle(a);
     idiomatic(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, base.regs.sp);
     count++;
     // Track which arm this board took, from the oracle's 0x6085 write vs the base.
     if (a.mem.read8(SND) === 3 && base.mem.read8(SND) !== 3) opened++; else closed++;
@@ -194,7 +195,7 @@ test("A/B/C record (edges): stored bytes + order match the oracle, gate open and
           }
           oracle(a);
           idiomatic(b);
-          const { bad } = ramDiffMinusStack(a, b);
+          const { bad } = ramDiffMinusStack(a, b, base.regs.sp);
           count++;
           if (bad) mismatch = { board, A, B, C, bad };
         }
@@ -245,7 +246,7 @@ test("TEETH (drop-gate): the ungated-sound twin is CAUGHT by the BOARD sweep and
     b.mem.write8(BOARD, v);
     oracle(a);
     brokenDropGate(b);
-    const { bad } = ramDiffMinusStack(a, b);
+    const { bad } = ramDiffMinusStack(a, b, base.regs.sp);
     if (bad) caught = { v, bad };
   }
   assert.notEqual(caught, null, "the BOARD sweep FAILED to catch a dropped board gate — it is worthless");
@@ -264,7 +265,7 @@ test("TEETH (swap-order): the swapped-record twin is CAUGHT by the A/B/C sweep a
       for (const m of [a, b]) { m.mem.write8(BOARD, 1); m.regs.a = A; m.regs.b = 0x22; m.regs.c = C; }
       oracle(a);
       brokenSwapOrder(b);
-      const { bad } = ramDiffMinusStack(a, b);
+      const { bad } = ramDiffMinusStack(a, b, base.regs.sp);
       if (bad) caught = { A, C, bad };
     }
   }

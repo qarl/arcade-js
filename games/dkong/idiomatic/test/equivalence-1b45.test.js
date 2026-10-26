@@ -48,6 +48,7 @@ import { climbMarioUp } from "../climbMarioUp.js";
 import { Machine } from "../../machine.js";
 import { STACK_SCRATCH, P1_INPUT, MARIO_MOVE_STEP_TIMER, MARIO_Y } from "../names.js";
 import { u8 } from "../../../../core/int.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -59,33 +60,29 @@ const test = ROM_PRESENT
 const TARGET = 0x1b45;
 const UP_BIT = 0x04; // bit 2 of the cooked control word = Up held
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
-// -- the memory-equivalence contract ------------------------------------------
-
-/** First RAM byte that differs between two machines, skipping STACK_SCRATCH (the dead stack
- *  region the standard gate excludes — the oracle's callee `ret`/`call` pops read it). */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs between two machines, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
-/** All non-stack RAM addresses that changed between two machines (for the no-write
- *  non-vacuity check on the idle arm). */
-function changedAddrs(a, b) {
+function changedAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.push(addr);
   }
   return out;
@@ -98,9 +95,6 @@ function runOracle(entry) {
   return c;
 }
 
-/** Run a candidate on a fresh clone, then model the path's single net return with one
- *  m.ret() so pc + SP match the oracle's (the idiomatic routine uses the JS call stack and
- *  never touches pc/SP itself). */
 function runCandidate(entry, fn) {
   const c = entry.clone();
   fn(c);
@@ -108,20 +102,16 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Compare candidate vs oracle over the contract: RAM − STACK_SCRATCH, pc, SP. NO
- *  registers — live-out is memory-only. Returns human-readable mismatches. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=0x${o.pc.toString(16)} cand=0x${c.pc.toString(16)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=0x${o.regs.sp.toString(16)} cand=0x${c.regs.sp.toString(16)}`);
   return diffs;
 }
-
-// -- capture ------------------------------------------------------------------
 
 /** Hook 0x1B45 in a real attract run and clone the machine at up to K real dispatches. The
  *  wrapper snapshots the entry state, then runs the oracle so the host game proceeds
@@ -148,8 +138,6 @@ function withInput(seed, input, timer) {
   return e;
 }
 
-// -- teeth twins (same shape as loc_1b45, one thing broken) -------------------
-
 /** Broken twin (a): INVERTED-GUARD — climbs when Up is NOT held and idles when it is. */
 function brokenInvertedGuard(m) {
   const { mem } = m;
@@ -173,10 +161,6 @@ test("REACHABILITY: 0x1B45 is dispatched during attract (climb arm natural; idle
   assert.ok(caps.length >= 1, "expected at least one real 0x1B45 dispatch — the input dispatch routes here");
   const up = caps.filter((c) => (c.mem.read8(P1_INPUT) & UP_BIT) !== 0).length;
   const idle = caps.length - up;
-  // The upstream input dispatch only routes here mid-climb, and the attract demo holds Up
-  // whenever it does, so every natural 0x1B45 dispatch takes the climb arm. The idle arm
-  // (Up clear) is unreached by attract, so it is covered by the crafted 256-value sweep
-  // below — the standard "poke the one selector on a real base" pattern for an unhit path.
   assert.ok(up >= 1, "expected at least one Up-held (climb-arm) dispatch — attract climbs ladders");
   console.log(`  REACHABILITY: ${caps.length} natural 0x1B45 dispatches (${up} climb arm, ${idle} idle arm; idle arm exercised by the crafted sweep)`);
 });
@@ -223,7 +207,7 @@ test("EQUAL (input sweep): all 256 P1_INPUT values match the oracle", () => {
   // Non-vacuity for the idle arm: with Up clear, nothing non-stack is written.
   const idleEntry = withInput(seed, 0x00);
   const afterIdle = runOracle(idleEntry);
-  assert.deepEqual(changedAddrs(idleEntry, afterIdle), [], "idle arm must not write any non-stack RAM");
+  assert.deepEqual(changedAddrs(idleEntry, afterIdle, idleEntry.regs.sp), [], "idle arm must not write any non-stack RAM");
 
   console.log(`  EQUAL/sweep: 256 input values identical on RAM+pc+SP (128 climb arm, 128 idle arm); climb arm reloads 4 + moves Y ${hx(origY)}->${hx(u8(origY - 2))}`);
 });

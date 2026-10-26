@@ -23,7 +23,7 @@
  *     insert-requested arm (32 of 481) and the table-index reload (57 of 481) ARE covered by
  *     real captures, and are crafted as well.
  *
- * THE COMPARED CONTRACT is RAM minus the dead STACK_SCRATCH, plus the return value. pc and SP
+ * THE COMPARED CONTRACT is RAM minus the stack scratch below the entry SP, plus the return value. pc and SP
  * are NOT compared: the idiomatic routine replaces the Z80 stack with the JS call stack and
  * emits no per-instruction pc, so neither can be preserved. The oracle's push16/ret churn is
  * exactly what the STACK_SCRATCH exclusion covers, and test 4 proves that exclusion is not
@@ -60,6 +60,7 @@ import { Machine } from "../../machine.js";
 import { ORACLE_ROUTINES } from "../../routines.js";
 import { STACK_SCRATCH } from "../names.js";
 import { u8 } from "../../../../core/int.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -84,7 +85,6 @@ const ITER_PTR = 0x63c8;
 const CALLEES = [0x32bd, 0x32d6, 0x330f, 0x333d, 0x33ad, 0x298c, 0x33e7, 0x33c3];
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const isHighState = (s) => (u8(s - 4) & 0x80) === 0;
 
 // -- machinery ----------------------------------------------------------------
@@ -118,14 +118,15 @@ function makeHost() {
   return new Machine(ROM, { overrides: ov });
 }
 
-/** First RAM byte that differs, skipping the dead STACK_SCRATCH. { addr, a, b } | null. */
-function firstRamDiff(a, b, { includeStack = false } = {}) {
+/** First RAM byte that differs, skipping the stack scratch below `liveFloor` (an entry SP) when given. */
+function firstRamDiff(a, b, { liveFloor = null } = {}) {
+  const dead = liveFloor === null ? () => false : deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (!includeStack && inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -146,12 +147,12 @@ function runCandidate(entry, fn) {
   return { m: c, ret };
 }
 
-/** The contract: RAM − STACK_SCRATCH, plus the return value. Returns a list of complaints. */
+/** The contract: RAM − the stack scratch below the entry SP, plus the return value. Returns a list of complaints. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o.m, c.m);
+  const ram = firstRamDiff(o.m, c.m, { liveFloor: entry.regs.sp });
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.ret !== c.ret) diffs.push(`return oracle=${String(o.ret)} cand=${String(c.ret)}`);
   return diffs;
@@ -413,12 +414,12 @@ test("EXCLUSION: the only un-excluded diffs are the dissolved call brackets, ins
   const o = runOracle(entry);
   const c = runCandidate(entry, advanceFire);
 
-  assert.equal(firstRamDiff(o.m, c.m), null, "a live (non-stack) cell diverged");
-  const withStack = firstRamDiff(o.m, c.m, { includeStack: true });
+  assert.equal(firstRamDiff(o.m, c.m, { liveFloor: entry.regs.sp }), null, "a live (non-stack) cell diverged");
+  const withStack = firstRamDiff(o.m, c.m);
   assert.ok(withStack !== null, "expected the oracle's dissolved push16 bracket to show as a stack diff");
   assert.ok(
-    inStack(withStack.addr),
-    `the un-excluded diff at ${hx(withStack.addr)} is NOT in STACK_SCRATCH — the exclusion hides a live cell`,
+    deadStackBelow(STACK_SCRATCH, entry.regs.sp)(withStack.addr),
+    `the un-excluded diff at ${hx(withStack.addr)} is NOT in the stack scratch below the entry SP — the exclusion hides a live cell`,
   );
   console.log(`  EXCLUSION: only diff at ${hx(withStack.addr)} — inside STACK_SCRATCH, exactly the dissolved bracket`);
 });

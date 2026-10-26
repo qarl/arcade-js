@@ -12,7 +12,7 @@
  * bracket; the idiomatic routine dissolves that to a direct loc_31f6(m). So on any pass
  * that reaches the call, the oracle leaves the pushed return address (0x31e6) as dead
  * bytes in STACK_SCRATCH that the candidate never writes — hence the memory-equivalence
- * contract here is RAM − STACK_SCRATCH + pc + SP, and runCandidate performs ONE m.ret()
+ * contract here is RAM − the stack scratch below the entry SP + pc + SP, and runCandidate performs ONE m.ret()
  * after the routine so pc + SP line up with the oracle's net single caller-return pop
  * (every oracle path nets exactly that). Live-out is memory-only; sub_31dd returns
  * nothing a caller consumes.
@@ -58,6 +58,7 @@ import { armAlternateFireModeAtHighDifficulty } from "../armAlternateFireModeAtH
 import { DIFFICULTY, RANDOM, FRAME, OBJ_ARRAY_64, STACK_SCRATCH } from "../names.js";
 import { u8 } from "../../../../core/int.js";
 import { Machine } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -72,17 +73,17 @@ const WRITE_A = OBJ_ARRAY_64 + 0x39; // 0x6439 — record 1, field +0x19
 const WRITE_B = OBJ_ARRAY_64 + 0x79; // 0x6479 — record 3, field +0x19
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region
-// (the memory-equivalence contract is RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
+// (the memory-equivalence contract is RAM − the stack scratch below the entry SP). { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -127,12 +128,12 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Full contract diff: RAM − STACK_SCRATCH, pc, SP. Live-out is memory-only. */
+/** Full contract diff: RAM − the stack scratch below the entry SP, pc, SP. Live-out is memory-only. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);

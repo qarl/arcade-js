@@ -25,7 +25,7 @@
 //      checked, and the count is reported.
 //
 // CONTRACT: byte-for-byte on every LIVE cell (work, sprite and video RAM), excluding only the dead
-// stack scratch [0x6BE0, 0x6C00), which the idiomatic side never writes (test 2 proves SP inert).
+// stack scratch in [0x6BE0, 0x6C00) below each sample's live SP (test 2 proves the idiomatic SP inert).
 // SCOPE: the ATTRACT sequence only; gameplay live-cell parity is NOT asserted here.
 
 import nodeTest from "node:test";
@@ -38,6 +38,7 @@ import {
 import manifest from "../../manifest.js";
 import { installEntropyPin } from "../../../../core/entropy-pin.js";
 import { runIdiomaticGame, runCycleFree } from "../../../../core/frame-stepped.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -59,25 +60,28 @@ const { nmiReturnPC } = idiomatic;
 const [STACK_LO, STACK_HI] = stateExclude.stack; // dead stack scratch, excluded (memory-equivalence)
 const hex = (v) => `0x${(v & 0xffff).toString(16).padStart(4, "0")}`;
 
-/** Byte offsets of the LIVE state cells — everything outside the dead stack scratch. */
-function liveOffsets(bytesPerFrame) {
+/** First live-cell divergence of two sampled runs ({ dumps, sps }), or null. Per sample, only the stack
+ * scratch below the shallower of the two SPs is dead; every other cell is compared. */
+function firstLiveDiff(x, y) {
   const probe = new Machine(ROM, {});
-  const keep = [];
-  for (let o = 0; o < bytesPerFrame; o++) {
-    const a = probe.stateOffsetToAddr(o);
-    if (!(a >= STACK_LO && a < STACK_HI)) keep.push(o);
+  const addrOf = Array.from(x.dumps[0], (_, o) => probe.stateOffsetToAddr(o));
+  for (let i = 0; i < x.dumps.length; i++) {
+    const dead = deadStackBelow({ lo: STACK_LO, hi: STACK_HI }, Math.max(x.sps[i], y.sps[i]));
+    for (let o = 0; o < addrOf.length; o++) {
+      if (x.dumps[i][o] !== y.dumps[i][o] && !dead(addrOf[o])) return { frame: i, addr: addrOf[o], a: x.dumps[i][o], b: y.dumps[i][o] };
+    }
   }
-  return { keep, probe };
+  return null;
 }
 
 /** The pure-translated oracle under runCycleFree, sampled at the same 0x02BD vblank wait. */
 function runOracle(frames) {
   const mt = new Machine(ROM, {});
   installEntropyPin(mt, manifest.entropyPin);
-  const tr = [];
+  const tr = { dumps: [], sps: [] };
   const rt = runCycleFree(mt, {
     pollPCs, maxFrames: frames, stepBudget: frames * 200000,
-    onFrame: (m) => tr.push(Buffer.from(m.dumpState())),
+    onFrame: (m) => { tr.dumps.push(Buffer.from(m.dumpState())); tr.sps.push(m.regs.sp); },
   });
   assert.equal(rt.stopError, null, `translated oracle run errored: ${rt.stop}`);
   return tr;
@@ -99,36 +103,26 @@ test("the idiomatic spine reproduces the translated oracle (coroutine go-live)",
   // reproduces byte-for-byte; only the dead stack scratch is excluded (see the comparison below).
   const mi = new Machine(ROM, { overrides });
   installEntropyPin(mi, manifest.entropyPin);
-  const idi = [];
+  const idi = { dumps: [], sps: [] };
   const ri = runIdiomaticGame(mi, {
     bootAddr: 0x0000,
     nmiReturnPC,
     maxFrames: FRAMES,
-    onFrame: (m) => idi.push(Buffer.from(m.dumpState())),
+    onFrame: (m) => { idi.dumps.push(Buffer.from(m.dumpState())); idi.sps.push(m.regs.sp); },
   });
   assert.equal(ri.stopError, null, `idiomatic run errored: ${ri.stop}`);
   assert.ok(ri.frames >= FRAMES, `idiomatic run covered only ${ri.frames}/${FRAMES} frames (${ri.stop})`);
 
   const tr = runOracle(FRAMES);
-  assert.equal(idi.length, tr.length, "frame counts differ between idiomatic and translated");
+  assert.equal(idi.dumps.length, tr.dumps.length, "frame counts differ between idiomatic and translated");
 
-  // Compare the whole dumped state EXCEPT the dead stack scratch [STACK_LO, STACK_HI). This is the
+  // Compare the whole dumped state EXCEPT the stack scratch below each sample's live SP. This is the
   // memory-equivalence contract (manifest.convergence.stateExclude): idiomatic leaves are
   // DIRECT-called, so the oracle's transient push16/ret bytes below SP are never written — dead,
   // never read as data — while every LIVE cell must still match byte-for-byte.
-  const { keep, probe } = liveOffsets(tr[0].length);
-  assert.ok(keep.length > 0, "no live-state bytes selected to compare");
-
-  for (let i = 0; i < idi.length; i++) {
-    for (const o of keep) {
-      if (idi[i][o] !== tr[i][o]) {
-        assert.fail(
-          `frame ${i}: idiomatic spine diverged from translated at ${hex(probe.stateOffsetToAddr(o))} ` +
-            `(idiomatic ${idi[i][o]} vs translated ${tr[i][o]})`,
-        );
-      }
-    }
-  }
+  const d = firstLiveDiff(idi, tr);
+  assert.equal(d, null, d && `frame ${d.frame}: idiomatic spine diverged from translated at ${hex(d.addr)} ` +
+    `(idiomatic ${d.a} vs translated ${d.b})`);
 });
 
 test("the FULL FLIP: all idiomatic routines live, guest SP inert every frame", async () => {
@@ -154,7 +148,7 @@ test("the FULL FLIP: all idiomatic routines live, guest SP inert every frame", a
     if (mi.regs.sp !== before) nmiFaults.push(`${hex(before)} -> ${hex(mi.regs.sp)}`);
   };
 
-  const idi = [];
+  const idi = { dumps: [], sps: [] };
   const SP_RESET = mi.regs.sp; // power-on value; nothing in the idiomatic layer seats or moves SP
   const spFaults = [];
   const ri = runIdiomaticGame(mi, {
@@ -162,7 +156,8 @@ test("the FULL FLIP: all idiomatic routines live, guest SP inert every frame", a
     nmiReturnPC,
     maxFrames: FLIP_FRAMES,
     onFrame: (m, frame) => {
-      idi.push(Buffer.from(m.dumpState()));
+      idi.dumps.push(Buffer.from(m.dumpState()));
+      idi.sps.push(m.regs.sp);
       // THE ASSERTION. SP is retired: it must sit at its reset value on EVERY sample, frame 0 included.
       if (m.regs.sp !== SP_RESET) spFaults.push(`frame ${frame}: SP ${hex(m.regs.sp)}`);
     },
@@ -190,18 +185,10 @@ test("the FULL FLIP: all idiomatic routines live, guest SP inert every frame", a
 
   // And the flip must still BE the oracle on every live cell, not merely stack-balanced.
   const tr = runOracle(FLIP_FRAMES);
-  assert.equal(idi.length, tr.length, "frame counts differ between the full flip and the oracle");
-  const { keep, probe } = liveOffsets(tr[0].length);
-  for (let i = 0; i < idi.length; i++) {
-    for (const o of keep) {
-      if (idi[i][o] !== tr[i][o]) {
-        assert.fail(
-          `frame ${i}: the full flip diverged from translated at ${hex(probe.stateOffsetToAddr(o))} ` +
-            `(flip ${idi[i][o]} vs translated ${tr[i][o]})`,
-        );
-      }
-    }
-  }
+  assert.equal(idi.dumps.length, tr.dumps.length, "frame counts differ between the full flip and the oracle");
+  const d = firstLiveDiff(idi, tr);
+  assert.equal(d, null, d && `frame ${d.frame}: the full flip diverged from translated at ${hex(d.addr)} ` +
+    `(flip ${d.a} vs translated ${d.b})`);
 });
 
 test("with no overrides the seam is not installed at all (the oracle path is untouched)", () => {

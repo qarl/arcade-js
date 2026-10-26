@@ -11,7 +11,7 @@
  * SP/pc are the dropped stack model: the oracle's skip arm discards the caller's return address
  * and returns a level higher, all inside STACK_SCRATCH, while the rewrite carries that decision
  * in the boolean and touches no stack. So each case compares game-visible RAM (work + sprite +
- * video, minus STACK_SCRATCH) AND the boolean, on FRESH clones per side.
+ * video, minus the stack scratch below the entry SP) AND the boolean, on FRESH clones per side.
  *
  * WHAT THIS FILE ACTUALLY RUNS:
  *
@@ -55,6 +55,7 @@ import { dispatchEffectSequenceStep } from "../dispatchEffectSequenceStep.js";
 import { loc_1e94 } from "../loc_1e94.js";
 import { Machine } from "../../machine.js";
 import { EFFECT_SEQ_STATE, EFFECT_SEQ_INNER, STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -75,18 +76,19 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const inStack = (a) => a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 /**
- * First game-visible RAM difference between two machines, EXCLUDING the dead STACK_SCRATCH
+ * First game-visible RAM difference between two machines, EXCLUDING the stack scratch below the entry SP
  * region. The oracle pushes a return address, pops the caller's, and returns a level up; the
  * rewrite does none of that, so every stack byte is dropped model, not behaviour.
  */
-function ramDiffMinusStack(a, b) {
+function ramDiffMinusStack(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   let stackDiffs = 0, bad = null;
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) { stackDiffs++; continue; }
+    if (dead(addr)) { stackDiffs++; continue; }
     if (!bad) bad = { addr, a: da[i], b: db[i] };
   }
   return { bad, stackDiffs };
@@ -98,7 +100,7 @@ function replay(entry, candidate) {
   const b = entry.clone(); // candidate
   const retA = oracle(a);
   const retB = candidate(b);
-  return { a, b, retA, retB, ...ramDiffMinusStack(a, b) };
+  return { a, b, retA, retB, ...ramDiffMinusStack(a, b, entry.regs.sp) };
 }
 
 /**
@@ -195,7 +197,7 @@ function sweepOne(base, value, candidate) {
   if (o.threw !== c.threw) {
     return { value, why: `oracle ${o.threw ? "refused" : "ran"} but candidate ${c.threw ? "refused" : "ran"}` };
   }
-  const { bad } = ramDiffMinusStack(o.m, c.m);
+  const { bad } = ramDiffMinusStack(o.m, c.m, base.regs.sp);
   if (bad) return { value, why: `RAM diff at ${hx(bad.addr)} (oracle=${bad.a} candidate=${bad.b})`, bad };
   if (o.ret !== c.ret) return { value, why: `the skip boolean diverged (oracle=${o.ret} candidate=${c.ret})` };
   return null;

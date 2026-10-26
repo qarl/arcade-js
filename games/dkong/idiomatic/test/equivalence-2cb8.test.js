@@ -26,7 +26,7 @@
  * releaseBarrelIntoFreeSlot WRITES MEMORY (its own claim, the task ring, the bonus, and — through the
  * continuation — everything the loc_2ce6 / stampReleasedBarrelKind / advanceBarrelRelease chain touches), so
  * it is gated on memory-equivalence, not a returned scalar, and every case runs on FRESH clones.
- * The contract is RAM (minus STACK_SCRATCH) + pc + SP.
+ * The contract is RAM (minus the stack scratch below the entry SP) + pc + SP.
  *
  * LIVE-OUT: memory-only, plus the control-flow boundary. releaseBarrelIntoFreeSlot pushes nothing of its own that
  * survives (its `call 0x309F` bracket balances; its exit is a jump into loc_2ce6), and the chain
@@ -47,7 +47,7 @@
  *      the record index" an observation rather than a reading of the caller.
  *
  *   1. EQUAL (real captured dispatches) — clone the machine at each true dispatch, run the
- *      ORACLE on one clone and releaseBarrelIntoFreeSlot on another, confirm identical RAM (minus STACK_SCRATCH)
+ *      ORACLE on one clone and releaseBarrelIntoFreeSlot on another, confirm identical RAM (minus the stack scratch below the entry SP)
  *      + pc + SP. These cover 8 of the 10 slot indices and none of the expiry arm.
  *
  *   2. EQUAL (crafted) — from a real captured dispatch, poke ONE byte identically on both sides:
@@ -97,6 +97,7 @@ import {
   STACK_SCRATCH, RENDER_OBJ_PTR, RENDER_DST_PTR, ACTOR_SPRITES, OBJ_ACTIVE, OBJ_ARRAY_67,
   BONUS, BONUS_EXPIRED_STEP, TASK_TAIL, TASK_RING,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -123,19 +124,19 @@ const FRAME_GATE = 0x62af; // advanceBarrelRelease's per-tick down-counter (unna
 const ANIM_COUNTER = 0x638f; // advanceBarrelRelease's animation sub-counter (unnamed)
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 const slotAddr = (count) => ACTOR_SPRITES + u8((BARREL_SLOTS - count) * SPRITE_RECORD_BYTES);
 
 // -- the memory-equivalence contract ------------------------------------------
 
-/** First RAM byte that differs, skipping the dead STACK_SCRATCH region. */
-function firstRamDiff(a, b) {
+/** First RAM byte that differs, skipping the stack scratch below the entry SP. */
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -148,10 +149,8 @@ function runOracle(entry) {
   return c;
 }
 
-/**
- * Run a candidate on a fresh clone, then model its single terminal `ret` with one m.ret() so
- * pc + SP match the oracle's (the idiomatic chain replaces the Z80 stack with the JS call stack).
- */
+/** Run a candidate on a fresh clone, then model its single terminal `ret` with one m.ret() so pc + SP match the
+ *  oracle's (the idiomatic chain replaces the Z80 stack with the JS call stack). */
 function runCandidate(entry, fn) {
   const c = entry.clone();
   fn(c);
@@ -159,12 +158,12 @@ function runCandidate(entry, fn) {
   return c;
 }
 
-/** Full contract diff: RAM − STACK_SCRATCH, pc, SP. Live-out is memory + the return boundary. */
+/** Full contract diff: RAM − the stack scratch below the entry SP, pc, SP. Live-out is memory + the return boundary. */
 function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=${hx(o.pc)} cand=${hx(c.pc)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);

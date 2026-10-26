@@ -10,7 +10,7 @@
  * anything on or off; all four observed (code, attr) pairs are visible sprites.)
  *
  * The routine WRITES MEMORY, calls the rst-0x18 gate, and has a gate that can skip its
- * whole body, so it is gated on MEMORY-equivalence — RAM (minus STACK_SCRATCH) + pc +
+ * whole body, so it is gated on MEMORY-equivalence — RAM (minus the stack scratch below the entry SP) + pc +
  * SP — never on a register file (its live-out is memory-only; see the routine header),
  * and every case runs on a FRESH clone (a reused clone is only safe for a read-only
  * leaf). The idiomatic routine models the Z80 `ret` as a JS return and calls its callee
@@ -59,6 +59,7 @@ import {
   DEATH_ANIM_TICKS_LEFT,
 } from "../names.js";
 import { tickSubstateTimer } from "../tickSubstateTimer.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -74,23 +75,21 @@ const SPRITE_CODE = MARIO_SPRITE_RECORD + 1; // 0x694D
 const SPRITE_ATTR = MARIO_SPRITE_RECORD + 2; // 0x694E
 
 const hx = (v) => "0x" + (v & 0xff).toString(16).padStart(2, "0");
-const inStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
-
-// -- the memory-equivalence contract ------------------------------------------
 
 /**
- * First RAM byte that differs between two machines, skipping STACK_SCRATCH — the dead
+ * First RAM byte that differs between two machines, skipping the stack scratch below the entry SP — the dead
  * stack region the standard gate excludes. The oracle transiently pushes the rst / call
  * return addresses into this region; the idiomatic routine (JS call stack) never writes
  * it, so excluding it is exactly the contract, not a fudge.
  */
-function firstRamDiff(a, b) {
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -117,7 +116,7 @@ function runCandidate(entry, fn) {
 }
 
 /**
- * Compare candidate vs oracle over the contract: RAM − STACK_SCRATCH, pc, SP. NO
+ * Compare candidate vs oracle over the contract: RAM − the stack scratch below the entry SP, pc, SP. NO
  * registers — stepMarioDeathAnimation's live-out is memory-only, and because it calls the idiomatic
  * callee directly (whereas the oracle calls the translated one) the two leave different
  * DEAD registers behind; comparing them would fail on values nothing reads. Returns a
@@ -127,14 +126,12 @@ function contractDiffs(entry, fn) {
   const o = runOracle(entry);
   const c = runCandidate(entry, fn);
   const diffs = [];
-  const ram = firstRamDiff(o, c);
+  const ram = firstRamDiff(o, c, entry.regs.sp);
   if (ram) diffs.push(`RAM@0x${(ram.addr ?? 0).toString(16)} oracle=${hx(ram.a)} cand=${hx(ram.b)}`);
   if (o.pc !== c.pc) diffs.push(`pc oracle=0x${o.pc.toString(16)} cand=0x${c.pc.toString(16)}`);
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=0x${o.regs.sp.toString(16)} cand=0x${c.regs.sp.toString(16)}`);
   return diffs;
 }
-
-// -- branch classifiers (read the ENTRY state) --------------------------------
 
 /** The gate expires this frame iff SUBSTATE_TIMER decrements to 0 (i.e. it is 1). */
 const gateExpires = (e) => ((e.mem.read8(SUBSTATE_TIMER) - 1) & 0xff) === 0;
@@ -142,8 +139,6 @@ const gateExpires = (e) => ((e.mem.read8(SUBSTATE_TIMER) - 1) & 0xff) === 0;
 const isAdvanceArm = (e) => gateExpires(e) && ((e.mem.read8(DEATH_ANIM_TICKS_LEFT) - 1) & 0xff) === 0;
 const isDeathAnimArm = (e) => gateExpires(e) && !isAdvanceArm(e);
 const isSkipArm = (e) => !gateExpires(e);
-
-// -- capture ------------------------------------------------------------------
 
 /**
  * Hook 0x12ac in a real attract run and clone the machine at up to K real dispatches.
@@ -170,8 +165,6 @@ function craft(seed, { timer, count }) {
   e.regs.sp = 0x6bfe; // pushes land in STACK_SCRATCH, well clear of work RAM
   return e;
 }
-
-// -- teeth twins --------------------------------------------------------------
 
 /**
  * Broken twin (a): the wrong sprite store. Steps the animation correctly EXCEPT the
@@ -223,13 +216,11 @@ function brokenGatePolarity(m) {
   mem.write8(SPRITE_ATTR, (b & 0x80) ^ mem.read8(SPRITE_ATTR));
 }
 
-// -- 1. EQUAL (real captured dispatches) --------------------------------------
-
 test("EQUAL (real dispatches): stepMarioDeathAnimation == oracle on every captured 0x12ac entry", () => {
   const caps = captureDispatches(400, 3000);
   assert.ok(caps.length >= 1, "expected at least one real 0x12ac dispatch during attract");
   for (const cap of caps) {
-    const diffs = contractDiffs(cap, stepMarioDeathAnimation); // FRESH clones inside — cap untouched
+    const diffs = contractDiffs(cap, stepMarioDeathAnimation);
     assert.equal(diffs.length, 0, diffs.join("; "));
   }
   const skip = caps.filter(isSkipArm).length;
@@ -240,8 +231,6 @@ test("EQUAL (real dispatches): stepMarioDeathAnimation == oracle on every captur
       `(${skip} skip-arm, ${spinArm} spin-arm, ${advance} advance-arm)`,
   );
 });
-
-// -- 2. EQUAL (crafted arms) --------------------------------------------------
 
 test("EQUAL (crafted): the death animation, advance and skip arms each match the oracle", () => {
   const caps = captureDispatches(1, 3000);
@@ -261,14 +250,11 @@ test("EQUAL (crafted): the death animation, advance and skip arms each match the
   console.log(`  EQUAL/crafted: ${cases.length} arms (spin, advance, skip) identical to the oracle`);
 });
 
-// -- 3. TEETH -----------------------------------------------------------------
-
 test("TEETH: the wrong spin store and the gate-polarity inversion are CAUGHT", () => {
   const caps = captureDispatches(400, 3000);
   assert.ok(caps.length >= 1, "need real captures for the teeth check");
   const seed = caps[0];
 
-  // (a) wrong sprite store: only shows on a cycling (step) arm, so craft one.
   const deathAnimArm = craft(seed, { timer: 0x01, count: 0x0d });
   const storeDiffs = contractDiffs(deathAnimArm, brokenDeathAnimStore);
   assert.ok(storeDiffs.length > 0, "the wrong spin store escaped on the spin arm — the gate is worthless");

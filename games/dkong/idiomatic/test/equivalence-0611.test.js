@@ -9,7 +9,7 @@
  * to repaint the credit line. Attract keeps the bit set, so the game naturally dispatches it
  * only on the PAINT path; the credited-game skip path is reached with a crafted entry.
  *
- * The contract is MEMORY-ONLY (RAM − STACK_SCRATCH). This is a task-table entry: the
+ * The contract is MEMORY-ONLY (RAM − the stack scratch below the entry SP). This is a task-table entry: the
  * dispatcher discards its registers/flags, so nothing is live-out but memory. And the two
  * paths do not net the same stack motion — the skip path returns (pops the caller address)
  * while the paint path falls through a nested call that never nets a pop — so there is no
@@ -51,6 +51,7 @@ import { drawCreditLineInAttract } from "../drawCreditLineInAttract.js";
 import { drawCreditDisplay } from "../drawCreditDisplay.js"; // ROM 0x0616 — used only by the teeth twins
 import { ATTRACT, CREDITS, STACK_SCRATCH } from "../names.js";
 import { Machine } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -66,30 +67,31 @@ const DIGIT_LO = 0x749f;   // low digit, one tilemap row up (−0x20)
 const SENTINEL = 0x2f;     // a non-digit tile pre-stamped into both digit cells so any paint is observable
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// First RAM byte that differs between two machines, skipping the dead STACK_SCRATCH region
-// (the memory-equivalence contract is RAM − STACK_SCRATCH). { addr, a, b } | null.
-function firstRamDiff(a, b) {
+// First RAM byte that differs between two machines, skipping the stack scratch below the entry SP
+// (the memory-equivalence contract is RAM − the stack scratch below the entry SP). { addr, a, b } | null.
+function firstRamDiff(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
 // All non-stack RAM addresses that changed between two machines (for the non-vacuity checks).
-function changedAddrs(a, b) {
+function changedAddrs(a, b, liveFloor) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor);
   const da = a.dumpState(), db = b.dumpState();
   const out = [];
   for (let i = 0; i < Math.min(da.length, db.length); i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) continue;
+    if (dead(addr)) continue;
     out.push(addr);
   }
   return out;
@@ -130,12 +132,12 @@ function craftedCases(base) {
   ];
 }
 
-// Run the ORACLE on one clone and `fn` on another; diff RAM − STACK_SCRATCH. Fresh clones
+// Run the ORACLE on one clone and `fn` on another; diff RAM − the stack scratch below the entry SP. Fresh clones
 // per side because the paint path writes memory.
 function oracleVsCandidate(entry, fn) {
   const o = entry.clone(); oracle(o);
   const c = entry.clone(); fn(c);
-  return firstRamDiff(o, c);
+  return firstRamDiff(o, c, entry.regs.sp);
 }
 
 // Hook 0x0611 in a real attract run and clone the machine at up to K real dispatches.
@@ -201,7 +203,7 @@ test("EQUAL (crafted): the skip and paint arms all match the oracle (and are non
 
     // Non-vacuity: prove the crafted case actually exercises the arm it claims to.
     const after = entry.clone(); oracle(after);
-    const changed = changedAddrs(entry, after);
+    const changed = changedAddrs(entry, after, entry.regs.sp);
     if (paint) {
       assert.ok(changed.includes(DIGIT_HI), `${name}: paint arm did not overwrite the credit digit cell — the case is vacuous`);
     } else {

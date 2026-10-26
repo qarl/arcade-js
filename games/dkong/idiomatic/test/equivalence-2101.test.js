@@ -88,6 +88,7 @@ import { Machine } from "../../machine.js";
 import manifest from "../../manifest.js";
 import { runCycleFree } from "../../../../core/frame-stepped.js";
 import { STACK_SCRATCH } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -118,7 +119,6 @@ const RETIRE_Y = 0xe8;
 const BAND = [0x20, 0x24, 0x29]; // three positions inside the firing band [0x20, 0x2A)
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16).padStart(4, "0");
-const inStack = (addr) => addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 // -- the contract -------------------------------------------------------------
 
@@ -151,10 +151,11 @@ function breach(entry, fn) {
   const db = b.dumpState();
   let live = null;
   let stack = null;
+  const dead = deadStackBelow(STACK_SCRATCH, entry.regs.sp);
   for (let i = 0; i < da.length; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (inStack(addr)) stack ??= `RAM(stack)@${hx(addr)} oracle=${da[i]} cand=${db[i]}`;
+    if (dead(addr)) stack ??= `RAM(stack)@${hx(addr)} oracle=${da[i]} cand=${db[i]}`;
     else return `RAM(live)@${hx(addr)} oracle=${da[i]} cand=${db[i]}`;
   }
   if (a.regs.sp !== b.regs.sp) return `SP oracle=${hx(a.regs.sp)} cand=${hx(b.regs.sp)}`;
