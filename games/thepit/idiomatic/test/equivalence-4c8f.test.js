@@ -47,7 +47,7 @@ import { loc_4c8f as oracle } from "../../translated/loc_4c8f.js";
 import { requestSound16 } from "../requestSound16.js";
 import { enqueueSoundCommand } from "../enqueueSoundCommand.js";
 import { makeMachineFactory } from "../../machine.js";
-import { unitEquivalence } from "../../../../core/equivalence.js";
+import { unitEquivalence, deadStackBelow } from "../../../../core/equivalence.js";
 import { SOUND_HEAD, SOUND_RING } from "../names.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
@@ -97,7 +97,7 @@ function ramDiffOutsideStack(a, b, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= entrySP - 4 && addr < entrySP) continue; // dead stack scratch
+    if (deadStackBelow({ lo: entrySP - 4, hi: entrySP }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;

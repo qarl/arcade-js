@@ -22,7 +22,7 @@
  *
  * DEAD STACK SCRATCH — the oracle marshals its calls through the Z80 stack (and the round-boundary
  * chain resets SP to 0x83ff and pushes down) while the stack-free idiomatic JS does not. Those
- * bytes are classic dead stack scratch, so the RAM diff excludes the chain window near 0x83ff and a
+ * bytes are classic dead stack scratch, so the RAM diff excludes a
  * shallow window just below the entry stack pointer, and compares everything else byte-for-byte.
  *
  * THE BIAS IS ZERO IN ATTRACT, so the coordinate-bias arm of the fourth sprite byte is exercised
@@ -48,7 +48,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_316f as oracle } from "../../translated/loc_316f.js";
 import { updateEnemy2 as idiomatic } from "../updateEnemy2.js";
 import { makeMachineFactory } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import { ENEMY2_X, SPRITE_COORD_BIAS, SPRITE_STAGING_BASE } from "../names.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
@@ -71,10 +71,7 @@ const EXPIRY_LEAVES = [0x031a, 0x01f9];
 const WATCHDOG = 0xb800; // reading it kicks the watchdog / drives the frame countdown
 const COUNTDOWN = 0x8009; // the per-frame countdown the chain's frame-waits drain to 0
 // Dead stack scratch: the oracle's Z80 tail pushes return/save bytes the stack-free idiomatic JS does
-// not; the chain also resets SP to 0x83ff and pushes down. Neither window holds a mover record or a
-// sprite-staging byte.
-const CHAIN_SCRATCH_LO = 0x83e0;
-const CHAIN_SCRATCH_HI = 0x8400;
+// not; the window below the entry SP holds no mover record or sprite-staging byte.
 const SHALLOW_SCRATCH_DEPTH = 128;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
@@ -125,7 +122,7 @@ function runIsolated(entry, fn) {
 }
 
 /** First differing RAM byte between two machines (full dumpState), EXCLUDING the dead stack scratch
- *  (the chain window near 0x83ff and the shallow window just below the entry SP). Null if identical. */
+ *  (the shallow window just below the entry SP). Null if identical. */
 function ramDiff(a, b, entrySP) {
   const da = a.dumpState();
   const db = b.dumpState();
@@ -133,8 +130,7 @@ function ramDiff(a, b, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= CHAIN_SCRATCH_LO && addr < CHAIN_SCRATCH_HI) continue;
-    if (addr >= entrySP - SHALLOW_SCRATCH_DEPTH && addr < entrySP) continue;
+    if (deadStackBelow({ lo: entrySP - SHALLOW_SCRATCH_DEPTH, hi: entrySP }, entrySP)(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;

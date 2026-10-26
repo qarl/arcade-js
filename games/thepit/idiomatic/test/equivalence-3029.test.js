@@ -13,7 +13,7 @@
  * stubbing the tail — the honest dissolved-form contract. The object pass's rare arrival/capture
  * tail can reach the two never-returning transition leaves (0x031a, 0x01f9), so those are stubbed
  * identically on both clones and the once-per-frame frame-tick is modelled so any frame-wait drains.
- * The dead top-of-stack scratch (near 0x83ff, and the shallow window just below the entry SP) is
+ * Stack scratch below the entry SP is
  * excluded — the sprite slot (0x822c) and the object records live far below it.
  *
  * EQUAL is proven over every real captured sibling state, and over a crafted sweep of the four
@@ -40,6 +40,7 @@ import {
   CHAMBER_CREATURE_SPRITE,
   SPRITE_COORD_BIAS,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -88,14 +89,14 @@ function runIsolated(entry, fn) {
   return c;
 }
 
-// First differing work-RAM byte over the full run, excluding the dead stack scratch. Null if equal.
-function ramDiff(a, b) {
+// First differing work-RAM byte over the full run, excluding stack scratch below the entry SP. Null if equal.
+function ramDiff(a, b, entrySP) {
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] !== db[i]) {
       const addr = a.stateOffsetToAddr(i);
-      if (addr >= CHAIN_SCRATCH_LO && addr < CHAIN_SCRATCH_HI) continue;
+      if (deadStackBelow({ lo: CHAIN_SCRATCH_LO, hi: CHAIN_SCRATCH_HI }, entrySP)(addr)) continue;
       return { addr, a: da[i], b: db[i] };
     }
   }
@@ -105,7 +106,7 @@ function ramDiff(a, b) {
 function runPair(entry, candidate, poke) {
   const a = runIsolated(entry, (c) => { poke?.(c); oracle(c); });
   const b = runIsolated(entry, (c) => { poke?.(c); candidate(c); });
-  return { ram: ramDiff(a, b), slot: [0, 1, 2, 3].map((i) => a.mem.read8(SPR + i)) };
+  return { ram: ramDiff(a, b, entry.regs.sp), slot: [0, 1, 2, 3].map((i) => a.mem.read8(SPR + i)) };
 }
 
 // -- 1. EQUAL: every real captured sibling state ------------------------------
@@ -160,7 +161,7 @@ test("TEETH: a dropped coordinate bias is CAUGHT at the sprite slot", () => {
   // Run the oracle and the broken twin (which omits the tail) through the same isolation.
   const a = runIsolated(entry, (c) => { poke(c); oracle(c); });
   const b = runIsolated(entry, (c) => { poke(c); brokenBias(c); });
-  const r = ramDiff(a, b);
+  const r = ramDiff(a, b, entry.regs.sp);
   assert.notEqual(r, null, "the gate FAILED to catch a dropped bias — it is worthless");
   assert.equal(r.addr, SPR, `teeth caught ${hx(r.addr)} (expected the sprite slot ${hx(SPR)})`);
   console.log(`  TEETH: dropped bias caught at ${hx(r.addr)} (oracle=${r.a} broken=${r.b})`);
@@ -182,7 +183,7 @@ test("TEETH: a corrupted verbatim tile byte is CAUGHT at the sprite slot", () =>
   const poke = (c) => c.mem.write8(CHAMBER_CREATURE_FRAME, 0x39);
   const a = runIsolated(entry, (c) => { poke(c); oracle(c); });
   const b = runIsolated(entry, (c) => { poke(c); brokenTile(c); });
-  const r = ramDiff(a, b);
+  const r = ramDiff(a, b, entry.regs.sp);
   assert.notEqual(r, null, "the gate FAILED to catch a corrupted tile byte — it is worthless");
   assert.equal(r.addr, SPR + 1, `teeth caught ${hx(r.addr)} (expected the tile byte ${hx(SPR + 1)})`);
   console.log(`  TEETH: corrupted tile caught at ${hx(r.addr)} (oracle=${r.a} broken=${r.b})`);

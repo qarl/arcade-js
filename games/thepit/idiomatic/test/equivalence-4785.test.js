@@ -36,6 +36,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_4785 as oracle } from "../../translated/loc_4785.js";
 import { drawBestScoresTodayLabel as idiomatic } from "../drawBestScoresTodayLabel.js";
 import { makeMachineFactory } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -53,8 +54,6 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 // async, so build the factory once (it closes over the built registry).
 const makeMachine = ROM_PRESENT ? await makeMachineFactory(ROM) : null;
 
-// -- the memory-equivalence contract ------------------------------------------
-
 const STACK_SCRATCH = 8; // dead return-address / helper-scratch window just below the entry SP
 
 /**
@@ -68,7 +67,7 @@ function firstRamDiff(a, b, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= entrySP - STACK_SCRATCH && addr < entrySP) continue; // dead stack scratch
+    if (deadStackBelow({ lo: entrySP - STACK_SCRATCH, hi: entrySP }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -96,8 +95,6 @@ function contractDiffs(entry, fn) {
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   return diffs;
 }
-
-// -- capture ------------------------------------------------------------------
 
 /** Capture the machine at the true 0x4785 dispatch during an attract run (single runFrames — no NMI-timing skew). */
 function captureRealDispatch(maxFrames) {
@@ -128,8 +125,6 @@ function oracleWriteCount(entry) {
   return n;
 }
 
-// -- broken twins -------------------------------------------------------------
-
 /** BUG: copies the tile strip one row too high (starts at 0x93de) — the whole picture shifts. */
 function teethShiftedStrip(m) {
   const { mem, regs } = m;
@@ -150,8 +145,6 @@ function teethWrongColour(m) {
   return m.call(0x3e1d);
 }
 
-// -- 1. EQUAL: real dispatch ---------------------------------------------------
-
 test("EQUAL: idiomatic drawBestScoresTodayLabel == oracle at the real attract dispatch", () => {
   const real = captureRealDispatch(CAP_FRAMES);
   assert.ok(real, "expected a real 0x4785 dispatch during attract");
@@ -159,8 +152,6 @@ test("EQUAL: idiomatic drawBestScoresTodayLabel == oracle at the real attract di
   assert.equal(diffs.length, 0, "real-dispatch entry: " + diffs.join("; "));
   console.log("  EQUAL: real 0x4785 dispatch — identical painted RAM outside the stack scratch");
 });
-
-// -- 2. SENTINEL: crafted background forces all writes visible ------------------
 
 test("SENTINEL (crafted): over a marker background the oracle writes its cells and idiomatic matches", () => {
   const real = captureRealDispatch(CAP_FRAMES);
@@ -179,8 +170,6 @@ test("SENTINEL (crafted): over a marker background the oracle writes its cells a
   assert.equal(diffs.length, 0, `sentinel background: ${diffs.join("; ")}`);
   console.log(`  SENTINEL: ${wrote} writes over a marker background — idiomatic identical to the oracle`);
 });
-
-// -- 3. TEETH -----------------------------------------------------------------
 
 test("TEETH: the shifted-strip twin and the wrong-colour twin are CAUGHT", () => {
   const real = captureRealDispatch(CAP_FRAMES);

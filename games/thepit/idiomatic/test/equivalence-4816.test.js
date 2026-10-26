@@ -7,14 +7,11 @@
  * colour 0.
  *
  * CRAFTED-ENTRY, because attract never dispatches paintPlayfieldStripCol1Row11 (it is round setup — the
- * caller holdRoundIntroLoop/setUpRoundAndHoldIntro only runs once a game starts). So instead of hooking the
- * target itself, we capture REAL machine states at a routine paintPlayfieldStripCol1Row11 shares and that
- * attract DOES dispatch — loc_3dae, the shared row/col -> offset calc (first entered
- * ~frame 81) — clone at its entry, and run oracle-vs-idiomatic paintPlayfieldStripCol1Row11 on those real,
- * in-distribution states. paintPlayfieldStripCol1Row11 supplies all of its own inputs (it overwrites the
- * cursor/count/fill scratch it reads and sets its own source pointer), so any real
- * captured state is a valid entry; the capture just provides a realistic RAM image and
- * a valid stack for the return to pop.
+ * caller holdRoundIntroLoop/setUpRoundAndHoldIntro only runs once a game starts). So we capture REAL machine
+ * states at a routine it shares that attract DOES dispatch — loc_3dae, the shared row/col -> offset calc
+ * (first entered ~frame 81) — clone at its entry, and run oracle-vs-idiomatic on those states. The routine
+ * supplies all of its own inputs (it overwrites the cursor/count/fill scratch it reads and sets its own
+ * source pointer), so any real captured state is a valid entry with a realistic RAM image and stack.
  *
  * OBSERVABLE-EQUIVALENCE CONTRACT. The idiomatic routine dissolved three stale oracle
  * calls into direct calls of their decompiled siblings — rowColToTileOffset (0x3dae),
@@ -55,7 +52,7 @@ import { rowColToTileOffset } from "../rowColToTileOffset.js";
 import { deriveTileWriteCursors } from "../deriveTileWriteCursors.js";
 import { fillColourColumn } from "../fillColourColumn.js";
 import { makeMachineFactory } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -66,10 +63,7 @@ const test = ROM_PRESENT
 
 const PROXY = 0x3dae; // a shared callee attract dispatches; its entry states are real
 const STRIP_HEIGHT = 0x8055; // strip cell count (scratch)
-// The dissolved helpers no longer push their return addresses; the only stack traffic
-// left is the single return-address word the (retained) tilemap-fill call parks just
-// below the entry stack pointer, which the oracle re-pushes to the same slot — so this
-// dead-scratch window is excluded, matching the observable-equivalence contract.
+// Dead-scratch window: the return-address word the retained tilemap-fill call parks below the entry SP.
 const STACK_SCRATCH_BYTES = 2;
 
 // The routine paints column 1 / row 11: offset = 32*11 + 1 = 0x161; colour base
@@ -100,11 +94,8 @@ function captureEntries(K, maxFrames) {
 
 const ENTRIES = ROM_PRESENT ? captureEntries(6, 240) : [];
 
-/**
- * First differing RAM byte between two machines, EXCLUDING the dead stack-scratch
- * window [entrySP - STACK_SCRATCH_BYTES, entrySP) — the modeled-return push slot the
- * stack-free direct calls no longer reproduce. Null when otherwise identical.
- */
+/** First differing RAM byte, EXCLUDING the dead stack-scratch window [entrySP - STACK_SCRATCH_BYTES, entrySP).
+ *  Null when otherwise identical. */
 function ramDiffOutsideStack(a, b, entrySP) {
   const da = a.dumpState();
   const db = b.dumpState();
@@ -112,18 +103,15 @@ function ramDiffOutsideStack(a, b, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= entrySP - STACK_SCRATCH_BYTES && addr < entrySP) continue; // dead stack scratch
+    if (deadStackBelow({ lo: entrySP - STACK_SCRATCH_BYTES, hi: entrySP }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
 /**
- * Compare a candidate against the oracle over the observable-equivalence contract for
- * one entry: RAM (outside the stack scratch) + pc + SP. Value registers are the declared
- * -dead live-out and excluded. The oracle returns internally (its tail callee rets); the
- * candidate models its return with one m.ret() so pc + SP line up. Returns { diffs, ram }
- * (diffs empty == EQUAL).
+ * Candidate vs oracle over the contract for one entry: RAM (outside the stack scratch) + pc + SP; the
+ * candidate models its return with one m.ret(). Returns { diffs, ram } (diffs empty == EQUAL).
  */
 function contractDiffs(entry, fn) {
   const sp = entry.regs.sp;
@@ -141,8 +129,6 @@ function contractDiffs(entry, fn) {
   return { diffs, ram };
 }
 
-// -- 1. EQUAL -----------------------------------------------------------------
-
 test("EQUAL: real captured entries — idiomatic paintPlayfieldStripCol1Row11 == oracle in observable RAM + pc + SP", () => {
   assert.ok(ENTRIES.length >= 1, "expected at least one real proxy dispatch in the run window");
   for (const entry of ENTRIES) {
@@ -152,13 +138,10 @@ test("EQUAL: real captured entries — idiomatic paintPlayfieldStripCol1Row11 ==
   console.log(`  EQUAL: ${ENTRIES.length} real entries identical (observable RAM + pc + SP)`);
 });
 
-// -- 2. PAINTED (write-set) ---------------------------------------------------
-
 test("PAINTED: the oracle writes exactly the 10 tilemap + 10 colour cells (and the scratch)", () => {
   const entry = ENTRIES[0];
   const before = entry.clone();
   const after = entry.clone();
-  // Pre-dirty the target cells so a landed paint is unmistakable (not a leftover).
   for (const a of [...TILE_CELLS, ...COLOUR_CELLS]) {
     before.mem.write8(a, DIRTY);
     after.mem.write8(a, DIRTY);
@@ -167,7 +150,6 @@ test("PAINTED: the oracle writes exactly the 10 tilemap + 10 colour cells (and t
   oracle(after);
   const a1 = after.dumpState();
 
-  // Every target cell must have been overwritten (no DIRTY sentinel survives).
   for (const a of TILE_CELLS) {
     assert.notEqual(after.mem.read8(a), DIRTY, `tilemap cell ${hx(a)} was not painted`);
   }
@@ -176,7 +158,7 @@ test("PAINTED: the oracle writes exactly the 10 tilemap + 10 colour cells (and t
   }
 
   // The full write-set stays inside {paint scratch 0x8055-0x8061} + the 20 target
-  // cells + the stack window (the pushed/popped return-address word — the routine's
+  // cells + the stack window below the entry SP (the pushed/popped return-address word — the routine's
   // real stack traffic, which is exactly why the gate excludes that dead window).
   const targets = new Set([...TILE_CELLS, ...COLOUR_CELLS]);
   const stackTop = entry.regs.sp;
@@ -184,7 +166,7 @@ test("PAINTED: the oracle writes exactly the 10 tilemap + 10 colour cells (and t
     if (b0[off] === a1[off]) continue;
     const addr = after.stateOffsetToAddr(off);
     const isScratch = addr >= 0x8055 && addr <= 0x8061;
-    const isStack = addr >= stackTop - 8 && addr < 0x8400;
+    const isStack = deadStackBelow({ lo: stackTop - 8, hi: 0x8400 }, stackTop)(addr);
     assert.ok(
       isScratch || isStack || targets.has(addr),
       `oracle wrote outside the paint footprint at ${hx(addr)} (${b0[off]}->${a1[off]})`,
@@ -192,8 +174,6 @@ test("PAINTED: the oracle writes exactly the 10 tilemap + 10 colour cells (and t
   }
   console.log("  PAINTED: 10 tilemap + 10 colour cells written; footprint = paint scratch + those cells + the return-address stack word");
 });
-
-// -- 3. TEETH -----------------------------------------------------------------
 
 /** Broken twin: a faithful copy of the idiomatic body (same dissolved direct calls,
  *  same retained tilemap-fill call) with the strip height wrong — 9 instead of 10, a

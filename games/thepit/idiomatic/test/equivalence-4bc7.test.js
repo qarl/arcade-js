@@ -6,13 +6,12 @@
  * the three source records at 0x8039 (each a fixed 3-tile label block plus a zero value),
  * and tail-hands to the still-oracle score-readout formatter at 0x4cca, which copies each
  * label block to its display cell and formats each value into digit cells. The idiomatic
- * rewrite dissolves that tail (renderScoreReadouts called directly rather than the oracle's
- * stack-threaded jump), so it is gated by MEMORY-equivalence against the frozen oracle: RAM
- * byte-identical outside the dead stack scratch. pc and SP are NOT gated — the idiomatic layer
- * drops the Z80 pc/register trace and never threads the stack, so comparing them would false-
- * fail an honest rewrite; nor is the full register file (the oracle's residual pointer/counter
- * are dead — the formatter and callers reload what they need). The whole-machine/pixel gate
- * backstops that.
+ * rewrite dissolves that tail (renderScoreReadouts called directly rather than the oracle's stack-threaded
+ * jump), so it is gated by MEMORY-equivalence against the frozen oracle: RAM byte-identical outside the dead
+ * stack scratch. pc and SP are NOT gated — the idiomatic layer drops the Z80 pc/register trace and never
+ * threads the stack, so comparing them would false-fail an honest rewrite; nor is the full register file
+ * (the oracle's residual pointer/counter are dead — the formatter and callers reload what they need). The
+ * whole-machine/pixel gate backstops that.
  *
  *   THE STACK SCRATCH. The Pit's stack is real diffed work RAM (entry SP ~0x83fd here). The
  *   oracle's removed push/call parked dead bytes at [SP-8, SP) (covering 0x83fb..0x83fc) that
@@ -21,16 +20,14 @@
  *   byte. The real outputs all sit far below the stack (0x8039 records, 0x8280 strip, plus the
  *   formatter's cells), so the window never hides one — the teeth confirm it.
  *
- *   1. EQUAL (real dispatch) — boot the machine, hook 0x4bc7, and clone it at its single
- *      real dispatch (it fires once during the cold-boot init). Run the ORACLE on one clone
- *      and the idiomatic initScoreDisplay on another, and prove RAM is byte-identical outside
- *      the dead stack scratch. Straight-line (blank the strip, seed the records, tail-hand to
- *      the formatter), so one entry covers the whole control path.
+ *   1. EQUAL (real dispatch) — boot the machine, hook 0x4bc7, and clone it at its single real dispatch (it
+ *      fires once during the cold-boot init). Run the ORACLE on one clone and the idiomatic initScoreDisplay
+ *      on another, and prove RAM is byte-identical outside the dead stack scratch. Straight-line (blank the
+ *      strip, seed the records, tail-hand to the formatter), so one entry covers the whole control path.
  *
- *   2. NON-VACUOUS — the same run proves EQUAL is not passing on a no-op: the setup actually
- *      changes memory versus the captured entry (the strip fill 0x8280 and the seeded record
- *      byte 0x8039 both change, and the formatter's rendered label cell 0x8283 changes too,
- *      proving the tail render ran).
+ *   2. NON-VACUOUS — the same run proves EQUAL is not passing on a no-op: the setup actually changes memory
+ *      versus the captured entry (the strip fill 0x8280 and the seeded record byte 0x8039 both change, and
+ *      the formatter's rendered label cell 0x8283 changes too, proving the tail render ran).
  *
  *   3. TEETH (wrong blank tile) — a twin filling the strip with the wrong tile MUST be caught
  *      in the strip cells the formatter never overwrites (0x8280..0x8282).
@@ -49,6 +46,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_4bc7 as oracle } from "../../translated/loc_4bc7.js";
 import { initScoreDisplay as idiomatic } from "../initScoreDisplay.js";
 import { makeMachineFactory } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -66,31 +64,24 @@ const BLANK_TILE = 36; // the strip's blank fill tile
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-// The engine drives makeMachine(overrides) synchronously; The Pit's registry is
-// async, so build the factory once (it closes over the built registry).
 const makeMachine = ROM_PRESENT ? await makeMachineFactory(ROM) : null;
 
-/**
- * First game-visible RAM difference between two machines (full state dump), EXCLUDING the
- * dead stack scratch the oracle's removed push/call parks just below the entry stack pointer
- * (which the stack-free idiomatic never writes). Null when otherwise identical.
- */
+/** First game-visible RAM difference (full state dump), EXCLUDING the dead stack scratch the oracle's
+ *  removed push/call parks just below the entry stack pointer. Null when otherwise identical. */
 function ramDiff(a, b, entrySP) {
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= entrySP - STACK_SCRATCH && addr < entrySP) continue; // dead stack scratch
+    if (deadStackBelow({ lo: entrySP - STACK_SCRATCH, hi: entrySP }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
-/**
- * Boot the machine, hook 0x4bc7, and clone it at its first real dispatch. The wrapper
- * clones the entry state, then runs the oracle so the host boot proceeds undisturbed.
- */
+/** Boot the machine, hook 0x4bc7, and clone it at its first real dispatch; the wrapper then runs the
+ *  oracle so the host boot proceeds undisturbed. */
 function captureEntry(maxFrames) {
   let entry = null;
   const snap = new Map([[TARGET, (mm) => {
@@ -112,8 +103,6 @@ function replay(entry, candidate) {
   return { a, b, bad: ramDiff(a, b, sp) };
 }
 
-// -- 1 + 2. EQUAL (real dispatch) + NON-VACUOUS -------------------------------
-
 test("EQUAL: idiomatic initScoreDisplay == oracle on the real dispatch (RAM, outside stack scratch)", () => {
   const entry = captureEntry(120);
   assert.ok(entry, "expected a real 0x4bc7 dispatch during boot");
@@ -124,10 +113,6 @@ test("EQUAL: idiomatic initScoreDisplay == oracle on the real dispatch (RAM, out
     null,
     bad && `game-visible RAM diff at ${hx(bad.addr)} (oracle=${bad.a} idiomatic=${bad.b})`,
   );
-  // pc and SP are NOT asserted: the idiomatic layer dissolves the oracle's stack-threaded
-  // tail into a direct call, so it never lands the Z80 pc/SP where the oracle does — the
-  // memory-equivalence contract (RAM outside the dead stack scratch) is the gate.
-
   // NON-VACUOUS: the setup actually rewrote memory — the strip fill, the seeded record
   // byte, and the formatter's rendered label cell all differ from the captured entry.
   assert.notEqual(
@@ -155,8 +140,6 @@ test("EQUAL: idiomatic initScoreDisplay == oracle on the real dispatch (RAM, out
   );
 });
 
-// -- 3. TEETH (wrong blank tile) ----------------------------------------------
-
 /** Broken twin: fills the strip with the WRONG tile (0 instead of the blank tile) before
  *  the identical record seed + render — caught in the strip cells the formatter leaves
  *  untouched (0x8280..0x8282). */
@@ -180,8 +163,6 @@ test("TEETH (wrong blank tile): a wrong strip fill is CAUGHT (in the un-rendered
   );
   console.log(`  TEETH/tile: wrong strip fill caught at ${hx(bad.addr)} (oracle=${bad.a} broken=${bad.b})`);
 });
-
-// -- 4. TEETH (wrong record value) --------------------------------------------
 
 /** Broken twin: seeds a NON-ZERO record value, otherwise identical — caught at the seeded
  *  record value byte and in the digit cells the formatter renders it into. */

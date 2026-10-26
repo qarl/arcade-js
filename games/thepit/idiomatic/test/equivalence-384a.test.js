@@ -53,6 +53,7 @@ import { stageActorSpriteRecords } from "../stageActorSpriteRecords.js";
 import { stageObjectSpriteRecord } from "../stageObjectSpriteRecord.js";
 import { makeMachineFactory } from "../../machine.js";
 import { ENEMY3_TIMER, ENEMY3_TILE, ENEMY3_X, ENEMY3_Y, ENEMY3_TWIN_X } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const FLOOR_HOLD = 0x807c; // idles the object at the floor (unnamed in names.js)
 const BIAS = 0x8051; // record-build bias read by the still-oracle callees
@@ -95,7 +96,7 @@ function ramDiff(entry, candidate) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= sp - STACK_SCRATCH && addr < sp) continue; // dead stack scratch
+    if (deadStackBelow({ lo: sp - STACK_SCRATCH, hi: sp }, sp)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;

@@ -48,7 +48,7 @@ import { loc_2d4e as oracle } from "../../translated/loc_2d4e.js";
 import { landDigTarget as idiomatic } from "../landDigTarget.js";
 import { loc_3dae as reachedLeaf } from "../../translated/loc_3dae.js";
 import { makeMachineFactory } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import { HAZARD_X, HAZARD_STATE, HAZARD_TYPE, HAZARD_ACTIVE_COUNT, SOUND_HEAD, SOUND_RING } from "../names.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
@@ -72,13 +72,9 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 // so build the factory once (it closes over the built registry).
 const makeMachine = ROM_PRESENT ? await makeMachineFactory(ROM) : null;
 
-// -- helpers ------------------------------------------------------------------
-
-/**
- * Hook a leaf that is reliably reached in attract, clone the machine at its first
- * dispatch (a valid deep attract state), then place the target's map-cell pointer at a
- * known video-RAM cell — the value the still-oracle caller would have left in the register.
- */
+/** Hook a leaf that is reliably reached in attract, clone the machine at its first dispatch (a valid deep attract
+ *  state), then place the target's map-cell pointer at a known video-RAM cell — the value the still-oracle caller
+ *  would have left in the register. */
 function captureCraftedEntry(maxFrames) {
   let entry = null;
   const snapshot = new Map([[CAPTURE_AT, (mm) => {
@@ -106,13 +102,11 @@ function ramDiffOutsideStack(a, b, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= entrySP - 8 && addr < entrySP) continue; // dead stack scratch
+    if (deadStackBelow({ lo: entrySP - 8, hi: entrySP }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
-
-// -- 0. HARNESS (reachability + determinism) ---------------------------------
 
 test("HARNESS: a real crafted terrain-hit entry is captured and the oracle run is deterministic", () => {
   const entry = captureCraftedEntry(1500);
@@ -129,8 +123,6 @@ test("HARNESS: a real crafted terrain-hit entry is captured and the oracle run i
       `oracle run of 0x2d4e deterministic`,
   );
 });
-
-// -- 1. EQUAL on the crafted terrain-hit entry -------------------------------
 
 test("EQUAL: landDigTarget == oracle over RAM (outside stack scratch)", () => {
   const entry = captureCraftedEntry(1500);
@@ -159,8 +151,6 @@ test("EQUAL: landDigTarget == oracle over RAM (outside stack scratch)", () => {
   );
 });
 
-// -- 2. TEETH: a wrong stamped tile is caught --------------------------------
-
 /** Broken twin: correct routine, then one wrong store to the stamped tile cell. */
 function twinWrongTile(m) {
   idiomatic(m);
@@ -182,8 +172,6 @@ test("TEETH (wrong tile): a twin that stamps the wrong tile is CAUGHT at the sta
   assert.equal(ram.addr, STAMP_CELL, `teeth caught the wrong address ${hx(ram.addr)} (expected ${hx(STAMP_CELL)})`);
   console.log(`  TEETH/tile: wrong-tile twin caught at ${hx(ram.addr)} (oracle=${ram.a} broken=${ram.b})`);
 });
-
-// -- 3. TEETH: a wrong state seed is caught ----------------------------------
 
 /** Broken twin: correct routine, then one wrong store to the done/target state byte. */
 function twinWrongState(m) {

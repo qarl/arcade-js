@@ -55,7 +55,7 @@ import { rowColToTileOffset } from "../rowColToTileOffset.js";
 import { deriveTileWriteCursors } from "../deriveTileWriteCursors.js";
 import { fillColourColumn } from "../fillColourColumn.js";
 import { makeMachineFactory } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import { BOARD_MODE, TILE_COL, TILE_ROW } from "../names.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
@@ -84,8 +84,6 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 // async, so build the factory once (it closes over the built registry).
 const makeMachine = ROM_PRESENT ? await makeMachineFactory(ROM) : null;
 
-// -- helpers ------------------------------------------------------------------
-
 /** Hook 0x48c4 over a boot/attract run and clone the machine at up to K real dispatches. */
 function captureEntries(K, maxFrames) {
   const caps = [];
@@ -112,7 +110,7 @@ function ramDiffOutsideStack(a, b, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= entrySP - STACK_SCRATCH && addr < entrySP) continue; // dead stack scratch
+    if (deadStackBelow({ lo: entrySP - STACK_SCRATCH, hi: entrySP }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -141,8 +139,6 @@ function contractDiffs(entry, fn) {
   return { diffs, ram };
 }
 
-// -- 0. HARNESS (reachability + determinism) ---------------------------------
-
 test("HARNESS: a real 0x48c4 dispatch is captured and the oracle run is deterministic", () => {
   const [entry] = captureEntries(1, REACH_FRAMES);
   assert.ok(entry, "attract must dispatch 0x48c4 at least once");
@@ -156,8 +152,6 @@ test("HARNESS: a real 0x48c4 dispatch is captured and the oracle run is determin
   assert.equal(a.pc, b.pc, "oracle pc not deterministic");
   console.log(`  HARNESS: captured a real 0x48c4 entry (SP=${hx(entry.regs.sp)}); oracle run deterministic`);
 });
-
-// -- 1. EQUAL on the first real captured dispatch ----------------------------
 
 test("EQUAL: idiomatic cyclePanelColumnColour == oracle over RAM (outside stack scratch) + pc + SP", () => {
   const [entry] = captureEntries(1, REACH_FRAMES);
@@ -179,8 +173,6 @@ test("EQUAL: idiomatic cyclePanelColumnColour == oracle over RAM (outside stack 
   assert.equal(c.mem.read8(COLOR_CELL + 8 * COLUMN_STRIDE), colorAfter, "idiomatic must paint all nine cells");
   console.log(`  EQUAL: identical over RAM+pc+SP; colour ${colorBefore} -> ${colorAfter}, nine cells painted`);
 });
-
-// -- 2. NON-VACUOUS -----------------------------------------------------------
 
 test("NON-VACUOUS: the oracle really recolours the column, and the excluded window is its dead scratch", () => {
   const [entry] = captureEntries(1, REACH_FRAMES);
@@ -220,8 +212,6 @@ test("NON-VACUOUS: the oracle really recolours the column, and the excluded wind
   console.log(`  NON-VACUOUS: colour ${colorBefore} -> ${colorAfter}, nine cells painted; [SP-2,SP) is dead oracle scratch (0x48e2)`);
 });
 
-// -- 3. TEETH -----------------------------------------------------------------
-
 /** Broken twin: everything faithful EXCEPT it never advances the colour, so it paints
  *  (and stores back) the un-bumped colour. The only observable divergence is the colour
  *  byte and the cells it paints — the gate must catch it, first at BOARD_MODE. */
@@ -250,8 +240,6 @@ test("TEETH: a twin that drops the colour advance is CAUGHT, naming BOARD_MODE",
   );
   console.log(`  TEETH: dropped colour advance caught at ${hx(ram.addr)} (oracle=${ram.a} broken=${ram.b})`);
 });
-
-// -- 4. REALISM ---------------------------------------------------------------
 
 test("REALISM: replay every real 0x48c4 dispatch — observable-equal to the oracle", () => {
   const caps = captureEntries(16, 1300);

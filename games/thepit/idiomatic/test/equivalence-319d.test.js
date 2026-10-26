@@ -24,8 +24,8 @@
  * (they busy-wait on the vblank NMI, which never fires on a single-routine clone). Both
  * the oracle and the candidate reach those same leaves, so the gate stubs them
  * identically on both clones and models the once-per-frame tick their frame-waits drain,
- * so the transition terminates. The RAM diff excludes the dead top-of-stack scratch the
- * oracle's calls (and the chain's SP reset) leave and the stack-free candidate does not.
+ * so the transition terminates. The RAM diff excludes the stack scratch below the entry SP
+ * the oracle's calls leave and the stack-free candidate does not.
  *
  * Checks:
  *   0. HARNESS — capture real 0x319d attract dispatches; the oracle run is deterministic.
@@ -51,7 +51,7 @@ import { stepEnemyMover as idiomatic } from "../stepEnemyMover.js";
 import { tickObjectDwellThenTransition } from "../tickObjectDwellThenTransition.js";
 import { requestSound20 } from "../requestSound20.js";
 import { makeMachineFactory } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import {
   ENEMY_WORK_STATE,
   ENEMY_ACTION_TIMER,
@@ -87,11 +87,8 @@ const PLAYER_BOX_OWNER = 0x80a1;
 const EXPIRY_LEAVES = [0x031a, 0x01f9];
 const WATCHDOG = 0xb800; // reading it kicks the watchdog once per frame-wait pass
 const COUNTDOWN = 0x8009; // the per-frame countdown the chain's frame-waits drain to 0
-// The dead top-of-stack scratch: the round-boundary chain resets SP to 0x83ff and pushes
-// down from there, and the shallow paths' calls push just below the entry SP. Neither the
-// mover RAM (0x8068..0x80f8) nor any other named cell lives in either window.
-const CHAIN_SCRATCH_LO = 0x83e0;
-const CHAIN_SCRATCH_HI = 0x8400;
+// Dead stack scratch: the shallow paths' calls push just below the entry SP. Neither the
+// mover RAM (0x8068..0x80f8) nor any other named cell lives in that window.
 const SHALLOW_SCRATCH_DEPTH = 128;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
@@ -150,8 +147,7 @@ function runIsolated(entry, fn) {
 }
 
 /** First differing RAM byte between two machines (full dumpState), EXCLUDING the dead
- *  stack scratch (the chain window near 0x83ff and the shallow window just below the
- *  entry SP). Null when otherwise identical. */
+ *  stack scratch (the shallow window just below the entry SP). Null when otherwise identical. */
 function ramDiff(a, b, entrySP) {
   const da = a.dumpState();
   const db = b.dumpState();
@@ -159,8 +155,7 @@ function ramDiff(a, b, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= CHAIN_SCRATCH_LO && addr < CHAIN_SCRATCH_HI) continue;
-    if (addr >= entrySP - SHALLOW_SCRATCH_DEPTH && addr < entrySP) continue;
+    if (deadStackBelow({ lo: entrySP - SHALLOW_SCRATCH_DEPTH, hi: entrySP }, entrySP)(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;

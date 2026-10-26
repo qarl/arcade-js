@@ -49,7 +49,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2bf2 as oracle } from "../../translated/loc_2bf2.js";
 import { startNextDigSpawn as idiomatic } from "../startNextDigSpawn.js";
 import { makeMachineFactory } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import { HAZARD_ACTIVE_COUNT } from "../names.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
@@ -70,13 +70,8 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 // async, so build the factory once (it closes over the built registry).
 const makeMachine = ROM_PRESENT ? await makeMachineFactory(ROM) : null;
 
-// -- helpers ------------------------------------------------------------------
-
-/**
- * Hook 0x2bf2 in a real attract run and clone the machine at its first dispatch — a
- * genuine spawn-consideration state (populated queue, valid stack, real background
- * counters). The wrapper snapshots then runs the oracle so attract proceeds.
- */
+/** Hook 0x2bf2 in a real attract run and clone the machine at its first dispatch — a genuine spawn-consideration
+ *  state (populated queue, valid stack, real background counters). The wrapper snapshots then runs the oracle. */
 function captureFirstDispatch(maxFrames) {
   let entry = null;
   const snapshot = new Map([[TARGET, (mm) => {
@@ -101,7 +96,7 @@ function ramDiffOutsideStack(a, b, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= entrySP - STACK_WINDOW && addr < entrySP) continue; // dead stack scratch
+    if (deadStackBelow({ lo: entrySP - STACK_WINDOW, hi: entrySP }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -111,8 +106,6 @@ function queueHasPending(machine) {
   for (let i = 0; i < QUEUE_LEN; i++) if (machine.mem.read8(QUEUE_BASE + i) !== 0) return true;
   return false;
 }
-
-// -- 0. HARNESS (reachability + determinism) ---------------------------------
 
 test("HARNESS: a real 0x2bf2 dispatch is captured and the oracle run is deterministic", () => {
   const entry = captureFirstDispatch(MAX_FRAMES);
@@ -130,26 +123,21 @@ test("HARNESS: a real 0x2bf2 dispatch is captured and the oracle run is determin
   );
 });
 
-// -- 1. EQUAL on the real captured occupied entry ----------------------------
-
 test("EQUAL (real occupied entry): startNextDigSpawn == oracle over RAM, and the spawn is placed", () => {
   const entry = captureFirstDispatch(MAX_FRAMES);
   assert.ok(entry, "need a captured 0x2bf2 entry");
 
-  const a = entry.clone(); // oracle
-  const b = entry.clone(); // idiomatic
+  const a = entry.clone();
+  const b = entry.clone();
   oracle(a);
   idiomatic(b);
 
   const d = ramDiffOutsideStack(a, b, entry.regs.sp);
   assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} idiomatic=${d.b}`);
 
-  // Positive check: the placement path really ran (it raises the spawn-active flag).
   assert.equal(b.mem.read8(HAZARD_ACTIVE_COUNT), 1, "the placement path should raise the spawn-active flag");
   console.log("  EQUAL/occupied: identical outside the stack window; spawn-active flag raised to 1");
 });
-
-// -- 2. EQUAL on a crafted empty queue ---------------------------------------
 
 test("EQUAL (crafted empty queue): both clear the spawn-active flag and hand off, identical", () => {
   const seed = captureFirstDispatch(MAX_FRAMES);
@@ -158,8 +146,8 @@ test("EQUAL (crafted empty queue): both clear the spawn-active flag and hand off
   const entry = seed.clone();
   for (let i = 0; i < QUEUE_LEN; i++) entry.mem.write8(QUEUE_BASE + i, 0); // empty the whole queue
 
-  const a = entry.clone(); // oracle
-  const b = entry.clone(); // idiomatic
+  const a = entry.clone();
+  const b = entry.clone();
   oracle(a);
   idiomatic(b);
 
@@ -172,8 +160,6 @@ test("EQUAL (crafted empty queue): both clear the spawn-active flag and hand off
   assert.equal(b.mem.read8(HAZARD_ACTIVE_COUNT), 0, "the empty path should clear the spawn-active flag to 0");
   console.log("  EQUAL/empty: whole queue zeroed, both clear the flag and hand off, byte-for-byte identical");
 });
-
-// -- 3. TEETH: the empty path leaves the spawn-active flag wrong --------------
 
 /** Broken twin: correct scan, but the empty path leaves the wrong spawn-active flag. */
 function twinWrongSpawnFlag(m) {
@@ -192,8 +178,8 @@ test("TEETH (empty path): a wrong spawn-active flag is CAUGHT at 0x80bd", () => 
   const entry = seed.clone();
   for (let i = 0; i < QUEUE_LEN; i++) entry.mem.write8(QUEUE_BASE + i, 0); // force the empty path
 
-  const a = entry.clone(); // oracle
-  const b = entry.clone(); // broken twin
+  const a = entry.clone();
+  const b = entry.clone();
   oracle(a);
   twinWrongSpawnFlag(b);
 
@@ -202,8 +188,6 @@ test("TEETH (empty path): a wrong spawn-active flag is CAUGHT at 0x80bd", () => 
   assert.equal(d.addr, HAZARD_ACTIVE_COUNT, `teeth caught the wrong address ${hx(d.addr ?? 0)} (expected ${hx(HAZARD_ACTIVE_COUNT)})`);
   console.log(`  TEETH/empty: wrong spawn flag caught at ${hx(d.addr)} (oracle=${d.a} broken=${d.b})`);
 });
-
-// -- 4. TEETH: ignoring the queue misses the spawn ---------------------------
 
 /** Broken twin: never scans the queue, always takes the empty path (misses the spawn). */
 function twinNeverScans(m) {

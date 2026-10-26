@@ -13,7 +13,7 @@
  * hand-off is an idiomatic callee (spawnDigEntity, requestSound9/12, advanceDigCarveObject) that is
  * memory-equivalent to its oracle but returns via plain JS instead of the Z80 stack dance.
  * So the gate is a RAM-only diff via dumpState: pc/SP and value-registers are the dead Z80
- * trace and are NOT compared, and the dead stack-scratch window at the top of work RAM is
+ * trace and are NOT compared, and the stack scratch below the entry SP is
  * excluded (the oracle's bracketed calls + tail park return addresses there; the routine's
  * own writes are the reaction object's position/sprite bytes 0x8094-0x8097, the scroll
  * step/window/sub-phase 0x80a1/0x809a/0x809e, the resolved map cell around PLAYER_CELL_PTR,
@@ -70,6 +70,7 @@ import {
   GOAL_TILE_LATCH,
   IN0_DEBOUNCED,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -87,7 +88,7 @@ const SCROLL_STEP = 0x80a1;
 const LASER_SCAN_PTR = 0x809a;
 const SCROLL_SUBPHASE = 0x809e;
 const STOP_TILE_TABLE = 0x277a;
-// Dead stack-scratch window at the top of The Pit's work RAM (stack tops out at 0x83ff).
+// Stack window at the top of The Pit's work RAM; only the part below the entry SP is dead scratch.
 const STACK_LO = 0x8380;
 const STACK_HI = 0x8400;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
@@ -110,15 +111,15 @@ function captureRealEntry(maxFrames) {
   return entry;
 }
 
-/** First differing RAM byte between two machines, EXCLUDING the dead stack scratch. */
-function ramDiffExStack(a, b) {
+/** First differing RAM byte between two machines, EXCLUDING stack scratch below the entry SP. */
+function ramDiffExStack(a, b, entrySP) {
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_LO && addr < STACK_HI) continue;
+    if (deadStackBelow({ lo: STACK_LO, hi: STACK_HI }, entrySP)(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -158,7 +159,7 @@ function compare(entry, s, fn) {
   oracle(o);
   const c = base.clone();
   fn(c);
-  return { ram: ramDiffExStack(o, c), o, c };
+  return { ram: ramDiffExStack(o, c, base.regs.sp), o, c };
 }
 
 // A base state that reaches the phase dispatch: no goal/dig owner, no scroll, spawn!=2.
@@ -176,7 +177,7 @@ test("HARNESS: a real 0x24f3 entry is captured and the oracle run is determinist
   oracle(a);
   const b = entry.clone();
   oracle(b);
-  assert.equal(ramDiffExStack(a, b), null, "oracle run of 0x24f3 is not deterministic");
+  assert.equal(ramDiffExStack(a, b, entry.regs.sp), null, "oracle run of 0x24f3 is not deterministic");
   console.log(
     `  HARNESS: captured a real 0x24f3 entry (SP=${hx(entry.regs.sp)}); ` +
       `REACTION_STATE=${entry.mem.read8(REACTION_STATE)} HAZARD_ACTIVE_COUNT=${entry.mem.read8(HAZARD_ACTIVE_COUNT)}; oracle deterministic`,

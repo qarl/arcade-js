@@ -6,27 +6,16 @@
  * stamps a panel (a live work-RAM value on top, an eight-glyph label below) and
  * tail-calls the colour-column filler.
  *
- * THIS GATE IS OBSERVABLE EQUIVALENCE (after the stale-call dissolve). Three of
- * drawCreditsDisplay's layout helpers are now decompiled and called directly as ordinary JS —
- * rowColToTileOffset (0x3dae), deriveTileWriteCursors (0x3dc9) and fillColourColumn
- * (0x3e01, the tail). A direct JS call has no Z80 stack frame, so the routine no longer
- * pushes those three return addresses. Two consequences the gate now models instead of
- * demanding byte-identity of:
- *
- *   - the dead stack-scratch slot just below the entry stack pointer (where a dissolved
- *     CALL parked its return address) is no longer written by drawCreditsDisplay itself, so it is
- *     EXCLUDED from the RAM diff — classic dead scratch (re-covered by the caller's next
- *     push before anything reads it). Here it is in fact re-covered by the two copy/fill
- *     helpers that STAY the oracle (0x3dea, 0x3ddb), so the window matches too; excluding
- *     it is the principled dead-scratch treatment, not a diff being hidden.
- *   - the exit pc + SP: the oracle's tail 0x3e01 rets into drawCreditsDisplay's caller (SP += 2),
- *     while the stack-free idiomatic routine plain-returns. The gate models that tail
- *     return with ONE m.ret() on the candidate, which lines pc + SP up with the oracle
- *     exactly — so pc + SP are still checked, not waived.
- *
- * The two copy/fill helpers (0x3dea, 0x3ddb) are STILL the frozen oracle, reached
- * through the registry on both sides, so the gate is only testing drawCreditsDisplay's own layout
- * writes, its routing, and the two still-oracle calls' IX-source + stack-return marshalling.
+ * OBSERVABLE EQUIVALENCE. Three layout helpers are decompiled and called directly as JS —
+ * rowColToTileOffset (0x3dae), deriveTileWriteCursors (0x3dc9) and fillColourColumn (0x3e01, the tail) —
+ * so the routine no longer pushes those three return addresses. Two consequences the gate models:
+ *   - the dead stack-scratch slot just below the entry stack pointer (where a dissolved CALL parked its
+ *     return address) is EXCLUDED from the RAM diff — classic dead scratch. Here it is in fact re-covered
+ *     by the two copy/fill helpers that STAY the oracle (0x3dea, 0x3ddb), so the window matches too.
+ *   - the exit pc + SP: the oracle's tail 0x3e01 rets into drawCreditsDisplay's caller (SP += 2); the gate
+ *     models that tail return with ONE m.ret() on the candidate — so pc + SP are still checked, not waived.
+ * The two still-oracle copy/fill helpers are reached through the registry on both sides, so the gate tests
+ * drawCreditsDisplay's own layout writes, its routing, and their IX-source + stack-return marshalling.
  *
  * WHY THIS ROUTINE IS INTERESTING FOR THE GATE:
  *
@@ -59,7 +48,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_4894 as oracle } from "../../translated/loc_4894.js";
 import { drawCreditsDisplay as idiomatic } from "../drawCreditsDisplay.js";
 import { makeMachineFactory } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 // The three dissolved helpers, called directly by the idiomatic routine and mirrored by
 // the teeth twins so each twin's only divergence from the oracle is its planted bug.
 import { rowColToTileOffset } from "../rowColToTileOffset.js";
@@ -82,14 +71,10 @@ const CELL_COUNT = 0x8055; // per-field cell count fed to the fill/copy helpers
 const VALUE_SOURCE = 0x8000; // the live work-RAM value copied into the top cell
 const LABEL_SOURCE = 0x496d; // ROM label glyph source (walked backwards)
 const CAPTURE_FRAMES = 720; // 0x4894 first dispatches ~frame 675 — within this
-// The dissolved CALLs parked a 2-byte return address in this slot below the entry SP;
-// the stack-free idiomatic routine no longer writes it, so it is dead scratch and
-// excluded from the RAM diff. (It happens to be re-covered by the still-oracle
-// 0x3dea/0x3ddb calls, so it matches anyway — excluding it is the principled treatment.)
+// The 2-byte slot below the entry SP where the dissolved CALLs parked a return address: dead scratch.
 const STACK_SCRATCH = 2;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-// The Pit's routine registry is async, so build the factory once and reuse it.
 const makeMachine = ROM_PRESENT ? await makeMachineFactory(ROM) : null;
 
 /**
@@ -111,11 +96,8 @@ function captureRealEntry() {
 
 const ENTRY = ROM_PRESENT ? captureRealEntry() : null;
 
-/**
- * First differing RAM byte between two machines, EXCLUDING the dead stack-scratch slot
- * just below the entry stack pointer (where a dissolved CALL parked its return address,
- * which the stack-free idiomatic JS no longer writes). Null when otherwise identical.
- */
+/** First differing RAM byte, EXCLUDING the dead stack-scratch slot just below the entry stack pointer.
+ *  Null when otherwise identical. */
 function ramDiffOutsideStack(a, b, entrySP) {
   const da = a.dumpState();
   const db = b.dumpState();
@@ -123,18 +105,15 @@ function ramDiffOutsideStack(a, b, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= entrySP - STACK_SCRATCH && addr < entrySP) continue; // dead stack scratch
+    if (deadStackBelow({ lo: entrySP - STACK_SCRATCH, hi: entrySP }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
 /**
- * Compare a candidate against the oracle over the observable-equivalence contract for
- * one entry: RAM (outside the dead stack slot) + pc + SP. The oracle's tail 0x3e01 rets
- * into our caller internally; the stack-free candidate plain-returns, so the contract
- * models that tail return with one m.ret() on the candidate to line pc + SP up with the
- * oracle. Returns { diffs, ram } (diffs empty == EQUAL).
+ * Candidate vs oracle over the contract for one entry: RAM (outside the dead stack slot) + pc + SP, with
+ * the oracle's tail return modelled by one m.ret() on the candidate. Returns { diffs, ram } (diffs empty == EQUAL).
  */
 function contractDiffs(entry, fn) {
   const sp = entry.regs.sp;
@@ -152,8 +131,6 @@ function contractDiffs(entry, fn) {
   return { diffs, ram };
 }
 
-// -- 0. HARNESS: capture is real + the oracle run is deterministic -------------
-
 test("HARNESS: a real 0x4894 attract dispatch is captured and the oracle run is deterministic", () => {
   assert.ok(ENTRY, "expected 0x4894 to be dispatched during attract (from loc_03e8 housekeeping)");
   const a = ENTRY.clone();
@@ -165,8 +142,6 @@ test("HARNESS: a real 0x4894 attract dispatch is captured and the oracle run is 
   assert.equal(a.pc, b.pc, "oracle exit pc not deterministic");
   console.log(`  HARNESS: captured a real 0x4894 entry (SP=${hx(ENTRY.regs.sp)}); oracle run deterministic`);
 });
-
-// -- 1. EQUAL: the real captured attract dispatch -----------------------------
 
 test("EQUAL (captured): idiomatic == oracle over observable RAM + pc + SP", () => {
   const { diffs, ram } = contractDiffs(ENTRY, idiomatic);
@@ -182,8 +157,6 @@ test("EQUAL (captured): idiomatic == oracle over observable RAM + pc + SP", () =
   console.log("  EQUAL/captured: real 0x4894 entry identical (observable RAM + pc + SP); count=8, colour=150");
 });
 
-// -- 2. EQUAL: sweep the one state-dependent input (the live top-cell value) ----
-
 test("EQUAL (sweep): idiomatic == oracle across the live 0x8000 value", () => {
   const values = [0, 1, 2, 15, 55, 0x80, 0xa0, 0xff];
   for (const v of values) {
@@ -195,7 +168,6 @@ test("EQUAL (sweep): idiomatic == oracle across the live 0x8000 value", () => {
   console.log(`  EQUAL/sweep: ${values.length} live-value inputs identical to the oracle (observable RAM + pc + SP)`);
 });
 
-// -- 3. TEETH: broken twins the gate MUST catch -------------------------------
 // Each twin mirrors the idiomatic routine's exact (dissolved) structure and changes ONE
 // thing, so each twin's only divergence is its bug — not a spurious stack difference.
 
@@ -280,8 +252,6 @@ test("TEETH: restoring the count-of-nine colour run is CAUGHT", () => {
   assert.ok(diffs.length > 0, "the gate FAILED to catch the count-of-nine colour run — it is worthless");
   console.log(`  TEETH: count-of-nine colour run caught at ${hx(ram.addr)} (oracle=${ram.a} broken=${ram.b})`);
 });
-
-// -- 4. TEETH: a post-hoc output corruption is CAUGHT --------------------------
 
 /** The correct routine, then one wrong store to a layout byte. */
 function brokenCorruptOutput(m) {

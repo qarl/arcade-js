@@ -6,37 +6,19 @@
  * cursors, stamps a label (plus a live-value cell in the default variant), and paints
  * the run in one colour.
  *
- * WHY THE GATE IS A CRAFTED ENTRY (not a captured dispatch):
+ * CRAFTED ENTRY: attract never dispatches 0x483a — a boot run of hundreds of frames enters it zero times.
+ * The entry is a REAL machine state captured at the sibling panel painter drawSetupCreditsPanel's genuine
+ * frame-61 attract dispatch (this panel subsystem's scratch and video RAM live), and drawMenLeftPanel is
+ * run on clones of it. The decision byte at 0x802b is forced to each of its two arms IDENTICALLY on both
+ * sides, so any divergence is the rewrite's fault.
  *
- *   Attract never dispatches 0x483a — a boot run of hundreds of frames enters it
- *   zero times. It draws in a state attract does not reach, so there is no genuine
- *   0x483a entry to snapshot. The pipeline's answer for unreached code is the crafted
- *   entry: take a REAL machine state and force the routine onto it. Here the entry is
- *   captured at the sibling panel painter drawSetupCreditsPanel's genuine frame-61 attract dispatch
- *   — a real screen-setup moment where this panel-drawing subsystem's scratch and
- *   video RAM are live — and drawMenLeftPanel is then run directly on clones of it. The one
- *   input that steers the routine, the decision byte at 0x802b, is forced to each of
- *   its two arms IDENTICALLY on both sides, so any divergence is the rewrite's fault.
- *
- * WHY OBSERVABLE (not whole-dump) EQUIVALENCE:
- *
- *   drawMenLeftPanel used to marshal registers and push a return address before each of its
- *   address-setup / colour-fill helpers so those still-oracle callees found the return
- *   they expected on the machine stack. Three of those helpers are now decompiled
- *   (rowColToTileOffset 0x3dae, deriveTileWriteCursors 0x3dc9, fillColourColumn 0x3e01)
- *   and are called as plain JS — no stack frame, no pushed return address. The glyph
- *   copy helper at 0x3dea is still the oracle and keeps its call.
- *
- *   Because the decompiled helpers no longer push, the routine no longer reproduces
- *   the oracle's return-address pushes below the stack pointer, and — the oracle's tail
- *   returns through the colour filler, so it pops the caller's address while the plain
- *   JS tail-call does not — the exit pc and the stack pointer legitimately differ. The
- *   gate therefore compares the RAM the panel actually writes, EXCLUDING the dead
- *   stack-scratch window just below the entry stack pointer, and lines the exit up by
- *   running one ret() on the candidate so its pc + SP meet the oracle's internal ret.
- *   (In practice the excluded window matches anyway — the retained copy helper rewrites
- *   it last with the same value — but it is excluded on principle: the dissolved helpers
- *   no longer own those bytes.)
+ * OBSERVABLE EQUIVALENCE: three helpers are decompiled (rowColToTileOffset 0x3dae, deriveTileWriteCursors
+ * 0x3dc9, fillColourColumn 0x3e01) and called as plain JS — no pushed return address; the glyph copy
+ * helper at 0x3dea is still the oracle and keeps its call. The oracle's tail returns through the colour
+ * filler, so exit pc and SP legitimately differ: the gate compares the RAM the panel writes, EXCLUDING the
+ * dead stack-scratch window just below the entry stack pointer, and runs one ret() on the candidate so its
+ * pc + SP meet the oracle's internal ret. (In practice the excluded window matches anyway — the retained
+ * copy helper rewrites it last with the same value — but the dissolved helpers no longer own those bytes.)
  *
  * WHAT IS PROVEN:
  *   EQUAL on the default variant (the realistic 0x802b == 0 plus a sweep of the live
@@ -61,7 +43,7 @@ import { rowColToTileOffset } from "../rowColToTileOffset.js";
 import { deriveTileWriteCursors } from "../deriveTileWriteCursors.js";
 import { fillColourColumn } from "../fillColourColumn.js";
 import { makeMachineFactory } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -82,7 +64,6 @@ const CAPTURE_FRAMES = 240; // drawSetupCreditsPanel first dispatches at frame 6
 const STACK_SCRATCH = 16; // dead bytes below the entry SP the oracle's helper returns parked
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-// The Pit's routine registry is async, so build the factory once and reuse it.
 const makeMachine = ROM_PRESENT ? await makeMachineFactory(ROM) : null;
 
 /**
@@ -126,7 +107,7 @@ function ramDiffOutsideStack(a, b, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= entrySP - STACK_SCRATCH && addr < entrySP) continue; // dead stack scratch
+    if (deadStackBelow({ lo: entrySP - STACK_SCRATCH, hi: entrySP }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -154,8 +135,6 @@ function contractDiffs(entry, fn) {
   return { diffs, ram };
 }
 
-// -- 1. EQUAL: default variant (the realistic arm) + a displayed-value sweep --------
-
 test("EQUAL (default variant): idiomatic == oracle over RAM + pc + SP across the live 0x802b value", () => {
   assert.ok(REAL, "captured a real sibling-panel attract dispatch");
   // Every value but 1 takes the default arm; each is also the byte shown in the last
@@ -168,15 +147,12 @@ test("EQUAL (default variant): idiomatic == oracle over RAM + pc + SP across the
   console.log(`  EQUAL/default: ${values.length} live-value inputs identical to the oracle (RAM outside stack + pc + SP)`);
 });
 
-// -- 2. EQUAL: alternate variant (the crafted arm, 0x802b == 1) ---------------------
-
 test("EQUAL (alternate variant): idiomatic == oracle when 0x802b == 1", () => {
   const { diffs } = contractDiffs(craftedEntry(1), idiomatic);
   assert.equal(diffs.length, 0, diffs.join("; "));
   console.log("  EQUAL/alternate: 0x802b==1 arm identical to the oracle (RAM outside stack + pc + SP)");
 });
 
-// -- 3. IDENTITY: oracle vs oracle must be EQUAL on the WHOLE dump ------------------
 // The oracle rets internally, so oracle-vs-oracle needs no ret handling and no stack
 // exclusion — the whole dump (stack included) plus pc must match. Proves the capture,
 // clone and diff plumbing is sound before the observable-equivalence gate leans on it.

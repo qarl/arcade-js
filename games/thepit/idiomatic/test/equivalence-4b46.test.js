@@ -50,7 +50,7 @@ import { clearSpriteAndAttributeRam } from "../clearSpriteAndAttributeRam.js";
 import { fillColorRam } from "../fillColorRam.js";
 import { clearSpriteStagingBuffer } from "../clearSpriteStagingBuffer.js";
 import { makeMachineFactory } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import { BOARD_MODE } from "../names.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
@@ -104,7 +104,7 @@ function ramDiffOutsideStack(a, b, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= entrySP - 2 && addr < entrySP) continue; // dead pushed return frame
+    if (deadStackBelow({ lo: entrySP - 2, hi: entrySP }, entrySP)(addr)) continue; // dead pushed return frame
     return { addr, a: da[i], b: db[i] };
   }
   return null;

@@ -15,8 +15,8 @@
  * every hand-off is delegated to an idiomatic callee that is memory-equivalent to its
  * oracle but returns via plain JS instead of the Z80 stack dance. So the gate is a
  * RAM-only diff via dumpState: pc/SP and value-registers are the dead Z80 trace and are
- * NOT compared (the idiomatic tails deliberately do not reproduce them), and the dead
- * stack-scratch window at the top of work RAM is excluded for the same reason (nothing
+ * NOT compared (the idiomatic tails deliberately do not reproduce them), and the
+ * stack scratch below the entry SP is excluded for the same reason (nothing
  * this routine touches lives there — its writes are all at 0x8068/0x8080/0x80b1/0x80c1
  * and the delegated record/video writes, far below the stack).
  *
@@ -69,6 +69,7 @@ import {
   SOUND_HEAD,
   SOUND_RING,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -80,7 +81,7 @@ const test = ROM_PRESENT
 const TARGET = 0x2cb7;
 const RELOAD_SENTINEL = 64; // countdown value that hands off to the stamp/reset path
 const SOUND_CAPTURE = 20; // command requestSound20 queues on a capture
-// Dead stack-scratch window at the top of The Pit's work RAM (stack tops out at 0x83ff).
+// Stack window at the top of The Pit's work RAM; only the part below the entry SP is dead scratch.
 // The delegated tails use it identically on both arms; nothing 0x2cb7 writes lives here.
 const STACK_LO = 0x8380;
 const STACK_HI = 0x8400;
@@ -109,17 +110,17 @@ function captureRealEntry(maxFrames) {
 }
 
 /**
- * First differing RAM byte between two machines, EXCLUDING the dead stack-scratch window.
+ * First differing RAM byte between two machines, EXCLUDING stack scratch below the entry SP.
  * Null when otherwise identical.
  */
-function ramDiffExStack(a, b) {
+function ramDiffExStack(a, b, entrySP) {
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_LO && addr < STACK_HI) continue; // dead stack scratch
+    if (deadStackBelow({ lo: STACK_LO, hi: STACK_HI }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -146,7 +147,7 @@ function compare(entry, s, fn) {
   oracle(o);
   const c = base.clone();
   fn(c);
-  return { ram: ramDiffExStack(o, c), o, c };
+  return { ram: ramDiffExStack(o, c, base.regs.sp), o, c };
 }
 
 /**
@@ -176,7 +177,7 @@ test("HARNESS: a real 0x2cb7 entry is captured and the oracle run is determinist
   oracle(a);
   const b = entry.clone();
   oracle(b);
-  assert.equal(ramDiffExStack(a, b), null, "oracle run of 0x2cb7 is not deterministic");
+  assert.equal(ramDiffExStack(a, b, entry.regs.sp), null, "oracle run of 0x2cb7 is not deterministic");
   console.log(
     `  HARNESS: captured a real 0x2cb7 entry (SP=${hx(entry.regs.sp)}); ` +
       `DIG_OBJ_TIMER=${entry.mem.read8(DIG_OBJ_TIMER)} DIG_COLLISION_STATE=${entry.mem.read8(DIG_COLLISION_STATE)}; ` +
@@ -186,7 +187,7 @@ test("HARNESS: a real 0x2cb7 entry is captured and the oracle run is determinist
 
 // -- 1. EQUAL on the real captured entry --------------------------------------
 
-test("EQUAL (real entry): captureTargetOnOverlap == oracle over RAM (minus dead stack scratch)", () => {
+test("EQUAL (real entry): captureTargetOnOverlap == oracle over RAM (minus stack scratch below the entry SP)", () => {
   const entry = captureRealEntry(3000);
   assert.ok(entry, "need a captured 0x2cb7 entry");
 

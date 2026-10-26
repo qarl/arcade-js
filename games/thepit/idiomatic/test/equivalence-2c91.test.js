@@ -11,8 +11,8 @@
  * idiomatic stageDigObjectSpriteRecord, which is memory-equivalent to the oracle's tail
  * but returns via plain JS rather than the Z80 stack dance. So the gate is a RAM-only
  * diff via dumpState: pc/SP and value-registers are the dead Z80 trace and are NOT
- * compared (the idiomatic tail deliberately does not reproduce them), and the dead
- * stack-scratch window at the top of work RAM is excluded for the same reason (nothing
+ * compared (the idiomatic tail deliberately does not reproduce them), and the
+ * stack scratch below the entry SP is excluded for the same reason (nothing
  * flagObjectTargetOverlap touches lives there).
  *
  * REACHABILITY. This tail is genuinely reached in attract (~62 dispatches per 3000
@@ -24,7 +24,7 @@
  *   0. HARNESS   — capture a real 0x2c91 entry; the oracle run is deterministic
  *      (oracle vs oracle over the whole state is identical). Proves the capture/clone
  *      plumbing reaches a real state and the delegated tail is stable.
- *   1. EQUAL (real entry) — flagObjectTargetOverlap == oracle over RAM (minus dead stack scratch).
+ *   1. EQUAL (real entry) — flagObjectTargetOverlap == oracle over RAM (minus stack scratch below the entry SP).
  *   2. EQUAL (branch/boundary/wrap set) — crafted inputs that hit every arm of the
  *      overlap test (row-miss, X-not-right, X-in-band, X-past-band, both wraps).
  *   3. EQUAL (sweep) — exhaustive over the compared X axis for every boundary cell X,
@@ -47,6 +47,7 @@ import { flagObjectTargetOverlap as idiomatic } from "../flagObjectTargetOverlap
 import { makeMachineFactory } from "../../machine.js";
 import { u8 } from "../../../../core/int.js";
 import { PLAYER_Y, PLAYER_X, HAZARD_X, HAZARD_Y, MOVE_BLOCK_FLAG } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -56,7 +57,7 @@ const test = ROM_PRESENT
   : (name, fn) => nodeTest(name, { skip: "skipped: ROM not present at games/thepit/rom/maincpu.bin" }, fn);
 
 const TARGET = 0x2c91;
-// Dead stack-scratch window at the top of The Pit's work RAM (stack tops out at 0x83ff).
+// Stack window at the top of The Pit's work RAM; only the part below the entry SP is dead scratch.
 // The delegated tail uses it identically on both arms; nothing flagObjectTargetOverlap writes lives here.
 const STACK_LO = 0x8380;
 const STACK_HI = 0x8400;
@@ -85,17 +86,17 @@ function captureRealEntry(maxFrames) {
 }
 
 /**
- * First differing RAM byte between two machines, EXCLUDING the dead stack-scratch
- * window. Null when otherwise identical.
+ * First differing RAM byte between two machines, EXCLUDING stack scratch
+ * below the entry SP. Null when otherwise identical.
  */
-function ramDiffExStack(a, b) {
+function ramDiffExStack(a, b, entrySP) {
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_LO && addr < STACK_HI) continue; // dead stack scratch
+    if (deadStackBelow({ lo: STACK_LO, hi: STACK_HI }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -120,7 +121,7 @@ function compare(entry, inputs, fn) {
   oracle(o);
   const c = seed.clone();
   fn(c);
-  return { ram: ramDiffExStack(o, c), o, c };
+  return { ram: ramDiffExStack(o, c, seed.regs.sp), o, c };
 }
 
 /**
@@ -145,7 +146,7 @@ test("HARNESS: a real 0x2c91 entry is captured and the oracle run is determinist
   oracle(a);
   const b = entry.clone();
   oracle(b);
-  assert.equal(ramDiffExStack(a, b), null, "oracle run of 0x2c91 is not deterministic");
+  assert.equal(ramDiffExStack(a, b, entry.regs.sp), null, "oracle run of 0x2c91 is not deterministic");
   console.log(
     `  HARNESS: captured a real 0x2c91 entry (SP=${hx(entry.regs.sp)}); ` +
       `PLAYER_X=${entry.mem.read8(PLAYER_X)} HAZARD_Y=${entry.mem.read8(HAZARD_Y)} ` +
@@ -155,7 +156,7 @@ test("HARNESS: a real 0x2c91 entry is captured and the oracle run is determinist
 
 // -- 1. EQUAL on the real captured entry --------------------------------------
 
-test("EQUAL (real entry): flagObjectTargetOverlap == oracle over RAM (minus dead stack scratch)", () => {
+test("EQUAL (real entry): flagObjectTargetOverlap == oracle over RAM (minus stack scratch below the entry SP)", () => {
   const entry = captureRealEntry(3000);
   assert.ok(entry, "need a captured 0x2c91 entry");
 

@@ -53,7 +53,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2f71 as oracle } from "../../translated/loc_2f71.js";
 import { advanceChamberCreature as idiomatic } from "../advanceChamberCreature.js";
 import { makeMachineFactory } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import {
   GOAL_TILE_LATCH,
   PIT_CROSS_ACTIVE,
@@ -116,7 +116,7 @@ function ramDiffOutsideStack(a, b, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= entrySP - STACK_SCRATCH && addr < entrySP) continue; // dead stack scratch
+    if (deadStackBelow({ lo: entrySP - STACK_SCRATCH, hi: entrySP }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;

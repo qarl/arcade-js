@@ -15,7 +15,7 @@
  *      full chain on both sides and compares work RAM (dumpState) rather than stubbing the
  *      continuations. The object pass a tail reaches can hit the two never-returning transition leaves
  *      (0x031a, 0x01f9), stubbed identically on both clones; the once-per-frame tick is modelled and
- *      the dead stack scratch excluded.
+ *      the stack scratch below the entry SP excluded.
  *
  * EQUAL is proven over every naturally-occurring captured state AND an exhaustive sweep of the reveal
  * gate (all 256 entry values) crossed with representative cursor and phase values, reaching all three
@@ -34,6 +34,7 @@ import { revealTerrainColumn as idiomatic } from "../revealTerrainColumn.js";
 import { advanceChamberCreatureAnimation } from "../advanceChamberCreatureAnimation.js";
 import { loc_2f71 } from "../../translated/loc_2f71.js";
 import { makeMachineFactory } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -89,13 +90,13 @@ function runIsolated(entry, fn) {
   fn(c);
   return c;
 }
-function ramDiff(a, b) {
+function ramDiff(a, b, entrySP) {
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] !== db[i]) {
       const addr = a.stateOffsetToAddr(i);
-      if (addr >= CHAIN_SCRATCH_LO && addr < CHAIN_SCRATCH_HI) continue;
+      if (deadStackBelow({ lo: CHAIN_SCRATCH_LO, hi: CHAIN_SCRATCH_HI }, entrySP)(addr)) continue;
       return { addr, a: da[i], b: db[i] };
     }
   }
@@ -104,7 +105,7 @@ function ramDiff(a, b) {
 function runPair(entry, candidate) {
   const a = runIsolated(entry, oracle);
   const b = runIsolated(entry, candidate);
-  return { ram: ramDiff(a, b), arm: armOf(entry) };
+  return { ram: ramDiff(a, b, entry.regs.sp), arm: armOf(entry) };
 }
 
 // -- 1. EQUAL: every naturally-occurring captured state -----------------------

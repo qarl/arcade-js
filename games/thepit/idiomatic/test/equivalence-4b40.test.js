@@ -59,7 +59,7 @@ import { fillVideoRam } from "../fillVideoRam.js";
 import { fillColorRam } from "../fillColorRam.js";
 import { clearSpriteStagingBuffer } from "../clearSpriteStagingBuffer.js";
 import { makeMachineFactory } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import { BOARD_MODE } from "../names.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
@@ -82,11 +82,7 @@ const SENTINEL = 0xab; // a byte distinct from any fill, for the coverage teeth
 const isColorRam = (a) => a >= COLOR_LO && a <= COLOR_HI;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-// The engine drives makeMachine(overrides) synchronously; The Pit's registry is
-// async, so build the factory once (it closes over the built registry).
 const makeMachine = ROM_PRESENT ? await makeMachineFactory(ROM) : null;
-
-// -- helpers ------------------------------------------------------------------
 
 /**
  * Hook the sibling 0x00 door 0x4b44 in a real attract run and clone the machine at its
@@ -103,12 +99,9 @@ function captureSiblingEntry(maxFrames) {
   return entry;
 }
 
-/**
- * First differing RAM byte between two machines, EXCLUDING the two dead stack-scratch
- * bytes the oracle's setup-call pushes park just below the entry stack pointer (which
- * the stack-free idiomatic composition does not reproduce). Null when otherwise
- * identical.
- */
+/** First differing RAM byte, EXCLUDING the two dead stack-scratch bytes the oracle's setup-call pushes
+ *  park just below the entry stack pointer (which the stack-free idiomatic composition does not
+ *  reproduce). Null when otherwise identical. */
 function ramDiffOutsideStack(a, b, entrySP) {
   const da = a.dumpState();
   const db = b.dumpState();
@@ -116,7 +109,7 @@ function ramDiffOutsideStack(a, b, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= entrySP - 2 && addr < entrySP) continue; // dead stack scratch
+    if (deadStackBelow({ lo: entrySP - 2, hi: entrySP }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -154,8 +147,6 @@ function regionIs(m, lo, hi, value) {
   return -1;
 }
 
-// -- twins (broken candidates the gate MUST catch) ---------------------------
-
 /** Wrong-board-mode twin: stows 0x00 (a sibling door's value) before the same rebuild. */
 function twinWrongMode(m) {
   const { mem8 } = m;
@@ -176,8 +167,6 @@ function twinMissTilemap(m) {
   clearSpriteStagingBuffer(m);
 }
 
-// -- 0. HARNESS (reachability + determinism) ---------------------------------
-
 test("HARNESS: a real blankScreen sibling entry is captured and the oracle run of setupBoardMode90 is deterministic", () => {
   const entry = captureSiblingEntry(1500);
   assert.ok(entry, "expected the sibling 0x00 door 0x4b44 to be dispatched during attract");
@@ -195,8 +184,6 @@ test("HARNESS: a real blankScreen sibling entry is captured and the oracle run o
       `oracle run of 0x4b40 deterministic`,
   );
 });
-
-// -- 1. EQUAL (crafted sibling entry) + 2. NON-VACUOUS ------------------------
 
 test("EQUAL (crafted sibling entry): setupBoardMode90 == oracle over RAM + pc + SP, and the setup landed", () => {
   const entry = captureSiblingEntry(1500);
@@ -233,8 +220,6 @@ test("EQUAL (crafted sibling entry): setupBoardMode90 == oracle over RAM + pc + 
   );
 });
 
-// -- 3. TEETH: wrong board mode ----------------------------------------------
-
 test("TEETH (wrong board mode): a twin that stows 0x00 is CAUGHT at BOARD_MODE / colour RAM", () => {
   const entry = captureSiblingEntry(1500);
   assert.ok(entry, "need a captured 0x4b44 entry to seed the teeth check");
@@ -247,8 +232,6 @@ test("TEETH (wrong board mode): a twin that stows 0x00 is CAUGHT at BOARD_MODE /
   );
   console.log(`  TEETH/mode: wrong board-mode twin caught at ${hx(ram.addr)} (oracle=${ram.a} broken=${ram.b})`);
 });
-
-// -- 4. TEETH: dropped tilemap fill ------------------------------------------
 
 test("TEETH (dropped tilemap fill): a twin that skips the tilemap repaint is CAUGHT on a sentinel entry", () => {
   const seed = captureSiblingEntry(1500);

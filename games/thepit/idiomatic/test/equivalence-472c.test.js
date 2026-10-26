@@ -7,65 +7,45 @@
  * (one/two players -> the in-game panel drawPlayerLabel, otherwise -> the "GAME OVER" label
  * loc_48e5), and tints colour 2 up two HUD colour columns.
  *
- * THE CONTRACT — OBSERVABLE RAM. This gate used to assert whole RAM + pc + SP, because
- * the two status-label routines it calls (drawPlayerLabel @ 0x47e1, drawGameOverLabel @ 0x48e5)
- * tail-JUMPED into the colour-column filler 0x3e01 via an m.call whose `ret` popped the
- * label return slot redrawScoreHud had pushed (0x4768 / 0x476d) — so the whole Z80 stack
- * reconverged and pc + SP still matched the oracle. That tail-jump has now been DISSOLVED
- * on both routines into a DIRECT JS call `return fillColourColumn(m)`. A direct JS call
- * has no Z80 stack frame: fillColourColumn paints its column but never rets, so the label
- * return slot redrawScoreHud pushed is left on the stack and the routine's own closing
- * m.ret() pops THAT slot instead of the caller's return. pc and SP therefore diverge from
- * the oracle by exactly one un-popped return slot (SP off by 2), and the dead residual
- * value registers diverge too. All three are EXCLUDED here — they are dead ABI (see the
- * justification below) and the Z80-return modelling the idiomatic layer deliberately drops.
+ * THE CONTRACT — OBSERVABLE RAM. The two status-label routines it calls (drawPlayerLabel @ 0x47e1,
+ * drawGameOverLabel @ 0x48e5) tail-JUMPED into the colour-column filler 0x3e01 via an m.call; that tail-jump has
+ * now been DISSOLVED on both routines into a DIRECT JS call `return fillColourColumn(m)`. A direct JS call has no
+ * Z80 stack frame: fillColourColumn paints its column but never rets, so the label return slot redrawScoreHud
+ * pushed is left on the stack and the routine's own closing m.ret() pops THAT slot instead of the caller's return.
+ * pc and SP therefore diverge from the oracle by exactly one un-popped return slot (SP off by 2), and the dead
+ * residual value registers diverge too. All three are EXCLUDED here.
  *
- * WHY THAT DIVERGENCE IS BENIGN (not masking a bug):
- *   1. RAM is byte-for-byte identical (ram=null on every arm below). A Z80 `ret` only
- *      reads the stack and adjusts SP; it writes no memory, so the un-popped slot changes
- *      no RAM — the oracle and the idiomatic push the SAME bytes to the SAME stack address,
- *      the oracle merely pops one more of them. The full RAM dump (stack included) matches.
- *   2. The diverged value registers are dead. All three callers of 0x472c reload their
- *      registers with a constant as the very first instruction after the call — loc_0673
- *      (06a3: `ld a,0x01`), showSetupScreen (3a78: `ld a,0x01`; 3a7a: `ld c,0x02`), drawSharedPanel
- *      (3cc7: `ld a,0x07`) — so nothing reads the register file redrawScoreHud leaves.
- *   3. The diverged pc / SP have no live consumer. redrawScoreHud is not wired live (no
- *      manifest override, no idiomatic importer): the three callers dispatch to the frozen
- *      oracle loc_472c, whose stack unwinds correctly. When the HUD chain is later wired
- *      fully idiomatic, callers reach it as a direct JS call and regain control by the JS
- *      return, not the Z80 stack — the closing m.ret() is then vestigial ABI modelling.
- *   (See equivalence-3968.test.js / equivalence-47e1.test.js for the sibling dissolves.)
+ * WHY THAT DIVERGENCE IS BENIGN: (1) A Z80 `ret` only reads the stack and adjusts SP; it writes no memory, so the
+ *   un-popped slot changes no RAM. (2) The diverged value registers are dead. All three callers of 0x472c reload
+ *   their registers with a constant as the very first instruction after the call — loc_0673 (06a3: `ld a,0x01`),
+ *   showSetupScreen (3a78: `ld a,0x01`; 3a7a: `ld c,0x02`), drawSharedPanel (3cc7: `ld a,0x07`). (3) The diverged
+ *   pc / SP have no live consumer. redrawScoreHud is not wired live (no manifest override, no idiomatic importer):
+ *   the three callers dispatch to the frozen oracle loc_472c, whose stack unwinds correctly.
  *
- * The routine's only observable output is RAM: both players' repainted score digits, the
- * blanked cells above each score column, the status label glyphs + colour, and the two
- * tinted HUD colour columns — compared byte-for-byte, with ONE wrinkle:
+ * The routine's only observable output is RAM: both players' repainted score digits, the blanked cells above each
+ * score column, the status label glyphs + colour, and the two tinted HUD colour columns — with ONE wrinkle:
  *
- *   THE STACK SCRATCH. The Pit's stack is real diffed work RAM (entry SP 0x83fb here). The
- *   dissolved handoff removed the push16 return slots redrawScoreHud parked just below the
- *   entry SP (the ghost byte at 0x83f7 = SP-4: oracle wrote it, the stack-free idiomatic never
- *   does), and neither side writes ABOVE the entry SP. Classic dead stack scratch, overwritten
- *   by the caller's next push before anything reads it — so the diff excludes exactly the
- *   [SP-8, SP) window and compares everything else byte-for-byte. Every real output (score
- *   digits, blanks, label, the tinted colour columns at 0x89xx/0x8bxx) sits far below the
- *   stack, so the window never hides one — the teeth confirm it (caught at real painted cells,
- *   never at the excluded 0x83f7).
+ *   THE STACK SCRATCH. The Pit's stack is real diffed work RAM (entry SP 0x83fb here). The dissolved handoff
+ *   removed the push16 return slots redrawScoreHud parked just below the entry SP (the ghost byte at 0x83f7 = SP-4:
+ *   oracle wrote it, the stack-free idiomatic never does), and neither side writes ABOVE the entry SP. Classic dead
+ *   stack scratch, overwritten by the caller's next push before anything reads it — so the diff excludes exactly
+ *   the [SP-8, SP) window and compares everything else byte-for-byte. Every real output (score digits, blanks,
+ *   label, the tinted colour columns at 0x89xx/0x8bxx) sits far below the stack, so the window never hides one —
+ *   the teeth confirm it (caught at real painted cells, never at the excluded 0x83f7).
  *
  * Checks:
- *   1. EQUAL (captured) — the real attract dispatch is the game-over arm (player count 0,
- *      "GAME OVER" label); idiomatic == oracle on the whole RAM dump.
- *   2. EQUAL (harness) — an independent fresh capture of the real dispatch, clone/replay,
- *      RAM-EQUAL outside the [SP-8, SP) stack scratch (NOT through unitEquivalence: its
- *      full-dump diff would false-catch the removed push16 ghost at 0x83f7 first).
- *   3. EQUAL (crafted) — a player-count-1 entry forces the in-game-panel arm (drawPlayerLabel),
- *      which attract never reaches; idiomatic == oracle on RAM there too.
- *   4. IDENTITY — oracle vs oracle is fully EQUAL (gate wiring sanity; identical arms
- *      share pc + registers, so the strict harness still reports equal here).
- *   5. MODEL — a structural re-emit of the routine (driving the oracle label routines
- *      through the registry, so the correct instance is itself RAM-EQUAL to the oracle),
- *      so each teeth twin below differs from the oracle by exactly one thing.
- *   6. TEETH — a wrong HUD colour and a wrong blank offset are both CAUGHT on the RAM
- *      dump, and a corrupted output through the harness is CAUGHT at the corrupted painted
- *      cell — never masked by the excluded stack scratch.
+ *   1. EQUAL (captured) — the real attract dispatch is the game-over arm (player count 0, "GAME OVER" label).
+ *   2. EQUAL (harness) — an independent fresh capture of the real dispatch, clone/replay, RAM-EQUAL outside the
+ *      [SP-8, SP) stack scratch (NOT through unitEquivalence: its full-dump diff would false-catch the removed
+ *      push16 ghost at 0x83f7 first).
+ *   3. EQUAL (crafted) — a player-count-1 entry forces the in-game-panel arm (drawPlayerLabel), which attract never
+ *      reaches.
+ *   4. IDENTITY — oracle vs oracle is fully EQUAL (gate wiring sanity; identical arms share pc + registers, so the
+ *      strict harness still reports equal here).
+ *   5. MODEL — a structural re-emit of the routine, itself RAM-EQUAL to the oracle, so each teeth twin below
+ *      differs from the oracle by exactly one thing.
+ *   6. TEETH — a wrong HUD colour and a wrong blank offset are both CAUGHT, and a corrupted output through the
+ *      harness is CAUGHT at the corrupted painted cell — never masked by the excluded stack scratch.
  *
  * Run: node --test games/thepit/idiomatic/test/equivalence-472c.test.js
  */
@@ -77,7 +57,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_472c as oracle } from "../../translated/loc_472c.js";
 import { redrawScoreHud as idiomatic } from "../redrawScoreHud.js";
 import { makeMachineFactory } from "../../machine.js";
-import { unitEquivalence } from "../../../../core/equivalence.js";
+import { unitEquivalence, deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -120,13 +100,9 @@ function captureRealEntry() {
 const CAP = ROM_PRESENT ? captureRealEntry() : { entry: null, playerCount: null };
 const ENTRY = CAP.entry;
 
-/**
- * First differing state byte between two machines, EXCLUDING the dead stack scratch the
- * dissolved handoff parks just below the entry stack pointer — the removed push16 return
- * slots the stack-free idiomatic never writes ([entrySP - STACK_SCRATCH, entrySP)). Compares
- * everything else byte-for-byte. Null when otherwise identical. (Copied from
- * equivalence-18cf.test.js so both gates share one stack-scratch exclusion.)
- */
+/** First differing state byte between two machines, EXCLUDING the dead stack scratch the dissolved handoff parks
+ *  just below the entry stack pointer — the removed push16 return slots the stack-free idiomatic never writes
+ *  ([entrySP - STACK_SCRATCH, entrySP)). Compares everything else byte-for-byte. Null when otherwise identical. */
 function stateDiffOutsideStack(a, b, entrySP) {
   const da = a.dumpState();
   const db = b.dumpState();
@@ -134,21 +110,14 @@ function stateDiffOutsideStack(a, b, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= entrySP - STACK_SCRATCH && addr < entrySP) continue; // dead stack scratch
+    if (deadStackBelow({ lo: entrySP - STACK_SCRATCH, hi: entrySP }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
-/**
- * The observable contract: run the oracle and a candidate on two independent clones of one
- * entry and diff the RAM dump OUTSIDE the dead [SP-8, SP) stack-scratch window. pc, SP and the
- * value registers are also unobserved — the dissolved tail-jump into fillColourColumn means the
- * direct callee no longer rets, so the closing m.ret() pops the un-popped label slot and pc/SP
- * diverge by one return slot while the residual registers are dead (see the file header). The
- * one RAM footprint of that dissolve is the un-written push16 ghost just below entry SP (0x83f7
- * = SP-4), which the window excludes. Returns the RAM diff, or null when observable RAM matches.
- */
+/** The observable contract: run the oracle and a candidate on two independent clones of one entry and diff the RAM
+ *  dump OUTSIDE the dead [SP-8, SP) stack-scratch window; pc, SP and the value registers are unobserved (header). */
 function observableDiff(entry, candidate) {
   const entrySP = entry.regs.sp;
   const a = entry.clone();
@@ -158,13 +127,9 @@ function observableDiff(entry, candidate) {
   return stateDiffOutsideStack(a, b, entrySP);
 }
 
-/**
- * A structural re-emit of redrawScoreHud, parameterised by the two things the teeth
- * perturb: the HUD tint colour and how many rows above the score column the second
- * blank lands. It drives the oracle callees through the registry, so the correct
- * instance (colour 2, blank two rows above) must itself be RAM-EQUAL to the oracle — that
- * cross-check is what makes each twin's only divergence its own bug.
- */
+/** A structural re-emit of redrawScoreHud, parameterised by the two things the teeth perturb: the HUD tint colour and
+ *  how many rows above the score column the second blank lands. It drives the oracle callees through the registry,
+ *  so the correct instance (colour 2, blank two rows above) must itself be RAM-EQUAL to the oracle. */
 function emitHud({ colour, blankRowsAbove }) {
   return function (m) {
     const { mem } = m;
@@ -192,8 +157,6 @@ const correctModel = emitHud({ colour: 2, blankRowsAbove: 2 });
 const brokenColour = emitHud({ colour: 3, blankRowsAbove: 2 }); // BUG: HUD tint 3, not 2
 const brokenBlank = emitHud({ colour: 2, blankRowsAbove: 3 }); // BUG: blanks the wrong cell
 
-// -- 1. EQUAL: the real captured attract dispatch -----------------------------
-
 test("EQUAL (captured): idiomatic == oracle on the real GAME OVER dispatch (whole RAM dump)", () => {
   assert.ok(ENTRY, "captured the real 0x472c attract dispatch");
   assert.equal(CAP.playerCount, 0, "the captured dispatch is the game-over (player count 0) arm");
@@ -202,12 +165,6 @@ test("EQUAL (captured): idiomatic == oracle on the real GAME OVER dispatch (whol
   console.log("  EQUAL/captured: real 0x472c entry identical (whole RAM dump)");
 });
 
-// -- 2. EQUAL: an independent capture/clone/replay through stateDiffOutsideStack ------
-// Re-capture the real dispatch fresh (its own harness run), then run oracle vs idiomatic on
-// two clones and diff RAM outside the dead [SP-8, SP) stack scratch. This deliberately does
-// NOT go through unitEquivalence: that gate diffs the FULL dump (no stack exclusion) and so
-// false-catches the removed push16 ghost at 0x83f7 first — the honest contract is RAM outside
-// the stack scratch (as 18cf's harness checks do).
 
 test("EQUAL (harness): a fresh-captured real 0x472c dispatch is RAM-EQUAL outside the stack scratch", () => {
   const { entry } = captureRealEntry();
@@ -217,19 +174,14 @@ test("EQUAL (harness): a fresh-captured real 0x472c dispatch is RAM-EQUAL outsid
   console.log("  EQUAL/harness: fresh capture -> idiomatic RAM-EQUAL outside [SP-8, SP)");
 });
 
-// -- 3. EQUAL: crafted player-count-1 entry forces the in-game-panel arm -------
-
 test("EQUAL (crafted): the in-game-panel arm (player count 1 -> drawPlayerLabel) is RAM-EQUAL", () => {
   const seed = ENTRY.clone();
-  seed.mem.write8(GAME_STATE, 1); // force the one/two-player branch attract never reaches
+  seed.mem.write8(GAME_STATE, 1);
   const ram = observableDiff(seed, idiomatic);
   assert.equal(ram, null, ram && `RAM diverged at ${hx(ram.addr ?? 0)} (oracle=${ram.a} idiomatic=${ram.b})`);
   console.log("  EQUAL/crafted: player-count-1 (in-game panel) entry identical (whole RAM dump)");
 });
 
-// -- 4. IDENTITY: oracle vs oracle must be EQUAL (proves the gate wiring) ------
-// Identical arms share pc + registers as well as RAM, so the strict harness still reports
-// a full equal here — proving the harness is not vacuously passing on the relaxed contract.
 
 test("IDENTITY: oracle vs oracle reports EQUAL (gate wiring sanity)", () => {
   const res = unitEquivalence(makeMachine, TARGET, oracle, oracle, { maxFrames: CAPTURE_FRAMES });
@@ -237,21 +189,16 @@ test("IDENTITY: oracle vs oracle reports EQUAL (gate wiring sanity)", () => {
   console.log("  IDENTITY: oracle vs oracle -> EQUAL");
 });
 
-// -- 5. MODEL: the correct structural re-emit is itself RAM-EQUAL -------------
-
 test("MODEL: the correct structural re-emit matches the oracle (so each twin isolates its bug)", () => {
   const ram = observableDiff(ENTRY, correctModel);
   assert.equal(ram, null, ram && `model RAM diverged at ${hx(ram.addr ?? 0)} (oracle=${ram.a} model=${ram.b})`);
   console.log("  MODEL: correct re-emit identical to the oracle (whole RAM dump)");
 });
 
-// -- 6. TEETH: broken twins the gate MUST catch -------------------------------
-
 test("TEETH: a wrong HUD colour is CAUGHT (in a tinted colour cell)", () => {
   const ram = observableDiff(ENTRY, brokenColour);
   assert.notEqual(ram, null, "the gate FAILED to catch a wrong HUD colour — it is worthless");
-  // The first diff is the lowest-address tinted cell; assert the perturbation itself:
-  // the oracle paints colour 2, the twin colour 3.
+  // The first diff is the lowest-address tinted cell; assert the perturbation itself: oracle colour 2, twin colour 3.
   assert.equal(ram.a, 2, `expected the oracle's tint colour 2 at ${hx(ram.addr ?? 0)}`);
   assert.equal(ram.b, 3, `expected the twin's wrong tint colour 3 at ${hx(ram.addr ?? 0)}`);
   assert.ok(ram.addr >= 0x8800, `expected a colour cell (>= 0x8800), got ${hx(ram.addr ?? 0)}`);

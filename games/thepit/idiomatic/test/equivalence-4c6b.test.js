@@ -52,6 +52,7 @@ import { requestSound7 } from "../requestSound7.js";
 import { enqueueSoundCommand } from "../enqueueSoundCommand.js";
 import { makeMachineFactory } from "../../machine.js";
 import { SOUND_HEAD, SOUND_RING } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -65,11 +66,7 @@ const COMMAND = 7; // this stub's fixed sound-command index
 const PENDING = (COMMAND | 0x80) & 0xff; // 0x87 — the byte the ring slot must end up holding
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-// The engine drives makeMachine(overrides) synchronously; The Pit's registry is
-// async, so build the factory once (it closes over the built registry).
 const makeMachine = ROM_PRESENT ? await makeMachineFactory(ROM) : null;
-
-// -- helpers ------------------------------------------------------------------
 
 /**
  * Capture up to K real entry states at the PROXY leaf during a boot/attract run. The
@@ -100,7 +97,7 @@ function ramDiffOutsideStack(a, b, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= entrySP - 4 && addr < entrySP) continue; // dead stack scratch
+    if (deadStackBelow({ lo: entrySP - 4, hi: entrySP }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;

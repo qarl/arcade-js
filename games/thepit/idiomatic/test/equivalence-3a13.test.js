@@ -9,7 +9,7 @@
  * staged sprite records. The routine is reached by tail-jump and its callees (the move
  * driver, the sprite-staging tail) leave no register a caller reads, so the gate compares
  * work RAM (dumpState) and excludes the Z80 pc/SP/value-registers the honest rewrite does
- * not preserve. It also excludes the dead top-of-stack scratch the oracle's driver call
+ * not preserve. It also excludes the dead stack scratch the oracle's driver call
  * parks just below the entry stack pointer — the stack-free idiomatic JS does not write it.
  *
  * TWO INPUT SOURCES.
@@ -52,7 +52,7 @@ import { advanceActorMovers as idiomatic } from "../advanceActorMovers.js";
 import { stepEnemyMover } from "../stepEnemyMover.js";
 import { stageActorSpriteRecords } from "../stageActorSpriteRecords.js";
 import { makeMachineFactory } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import { ENEMY3_X, ENEMY3_TWIN_X } from "../names.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
@@ -77,11 +77,8 @@ const POKED_GATE = 0xff; // any nonzero value forces the twin path
 const EXPIRY_LEAVES = [0x031a, 0x01f9];
 const WATCHDOG = 0xb800; // reading it kicks the watchdog once per frame-wait pass
 const COUNTDOWN = 0x8009; // the per-frame countdown the chain's frame-waits drain to 0
-// The dead top-of-stack scratch: the round-boundary chain resets SP near 0x83ff and the
-// shallow driver call pushes just below the entry SP. No record/scratch/named cell lives
-// in either window (all of interest is at/under 0x812c).
-const CHAIN_SCRATCH_LO = 0x83e0;
-const CHAIN_SCRATCH_HI = 0x8400;
+// Dead stack scratch: the shallow driver call pushes just below the entry SP. No
+// record/scratch/named cell lives in that window (all of interest is at/under 0x812c).
 const SHALLOW_SCRATCH_DEPTH = 128;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
@@ -133,8 +130,7 @@ function runIsolated(entry, fn) {
 }
 
 /** First differing RAM byte between two machines (full dumpState), EXCLUDING the dead
- *  stack scratch (the chain window near 0x83ff and the shallow window just below the
- *  entry SP). Null when otherwise identical. */
+ *  stack scratch (the shallow window just below the entry SP). Null when otherwise identical. */
 function ramDiff(a, b, entrySP) {
   const da = a.dumpState();
   const db = b.dumpState();
@@ -142,8 +138,7 @@ function ramDiff(a, b, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= CHAIN_SCRATCH_LO && addr < CHAIN_SCRATCH_HI) continue;
-    if (addr >= entrySP - SHALLOW_SCRATCH_DEPTH && addr < entrySP) continue;
+    if (deadStackBelow({ lo: entrySP - SHALLOW_SCRATCH_DEPTH, hi: entrySP }, entrySP)(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;

@@ -60,6 +60,7 @@ import { stepObjectRowFlipped as idiomatic } from "../stepObjectRowFlipped.js";
 import { makeMachineFactory } from "../../machine.js";
 import { u8 } from "../../../../core/int.js";
 import { PLAYER_Y, PLAYER_TILE_ROW, PRIZE_GATE, HAZARD_ACTIVE_COUNT, HAZARD_STATE } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -80,11 +81,8 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 // the factory once (it closes over the built registry).
 const makeMachine = ROM_PRESENT ? await makeMachineFactory(ROM) : null;
 
-/**
- * Hook 0x1493 in a real attract run and clone up to K real dispatches — each a genuine in-play
- * state for this move step. The wrapper snapshots then runs the oracle so attract proceeds
- * undisturbed.
- */
+/** Hook 0x1493 in a real attract run and clone up to K real dispatches — each a genuine in-play state for this
+ *  move step. The wrapper snapshots then runs the oracle so attract proceeds undisturbed. */
 function captureDispatches(K, maxFrames) {
   const caps = [];
   const snapshot = new Map([[TARGET, (mm) => {
@@ -107,7 +105,7 @@ function stateDiffOutsideStack(a, b, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= entrySP - STACK_SCRATCH && addr < entrySP) continue; // dead stack scratch
+    if (deadStackBelow({ lo: entrySP - STACK_SCRATCH, hi: entrySP }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -143,8 +141,6 @@ function craftBoundaryRow(base, latchValue) {
   return e;
 }
 
-// -- 0. IDENTITY (harness sanity) --------------------------------------------
-
 test("IDENTITY: the harness reaches 0x1493 in attract and oracle-vs-oracle is EQUAL", () => {
   const [entry] = captureDispatches(1, 4000);
   assert.ok(entry, "expected at least one real 0x1493 dispatch during attract");
@@ -154,8 +150,6 @@ test("IDENTITY: the harness reaches 0x1493 in attract and oracle-vs-oracle is EQ
       `E=${hx(entry.regs.e)}); oracle vs oracle -> EQUAL`,
   );
 });
-
-// -- 1. EQUAL over real captured attract dispatches --------------------------
 
 test("EQUAL: stepObjectRowFlipped leaves the same state as the oracle over every real attract dispatch", () => {
   const caps = captureDispatches(500, 4000);
@@ -167,7 +161,6 @@ test("EQUAL: stepObjectRowFlipped leaves the same state as the oracle over every
   console.log(`  EQUAL/real: ${caps.length} captured dispatches identical to the oracle (common step + dig one-shot)`);
 });
 
-// -- 2. NON-VACUOUS: the derived tile row is really published ----------------
 // (The forced sprite code is a transient the downstream resolver overwrites before the routine
 //  returns; the derived tile row is stepObjectRowFlipped's durable observable output.)
 
@@ -191,8 +184,6 @@ test("NON-VACUOUS: a real dispatch overwrites a sentinel tile row with the deriv
   console.log(`  NON-VACUOUS: sentinel ${hx(SENTINEL)} overwritten with the derived tile row ${row}`);
 });
 
-// -- 3. EQUAL on a crafted deferred entry (busy flag set) --------------------
-
 test("EQUAL (crafted deferred): the busy flag set defers to the record builder, identical to the oracle", () => {
   const [base] = captureDispatches(1, 4000);
   assert.ok(base, "need a real capture to craft from");
@@ -203,8 +194,6 @@ test("EQUAL (crafted deferred): the busy flag set defers to the record builder, 
   assert.equal(d, null, d && `state diff at ${hx(d.addr ?? 0)} oracle=${d.a} idiomatic=${d.b}`);
   console.log("  EQUAL/deferred: busy flag set -> record-builder deferral, identical to the oracle");
 });
-
-// -- 4. EQUAL on a crafted boundary row with the feature latch clear ---------
 
 test("EQUAL (crafted boundary row, latch clear): the boundary row without the latch continues through the positioning front, identical", () => {
   const [base] = captureDispatches(1, 4000);
@@ -219,8 +208,6 @@ test("EQUAL (crafted boundary row, latch clear): the boundary row without the la
   assert.equal(d, null, d && `state diff at ${hx(d.addr ?? 0)} oracle=${d.a} idiomatic=${d.b}`);
   console.log("  EQUAL/boundary-clear: boundary row + latch clear -> positioning front, identical to the oracle");
 });
-
-// -- 5. EQUAL on a crafted dig one-shot (boundary row + feature latch pending) --
 
 test("EQUAL (crafted dig one-shot): the boundary row + feature latch consumes the latch, arms the dig phase, builds the record", () => {
   const [base] = captureDispatches(1, 4000);
@@ -239,8 +226,6 @@ test("EQUAL (crafted dig one-shot): the boundary row + feature latch consumes th
   console.log("  EQUAL/dig-one-shot: latch consumed, spawn cleared, dig phase armed to 9; identical to the oracle");
 });
 
-// -- 6. TEETH (tile row): a corrupted derived tile row is CAUGHT --------------
-
 /** Broken twin: does the real work, then corrupts the published tile row. */
 function twinBadTileRow(m) {
   idiomatic(m);
@@ -258,8 +243,6 @@ test("TEETH (tile row): a twin that corrupts the published tile row is CAUGHT at
   assert.equal(stateDiff(entry, idiomatic), null, "idiomatic must pass the entry the twin fails");
   console.log(`  TEETH/tile-row: corrupted-row twin caught at ${hx(d.addr)} (oracle=${d.a} broken=${d.b})`);
 });
-
-// -- 7. TEETH (dig arming): a dropped dig-phase arming is CAUGHT --------------
 
 /** Broken twin: does the real dig one-shot, then reverts the dig-phase arming. */
 function makeTwinNoDigArm(before) {

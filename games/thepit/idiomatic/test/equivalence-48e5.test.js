@@ -8,26 +8,17 @@
  * copyTileColumn (0x3dea), and paints the nine colour cells (fillColourColumn).
  *
  * WHY THE CONTRACT EXCLUDES A DEAD STACK-SCRATCH WORD (AND MODELS ONE RETURN):
- *
- *   The oracle finishes with a tail-jump into the colour filler (0x3e01), whose own
- *   `ret` unwinds to drawGameOverLabel's caller — so the oracle, as a whole, RETURNS
- *   (it consumes its return address, landing pc at the caller and SP two higher). The
- *   idiomatic routine now calls the already-decompiled colour filler DIRECTLY, which
- *   is a plain JS return and performs no Z80 `ret`. Left alone the candidate therefore
- *   stops with its exit pc and SP still at the routine's entry (the caller's return is
- *   its to close), so pc/SP legitimately differ from the oracle. Per the sound-stub
- *   dissolve (equivalence-4c5f.test.js) the gate models that one return with a single
- *   m.ret() on the candidate, which lines pc + SP up with the oracle. ALL four helpers
- *   are now direct idiomatic calls — including the copy leaf (0x3dea) copyTileColumn,
- *   which takes its source pointer as a plain argument and touches no stack. So, unlike
- *   the oracle, the idiomatic routine never pushes the copy-helper CALL's return-address
- *   word (0x4906) that the oracle parks just below the entry SP; that word is dead
- *   scratch (overwritten by the caller's next push before anything reads it) and is the
- *   ONLY residual divergence. Modelled the way the sibling dissolves (equivalence-18cf /
- *   -47e1 / -483a) do it, the gate EXCLUDES the [SP-8, SP) stack-scratch window and
- *   compares everything else byte-for-byte — work/video/colour RAM + pc + SP. The real
- *   outputs (0x8055..0x8060 scratch, colour RAM >= 0x8800, video RAM >= 0x9000) all sit
- *   far below that window, so it never hides one; the teeth confirm it.
+ *   The oracle tail-jumps into the colour filler (0x3e01), whose own `ret` unwinds to drawGameOverLabel's
+ *   caller (landing pc at the caller and SP two higher). The idiomatic routine calls the decompiled colour
+ *   filler DIRECTLY, a plain JS return with no Z80 `ret`, so the gate models that one return with a single
+ *   m.ret() on the candidate, which lines pc + SP up with the oracle. ALL four helpers are direct idiomatic
+ *   calls — including the copy leaf (0x3dea) copyTileColumn, which takes its source pointer as a plain
+ *   argument and touches no stack. So the idiomatic routine never pushes the copy-helper CALL's
+ *   return-address word (0x4906) that the oracle parks just below the entry SP; that word is dead scratch
+ *   (overwritten by the caller's next push before anything reads it) and is the ONLY residual divergence.
+ *   The gate EXCLUDES the [SP-8, SP) stack-scratch window and compares everything else byte-for-byte —
+ *   work/video/colour RAM + pc + SP. The real outputs (0x8055..0x8060 scratch, colour RAM >= 0x8800, video
+ *   RAM >= 0x9000) all sit far below that window, so it never hides one; the teeth confirm it.
  *
  * WHY THIS ROUTINE IS STRAIGHTFORWARD FOR THE GATE:
  *
@@ -54,7 +45,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_48e5 as oracle } from "../../translated/loc_48e5.js";
 import { drawGameOverLabel as idiomatic } from "../drawGameOverLabel.js";
 import { makeMachineFactory } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 // The teeth twins mirror the routine under test, so they call the same idiomatic helpers.
 import { rowColToTileOffset } from "../rowColToTileOffset.js";
 import { deriveTileWriteCursors } from "../deriveTileWriteCursors.js";
@@ -83,7 +74,6 @@ const FIRST_COLOUR_CELL = 0x8800 + EXPECT_OFFSET; // 0x8981 — top painted colo
 const CAPTURE_FRAMES = 240; // 0x48e5 first dispatches ~frame 61 — within this
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-// The Pit's routine registry is async, so build the factory once and reuse it.
 const makeMachine = ROM_PRESENT ? await makeMachineFactory(ROM) : null;
 
 /**
@@ -110,14 +100,8 @@ function captureRealEntry() {
 const CAP = ROM_PRESENT ? captureRealEntry() : { entry: null, playerCount: null };
 const ENTRY = CAP.entry;
 
-/**
- * First differing RAM byte between the oracle run and a candidate run, EXCLUDING the dead
- * stack-scratch window [entrySP - STACK_SCRATCH, entrySP). The dissolved routine calls the
- * now-idiomatic copy leaf (copyTileColumn) directly, so it no longer reproduces the copy-
- * helper CALL's return-address word (0x4906) the oracle parks just below the entry SP; that
- * word is dead scratch and legitimately differs. Returns { addr, a, b } (a=oracle, b=cand)
- * or null when otherwise equal.
- */
+/** First differing RAM byte, EXCLUDING the dead stack-scratch window [entrySP - STACK_SCRATCH, entrySP).
+ *  Returns { addr, a, b } (a=oracle, b=cand) or null when otherwise equal. */
 function stateDiffOutsideStack(o, c, entrySP) {
   const da = o.dumpState();
   const db = c.dumpState();
@@ -125,21 +109,15 @@ function stateDiffOutsideStack(o, c, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = o.stateOffsetToAddr(i);
-    if (addr >= entrySP - STACK_SCRATCH && addr < entrySP) continue; // dead stack scratch
+    if (deadStackBelow({ lo: entrySP - STACK_SCRATCH, hi: entrySP }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
 /**
- * Compare a candidate against the oracle over the memory-equivalence contract for one entry:
- * work/video/colour RAM (outside the dead stack scratch) + pc + SP. The oracle rets internally
- * (its tail helper's own return unwinds to the caller); the idiomatic routine calls its
- * now-decompiled colour filler directly and does NOT ret, so the candidate is given one
- * modelled return (m.ret()) to line pc + SP up with the oracle. The dissolved copy leaf no
- * longer pushes the oracle's copy-helper return-address word, so the [SP-8, SP) stack-scratch
- * window is excluded (see the header); everything else is compared byte-for-byte. Returns
- * { diffs, ram } (diffs empty == EQUAL).
+ * Candidate vs oracle for one entry: work/video/colour RAM (outside the dead stack scratch) + pc + SP,
+ * with one modelled return (m.ret()) on the candidate. Returns { diffs, ram } (diffs empty == EQUAL).
  */
 function contractDiffs(entry, fn) {
   const entrySP = entry.regs.sp; // SP at 0x48e5 entry
@@ -157,8 +135,6 @@ function contractDiffs(entry, fn) {
   return { diffs, ram };
 }
 
-// -- 0. HARNESS: the capture is real, and the oracle run is deterministic -------
-
 test("HARNESS: a real GAME OVER (player count 0) dispatch is captured; the oracle run is deterministic", () => {
   assert.ok(ENTRY, "captured the real 0x48e5 attract dispatch");
   assert.equal(CAP.playerCount, 0, "the captured dispatch is the game-over (player count 0) arm");
@@ -173,8 +149,6 @@ test("HARNESS: a real GAME OVER (player count 0) dispatch is captured; the oracl
   assert.equal(a.regs.sp, b.regs.sp, "oracle SP not deterministic");
   console.log(`  HARNESS: real 0x48e5 entry (SP=${hx(ENTRY.regs.sp)}, player count 0); oracle run deterministic`);
 });
-
-// -- 1. EQUAL: the real captured attract dispatch, full contract ---------------
 
 test("EQUAL (captured): idiomatic == oracle on the real GAME OVER dispatch (RAM + pc + SP)", () => {
   const { diffs } = contractDiffs(ENTRY, idiomatic);
@@ -193,8 +167,6 @@ test("EQUAL (captured): idiomatic == oracle on the real GAME OVER dispatch (RAM 
   assert.equal(c.mem.read8(FIRST_COLOUR_CELL), 6, "top colour cell not painted with the label colour");
   console.log(`  EQUAL/captured: identical over RAM + pc + SP; colour cell ${hx(FIRST_COLOUR_CELL)} = 6, offset = ${EXPECT_OFFSET}`);
 });
-
-// -- 2. TEETH: broken twins the gate MUST catch --------------------------------
 
 // The twins mirror the idiomatic routine's structure (direct helper calls plus the
 // still-oracle copy helper) and change ONE thing, so each twin's only divergence is

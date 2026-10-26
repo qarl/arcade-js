@@ -54,7 +54,7 @@ import { rowColToTileOffset } from "../rowColToTileOffset.js";
 import { deriveTileWriteCursors } from "../deriveTileWriteCursors.js";
 import { fillColourColumn } from "../fillColourColumn.js";
 import { makeMachineFactory } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -79,10 +79,7 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 // The Pit's routine registry is async, so build the factory once and reuse it.
 const makeMachine = ROM_PRESENT ? await makeMachineFactory(ROM) : null;
 
-/**
- * Capture the real machine state at 0x3d49's genuine attract dispatch. The hook
- * clones the pristine entry, then runs the oracle so the host run continues normally.
- */
+/** Capture the real machine state at 0x3d49's genuine attract dispatch; the oracle then runs so the host continues. */
 function captureRealEntry() {
   let entry = null;
   const overrides = new Map([
@@ -112,19 +109,14 @@ function ramDiffOutsideStack(a, b, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= entrySP - 2 && addr < entrySP) continue; // dead stack scratch
+    if (deadStackBelow({ lo: entrySP - 2, hi: entrySP }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
-/**
- * Compare a candidate against the oracle over the observable contract for one entry:
- * RAM (outside the stack scratch) + pc + SP. Value registers are the declared-dead
- * live-out and excluded. The oracle rets internally through its tail-jump; the
- * candidate returns in plain JS, so one ret() on the candidate lines pc + SP up.
- * Returns { diffs, ram } (diffs empty == EQUAL).
- */
+/** Compare a candidate against the oracle over the observable contract for one entry: RAM (outside the stack
+ *  scratch) + pc + SP, after one ret() on the candidate (header). Returns { diffs, ram } (diffs empty == EQUAL). */
 function contractDiffs(entry, fn) {
   const sp = entry.regs.sp;
   const o = entry.clone();
@@ -141,8 +133,6 @@ function contractDiffs(entry, fn) {
   return { diffs, ram };
 }
 
-// -- 0. HARNESS (reachability + determinism) ----------------------------------
-
 test("HARNESS: a real 0x3d49 attract entry is captured and the oracle run is deterministic", () => {
   assert.ok(ENTRY, "expected 0x3d49 to be dispatched during attract (frame ~61)");
   const a = ENTRY.clone();
@@ -154,8 +144,6 @@ test("HARNESS: a real 0x3d49 attract entry is captured and the oracle run is det
   assert.equal(a.pc, b.pc, "oracle pc not deterministic");
   console.log(`  HARNESS: captured a real 0x3d49 entry (SP=${hx(ENTRY.regs.sp)}); oracle run deterministic`);
 });
-
-// -- 1. EQUAL on the real captured attract entry ------------------------------
 
 test("EQUAL (captured): idiomatic == oracle over painted RAM + pc + SP on the real frame-61 dispatch", () => {
   const { diffs } = contractDiffs(ENTRY, idiomatic);
@@ -171,8 +159,6 @@ test("EQUAL (captured): idiomatic == oracle over painted RAM + pc + SP on the re
   console.log(`  EQUAL/captured: identical over painted RAM+pc+SP; colour cursor ${hx(cursor)} painted 6`);
 });
 
-// -- 2. EQUAL: sweep the one state-dependent input (the live top-cell value) ----
-
 test("EQUAL (sweep): idiomatic == oracle across the live 0x8000 value", () => {
   const values = [0, 1, 2, 15, 55, 0x80, 0xa0, 0xff];
   for (const v of values) {
@@ -183,8 +169,6 @@ test("EQUAL (sweep): idiomatic == oracle across the live 0x8000 value", () => {
   }
   console.log(`  EQUAL/sweep: ${values.length} live-value inputs identical to the oracle`);
 });
-
-// -- 3. TEETH: broken twins the gate MUST catch -------------------------------
 
 // The twins mirror the DISSOLVED routine's exact structure (direct calls to the three
 // decompiled helpers, m.call for the two still-oracle glyph helpers) and change ONE
@@ -209,13 +193,9 @@ function brokenAttr(m) {
   return fillColourColumn(m);
 }
 
-/**
- * Broken twin B: an off-by-one label source pointer, handed to the still-oracle fill
- * helper 0x3ddb. The scratch bytes are written exactly as the routine does — this
- * divergence surfaces ONLY through the fill helper, as a wrong glyph in video RAM.
- * Proves the gate catches a purely callee-mediated effect, not just a directly-written
- * scratch byte.
- */
+/** Broken twin B: an off-by-one label source pointer, handed to the still-oracle fill helper 0x3ddb. The scratch
+ *  bytes are written exactly as the routine does — this divergence surfaces ONLY through the fill helper, as a wrong
+ *  glyph in video RAM: a purely callee-mediated effect. */
 function brokenLabelSource(m) {
   const { mem } = m;
   mem.write8(TILE_COL, 1);
@@ -233,13 +213,8 @@ function brokenLabelSource(m) {
   return fillColourColumn(m);
 }
 
-/**
- * Broken twin C: DROPS the direct deriveTileWriteCursors call. Without it the colour /
- * video write cursors (0x805e / 0x8060) keep their stale entry values, so every field
- * paints at the wrong address. Proves the dissolved direct call is load-bearing — a
- * dropped decompiled-callee effect is caught, exactly the failure the dissolve could
- * have introduced.
- */
+/** Broken twin C: DROPS the direct deriveTileWriteCursors call, so the colour / video write cursors (0x805e /
+ *  0x8060) keep their stale entry values and every field paints at the wrong address. */
 function brokenDropDerive(m) {
   const { mem } = m;
   mem.write8(TILE_COL, 1);

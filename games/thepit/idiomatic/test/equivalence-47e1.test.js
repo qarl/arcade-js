@@ -50,6 +50,7 @@ import { rowColToTileOffset } from "../rowColToTileOffset.js";
 import { deriveTileWriteCursors } from "../deriveTileWriteCursors.js";
 import { fillColourColumn } from "../fillColourColumn.js";
 import { makeMachineFactory } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -69,8 +70,6 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 // so build the factory once up front (it closes over the built registry).
 const makeMachine = ROM_PRESENT ? await makeMachineFactory(ROM) : null;
 
-// -- capture a real attract state --------------------------------------------
-
 /** Hook a reached routine and clone the machine at its first real dispatch. */
 function captureAttractSeed(maxFrames) {
   let seed = null;
@@ -83,12 +82,9 @@ function captureAttractSeed(maxFrames) {
   return seed;
 }
 
-/**
- * Craft the drawPlayerLabel entry from a real seed: a clean cold-boot stack with one caller
- * return address staged (so the oracle's tail ret has somewhere to land), and optionally
- * the secondary game-state byte poked so the top-cell copy is exercised with different
- * values. Both compared sides run this same crafted entry.
- */
+/** Craft the drawPlayerLabel entry from a real seed: a clean cold-boot stack with one caller return address staged
+ *  (so the oracle's tail ret has somewhere to land), and optionally the secondary game-state byte poked so the
+ *  top-cell copy is exercised with different values. */
 function craftEntry(seed, state2) {
   const e = seed.clone();
   if (state2 !== undefined) e.mem.write8(ACTIVE_PLAYER, state2);
@@ -97,8 +93,6 @@ function craftEntry(seed, state2) {
   return e;
 }
 
-// -- the observable-memory-equivalence contract ------------------------------
-
 /** Run one implementation on a fresh clone of the entry. */
 function runOn(entry, fn) {
   const c = entry.clone();
@@ -106,13 +100,9 @@ function runOn(entry, fn) {
   return c;
 }
 
-/**
- * First differing RAM byte between the oracle run and a candidate run, EXCLUDING the dead
- * stack-scratch window just below the entry SP (the dropped return-address pushes and the
- * un-popped caller return live there and legitimately differ). Null when otherwise equal.
- * pc, SP and the value registers are not compared — they are the dissolved routine's dead
- * ABI, not its live-out.
- */
+/** First differing RAM byte between the oracle run and a candidate run, EXCLUDING the dead stack-scratch window just
+ *  below the entry SP (the dropped return-address pushes and the un-popped caller return live there and legitimately
+ *  differ). Null when otherwise equal. */
 function ramDiffOutsideStack(o, c, entrySP) {
   const da = o.dumpState();
   const db = c.dumpState();
@@ -120,19 +110,16 @@ function ramDiffOutsideStack(o, c, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = o.stateOffsetToAddr(i);
-    if (addr >= entrySP - STACK_SCRATCH_BYTES && addr < entrySP) continue; // dead stack scratch
+    if (deadStackBelow({ lo: entrySP - STACK_SCRATCH_BYTES, hi: entrySP }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
-/**
- * Compare a candidate against the oracle over the observable contract for one entry: the
- * painted RAM (work + colour + video + sprite) outside the dead stack-scratch window.
- * Returns { diffs, ram } (diffs empty == EQUAL).
- */
+/** Compare a candidate against the oracle over the painted RAM (work + colour + video + sprite) outside the dead
+ *  stack-scratch window. Returns { diffs, ram } (diffs empty == EQUAL). */
 function contractDiffs(entry, fn) {
-  const entrySP = entry.regs.sp; // SP at drawPlayerLabel entry
+  const entrySP = entry.regs.sp;
   const o = runOn(entry, oracle);
   const c = runOn(entry, fn);
   const diffs = [];
@@ -140,8 +127,6 @@ function contractDiffs(entry, fn) {
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   return { diffs, ram };
 }
-
-// -- 1. EQUAL -----------------------------------------------------------------
 
 test("EQUAL: idiomatic drawPlayerLabel == oracle on painted RAM from a real crafted entry, across secondary-state values", () => {
   const seed = captureAttractSeed(240);
@@ -163,12 +148,8 @@ test("EQUAL: idiomatic drawPlayerLabel == oracle on painted RAM from a real craf
   );
 });
 
-// -- 2. TEETH -----------------------------------------------------------------
-
-/**
- * Broken twin of the DISSOLVED drawPlayerLabel: paints the panel with the wrong fill byte (6, not
- * 7). Same structure and the same two oracle helpers, so only the fill-driven cells differ.
- */
+/** Broken twin of the DISSOLVED drawPlayerLabel: paints the panel with the wrong fill byte (6, not 7). Same
+ *  structure and the same two oracle helpers, so only the fill-driven cells differ. */
 function brokenLoc47e1(m) {
   const { regs, mem } = m;
   mem.write8(0x8058, 1);

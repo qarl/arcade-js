@@ -16,16 +16,16 @@
  * with a valid stack and an in-play work-RAM configuration. The routine is straight-line
  * with no input-dependent branch, so that one entry exercises the whole path.
  *
- * THE CONTRACT IS OBSERVABLE-RAM EQUIVALENCE, STACK-SCRATCH EXCLUDED. The registry
+ * THE CONTRACT IS OBSERVABLE-RAM EQUIVALENCE, STACK SCRATCH BELOW THE ENTRY SP EXCLUDED. The registry
  * resolves every m.call to the frozen translated oracle, so the oracle run reaches its
  * HUD/score helpers as deeply-nested translated routines that leave dead return-address
  * scratch on the work stack; the idiomatic routine calls those same helpers as direct
  * JS, so its stack activity is shallower and the dead scratch differs. That scratch is
  * dead by definition (the stack lives at the top of work RAM, 0x83ff down; nothing reads
- * it back). Measured, the ENTIRE divergence is eight bytes in [0x83f5, 0x83fc] at the
+ * it back). Measured, the ENTIRE divergence is six bytes in [0x83f5, 0x83fa], just below the
  * top of the stack — every video cell, every colour cell, and all meaningful work RAM
  * (including the plotter staging cells 0x8055-0x8060) is byte-identical. So the diff
- * compares the whole state dump EXCEPT a stack-scratch window at the top of work RAM,
+ * compares the whole state dump EXCEPT stack scratch below the entry SP,
  * and excludes pc + SP + the dead register file (the honest-signature live-out is
  * memory-only; the oracle's tail-jump return is not modelled here because pc/SP are out
  * of contract). The oracle writes nothing meaningful in [0x8130, 0x83e0), so the window
@@ -35,7 +35,7 @@
  *   0. HARNESS  — a real 0x46f4 board-setup entry is captured; the oracle run of 0x3cc1
  *      is deterministic (oracle vs oracle identical outside the stack window).
  *   1. EQUAL    — idiomatic == oracle over the observable RAM (video + colour + work RAM
- *      minus the stack scratch), and the layout really ran (staging cells + a nonzero,
+ *      minus stack scratch below the entry SP), and the layout really ran (staging cells + a nonzero,
  *      matching count of display cells changed).
  *   2. SENTINEL — over a marker-filled colour+video background every write is a real
  *      change; the oracle writes the same set of cells as idiomatic, non-vacuously.
@@ -64,6 +64,7 @@ import { fillColourColumn } from "../fillColourColumn.js";
 import { drawBestScoresTodayLabel } from "../drawBestScoresTodayLabel.js";
 import { drawRightEdgeColumn } from "../drawRightEdgeColumn.js";
 import { TILE_COL, TILE_ROW, PLOT_RUN_LENGTH, ACTIVE_PLAYER } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -106,8 +107,8 @@ const ENTRY = ROM_PRESENT ? captureBoardSetupEntry(CAP_FRAMES) : null;
 // -- the observable-RAM contract ----------------------------------------------
 
 /**
- * First RAM byte that differs between two machines, EXCLUDING the dead stack-scratch
- * window at the top of work RAM ([entrySP - STACK_MARGIN, STACK_TOP)). Everything else —
+ * First RAM byte that differs between two machines, EXCLUDING stack scratch below the
+ * entry SP ([entrySP - STACK_MARGIN, entrySP)). Everything else —
  * all video, colour, and meaningful work RAM — is compared byte-for-byte. Null when the
  * observable state is identical.
  */
@@ -115,11 +116,11 @@ function observableDiff(a, b, entrySP) {
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
-  const stackLo = entrySP - STACK_MARGIN;
+  const dead = deadStackBelow({ lo: entrySP - STACK_MARGIN, hi: STACK_TOP }, entrySP);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= stackLo && addr < STACK_TOP) continue; // dead stack scratch
+    if (dead(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -140,12 +141,12 @@ function observableWriteCount(entry, fn) {
   const c = entry.clone();
   fn(c);
   const after = c.dumpState();
-  const stackLo = entry.regs.sp - STACK_MARGIN;
+  const dead = deadStackBelow({ lo: entry.regs.sp - STACK_MARGIN, hi: STACK_TOP }, entry.regs.sp);
   let n = 0;
   for (let i = 0; i < before.length; i++) {
     if (before[i] === after[i]) continue;
     const addr = c.stateOffsetToAddr(i);
-    if (addr >= stackLo && addr < STACK_TOP) continue;
+    if (dead(addr)) continue;
     n += 1;
   }
   return n;

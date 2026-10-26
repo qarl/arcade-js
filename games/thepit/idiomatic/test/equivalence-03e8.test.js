@@ -72,7 +72,7 @@ import { steerDemoPlayer as idiomatic } from "../steerDemoPlayer.js";
 import { drawCreditsDisplay as idiomaticPainter } from "../drawCreditsDisplay.js";
 import { cyclePanelColumnColour as idiomaticRecolour } from "../cyclePanelColumnColour.js";
 import { makeMachineFactory } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -112,10 +112,7 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 // The Pit's routine registry is async, so build the factory once and reuse it.
 const makeMachine = ROM_PRESENT ? await makeMachineFactory(ROM) : null;
 
-/**
- * Capture real machine states at 0x03e8's genuine demo dispatches. The hook clones
- * each pristine entry (up to `limit`), then runs the oracle so the host run continues.
- */
+/** Capture real states at 0x03e8's demo dispatches (up to `limit`); the oracle then runs so the host continues. */
 function captureRealEntries(limit) {
   const entries = [];
   const overrides = new Map([
@@ -131,12 +128,8 @@ function captureRealEntries(limit) {
 
 const ENTRIES = ROM_PRESENT ? captureRealEntries(40) : [];
 
-/**
- * First differing OBSERVABLE RAM byte between two machines, EXCLUDING the dead
- * stack-scratch window [entrySP-STACK_SCRATCH, entrySP) that the dissolved painters no
- * longer write below the entry SP (header). Returns { addr, a, b } or null when the
- * observable RAM is byte-for-byte identical.
- */
+/** First differing OBSERVABLE RAM byte, EXCLUDING the dead stack-scratch window [entrySP-STACK_SCRATCH, entrySP)
+ *  (header). Returns { addr, a, b } or null. */
 function observableRamDiff(a, b, entrySP) {
   const da = a.dumpState();
   const db = b.dumpState();
@@ -144,19 +137,14 @@ function observableRamDiff(a, b, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= entrySP - STACK_SCRATCH && addr < entrySP) continue; // dead stack scratch
+    if (deadStackBelow({ lo: entrySP - STACK_SCRATCH, hi: entrySP }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
-/**
- * Run the oracle and a candidate on two independent clones of one entry and diff the
- * honest live-out: OBSERVABLE RAM only, outside the dead [SP-4, SP) stack window. pc, SP
- * and the value registers are the dead live-out here (the caller loc_0348 re-seats
- * `ld sp,0x83ff` every pass and never reads them) and are deliberately excluded — see the
- * header for the by-construction dissolve divergence and the proof it is benign.
- */
+/** Run the oracle and a candidate on two independent clones of one entry and diff OBSERVABLE RAM only, outside the
+ *  dead [SP-4, SP) stack window; pc, SP and the value registers are dead and deliberately excluded (header). */
 function runPair(entry, candidate) {
   const sp = entry.regs.sp;
   const a = entry.clone();
@@ -221,8 +209,6 @@ test("CONTRACT: every raw divergence is confined to the dead [SP-4, SP) stack wi
   console.log(`  CONTRACT: entrySP=${hx(sp)}; ${raw.length} raw diffs all in dead scratch [${hx(sp - STACK_SCRATCH)}, ${hx(sp)}) — observable RAM identical`);
 });
 
-// -- 1. EQUAL: the real captured demo dispatches ------------------------------
-
 test("EQUAL (captured): idiomatic == oracle on every real demo dispatch", () => {
   assert.ok(ENTRIES.length > 0, "captured at least one real 0x03e8 demo dispatch");
   for (let i = 0; i < ENTRIES.length; i++) assertEqual(ENTRIES[i], idiomatic, `entry#${i}`);
@@ -238,8 +224,6 @@ test("EQUAL (captured): the first entry really exercises the painter + recolour 
   assert.equal(e.mem.read8(BOARD_END_PHASE), 0, "first demo entry recolours a column (cyclePanelColumnColour)");
   console.log("  EQUAL/captured: entry#0 covers the panel-repaint + timer-reload + recolour arms");
 });
-
-// -- 2. EQUAL: crafted preamble arms attract's demo does not reach -------------
 
 test("EQUAL (crafted): the busy-tick arm returns without classifying", () => {
   // Timer hits its 30-frame tick AND the busy flag is set -> reload timer, then return
@@ -271,8 +255,6 @@ test("EQUAL (crafted): the painter arm alone (frame counter at zero)", () => {
   assertEqual(e, idiomatic, "painter-only");
   console.log("  EQUAL/crafted: panel-repaint (drawCreditsDisplay) arm identical");
 });
-
-// -- 3. EQUAL: sweep the classification chain over every band + wall line ------
 
 // Every X/Y wall-line value the band scans compare against (in probe b/c space),
 // each with +-1 to drive both sides of each half-plane split, plus a coarse grid.
@@ -319,8 +301,6 @@ test("EQUAL (sweep): exhaustive X*Y at the cascade extremes", () => {
   }
   console.log(`  EQUAL/sweep: ${n} exhaustive probe positions at the cascade extremes identical`);
 });
-
-// -- 4. TEETH: deliberately-broken twins the gate MUST catch -------------------
 
 // A local reference implementation mirroring the routine's classify path, with an
 // injectable bug. bug=null must equal the oracle; each bug must be caught.
@@ -414,8 +394,6 @@ test("TEETH: a corrupted steer store is CAUGHT", () => {
   assert.equal(r.ram.addr, DEMO_STEER_DIR, `teeth caught ${hx(r.ram.addr ?? 0)} (expected ${hx(DEMO_STEER_DIR)})`);
   console.log(`  TEETH: corrupted steer caught at ${hx(r.ram.addr)} (oracle=${r.ram.a} broken=${r.ram.b})`);
 });
-
-// -- 5. IDENTITY: oracle vs oracle must be EQUAL (gate wiring sanity) ----------
 
 test("IDENTITY: oracle vs oracle reports EQUAL on a captured entry", () => {
   assertEqual(ENTRIES[0], oracle, "identity");

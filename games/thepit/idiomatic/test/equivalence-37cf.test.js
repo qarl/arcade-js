@@ -42,6 +42,7 @@ import {
   BOARD_END_PHASE, ENEMY3_X, ENEMY3_Y, ENEMY3_TILE, ENEMY3_TIMER,
   ENEMY3_TWIN_X, ENEMY3_TWIN_TILE, ENEMY3_TWIN_Y,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -58,33 +59,33 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
 // The Z80 stack lives at the top of work RAM (SP boots at 0x83ff). The oracle pushes a
 // return address for its sound call; that residue lands here and is dead scratch no
-// routine names. The memory-equivalence contract is RAM MINUS this stack page.
+// routine names. The memory-equivalence contract is RAM minus stack scratch below the entry SP.
 const STACK = { lo: 0x8300, hi: 0x8400 };
 
 // The engine drives makeMachine(overrides) synchronously; The Pit's registry is async,
 // so build the factory once (it closes over the built registry).
 const makeMachine = ROM_PRESENT ? await makeMachineFactory(ROM) : null;
 
-/** First differing RAM byte between two dumps, excluding the dead stack scratch. */
-function firstRamDiffExStack(a, b, offToAddr) {
+/** First differing RAM byte between two dumps, excluding stack scratch below `entrySP`. */
+function firstRamDiffExStack(a, b, offToAddr, entrySP) {
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i] === b[i]) continue;
     const addr = offToAddr(i);
-    if (addr >= STACK.lo && addr < STACK.hi) continue;
+    if (deadStackBelow(STACK, entrySP)(addr)) continue;
     return { addr, a: a[i], b: b[i] };
   }
   return null;
 }
 
 /** Run oracle and candidate on two FRESH clones of `entry`; return the first RAM
- *  difference outside the stack scratch (or null). */
+ *  difference outside the stack scratch below the entry SP (or null). */
 function ramDiff(entry, candidate) {
   const a = entry.clone();
   const b = entry.clone();
   oracle(a);
   candidate(b);
-  return firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o));
+  return firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), entry.regs.sp);
 }
 
 /** Capture a clone at every 0x37cf dispatch across an attract run, tagging each with the
@@ -186,7 +187,7 @@ test("NON-VACUOUS: every spawn target is overwritten from a sentinel and both ar
     assert.notEqual(b.mem.read8(addr), SENTINEL, `idiomatic left ${hx(addr)} unwritten (still the sentinel)`);
   }
   assert.equal(b.mem.read8(BOARD_END_PHASE), 255, "spawn must mark the actor active (255)");
-  const d = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o));
+  const d = firstRamDiffExStack(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), base.regs.sp);
   assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} idiomatic=${d.b}`);
   console.log(`  NON-VACUOUS: all ${RECORD_TARGETS.length + BLOCK_TARGETS.length} spawn targets overwritten, arms agree`);
 });

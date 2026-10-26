@@ -13,7 +13,7 @@
  * every hand-off is delegated to an idiomatic callee that is memory-equivalent to its
  * oracle but returns via plain JS instead of the Z80 stack dance. So the gate is a
  * RAM-only diff via dumpState: pc/SP and value-registers are the dead Z80 trace and are
- * NOT compared, and the dead stack-scratch window at the top of work RAM is excluded (the
+ * NOT compared, and the stack scratch below the entry SP is excluded (the
  * oracle's bracketed calls park return addresses there; nothing this routine's own effect
  * lives there — its writes are the 0x807e/0x807f/0x8080 flags, the dig-object record around
  * 0x80a9-0x80c1, PLAYER_CELL_PTR neighbours + the carved cells in video RAM, and the
@@ -67,6 +67,7 @@ import {
   STAGED_TARGET_Y,
   PLAYER_CELL_PTR,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -81,7 +82,7 @@ const SEAM_RIGHT_FLAG = 0x807f;
 const SEAM_LEFT_FLAG = 0x807e;
 const SAVED_CELL_PTR = 0x80ba; // 16-bit saved carve cell for the pending-entity hand-off
 const WALL_TILE = 193;
-// Dead stack-scratch window at the top of The Pit's work RAM (stack tops out at 0x83ff).
+// Stack window at the top of The Pit's work RAM; only the part below the entry SP is dead scratch.
 const STACK_LO = 0x8380;
 const STACK_HI = 0x8400;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
@@ -104,15 +105,15 @@ function captureRealEntry(maxFrames) {
   return entry;
 }
 
-/** First differing RAM byte between two machines, EXCLUDING the dead stack scratch. */
-function ramDiffExStack(a, b) {
+/** First differing RAM byte between two machines, EXCLUDING stack scratch below the entry SP. */
+function ramDiffExStack(a, b, entrySP) {
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_LO && addr < STACK_HI) continue;
+    if (deadStackBelow({ lo: STACK_LO, hi: STACK_HI }, entrySP)(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -148,7 +149,7 @@ function compare(entry, s, fn) {
   oracle(o);
   const c = base.clone();
   fn(c);
-  return { ram: ramDiffExStack(o, c), o, c };
+  return { ram: ramDiffExStack(o, c, base.regs.sp), o, c };
 }
 
 /**
@@ -172,7 +173,7 @@ test("HARNESS: a real 0x29ad entry is captured and the oracle run is determinist
   oracle(a);
   const b = entry.clone();
   oracle(b);
-  assert.equal(ramDiffExStack(a, b), null, "oracle run of 0x29ad is not deterministic");
+  assert.equal(ramDiffExStack(a, b, entry.regs.sp), null, "oracle run of 0x29ad is not deterministic");
   console.log(
     `  HARNESS: captured a real 0x29ad entry (SP=${hx(entry.regs.sp)}); ` +
       `HAZARD_ACTIVE_COUNT=${entry.mem.read8(HAZARD_ACTIVE_COUNT)} HAZARD_STATE=${entry.mem.read8(HAZARD_STATE)}; oracle deterministic`,

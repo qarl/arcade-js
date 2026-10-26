@@ -53,7 +53,7 @@ import { loc_4673 as oracle } from "../../translated/loc_4673.js";
 import { awardOnePoint as idiomatic } from "../awardOnePoint.js";
 import { loc_4c57 as siblingStub } from "../../translated/loc_4c57.js";
 import { makeMachineFactory } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import { GAME_STATE, SOUND_HEAD, SOUND_RING } from "../names.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
@@ -74,8 +74,6 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 // The engine drives makeMachine(overrides) synchronously; The Pit's registry is
 // async, so build the factory once (it closes over the built registry).
 const makeMachine = ROM_PRESENT ? await makeMachineFactory(ROM) : null;
-
-// -- helpers ------------------------------------------------------------------
 
 /**
  * Hook the sibling sound stub 0x4c57 in a real attract run and clone the machine at its
@@ -106,20 +104,16 @@ function ramDiffOutsideStack(a, b, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= entrySP - STACK_SCRATCH && addr < entrySP) continue; // dead stack scratch
+    if (deadStackBelow({ lo: entrySP - STACK_SCRATCH, hi: entrySP }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
-/**
- * Run the oracle and a candidate on independent clones of `entry` and diff the OBSERVABLE
- * RAM effect (outside the dead stack scratch). pc, SP and the value registers are NOT
- * compared — the dissolved award adds the score with a direct addScore(m, 1) call instead
- * of the oracle's m.call(0x4689) tail-jump, so it leaves pc at its entry value and SP two
- * below the oracle's; those are the routine's dead ABI, not its live-out. Returns
- * { diffs, ram } (diffs empty == EQUAL).
- */
+/** Run the oracle and a candidate on independent clones of `entry` and diff the OBSERVABLE RAM effect (outside the
+ *  dead stack scratch). pc, SP and the value registers are NOT compared — the dissolved award leaves pc at its entry
+ *  value and SP two below the oracle's; those are the routine's dead ABI, not its live-out (header).
+ *  Returns { diffs, ram } (diffs empty == EQUAL). */
 function observableDiffs(entry, fn) {
   const sp = entry.regs.sp;
   const o = entry.clone();
@@ -132,8 +126,6 @@ function observableDiffs(entry, fn) {
   if (ram) diffs.push(`RAM@${hx(ram.addr)} oracle=${ram.a} cand=${ram.b}`);
   return { diffs, ram };
 }
-
-// -- 0. HARNESS (reachability + determinism) ---------------------------------
 
 test("HARNESS: a real 0x4c57 entry is captured and the oracle run of 0x4673 is deterministic", () => {
   const entry = captureRealEntry(1500);
@@ -153,8 +145,6 @@ test("HARNESS: a real 0x4c57 entry is captured and the oracle run of 0x4673 is d
   );
 });
 
-// -- 1. EQUAL on the real captured entry -------------------------------------
-
 test("EQUAL (real entry): awardOnePoint == oracle over the observable RAM effect", () => {
   const entry = captureRealEntry(1500);
   assert.ok(entry, "need a captured 0x4c57 entry");
@@ -169,8 +159,6 @@ test("EQUAL (real entry): awardOnePoint == oracle over the observable RAM effect
   assert.equal(c.mem.read8(SOUND_RING + head), PENDING, `ring slot ${head} not filled with the pending sound`);
   console.log(`  EQUAL/real: identical observable RAM; sound slot ${head} = ${hx(PENDING)}`);
 });
-
-// -- 2. EQUAL across a game-mode sweep (both scorer branches) -----------------
 
 test("EQUAL (game-mode sweep 0..3): award-when-active, skip-when-idle, both identical to the oracle", () => {
   const seed = captureRealEntry(1500);
@@ -196,8 +184,6 @@ test("EQUAL (game-mode sweep 0..3): award-when-active, skip-when-idle, both iden
   }
   console.log("  EQUAL/sweep: modes 0..3 match the oracle; score +1 when active (1,2), untouched when idle (0,3)");
 });
-
-// -- 3. TEETH: a wrong increment is caught -----------------------------------
 
 /** Broken twin: correct sound, but adds TWO points instead of one. */
 function twinWrongIncrement(m) {
@@ -228,8 +214,6 @@ test("TEETH (wrong increment): a twin that awards two points is CAUGHT at the sc
   );
   console.log(`  TEETH/increment: two-point twin caught at ${hx(ram.addr)} (oracle=${ram.a} broken=${ram.b})`);
 });
-
-// -- 4. TEETH: a wrong sound is caught ---------------------------------------
 
 /** Broken twin: correct increment, but queues sound command 12 instead of 13. */
 function twinWrongSound(m) {

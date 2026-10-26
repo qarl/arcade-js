@@ -47,7 +47,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_241c as oracle } from "../../translated/loc_241c.js";
 import { erodeMountain as idiomatic } from "../erodeMountain.js";
 import { makeMachineFactory } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import { PLAY_PHASE_COUNTER, BOARD_END_PHASE, ENEMY3_Y } from "../names.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
@@ -110,7 +110,7 @@ function ramDiffOutsideStack(a, b, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= entrySP - 8 && addr < entrySP) continue; // dead stack scratch
+    if (deadStackBelow({ lo: entrySP - 8, hi: entrySP }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;

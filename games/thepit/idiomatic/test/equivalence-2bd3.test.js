@@ -14,7 +14,7 @@
  * identically on both clones). So the gate compares OBSERVABLE RAM only via a dumpState diff. pc, SP
  * and the value registers are the declared-dead live-out and excluded; and because the oracle
  * marshals its tail through the Z80 stack while the stack-free idiomatic JS does not, the dead
- * stack-scratch window near the top of work RAM (0x8380..0x83ff) is excluded too.
+ * stack scratch below the entry SP (within 0x8380..0x83ff) is excluded too.
  *
  * CRAFTED ENTRY. 0x2bd3 is never dispatched in a boot/attract run (the demo spawns no dig
  * object, so the target and dig-object fields all sit at 0 — a valid but non-discriminating
@@ -45,7 +45,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2bd3 as oracle } from "../../translated/loc_2bd3.js";
 import { stageDigObjectSpriteRecord as idiomatic } from "../stageDigObjectSpriteRecord.js";
 import { makeMachineFactory } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import {
   HAZARD_X,
   HAZARD_STATE,
@@ -68,7 +68,7 @@ const RECORD = SPRITE_STAGING_BASE + 8; // dig object's sprite-staging slot (slo
 const RECORD_ADDRS = [RECORD, RECORD + 1, RECORD + 2, RECORD + 3];
 const INPUT_ADDRS = { bias: SPRITE_COORD_BIAS, x: HAZARD_X, state: HAZARD_STATE, attr: HAZARD_TYPE, y: HAZARD_Y };
 
-// Dead stack-scratch window at the top of The Pit's work RAM (stack tops out at 0x83ff). The
+// Stack window at the top of The Pit's work RAM; only the part below the entry SP is dead. The
 // dissolved 0x2f71 tail (advanceChamberCreature) runs stack-free on the idiomatic side while the
 // oracle marshals it through the Z80 stack, so those bytes differ and are excluded from the diff.
 const STACK_LO = 0x8380;
@@ -107,7 +107,7 @@ function stateDiff(entry, fn) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_LO && addr < STACK_HI) continue; // dead stack scratch (see STACK_LO/STACK_HI)
+    if (deadStackBelow({ lo: STACK_LO, hi: STACK_HI }, entry.regs.sp)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;

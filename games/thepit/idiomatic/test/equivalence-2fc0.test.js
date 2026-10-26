@@ -10,7 +10,7 @@
  * tail. The gate runs the full chain on both sides and compares work RAM (dumpState) rather than
  * stubbing the continuations. The object pass a tail reaches can hit the two never-returning
  * transition leaves (0x031a, 0x01f9), stubbed identically on both clones; the once-per-frame tick is
- * modelled and the dead stack scratch excluded. advanceChamberCreatureAnimation is never dispatched
+ * modelled and stack scratch below the entry SP excluded. advanceChamberCreatureAnimation is never dispatched
  * at its own address in attract (the sibling monolith loc_2f71 inlines the body), so entries are
  * crafted from real sibling states.
  *
@@ -33,6 +33,7 @@ import { setChamberCreatureFrame } from "../setChamberCreatureFrame.js";
 import { loc_2f71 } from "../../translated/loc_2f71.js";
 import { makeMachineFactory } from "../../machine.js";
 import { CHAMBER_CREATURE_ANIM_PHASE, CHAMBER_CREATURE_FRAME, CHAMBER_CREATURE_X } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -77,13 +78,13 @@ function runIsolated(entry, fn) {
   fn(c);
   return c;
 }
-function ramDiff(a, b) {
+function ramDiff(a, b, entrySP) {
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] !== db[i]) {
       const addr = a.stateOffsetToAddr(i);
-      if (addr >= CHAIN_SCRATCH_LO && addr < CHAIN_SCRATCH_HI) continue;
+      if (deadStackBelow({ lo: CHAIN_SCRATCH_LO, hi: CHAIN_SCRATCH_HI }, entrySP)(addr)) continue;
       return { addr, a: da[i], b: db[i] };
     }
   }
@@ -92,7 +93,7 @@ function ramDiff(a, b) {
 function runPair(entry, candidate, poke) {
   const a = runIsolated(entry, (c) => { poke?.(c); oracle(c); });
   const b = runIsolated(entry, (c) => { poke?.(c); candidate(c); });
-  return { ram: ramDiff(a, b) };
+  return { ram: ramDiff(a, b, entry.regs.sp) };
 }
 
 // -- 1. EQUAL: every real captured sibling state ------------------------------

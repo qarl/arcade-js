@@ -54,7 +54,7 @@ import { loc_4c7b as oracle } from "../../translated/loc_4c7b.js";
 import { requestSound11 as idiomatic } from "../requestSound11.js";
 import { loc_4c57 as siblingStub } from "../../translated/loc_4c57.js";
 import { makeMachineFactory } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import { SOUND_HEAD, SOUND_RING } from "../names.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
@@ -72,8 +72,6 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 // The engine drives makeMachine(overrides) synchronously; The Pit's registry is
 // async, so build the factory once (it closes over the built registry).
 const makeMachine = ROM_PRESENT ? await makeMachineFactory(ROM) : null;
-
-// -- helpers ------------------------------------------------------------------
 
 /**
  * Hook the sibling sound stub 0x4c57 in a real attract run and clone the machine at its
@@ -103,7 +101,7 @@ function ramDiffOutsideStack(a, b, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= entrySP - 4 && addr < entrySP) continue; // dead stack scratch
+    if (deadStackBelow({ lo: entrySP - 4, hi: entrySP }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -131,8 +129,6 @@ function contractDiffs(entry, fn) {
   return { diffs, ram };
 }
 
-// -- 0. HARNESS (reachability + determinism) ---------------------------------
-
 test("HARNESS: a real 0x4c57 sound-request entry is captured and the oracle run is deterministic", () => {
   const entry = captureRealSoundRequestEntry(1500);
   assert.ok(entry, "expected the sibling sound stub 0x4c57 to be dispatched during attract");
@@ -150,8 +146,6 @@ test("HARNESS: a real 0x4c57 sound-request entry is captured and the oracle run 
   );
 });
 
-// -- 1. EQUAL on the real captured sound-request entry -----------------------
-
 test("EQUAL (real entry): requestSound11 == oracle over RAM + pc + SP", () => {
   const entry = captureRealSoundRequestEntry(1500);
   assert.ok(entry, "need a captured 0x4c57 entry");
@@ -167,8 +161,6 @@ test("EQUAL (real entry): requestSound11 == oracle over RAM + pc + SP", () => {
   assert.equal(c.mem.read8(SOUND_HEAD), (head + 1) % 8, `write pointer did not advance from ${head}`);
   console.log(`  EQUAL/real: identical over RAM+pc+SP; slot ${head} = ${hx(PENDING)}, pointer -> ${(head + 1) % 8}`);
 });
-
-// -- 2. EQUAL across a crafted sweep of every ring write pointer 0..7 ---------
 
 test("EQUAL (pointer sweep 0..7): every slot is written and the pointer advances/wraps, identical", () => {
   const seed = captureRealSoundRequestEntry(1500);
@@ -189,8 +181,6 @@ test("EQUAL (pointer sweep 0..7): every slot is written and the pointer advances
   }
   console.log("  EQUAL/sweep: pointers 0..7 all write the pending command and advance (7 -> 0 wrap), identical to the oracle");
 });
-
-// -- 3. TEETH: a wrong-command twin is caught --------------------------------
 
 /** Enqueue with an arbitrary (wrong) command index, but otherwise correct ring mechanics. */
 function enqueueWrong(m, index) {
@@ -227,8 +217,6 @@ test("TEETH (wrong command): a twin that requests command 10 is CAUGHT at the ri
   );
   console.log(`  TEETH/command: wrong-command twin caught at ${hx(ram.addr)} (oracle=${ram.a} broken=${ram.b})`);
 });
-
-// -- 4. TEETH: a missing-pending-bit twin is caught --------------------------
 
 test("TEETH (missing pending bit): a twin that drops the pending high bit is CAUGHT at the ring slot", () => {
   const entry = captureRealSoundRequestEntry(1500);

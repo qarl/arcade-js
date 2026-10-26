@@ -24,9 +24,9 @@
  * (they busy-wait on the vblank NMI, which never fires on a single-routine clone). Both
  * arms reach those same leaves, so the gate stubs them identically on both clones and
  * models the once-per-frame tick their frame-waits drain, so the transition terminates.
- * The RAM diff excludes the dead top-of-stack scratch the oracle's driver calls (and any
- * SP reset) leave and the stack-free candidate does not — the mover records (0x8068..
- * 0x8123) and the sprite staging buffer (0x8220..0x823f) live far below both windows.
+ * The RAM diff excludes the stack scratch below the entry SP the oracle's driver calls
+ * leave and the stack-free candidate does not — the mover records (0x8068..
+ * 0x8123) and the sprite staging buffer (0x8220..0x823f) live far below that window.
  *
  * Checks:
  *   0. HARNESS — capture real 0x312d attract dispatches; the oracle run is deterministic.
@@ -50,7 +50,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_312d as oracle } from "../../translated/loc_312d.js";
 import { updateEnemy1 as idiomatic } from "../updateEnemy1.js";
 import { makeMachineFactory } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import { PLAY_PHASE_COUNTER, GAME_STATE, ENEMY1_X, SPRITE_COORD_BIAS, SPRITE_STAGING_BASE } from "../names.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
@@ -68,11 +68,8 @@ const OBJ1_SPRITE_RECORD = SPRITE_STAGING_BASE + 16; // object 1's 4-byte slot (
 const EXPIRY_LEAVES = [0x031a, 0x01f9];
 const WATCHDOG = 0xb800; // reading it kicks the watchdog once per frame-wait pass
 const COUNTDOWN = 0x8009; // the per-frame countdown the chain's frame-waits drain to 0
-// Dead stack scratch: the driver calls push just below the entry SP, and the round-
-// boundary chain resets SP to 0x83ff and pushes down from there. Neither window holds a
-// mover record or a sprite-staging byte.
-const CHAIN_SCRATCH_LO = 0x83e0;
-const CHAIN_SCRATCH_HI = 0x8400;
+// Dead stack scratch: the driver calls push just below the entry SP. That window holds no
+// mover record or sprite-staging byte; everything at/above the entry SP is compared.
 const SHALLOW_SCRATCH_DEPTH = 128;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
@@ -131,8 +128,7 @@ function runIsolated(entry, fn) {
 }
 
 /** First differing RAM byte between two machines (full dumpState), EXCLUDING the dead
- *  stack scratch (the chain window near 0x83ff and the shallow window just below the
- *  entry SP). Null when otherwise identical. */
+ *  stack scratch (the shallow window just below the entry SP). Null when otherwise identical. */
 function ramDiff(a, b, entrySP) {
   const da = a.dumpState();
   const db = b.dumpState();
@@ -140,8 +136,7 @@ function ramDiff(a, b, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= CHAIN_SCRATCH_LO && addr < CHAIN_SCRATCH_HI) continue;
-    if (addr >= entrySP - SHALLOW_SCRATCH_DEPTH && addr < entrySP) continue;
+    if (deadStackBelow({ lo: entrySP - SHALLOW_SCRATCH_DEPTH, hi: entrySP }, entrySP)(addr)) continue;
     return { addr, a: da[i], b: db[i] };
   }
   return null;

@@ -52,7 +52,7 @@ import { loc_34da as oracle } from "../../translated/loc_34da.js";
 import { advanceDormantMover } from "../advanceDormantMover.js";
 import { reseedMoverCadenceAndRearmState as idioRefresh } from "../reseedMoverCadenceAndRearmState.js";
 import { makeMachineFactory } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -90,9 +90,9 @@ function captureStates(count, stride, startFrame) {
   return caps;
 }
 
-/** The two bytes the oracle's wrap-path refresh push touches, given its entry SP. */
+/** The two bytes below the entry SP the oracle's wrap-path refresh push touches. */
 function stackWindow(sp) {
-  return new Set([(sp - 2) & 0xffff, (sp - 1) & 0xffff]);
+  return deadStackBelow({ lo: sp - 2, hi: sp }, sp);
 }
 
 /**
@@ -107,7 +107,7 @@ function contractDiff(oracleM, otherM, stackSkip) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = oracleM.stateOffsetToAddr(i);
-    if (stackSkip.has(addr)) continue; // dropped stack ABI, read by nothing
+    if (stackSkip(addr)) continue; // dropped stack ABI, read by nothing
     return `RAM@${hx(addr ?? 0)} oracle=${da[i]} other=${db[i]}`;
   }
   return null;
@@ -199,7 +199,7 @@ test("SCOPE: the oracle changes only its path's expected addresses (plus the wra
     for (let i = 0; i < before.length; i++) {
       if (before[i] === after[i]) continue;
       const addr = m.stateOffsetToAddr(i);
-      if (skip.has(addr)) continue;
+      if (skip(addr)) continue;
       assert.ok(
         expect.has(addr),
         `${label}: oracle wrote an unexpected address ${hx(addr ?? 0)} (${before[i]}->${after[i]})`,

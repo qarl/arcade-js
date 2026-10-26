@@ -44,7 +44,7 @@ import { loc_4c67 as oracle } from "../../translated/loc_4c67.js";
 import { requestSound6 } from "../requestSound6.js";
 import { enqueueSoundCommand } from "../enqueueSoundCommand.js";
 import { makeMachineFactory } from "../../machine.js";
-import { unitEquivalence } from "../../../../core/equivalence.js";
+import { unitEquivalence, deadStackBelow } from "../../../../core/equivalence.js";
 import { SOUND_HEAD, SOUND_RING } from "../names.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
@@ -62,11 +62,7 @@ const PENDING = (COMMAND | 0x80) & 0xff; // 0x86 — the byte the ring slot must
 const CAPTURE_FRAMES = 900;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-// The engine drives makeMachine(overrides) synchronously; The Pit's registry is
-// async, so build the factory once (it closes over the built registry).
 const makeMachine = ROM_PRESENT ? await makeMachineFactory(ROM) : null;
-
-// -- helpers ------------------------------------------------------------------
 
 /**
  * Hook 0x4c67 in a real attract run and clone the machine at up to K real dispatches.
@@ -96,7 +92,7 @@ function ramDiffOutsideStack(a, b, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= entrySP - 4 && addr < entrySP) continue; // dead stack scratch
+    if (deadStackBelow({ lo: entrySP - 4, hi: entrySP }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;

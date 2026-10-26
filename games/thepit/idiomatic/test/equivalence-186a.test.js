@@ -50,7 +50,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_186a as oracle } from "../../translated/loc_186a.js";
 import { stampFixedFrameAndResolveTile as idiomatic } from "../stampFixedFrameAndResolveTile.js";
 import { makeMachineFactory } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import { PLAYER_FACING } from "../names.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
@@ -72,12 +72,8 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 // build the factory once (it closes over the built registry).
 const makeMachine = ROM_PRESENT ? await makeMachineFactory(ROM) : null;
 
-// -- helpers ------------------------------------------------------------------
-
-/**
- * Run attract with 0x186a hooked; clone the machine at every real dispatch (a genuine mid-demo
- * state each). The wrapper always runs the oracle so the demo proceeds undisturbed.
- */
+/** Run attract with 0x186a hooked; clone the machine at every real dispatch (a genuine mid-demo state each).
+ *  The wrapper always runs the oracle so the demo proceeds undisturbed. */
 function captureRealEntries(maxFrames) {
   const entries = [];
   const snapshot = new Map([[TARGET, (mm) => {
@@ -88,11 +84,9 @@ function captureRealEntries(maxFrames) {
   return entries;
 }
 
-/**
- * First differing RAM byte between two machines, EXCLUDING the dead stack scratch the oracle's
- * stack-threaded tail hand-off parks just below the entry stack pointer (which the stack-free
- * idiomatic tail resolveObjectTile does not reproduce). Null when otherwise identical.
- */
+/** First differing RAM byte between two machines, EXCLUDING the dead stack scratch the oracle's stack-threaded tail
+ *  hand-off parks just below the entry stack pointer (which the stack-free idiomatic tail resolveObjectTile does not
+ *  reproduce). Null when otherwise identical. */
 function stateDiffOutsideStack(o, c, entrySP) {
   const da = o.dumpState();
   const db = c.dumpState();
@@ -100,19 +94,14 @@ function stateDiffOutsideStack(o, c, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = o.stateOffsetToAddr(i);
-    if (addr >= entrySP - STACK_SCRATCH && addr < entrySP) continue; // dead stack scratch
+    if (deadStackBelow({ lo: entrySP - STACK_SCRATCH, hi: entrySP }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
-/**
- * Replay one captured entry through the oracle and through `fn` on two independent clones and
- * return the first differing RAM byte OUTSIDE the dead stack scratch (null == memory-equivalent).
- * RAM only: pc/SP/registers/cycles are the dropped, dead part of the contract. The oracle's tail
- * hand-off threads through the stack while the idiomatic tail is stack-free, so the two leave
- * different dead bytes in [entrySP-8, entrySP) — excluded here; no real cell lives there.
- */
+/** Replay one captured entry through the oracle and through `fn` on two independent clones and return the first
+ *  differing RAM byte OUTSIDE the dead stack scratch [entrySP-8, entrySP) (null == memory-equivalent). */
 function ramDiff(entry, fn) {
   const sp = entry.regs.sp;
   const o = entry.clone();
@@ -122,11 +111,8 @@ function ramDiff(entry, fn) {
   return stateDiffOutsideStack(o, c, sp);
 }
 
-/**
- * Find the captured entry whose final RAM DEPENDS on the stamped frame — i.e. the tile there
- * routes past the classifier, so the stamp survives instead of being overwritten. Detected by
- * varying the stamped byte and seeing the full-RAM result move. Null if none in the window.
- */
+/** Find the captured entry whose final RAM DEPENDS on the stamped frame (the tile routes past the classifier, so the
+ *  stamp survives): vary the stamped byte and see the full-RAM result move. Null if none in the window. */
 function findFrameSurviveEntry(entries) {
   for (const entry of entries) {
     const a = entry.clone();
@@ -139,8 +125,6 @@ function findFrameSurviveEntry(entries) {
   }
   return null;
 }
-
-// -- 0. HARNESS (reachability + determinism) ---------------------------------
 
 test("HARNESS: real 0x186a dispatches are captured from attract and the oracle run is deterministic", () => {
   const entries = captureRealEntries(6000);
@@ -157,8 +141,6 @@ test("HARNESS: real 0x186a dispatches are captured from attract and the oracle r
       `(first: PLAYER_FACING=${hx(entries[0].mem.read8(PLAYER_FACING))}); oracle run deterministic`,
   );
 });
-
-// -- 1. EQUAL across every captured entry ------------------------------------
 
 test("EQUAL: stampFixedFrameAndResolveTile == oracle over RAM on every captured attract entry", () => {
   const entries = captureRealEntries(6000);
@@ -185,8 +167,6 @@ test("EQUAL: stampFixedFrameAndResolveTile == oracle over RAM on every captured 
   console.log(`  EQUAL: ${entries.length} real entries all memory-equivalent; survive-state frame -> ${hx(FRAME_CODE)}`);
 });
 
-// -- 2. TEETH: skipping the shared-tail hand-off is caught --------------------
-
 /** Broken twin: stamps the frame but forgets to hand off to the shared tail. */
 function twinNoTail(m) {
   const { mem8 } = m;
@@ -202,8 +182,6 @@ test("TEETH (no tail): a twin that skips the shared-tail hand-off is CAUGHT by t
   assert.notEqual(d, null, "the gate FAILED to catch the missing-tail twin — it proves nothing");
   console.log(`  TEETH/tail: missing-tail twin caught at ${hx(d.addr ?? 0)} (oracle=${d.a} broken=${d.b})`);
 });
-
-// -- 3. TEETH: a wrong frame is caught where the stamp survives ---------------
 
 /** Broken twin: stamps the WRONG frame code, then the same shared-tail hand-off. */
 function twinWrongFrame(m) {

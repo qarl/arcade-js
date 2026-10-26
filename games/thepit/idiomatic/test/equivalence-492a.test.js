@@ -12,7 +12,6 @@
  * dead [SP-8, SP) stack-scratch window, and NEVER pc, SP, or the register file (the
  * oracle's leftover ROM-strip pointer is dead too — both successors, drawBestScoresTodayLabel and
  * drawRightEdgeColumn, reload it before reading). The whole-machine/pixel gate backstops it.
- * Modelled on equivalence-47e1 / equivalence-18cf.
  *
  *   1. EQUAL (real dispatch) — boot the machine, hook 0x492a, and clone the machine
  *      at its single real dispatch (it fires once while the screen is drawn). Run the
@@ -37,6 +36,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_492a as oracle } from "../../translated/loc_492a.js";
 import { drawCopyrightLine as idiomatic } from "../drawCopyrightLine.js";
 import { makeMachineFactory } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -57,34 +57,26 @@ const isPaintedCell = (a) => a >= COLUMN_TOP && a <= COLUMN_BOTTOM && (COLUMN_BO
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-// The engine drives makeMachine(overrides) synchronously; The Pit's registry is
-// async, so build the factory once (it closes over the built registry).
 const makeMachine = ROM_PRESENT ? await makeMachineFactory(ROM) : null;
 
 const STACK_SCRATCH = 8; // dead return-address / helper-scratch window just below the entry SP
 
-/**
- * First game-visible RAM difference between two machines, EXCLUDING the dead
- * [entrySP-8, entrySP) stack-scratch window (the dropped tail return-address ghost lives
- * there and legitimately differs). Null when otherwise identical.
- */
+/** First game-visible RAM difference, EXCLUDING the dead [entrySP-8, entrySP) stack-scratch window (the
+ *  dropped tail return-address ghost lives there and legitimately differs). Null when otherwise identical. */
 function ramDiff(a, b, entrySP) {
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= entrySP - STACK_SCRATCH && addr < entrySP) continue; // dead stack scratch
+    if (deadStackBelow({ lo: entrySP - STACK_SCRATCH, hi: entrySP }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
-/**
- * Boot the machine, hook 0x492a, and clone it at its first real dispatch. The
- * wrapper clones the entry state, then runs the oracle so the host boot proceeds
- * undisturbed to a clean stop.
- */
+/** Boot the machine, hook 0x492a, and clone it at its first real dispatch; the wrapper then runs the
+ *  oracle so the host boot proceeds undisturbed to a clean stop. */
 function captureEntry(maxFrames) {
   let entry = null;
   const snap = new Map([[TARGET, (mm) => {
@@ -105,8 +97,6 @@ function replay(entry, candidate) {
   candidate(b);
   return { a, b, bad: ramDiff(a, b, entrySP) };
 }
-
-// -- 1 + 2. EQUAL (real dispatch) + NON-VACUOUS -------------------------------
 
 test("EQUAL: idiomatic drawCopyrightLine == oracle on the real dispatch (painted RAM)", () => {
   const entry = captureEntry(120);
@@ -131,8 +121,6 @@ test("EQUAL: idiomatic drawCopyrightLine == oracle on the real dispatch (painted
       `${paintedCells.filter((addr) => a.mem.read8(addr) !== entry.mem.read8(addr)).length}/32 cells painted`,
   );
 });
-
-// -- 3. TEETH -----------------------------------------------------------------
 
 /** Broken twin: reimplements drawCopyrightLine faithfully but corrupts every stored tile by
  *  one bit — a plausible store-path bug the RAM diff MUST catch in the column. */

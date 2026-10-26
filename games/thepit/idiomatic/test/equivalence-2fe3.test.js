@@ -14,7 +14,7 @@
  * (all three are decompiled), so the gate compares work RAM over the full run (dumpState) — the
  * honest dissolved-form contract — stubbing only the two never-returning transition leaves the
  * object pass can reach (0x031a, 0x01f9) and modelling the once-per-frame tick so any frame-wait
- * drains. Dead stack scratch is excluded.
+ * drains. Stack scratch below the entry SP is excluded.
  *
  * EQUAL is proven over every real captured sibling state and a crafted sweep of X x velocity x
  * fall-Y x fall-step that reaches all three bounce arms and both the on-screen and floor-reset
@@ -41,6 +41,7 @@ import {
   CHAMBER_CREATURE_FALL_STEP,
   CHAMBER_CREATURE_ATTR,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -85,13 +86,13 @@ function runIsolated(entry, fn) {
   fn(c);
   return c;
 }
-function ramDiff(a, b) {
+function ramDiff(a, b, entrySP) {
   const da = a.dumpState(), db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] !== db[i]) {
       const addr = a.stateOffsetToAddr(i);
-      if (addr >= CHAIN_SCRATCH_LO && addr < CHAIN_SCRATCH_HI) continue;
+      if (deadStackBelow({ lo: CHAIN_SCRATCH_LO, hi: CHAIN_SCRATCH_HI }, entrySP)(addr)) continue;
       return { addr, a: da[i], b: db[i] };
     }
   }
@@ -100,7 +101,7 @@ function ramDiff(a, b) {
 function runPair(entry, candidate, poke) {
   const a = runIsolated(entry, (c) => { poke?.(c); oracle(c); });
   const b = runIsolated(entry, (c) => { poke?.(c); candidate(c); });
-  return { ram: ramDiff(a, b) };
+  return { ram: ramDiff(a, b, entry.regs.sp) };
 }
 
 // -- 1. EQUAL: every real captured sibling state ------------------------------

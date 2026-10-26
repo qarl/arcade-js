@@ -48,6 +48,7 @@ import { loc_2cb7 as caller } from "../../translated/loc_2cb7.js";
 import { stampGlyphColumn as idiomatic } from "../stampGlyphColumn.js";
 import { makeMachineFactory } from "../../machine.js";
 import { PLAYER_CELL_PTR, TRANSITION_TIMER } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -89,7 +90,7 @@ function captureEntry(target, oracleFn) {
 const realEntry = ROM_PRESENT ? captureEntry(0x2d6b, oracle) : null; // the genuine dispatch
 const callerSeed = ROM_PRESENT ? captureEntry(0x2cb7, caller) : null; // a frequent dig-object state
 
-// Dead stack-scratch window at the top of The Pit's work RAM (stack tops out at 0x83ff). The
+// Stack window at the top of The Pit's work RAM; only the part below the entry SP is dead. The
 // background chain stampGlyphColumn tails into reaches the object movers, whose shared actor-update
 // tail (updateEnemy2 -> advanceTwoSpriteActor) is a dissolved DIRECT call: it runs stack-free
 // on the idiomatic side while the oracle marshals the same tail through the Z80 stack, so those dead
@@ -97,16 +98,16 @@ const callerSeed = ROM_PRESENT ? captureEntry(0x2cb7, caller) : null; // a frequ
 const STACK_LO = 0x8380;
 const STACK_HI = 0x8400;
 
-/** RAM-only first-difference between two machines (dumpState), EXCLUDING the dead stack scratch,
- *  or null when identical. */
-function ramDiff(a, b) {
+/** RAM-only first-difference between two machines (dumpState), EXCLUDING stack scratch below
+ *  `entrySP`, or null when identical. */
+function ramDiff(a, b, entrySP) {
   const da = a.dumpState();
   const db = b.dumpState();
   const n = Math.min(da.length, db.length);
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= STACK_LO && addr < STACK_HI) continue; // dead stack scratch (see STACK_LO/STACK_HI)
+    if (deadStackBelow({ lo: STACK_LO, hi: STACK_HI }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -132,7 +133,7 @@ test("HARNESS: the genuine 0x2d6b entry is captured and the oracle run is determ
   oracle(a);
   const b = entry.clone();
   oracle(b);
-  assert.equal(ramDiff(a, b), null, "oracle run of 0x2d6b is not deterministic");
+  assert.equal(ramDiff(a, b, entry.regs.sp), null, "oracle run of 0x2d6b is not deterministic");
   console.log(
     `  HARNESS: real 0x2d6b entry (0x806e=${hx(entry.mem.read16(PLAYER_CELL_PTR))}, ` +
       `SP=${hx(entry.regs.sp)}); oracle run deterministic`,
@@ -150,7 +151,7 @@ test("EQUAL (real entry): stampGlyphColumn == oracle over RAM", () => {
   oracle(o);
   const c = entry.clone();
   idiomatic(c);
-  const d = ramDiff(o, c);
+  const d = ramDiff(o, c, entry.regs.sp);
   assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)} oracle=${d.a} idio=${d.b}`);
 
   // Positive checks: the glyph, its colour column, the cleared latch and the armed timer.
@@ -179,7 +180,7 @@ test("EQUAL (pointer sweep): every map position stamps identically to the oracle
     oracle(o);
     const c = base.clone();
     idiomatic(c);
-    const d = ramDiff(o, c);
+    const d = ramDiff(o, c, base.regs.sp);
     assert.equal(d, null, d && `ptr=${hx(ptr)}: RAM diff at ${hx(d.addr ?? 0)} oracle=${d.a} idio=${d.b}`);
 
     glyphCells(ptr).forEach((addr, i) =>
@@ -202,7 +203,7 @@ function runTeeth(twin) {
   oracle(o);
   const c = entry.clone();
   twin(c, objectCell);
-  return { d: ramDiff(o, c), objectCell };
+  return { d: ramDiff(o, c, entry.regs.sp), objectCell };
 }
 
 test("TEETH (wrong tile): a twin with one wrong glyph tile is CAUGHT", () => {

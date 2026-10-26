@@ -56,6 +56,7 @@ import {
   GOAL_TILE_LATCH,
   PIT_CROSS_ACTIVE,
 } from "../names.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -144,7 +145,7 @@ function ramDiff(entry, fn) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= sp - STACK_WINDOW && addr < sp) continue; // dead stack-top scratch
+    if (deadStackBelow({ lo: sp - STACK_WINDOW, hi: sp }, sp)(addr)) continue; // dead stack-top scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;

@@ -45,7 +45,7 @@ import { loc_4c77 as oracle } from "../../translated/loc_4c77.js";
 import { requestSound10 } from "../requestSound10.js";
 import { enqueueSoundCommand } from "../enqueueSoundCommand.js";
 import { makeMachineFactory } from "../../machine.js";
-import { unitEquivalence } from "../../../../core/equivalence.js";
+import { unitEquivalence, deadStackBelow } from "../../../../core/equivalence.js";
 import { SOUND_HEAD, SOUND_RING } from "../names.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
@@ -64,8 +64,6 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 // The engine drives makeMachine(overrides) synchronously; The Pit's registry is
 // async, so build the factory once (it closes over the built registry).
 const makeMachine = ROM_PRESENT ? await makeMachineFactory(ROM) : null;
-
-// -- helpers ------------------------------------------------------------------
 
 /**
  * Hook 0x4c77 in a real attract run and clone the machine at up to K real dispatches.
@@ -95,7 +93,7 @@ function ramDiffOutsideStack(a, b, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= entrySP - 4 && addr < entrySP) continue; // dead stack scratch
+    if (deadStackBelow({ lo: entrySP - 4, hi: entrySP }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -129,8 +127,6 @@ function twinWrongIndex(m) {
   enqueueSoundCommand(m, 11); // BUG: this stub must request 10, not 11
 }
 
-// -- 0. IDENTITY (harness sanity) --------------------------------------------
-
 test("IDENTITY: the unit gate runs on The Pit and reports EQUAL when both arms are the oracle", () => {
   const res = unitEquivalence(makeMachine, TARGET, oracle, oracle, { maxFrames: MAX_FRAMES });
   assert.equal(
@@ -140,8 +136,6 @@ test("IDENTITY: the unit gate runs on The Pit and reports EQUAL when both arms a
   );
   console.log("  IDENTITY: captured 0x4c77 (a mid-attract sound request), cloned, ran oracle vs oracle -> EQUAL");
 });
-
-// -- 1. EQUAL (real dispatch, full contract) ---------------------------------
 
 test("EQUAL (real dispatch): requestSound10 == oracle on the captured 0x4c77 entry", () => {
   const caps = captureDispatches(8, MAX_FRAMES);
@@ -174,8 +168,6 @@ test("EQUAL (real dispatch): requestSound10 == oracle on the captured 0x4c77 ent
   );
 });
 
-// -- 2. EQUAL (crafted wrap, pointer==7) --------------------------------------
-
 test("EQUAL (crafted wrap): with SOUND_HEAD forced to 7, both write slot 7 (command 10) and wrap to 0", () => {
   const seed = captureDispatches(1, MAX_FRAMES)[0];
   assert.ok(seed, "need a real capture to craft the wrap entry from");
@@ -192,8 +184,6 @@ test("EQUAL (crafted wrap): with SOUND_HEAD forced to 7, both write slot 7 (comm
   assert.equal(c.mem.read8(SOUND_RING + 7), PENDING, "slot 7 must be filled with command 10");
   console.log("  EQUAL/crafted: pointer 7 -> 0 wrap, slot 7 filled with command 10, identical to the oracle");
 });
-
-// -- 3. TEETH: the wrong-index twin is caught --------------------------------
 
 test("TEETH: a twin that requests the wrong command index (11) is CAUGHT at the ring slot", () => {
   const cap = captureDispatches(1, MAX_FRAMES)[0];

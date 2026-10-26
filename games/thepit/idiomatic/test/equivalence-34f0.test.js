@@ -51,7 +51,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_34f0 as oracle } from "../../translated/loc_34f0.js";
 import { reseedMoverCadenceAndRearmState } from "../reseedMoverCadenceAndRearmState.js";
 import { makeMachineFactory } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -97,7 +97,7 @@ function contractDiff(oracleM, otherM, stackSkip) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = oracleM.stateOffsetToAddr(i);
-    if (stackSkip.has(addr)) continue; // dropped stack ABI, read by nothing
+    if (stackSkip(addr)) continue; // dropped stack ABI, read by nothing
     return `RAM@${hx(addr ?? 0)} oracle=${da[i]} other=${db[i]}`;
   }
   if (oracleM.regs.a !== otherM.regs.a) {
@@ -108,7 +108,7 @@ function contractDiff(oracleM, otherM, stackSkip) {
 
 /** The two bytes the oracle's stack push touches, given the SP it ran with. */
 function stackWindow(sp) {
-  return new Set([(sp - 2) & 0xffff, (sp - 1) & 0xffff]);
+  return deadStackBelow({ lo: sp - 2, hi: sp }, sp);
 }
 
 // -- 1. EQUAL + 2. SCOPE (real captured attract states) -----------------------
@@ -129,7 +129,7 @@ test("EQUAL + SCOPE: reseedMoverCadenceAndRearmState == oracle on real attract s
     for (let i = 0; i < before.length; i++) {
       if (before[i] === after[i]) continue;
       const addr = oracleClone.stateOffsetToAddr(i);
-      if (skip.has(addr)) continue;
+      if (skip(addr)) continue;
       assert.ok(
         EXPECTED_WRITES.has(addr),
         `oracle wrote an unexpected address ${hx(addr ?? 0)} (${before[i]}->${after[i]})`,

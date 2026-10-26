@@ -55,7 +55,7 @@ import { loc_4c6f as oracle } from "../../translated/loc_4c6f.js";
 import { requestSound8 as idiomatic } from "../requestSound8.js";
 import { loc_4c57 as siblingStub } from "../../translated/loc_4c57.js";
 import { makeMachineFactory } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
 import { SOUND_HEAD, SOUND_RING } from "../names.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
@@ -70,11 +70,7 @@ const COMMAND = 8; // the sound-command index this stub requests
 const PENDING = COMMAND | 0x80; // 0x88 — the byte queued (high bit marks the slot pending)
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-// The engine drives makeMachine(overrides) synchronously; The Pit's registry is
-// async, so build the factory once (it closes over the built registry).
 const makeMachine = ROM_PRESENT ? await makeMachineFactory(ROM) : null;
-
-// -- helpers ------------------------------------------------------------------
 
 /**
  * Hook the sibling sound stub 0x4c57 in a real attract run and clone the machine at its
@@ -104,7 +100,7 @@ function ramDiffOutsideStack(a, b, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= entrySP - 4 && addr < entrySP) continue; // dead stack scratch
+    if (deadStackBelow({ lo: entrySP - 4, hi: entrySP }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;
@@ -131,8 +127,6 @@ function contractDiffs(entry, fn) {
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);
   return { diffs, ram };
 }
-
-// -- 0. HARNESS (reachability + determinism) ---------------------------------
 
 test("HARNESS: a real 0x4c57 sound-request entry is captured and the oracle run is deterministic", () => {
   const entry = captureRealSoundRequestEntry(1500);

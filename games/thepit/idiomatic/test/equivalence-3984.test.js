@@ -52,6 +52,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3984 as oracle } from "../../translated/loc_3984.js";
 import { spawnTwinActor as idiomatic } from "../spawnTwinActor.js";
 import { makeMachineFactory } from "../../machine.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const ROM_PATH = new URL("../../rom/maincpu.bin", import.meta.url);
 const ROM_PRESENT = existsSync(ROM_PATH);
@@ -98,19 +99,15 @@ function ramDiffOutsideStack(a, b, entrySP) {
   for (let i = 0; i < n; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (addr >= entrySP - STACK_SCRATCH && addr < entrySP) continue; // dead stack scratch
+    if (deadStackBelow({ lo: entrySP - STACK_SCRATCH, hi: entrySP }, entrySP)(addr)) continue; // dead stack scratch
     return { addr, a: da[i], b: db[i] };
   }
   return null;
 }
 
-/**
- * Compare a candidate against the oracle over the observable-equivalence contract for
- * one captured entry: RAM (outside the stack scratch) + pc + SP. The oracle rets
- * internally (its `ret z` on early-return, or the copier's `ret` on a body-run); the
- * stack-free candidate models its return as a plain JS return, so the gate does one
- * m.ret() on the candidate to line pc + SP up. Returns { diffs, ram } (empty == EQUAL).
- */
+/** Compare a candidate against the oracle over the observable-equivalence contract for one captured entry: RAM
+ *  (outside the stack scratch) + pc + SP, after one m.ret() on the candidate to line pc + SP up (header).
+ *  Returns { diffs, ram } (empty == EQUAL). */
 function contractDiffs(entry, fn) {
   const sp = entry.regs.sp;
   const o = entry.clone();
@@ -126,8 +123,6 @@ function contractDiffs(entry, fn) {
   if (o.regs.sp !== c.regs.sp) diffs.push(`SP oracle=${hx(o.regs.sp)} cand=${hx(c.regs.sp)}`);
   return { diffs, ram };
 }
-
-// -- 1. EQUAL ----------------------------------------------------------------
 
 test("EQUAL: spawnTwinActor == oracle (RAM + pc + SP) on every captured attract dispatch", () => {
   assert.ok(captures.length > 0, `0x3984 was never dispatched in ${FRAMES} attract frames`);
@@ -153,8 +148,6 @@ test("EQUAL: spawnTwinActor == oracle (RAM + pc + SP) on every captured attract 
       `(${bodyRuns()} ran the spawn body + hand-off, ${captures.length - bodyRuns()} early-returned)`,
   );
 });
-
-// -- 2. TEETH: a body-only wrong timer seed is caught ------------------------
 
 /** Broken twin: the stack-free idiomatic routine, then the actor timer bumped by one —
  *  but only when a spawn was actually pending, so it diverges ONLY on a body-run. */
@@ -185,8 +178,6 @@ test("TEETH (wrong timer seed): a body-only wrong timer seed is CAUGHT at the ti
       `(oracle=${caught.ram.a} broken=${caught.ram.b})`,
   );
 });
-
-// -- 3. TEETH: a mis-staged hand-off is caught (dissolve-specific) ------------
 
 /** Broken twin: the stack-free idiomatic routine, then the first staged sprite byte
  *  bumped by one — the output a mis-wired or wrong-argument copier would produce.
