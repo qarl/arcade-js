@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for cueSpikeCollisionSound -- a trampoline that raises the fixed sound id 0xcf and tail-runs the
 // sound gate (register the sound only when the $0005 enable high bit is set). Live-out is memory only
-// (A/X/Y at RTS are incidental), so each arm compares RAM (dumpState, minus STACK_SCRATCH). The gate
+// (A/X/Y at RTS are incidental), so each arm compares RAM (dumpState, minus stack scratch below the entry SP). The gate
 // leaf preserves caller X/Y into $31/$32, so those are the readable near-side effect.
 // Run: node --test games/tempest/idiomatic/test/equivalence-cd06.test.js
 
@@ -9,12 +9,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_cd06 as oracle } from "../../translated/loc_cd06.js";
+import { loc_cd06 } from "../../translated/loc_cd06.js";
 import { cueSpikeCollisionSound } from "../cueSpikeCollisionSound.js";
 import { requestSoundIfEnabled } from "../requestSoundIfEnabled.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, STATUS_FLAGS, loc_31, loc_32 } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { STATUS_FLAGS, loc_31, loc_32 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -27,9 +28,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xcd06;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_cd06);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

@@ -3,17 +3,18 @@
 // 16-bit velocity into their position pair (and clear past the edge, via jsr $a1e4), slots below 8 step a
 // counter and advance it (via jsr $a1fa), clearing at the far limit. The idiomatic side dissolves both
 // jsrs into direct calls (consuming advanceShotAndScoreLaneHit's returned exit pair). Live-out is RAM plus the exit [X, Y]
-// it returns, so the CAPTURE and CRAFTED arms compare RAM (dumpState minus STACK_SCRATCH) and the returned pair. Run: node --test games/tempest/idiomatic/test/equivalence-a18f.test.js
+// it returns, so the CAPTURE and CRAFTED arms compare RAM (dumpState minus stack scratch below the entry SP) and the returned pair. Run: node --test games/tempest/idiomatic/test/equivalence-a18f.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_a18f as oracle } from "../../translated/loc_a18f.js";
+import { loc_a18f } from "../../translated/loc_a18f.js";
 import { stepActiveShots } from "../stepActiveShots.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, SLOT_LOOP_INDEX, ACTIVE_ENEMY_COUNT, OBJECT_VELOCITY_HI, OBJECT_VELOCITY_LO, ACTIVE_OBJECT_COUNT, PLAYER_SEGMENT, PLAYER_SHOT_DEPTH, SLOT_STATE, loc_2e6, HIT_TALLY } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { SLOT_LOOP_INDEX, ACTIVE_ENEMY_COUNT, OBJECT_VELOCITY_HI, OBJECT_VELOCITY_LO, ACTIVE_OBJECT_COUNT, PLAYER_SEGMENT, PLAYER_SHOT_DEPTH, SLOT_STATE, loc_2e6, HIT_TALLY } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -26,9 +27,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xa18f;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_a18f);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

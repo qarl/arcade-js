@@ -2,18 +2,19 @@
 // Memory-equivalence for faceEnemyTowardPlayerSegment (ROM 0x9d67-0x9d81) -- reads $02b9,x -> Y, dissolves the
 // m.call($a7a6) into a direct signedSegmentDelta(m, $0200, Y) whose signed difference's top bit picks whether
 // to clear (and #$bf) or set (ora #$40) bit6 of $0283,x. Live-out is memory ($0283,x and a7a6's
-// $2a stash), so each side runs on a clone and the contract is RAM (dumpState, minus STACK_SCRATCH).
+// $2a stash), so each side runs on a clone and the contract is RAM (dumpState, minus stack scratch below the entry SP).
 // Run: node --test games/tempest/idiomatic/test/equivalence-9d67.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9d67 as oracle } from "../../translated/loc_9d67.js";
+import { loc_9d67 } from "../../translated/loc_9d67.js";
 import { faceEnemyTowardPlayerSegment } from "../faceEnemyTowardPlayerSegment.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, ENEMY_SEGMENT, PLAYER_SEGMENT, ENEMY_SLOT_FLAGS, TUBE_GEOM_FLAG } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { ENEMY_SEGMENT, PLAYER_SEGMENT, ENEMY_SLOT_FLAGS, TUBE_GEOM_FLAG } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -26,9 +27,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x9d67;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9d67);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

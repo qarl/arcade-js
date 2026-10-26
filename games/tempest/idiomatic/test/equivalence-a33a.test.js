@@ -9,12 +9,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_a33a as oracle } from "../../translated/loc_a33a.js";
+import { loc_a33a } from "../../translated/loc_a33a.js";
 import { insertType5AndDrainPending } from "../insertType5AndDrainPending.js";
 import { insertObjectAndSignalReady } from "../primeTopPriorityObject.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, STATUS_FLAGS, COORD_LIST_PTR_LO, PLAYER_SEGMENT, PLAYER_FINE_ANGLE, PLAYER_SHOT_DEPTH, OBJECT_ANIM_TIMER } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { STATUS_FLAGS, COORD_LIST_PTR_LO, PLAYER_SEGMENT, PLAYER_FINE_ANGLE, PLAYER_SHOT_DEPTH, OBJECT_ANIM_TIMER } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -24,9 +25,9 @@ function opt(name) { const u = new URL(name, ROM_DIR); return existsSync(u) ? ne
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xa33a;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_a33a);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

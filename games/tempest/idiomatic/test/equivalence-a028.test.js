@@ -14,11 +14,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_a028 as oracle } from "../../translated/loc_a028.js";
+import { loc_a028 } from "../../translated/loc_a028.js";
 import { aimClimberAtDeepestColumn } from "../aimClimberAtDeepestColumn.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_29, TUBE_GEOM_FLAG, ENEMY_SEGMENT, ENEMY_PHASE, ENEMY_SLOT_DIR, LANE_LIMIT } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { loc_29, TUBE_GEOM_FLAG, ENEMY_SEGMENT, ENEMY_PHASE, ENEMY_SLOT_DIR, LANE_LIMIT } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -31,9 +32,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xa028;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_a028);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // Freeze the POKEY polys so both arms read the same clock-coupled RANDOM ($60da).
 const freezePokey = (m) => { for (const p of m.io.pokeys) p.skctl &= ~0x03; return m; };

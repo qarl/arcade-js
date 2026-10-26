@@ -4,18 +4,19 @@
 // The idiomatic side dissolves the fall-through m.call($df92) into a direct emitCoordinateRecord(m, 0x6e) call.
 // Live-out is memory only (the pairs plus everything emitCoordinateRecord's chain writes through the cursor; X is
 // consumed as df92's index, not read externally), so each arm compares RAM (dumpState minus
-// STACK_SCRATCH). Run: node --test games/tempest/idiomatic/test/equivalence-df75.test.js
+// stack scratch below the entry SP). Run: node --test games/tempest/idiomatic/test/equivalence-df75.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_df75 as oracle } from "../../translated/loc_df75.js";
+import { loc_df75 } from "../../translated/loc_df75.js";
 import { emitScaledCoordinateRecord } from "../emitScaledCoordinateRecord.js";
 import { emitCoordinateRecord } from "../emitCoordinateRecord.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, VEC_DELTA_Y_LO, DRAW_DELTA_A_HI, DRAW_DELTA_B_LO, DRAW_DELTA_B_HI, VG_RECORD_HEADER, DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { VEC_DELTA_Y_LO, DRAW_DELTA_A_HI, DRAW_DELTA_B_LO, DRAW_DELTA_B_HI, VG_RECORD_HEADER, DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -28,9 +29,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xdf75;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_df75);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

@@ -4,15 +4,15 @@
 // into the 2-byte jump table at $b5e1; the five targets (word+1) are 0xb5eb/0xb71b/0xb60f/0xb622/0xb69b and
 // each RTS returns to dispatchSlotDrawHandler's own caller. The idiomatic form dissolves the push/pull16/rts-jump into
 // TABLE[a>>1](m). All five targets take only (m, x=m.regs.x) -- none reads Y -- so the tay is a dead
-// register and the contract is RAM (dumpState, minus STACK_SCRATCH); the oracle's stack gymnastics land in
-// STACK_SCRATCH and are excluded.
+// register and the contract is RAM (dumpState, minus stack scratch below the entry SP); the oracle's stack gymnastics land
+// below the entry SP and are excluded.
 // Run: node --test games/tempest/idiomatic/test/equivalence-b5d7.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_b5d7 as oracle } from "../../translated/loc_b5d7.js";
+import { loc_b5d7 } from "../../translated/loc_b5d7.js";
 import { dispatchSlotDrawHandler } from "../dispatchSlotDrawHandler.js";
 import { drawSlotRimSegment } from "../drawSlotRimSegment.js";
 import { drawStyledSlotRimSegment } from "../drawStyledSlotRimSegment.js";
@@ -21,8 +21,9 @@ import { emitAnimatedPhaseSlot } from "../emitAnimatedPhaseSlot.js";
 import { emitInterpolatedSlotVector } from "../emitInterpolatedSlotVector.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { u16 } from "../../../../core/int.js";
-import { STACK_SCRATCH, DRAW_CURSOR_LO, DRAW_CURSOR_HI, loc_ac, loc_ad } from "../names.js";
+import { DRAW_CURSOR_LO, DRAW_CURSOR_HI, loc_ac, loc_ad } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -36,9 +37,9 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0xb5d7;
 const TABLE = [drawSlotRimSegment, drawStyledSlotRimSegment, emitJumpModeSlot, emitAnimatedPhaseSlot, emitInterpolatedSlotVector];
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_b5d7);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // Point the draw pipeline at mapped RAM so the targets' (loc_ac)->list->(DRAW_CURSOR_LO) chases land in vector RAM
 // and a slot index is valid, then aim A at a table entry.

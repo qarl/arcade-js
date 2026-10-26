@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for selectClimberSpawnLane -- picks a POKEY-random start lane, walks four candidate lists skipping
 // empty lanes, and on a hit builds the $2c/$2d list pointer + $2b tag, returning A=$29 (or 0 on underflow).
-// Live-out is memory plus A; each side runs on a clone and the RAM contract is dumpState minus STACK_SCRATCH.
+// Live-out is memory plus A; each side runs on a clone and the RAM contract is dumpState minus stack scratch below the entry SP.
 // A leaf: the module omits the ROM ret and the seam completes it, so arms compare RAM (-stack).
 // The routine reads POKEY RANDOM ($60ca): both arms are fresh machines at cycle 0, so the RNG read matches
 // across arms and ramDiff stays valid, but the random-derived lane is not asserted -- only non-poke facts are.
@@ -11,11 +11,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9abb as oracle } from "../../translated/loc_9abb.js";
+import { loc_9abb } from "../../translated/loc_9abb.js";
 import { selectClimberSpawnLane } from "../selectClimberSpawnLane.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, POKEY1_RANDOM, loc_2b, loc_39, CANDIDATE_LANE_0, OBJECT_ANIM_TIMER, COORD_LIST_PTR_LO, LIST_PTR_TABLE_HI, COORD_LIST_PTR_HI, loc_29 } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { POKEY1_RANDOM, loc_2b, loc_39, CANDIDATE_LANE_0, OBJECT_ANIM_TIMER, COORD_LIST_PTR_LO, LIST_PTR_TABLE_HI, COORD_LIST_PTR_HI, loc_29 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -28,9 +29,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x9abb;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9abb);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

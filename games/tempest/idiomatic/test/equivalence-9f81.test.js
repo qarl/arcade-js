@@ -3,7 +3,7 @@
 // Memory-equivalence for flipEnemyLaneTowardTarget / flipEnemyLaneRandomSide (ROM 0x9f81-0x9fc3) -- a per-slot(x) segment-flag step that
 // tail-jmps into stepClimberSegmentAndHeading. The idiomatic side dissolves jsr $9d67, jsr $9c4f and the jmp $9e5f into direct
 // faceEnemyTowardPlayerSegment / toggleEnemyTurnSide / stepClimberSegmentAndHeading calls. All output is RAM plus the tail's A live-out (stepClimberSegmentAndHeading's stored
-// direction byte), so each arm compares RAM (dumpState minus STACK_SCRATCH) and the returned A vs o.regs.a.
+// direction byte), so each arm compares RAM (dumpState minus stack scratch below the entry SP) and the returned A vs o.regs.a.
 // The flipEnemyLaneRandomSide entry reads a POKEY random bit ($60ca): both sides run on identically-seeded Machines (same
 // poly state), so the read agrees. Run: node --test games/tempest/idiomatic/test/equivalence-9f81.test.js
 
@@ -11,12 +11,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9f81 as oracle, loc_9f8a as oracle8a } from "../../translated/loc_9f81.js";
+import { loc_9f81, loc_9f8a } from "../../translated/loc_9f81.js";
 import { flipEnemyLaneTowardTarget, flipEnemyLaneRandomSide } from "../flipEnemyLaneTowardTarget.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { u16 } from "../../../../core/int.js";
-import { STACK_SCRATCH, ENEMY_SLOT_FLAGS, ENEMY_SEGMENT, TUBE_GEOM_FLAG } from "../names.js";
+import { ENEMY_SLOT_FLAGS, ENEMY_SEGMENT, TUBE_GEOM_FLAG } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -26,9 +27,10 @@ function opt(name) { const u = new URL(name, ROM_DIR); return existsSync(u) ? ne
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x9f81;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9f81);
+const oracle8a = atEntry(loc_9f8a);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

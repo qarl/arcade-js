@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for stepEaromTransfer (ROM 0xde1b-0xdf08) -- the EAROM state-machine step over $01c6..$01cf
-// and the $6000/$6040/$6050 port block. Contract: RAM (dumpState, minus STACK_SCRATCH) PLUS the exit X/Y,
+// and the $6000/$6040/$6050 port block. Contract: RAM (dumpState, minus stack scratch below the entry SP) PLUS the exit X/Y,
 // which the idiomatic form returns as [x, y] and the frozen oracle leaves in regs.x/regs.y at RTS -- a
 // load-bearing register live-out (seedFramePhaseAndTick forwards them to the sound call requestActiveSoundCue). A leaf: the module
 // omits the ROM ret and the seam completes it, so RAM arms compare RAM (-stack), NOT pc/SP.
@@ -11,11 +11,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_de1b as oracle } from "../../translated/loc_de1b.js";
+import { loc_de1b } from "../../translated/loc_de1b.js";
 import { stepEaromTransfer } from "../stepEaromTransfer.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, EAROM_REGION_PENDING, EAROM_MODE, EAROM_CURSOR } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { EAROM_REGION_PENDING, EAROM_MODE, EAROM_CURSOR } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -28,9 +29,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xde1b;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_de1b);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

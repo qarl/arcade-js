@@ -2,7 +2,7 @@
 // Memory-equivalence for sweepLaneSlotsForRespawn (ROM 0xa888-0xa8ae). Acts only when WAVE_PHASE_LATCH >= 3 and even: it scans
 // ENEMY_DEPTH,y downward from y = ENEMY_SLOT_TOP for the first nonzero slot. Found -> clears the low two bits of
 // ENEMY_SLOT_DIR,y and TAIL-DELEGATES to respawnEnemyAndAward for that slot; none found -> resets WAVE_PHASE_LATCH to 0; below the
-// guard -> no-op. Contract is RAM (dumpState minus STACK_SCRATCH). No live-out register is compared: the
+// guard -> no-op. Contract is RAM (dumpState minus stack scratch below the entry SP). No live-out register is compared: the
 // found path tail-delegates to respawnEnemyAndAward (its exit registers are the delegate's chain), and the other
 // exits are plain returns whose registers no caller distinguishes here. Oracle is the frozen translated
 // sweepLaneSlotsForRespawn.
@@ -12,12 +12,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_a888 as oracle } from "../../translated/loc_a888.js";
+import { loc_a888 } from "../../translated/loc_a888.js";
 import { sweepLaneSlotsForRespawn } from "../sweepLaneSlotsForRespawn.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { u16 } from "../../../../core/int.js";
-import { STACK_SCRATCH, ENEMY_SLOT_TOP, WAVE_PHASE_LATCH, ENEMY_SLOT_DIR, ENEMY_DEPTH } from "../names.js";
+import { ENEMY_SLOT_TOP, WAVE_PHASE_LATCH, ENEMY_SLOT_DIR, ENEMY_DEPTH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -30,9 +31,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xa888;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_a888);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

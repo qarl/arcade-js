@@ -4,7 +4,7 @@
 // otherwise publishes the active pointer and (unless the checkpoint helper reports a change) runs the
 // trampoline dispatch and folds a 40-byte block into a checksum byte via a carry-chained subtract that
 // is DECIMAL-aware when the CPU D flag is live, then latches the two source bytes into the first two
-// display words. Each arm compares RAM (dumpState minus STACK_SCRATCH), and the exit-register arms also
+// display words. Each arm compares RAM (dumpState minus stack scratch below the entry SP), and the exit-register arms also
 // compare the returned exit [X, Y], which runMainFrameLoop carries into the next update's dispatch. The trampoline (an
 // unlifted co-SCC member) is left as a machine dispatch; where an arm must drive the checksum path, it
 // is stubbed identically on both clones. The D-flag reproduction is proved by a decimal CRAFTED arm plus a positive control that forces
@@ -15,11 +15,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_b1b6 as oracle } from "../../translated/loc_b1b6.js";
+import { loc_b1b6 } from "../../translated/loc_b1b6.js";
 import { buildFrameVectors } from "../buildFrameVectors.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, MODE_DISPATCH_SEL, SCORE_DISPLAY_TIMER, DRAW_RECORD_PTR_LO, VEC_LIST_HEADER_LO, VECHEAD0_PLAY, VECHEAD0_LEVEL, LEVEL_LAYOUT_TRIGGER } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { MODE_DISPATCH_SEL, SCORE_DISPLAY_TIMER, DRAW_RECORD_PTR_LO, VEC_LIST_HEADER_LO, VECHEAD0_PLAY, VECHEAD0_LEVEL, LEVEL_LAYOUT_TRIGGER } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -32,9 +33,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xb1b6;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_b1b6);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // The trampoline dispatch may reach the POKEY RANDOM ports; freeze the polys so both clones read the
 // same byte on every load (the idiomatic layer does not tick cycles the way the stepped oracle does).

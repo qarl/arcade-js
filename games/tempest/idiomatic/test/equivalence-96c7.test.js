@@ -10,11 +10,11 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_96c7 as oracle7, loc_96c8 as oracle8 } from "../../translated/loc_96c7.js";
+import { loc_96c7, loc_96c8 } from "../../translated/loc_96c7.js";
 import { advanceCursorPastPackedRecord, advanceListCursorByTwo } from "../advanceCursorPastPackedRecord.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const rd = (f) => (existsSync(new URL(f, ROM_DIR)) ? new Uint8Array(readFileSync(new URL(f, ROM_DIR))) : null);
@@ -24,9 +24,10 @@ const OPTS = { vectorrom: opt("vectorrom.bin"), avgprom: opt("avgprom.bin") };
 const ROM_PRESENT = ROM !== null;
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle7 = atEntry(loc_96c7);
+const oracle8 = atEntry(loc_96c8);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(addr, oracleFn, K, maxFrames) {
   const caps = [];

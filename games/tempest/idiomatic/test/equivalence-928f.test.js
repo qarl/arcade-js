@@ -10,11 +10,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_928f as oracle } from "../../translated/loc_928f.js";
+import { loc_928f } from "../../translated/loc_928f.js";
 import { clearActiveShots } from "../clearActiveShots.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, ACTIVE_ENEMY_COUNT, ACTIVE_OBJECT_COUNT, SLOT_STATE } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { ACTIVE_ENEMY_COUNT, ACTIVE_OBJECT_COUNT, SLOT_STATE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const opt = (name) => {
@@ -27,9 +28,9 @@ const OPTS = { vectorrom: opt("vectorrom.bin"), avgprom: opt("avgprom.bin") };
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x928f;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_928f);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

@@ -2,19 +2,20 @@
 // Memory-equivalence for primeTopObjectOnTargetMatch -- guards on a matching live byte and a not-yet-set flag, then dissolves
 // the jsr into a direct primeTopPriorityObject(m, x, y) and latches the flag. Live-out is memory (the object table a34b
 // seeds plus the flag); the incidental A/X/Y at RTS are not read, so each arm compares RAM (dumpState minus
-// STACK_SCRATCH). Poly is frozen defensively (the a34b path takes no RNG, but keeps arms bit-identical).
+// stack scratch below the entry SP). Poly is frozen defensively (the a34b path takes no RNG, but keeps arms bit-identical).
 // Run: node --test games/tempest/idiomatic/test/equivalence-a1e4.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_a1e4 as oracle } from "../../translated/loc_a1e4.js";
+import { loc_a1e4 } from "../../translated/loc_a1e4.js";
 import { primeTopObjectOnTargetMatch } from "../primeTopObjectOnTargetMatch.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { u16 } from "../../../../core/int.js";
-import { STACK_SCRATCH, PLAYER_SEGMENT, PLAYER_FINE_ANGLE, TARGET_SEG } from "../names.js";
+import { PLAYER_SEGMENT, PLAYER_FINE_ANGLE, TARGET_SEG } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -27,9 +28,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xa1e4;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_a1e4);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 const freezePokey = (m) => { for (const p of m.io.pokeys) p.skctl &= ~0x03; return m; };
 
 function captureDispatches(K, maxFrames) {

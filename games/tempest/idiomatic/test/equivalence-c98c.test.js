@@ -2,7 +2,7 @@
 // Memory-equivalence for bumpLevelEnemyQuota (ROM 0xc98c-0xc9ae). Index off loc_3d: read the PLAYER_LEVEL_TBL-slot; while it is
 // below 0x62 increment that slot and loc_9f; seed GAME_MODE = 0x18; when the loc_102-slot is nonzero run the
 // handler chain (seatInPagePointer with the slot value, addBcdScoreAndAwardAtThreshold with X=0xff, requestScoreAwardSound); then TAIL-DELEGATE to
-// runWaveInit. Contract is RAM (dumpState minus STACK_SCRATCH) plus the exit [X, Y] it returns: the routine takes
+// runWaveInit. Contract is RAM (dumpState minus stack scratch below the entry SP) plus the exit [X, Y] it returns: the routine takes
 // no input register and tail-jmps runWaveInit, so its exit registers are the delegate's, which the CAPTURE arm
 // compares with the oracle's. Oracle is the frozen translated bumpLevelEnemyQuota.
 // Run: node --test games/tempest/idiomatic/test/equivalence-c98c.test.js
@@ -11,11 +11,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_c98c as oracle } from "../../translated/loc_c98c.js";
+import { loc_c98c } from "../../translated/loc_c98c.js";
 import { bumpLevelEnemyQuota } from "../bumpLevelEnemyQuota.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, GAME_MODE, loc_3d, PLAYER_LEVEL_TBL, loc_9f, STATUS_FLAGS, loc_31, loc_32 } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { GAME_MODE, loc_3d, PLAYER_LEVEL_TBL, loc_9f, STATUS_FLAGS, loc_31, loc_32 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -29,9 +30,9 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0xc98c;
 const TRIGGER_BASE = 0x0102; // loc_102 (new cell; wired in names.js by the lead)
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_c98c);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

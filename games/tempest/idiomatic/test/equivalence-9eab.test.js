@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for keepClimberFlipBitByDepth (ROM 0x9eab-0x9ed6) -- per-slot(x) bit6 keeper on $0283,x, gated by $0111.
 // Writes memory only (A at RTS is incidental), so each side runs on a clone and the contract is RAM
-// (dumpState, minus STACK_SCRATCH). A leaf: the module omits the ROM ret and the seam completes it, so the
+// (dumpState, minus stack scratch below the entry SP). A leaf: the module omits the ROM ret and the seam completes it, so the
 // arms compare RAM (-stack), NOT pc/SP. No POKEY/clock read.
 // Run: node --test games/tempest/idiomatic/test/equivalence-9eab.test.js
 
@@ -9,11 +9,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9eab as oracle } from "../../translated/loc_9eab.js";
+import { loc_9eab } from "../../translated/loc_9eab.js";
 import { keepClimberFlipBitByDepth } from "../keepClimberFlipBitByDepth.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, TUBE_GEOM_FLAG, ENEMY_SLOT_FLAGS, ENEMY_SEGMENT } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { TUBE_GEOM_FLAG, ENEMY_SLOT_FLAGS, ENEMY_SEGMENT } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -26,9 +27,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x9eab;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9eab);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

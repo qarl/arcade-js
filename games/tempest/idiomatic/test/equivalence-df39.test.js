@@ -3,19 +3,19 @@
 // the ($74) cursor (high byte = tagged upper nibble of A, low byte = X rotated right) then dissolves its
 // tail branch into a direct advanceDisplayCursor cursor-advance (the fall path, unreachable since Y is always 1, would
 // tail into emitTaggedVectorWord). Effect is memory only; the emitter returns nothing, so each arm compares RAM
-// (dumpState minus STACK_SCRATCH). A/X are register inputs, carried on both sides via clones of one base.
+// (dumpState minus stack scratch below the entry SP). A/X are register inputs, carried on both sides via clones of one base.
 // Run: node --test games/tempest/idiomatic/test/equivalence-df39.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_df39 as oracle } from "../../translated/loc_df39.js";
+import { loc_df39 } from "../../translated/loc_df39.js";
 import { emitCoordinateVectorWord } from "../emitCoordinateVectorWord.js";
 import { advanceDisplayCursor } from "../advanceDisplayCursor.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -28,9 +28,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xdf39;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_df39);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

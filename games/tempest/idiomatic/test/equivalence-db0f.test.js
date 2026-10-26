@@ -5,14 +5,14 @@
 // 0xdb9a/0xdb7e/0xdb6f/0xdb22 -- the per-frame draw handlers -- and each RTS returns to dispatchDrawHandler's own
 // caller. The idiomatic form dissolves the push/pull16/rts-jump into TABLE[offset>>1](m). All seven
 // targets take only (m); the register work is the dead rts-trick, so the contract is RAM (dumpState,
-// minus STACK_SCRATCH). Not reached in a 3000-frame boot, so the proof rests on CRAFTED + CLAMP + TEETH + SP.
+// minus stack scratch below the entry SP). Not reached in a 3000-frame boot, so the proof rests on CRAFTED + CLAMP + TEETH + SP.
 // Run: node --test games/tempest/idiomatic/test/equivalence-db0f.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_db0f as oracle } from "../../translated/loc_db0f.js";
+import { loc_db0f } from "../../translated/loc_db0f.js";
 import { dispatchDrawHandler } from "../dispatchDrawHandler.js";
 import { beginEaromSequenceIfIdle } from "../beginEaromSequenceIfIdle.js";
 import { emitReadoutVectorList } from "../emitReadoutVectorList.js";
@@ -23,9 +23,10 @@ import { emitHalvedCountHeaderAndClearVectorSlots } from "../emitHalvedCountHead
 import { initVectorDisplayRegisters } from "../initVectorDisplayRegisters.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { u16 } from "../../../../core/int.js";
 import {
-  STACK_SCRATCH, GAME_MODE, loc_2e, loc_2f, INPUT_EDGE_FLAGS, SPINNER_ACCUM, SPINNER_POT_PREV, DRAW_CURSOR_LO, DRAW_CURSOR_HI, SEG_SPREAD_A_LO, SEG_SPREAD_A_LO_5,
+  GAME_MODE, loc_2e, loc_2f, INPUT_EDGE_FLAGS, SPINNER_ACCUM, SPINNER_POT_PREV, DRAW_CURSOR_LO, DRAW_CURSOR_HI, SEG_SPREAD_A_LO, SEG_SPREAD_A_LO_5,
 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -40,9 +41,9 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0xdb0f;
 const TABLE = [beginEaromSequenceIfIdle, emitReadoutVectorList, emitFixedHeaderAndClearVectorSlots, stepVectorPhaseAnimation, emitPrimedHeaderAndClearVectorSlots, emitHalvedCountHeaderAndClearVectorSlots, initVectorDisplayRegisters];
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_db0f);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // Aim the dispatcher at table offset `off` (GAME_MODE) and provision the draw pipeline so at least one
 // handler runs: the display cursor into vector RAM, the frame counter + both emit tables (entry 1's

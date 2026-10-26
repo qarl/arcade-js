@@ -3,18 +3,19 @@
 // head flag $013b, then falls into the shared insert tail with a fixed type byte 0x01 (so $2c = 0x01),
 // copying $0202->$29 / $0200->$2d, firing the sound gate and table insert with the entry X/Y, and raising
 // the ready flags. The idiomatic side dissolves the fall-through into a direct insertObjectAndSignalReady call. Live-out is
-// memory (X/Y preserved); each arm compares RAM (dumpState minus STACK_SCRATCH) and checks X/Y unchanged.
+// memory (X/Y preserved); each arm compares RAM (dumpState minus stack scratch below the entry SP) and checks X/Y unchanged.
 // Run: node --test games/tempest/idiomatic/test/equivalence-a34d.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_a34d as oracle } from "../../translated/loc_a34b.js";
+import { loc_a34d } from "../../translated/loc_a34b.js";
 import { insertType1WithHeadFlag } from "../primeTopPriorityObject.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, STATUS_FLAGS, COORD_LIST_PTR_LO, OBJECT_ANIM_PHASE, OBJECT_ANIM_TIMER, PLAYER_SEGMENT, PLAYER_FINE_ANGLE, PLAYER_SHOT_DEPTH } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { STATUS_FLAGS, COORD_LIST_PTR_LO, OBJECT_ANIM_PHASE, OBJECT_ANIM_TIMER, PLAYER_SEGMENT, PLAYER_FINE_ANGLE, PLAYER_SHOT_DEPTH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -27,9 +28,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xa34d;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_a34d);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

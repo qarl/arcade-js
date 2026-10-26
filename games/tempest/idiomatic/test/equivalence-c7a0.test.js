@@ -5,7 +5,7 @@
 // (manifest irqVblank): a burst of nine frozen-loc_d704 IRQs fired through the seam, at each idiomatic yield
 // and at each oracle wait poll that will loop (the busy-wait's yield point). The run is bounded at the same
 // logical point, the Nth burst, by a sentinel throw. RANDOM is one deterministic stream per chip on both sides
-// and the device clock is pinned, so neither arm's cycle count leaks in. Contract: RAM minus STACK_SCRATCH,
+// and the device clock is pinned, so neither arm's cycle count leaks in. Contract: RAM minus stack scratch below the entry SP,
 // device latch state, per-chip RANDOM read counts and AVG go strobes at every checkpoint, and the X/Y every
 // sound-loader entry stashes (STASH; the loop threads each pass's exit X/Y into the next pass). No register
 // live-out: the routine never returns (its one caller, d9a5, is a JMP).
@@ -24,7 +24,8 @@ import { seedFramePhaseAndTick } from "../seedFramePhaseAndTick.js";
 import { buildFrameVectors } from "../buildFrameVectors.js";
 import { Machine } from "../../machine.js";
 import manifest from "../../manifest.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
+import { stackFloor } from "./_entryFloor.js";
 import {
   STACK_SCRATCH, IRQ_HEARTBEAT, GAME_MODE, STATUS_FLAGS, SOUND_STEP_GATE, loc_31, loc_32, SOUND_VOICE_TABLE,
   EAROM_REGION_PENDING, EAROM_REGION_DIR, EAROM_MODE, VEC_LIST_HEADER_LO, VECHEAD0_LEVEL, LEVEL_LAYOUT_TRIGGER,
@@ -43,7 +44,6 @@ const BURST = manifest.convergence.idiomatic.irq.irqVblank.length; // IRQs the e
 const CHECKS = [1, 2, 3, 10, 40, 150, 450, 900];
 const LAST = CHECKS[CHECKS.length - 1];
 const BOUND = Symbol("c7a0-bound");
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 function pin(m) {
   m.nextBoundary = Infinity; m.nextIrqCycle = Infinity; m.maxCycles = Infinity;
@@ -97,7 +97,7 @@ function logStashes(m) {
 
 // Oracle: a busy-wait poll that will loop is its yield point; burst there, snapshot/stop at the Nth.
 function runOracle(m) {
-  const snaps = new Map();
+  const snaps = new Map(); snaps.floor = stackFloor(m);
   snaps.stash = logStashes(m);
   const read8 = m.mem.read8.bind(m.mem);
   let n = 0;
@@ -115,7 +115,7 @@ function runOracle(m) {
   return snaps;
 }
 function runGen(gen, m) {
-  const snaps = new Map();
+  const snaps = new Map(); snaps.floor = stackFloor(m);
   snaps.stash = logStashes(m);
   for (let n = 1; n <= LAST; n++) {
     if (gen.next().done) throw new Error("the main loop returned");
@@ -128,7 +128,7 @@ function diff(so, si) {
   for (const n of CHECKS) {
     const o = so.get(n), c = si.get(n);
     if (!o || !c) return `checkpoint ${n} missing (oracle ${!!o}, idiomatic ${!!c})`;
-    const d = firstStateDiff(o.ram, c.ram, o.at, inDeadStack);
+    const d = firstStateDiff(o.ram, c.ram, o.at, deadStackBelow(STACK_SCRATCH, Math.min(so.floor, si.floor)));
     if (d) return `burst ${n}: RAM 0x${d.addr.toString(16)} oracle=${d.a} idiomatic=${d.b}`;
     if (o.dev !== c.dev) return `burst ${n}: device state differs`;
     if (o.done !== c.done) return `burst ${n}: AVG done flag oracle=${o.done} idiomatic=${c.done}`;
@@ -232,8 +232,8 @@ ARMS.forEach(([label], i) => {
   });
 });
 
-// Every RAM cell but STACK_SCRATCH, the register stash cells loc_31/loc_32 (sound loader) and 0x39 included.
-test("STRICT: every arm equal with only STACK_SCRATCH excluded", () => {
+// Every RAM cell but stack scratch below the entry SP, the register stash cells loc_31/loc_32 (sound loader) and 0x39 included.
+test("STRICT: every arm equal with only stack scratch below the entry SP excluded", () => {
   const red = ARMS.map(([label], i) => [label, diff(oracleRun(i), genRun(i))]).filter(([, d]) => d);
   assert.deepEqual(red, []);
 });

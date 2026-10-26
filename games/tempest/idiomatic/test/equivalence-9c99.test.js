@@ -2,7 +2,7 @@
 // Memory-equivalence for the reverseEnemyLaneDepth mid-entry (ROM 0x9c99) -- the SUBTRACT path of the tube-coordinate
 // stepper: it subtracts the per-segment delta (low ENEMY_CLIMB_DELTA_LO_0,y / high ENEMY_CLIMB_DELTA_HI_0,y) from slot x's 16-bit
 // coordinate (low ENEMY_DEPTH_LO,x / high ENEMY_DEPTH,x, with borrow), and floors the high byte to 0xf2 when it
-// underflows past 0xf0. Live-out is RAM (dumpState minus STACK_SCRATCH) plus A (the new high byte, or 0xf2),
+// underflows past 0xf0. Live-out is RAM (dumpState minus stack scratch below the entry SP) plus A (the new high byte, or 0xf2),
 // which its dispatcher caller reads back. Oracle is the frozen mid-entry export loc_9c99 in translated/loc_9c58.js.
 // Run: node --test games/tempest/idiomatic/test/equivalence-9c99.test.js
 
@@ -10,12 +10,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9c99 as oracle } from "../../translated/loc_9c58.js";
+import { loc_9c99 } from "../../translated/loc_9c58.js";
 import { reverseEnemyLaneDepth } from "../stepEnemyDepthInLaneDirection.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { u16 } from "../../../../core/int.js";
-import { STACK_SCRATCH, ENEMY_CLIMB_DELTA_LO_0, ENEMY_CLIMB_DELTA_HI_0, ENEMY_DEPTH_LO, ENEMY_DEPTH } from "../names.js";
+import { ENEMY_CLIMB_DELTA_LO_0, ENEMY_CLIMB_DELTA_HI_0, ENEMY_DEPTH_LO, ENEMY_DEPTH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -28,9 +29,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x9c99;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9c99);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

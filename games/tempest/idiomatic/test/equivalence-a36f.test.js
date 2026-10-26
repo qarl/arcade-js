@@ -3,21 +3,22 @@
 // source/target ($02db,y -> $29 and $02b5,y -> $2d), re-inserts a zeroed object (insertTimedObjectOfType with A=0), clears
 // $02db,y, decrements $a6, and flags $02f2,x. The idiomatic side dissolves the two jsr into direct
 // gateSound1f/insertTimedObjectOfType calls, passing the entry X/Y (preserved across both callees). Live-out is memory only
-// (A at RTS incidental; X/Y restored to entry), so each arm compares RAM (minus STACK_SCRATCH) and X/Y.
+// (A at RTS incidental; X/Y restored to entry), so each arm compares RAM (minus stack scratch below the entry SP) and X/Y.
 // Run: node --test games/tempest/idiomatic/test/equivalence-a36f.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_a36f as oracle } from "../../translated/loc_a36f.js";
+import { loc_a36f } from "../../translated/loc_a36f.js";
 import { retireSpawnedObject } from "../retireSpawnedObject.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { u16 } from "../../../../core/int.js";
 import { gateSound1f } from "../gateSound1f.js";
 import { insertTimedObjectOfType } from "../insertTimedObjectOfType.js";
-import { STACK_SCRATCH, STATUS_FLAGS, loc_29, COORD_LIST_PTR_HI, ACTIVE_ENEMY_COUNT, loc_2db, loc_2b5, HIT_TALLY } from "../names.js";
+import { STATUS_FLAGS, loc_29, COORD_LIST_PTR_HI, ACTIVE_ENEMY_COUNT, loc_2db, loc_2b5, HIT_TALLY } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -30,9 +31,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xa36f;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_a36f);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

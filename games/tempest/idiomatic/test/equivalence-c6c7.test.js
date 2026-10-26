@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for emitEnemySlotEntry (ROM 0xc6c7-0xc73b) -- a CALLER: it dissolves m.call into direct
 // idiomatic calls (c453, c098, c73c, bd3e). Effect is memory only (cursor $a9 + vector RAM via ($74)),
-// so each side runs on a clone and the contract is RAM (dumpState, minus STACK_SCRATCH). The bit6-set
+// so each side runs on a clone and the contract is RAM (dumpState, minus stack scratch below the entry SP). The bit6-set
 // (target-flag) branch is only reached in specific free-running states CAPTURE's cycle-driven run never hits,
 // which hid a stale-cursor bug (it discarded appendNormalizedMantissaExponent's advanced offset, emitting a
 // 2-byte-short record); CRAFTED now exercises BOTH the inactive branch and that bit6 branch.
@@ -11,11 +11,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_c6c7 as oracle } from "../../translated/loc_c6c7.js";
+import { loc_c6c7 } from "../../translated/loc_c6c7.js";
 import { emitEnemySlotEntry } from "../emitEnemySlotEntry.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, TABLE_CURSOR, LANE_LIMIT, LANE_TARGET_FLAG, SEG_MID_X, SEG_MID_Y, DRAW_CURSOR_LO, DRAW_CURSOR_HI, DRAW_CURSOR_OFFSET } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { TABLE_CURSOR, LANE_LIMIT, LANE_TARGET_FLAG, SEG_MID_X, SEG_MID_Y, DRAW_CURSOR_LO, DRAW_CURSOR_HI, DRAW_CURSOR_OFFSET } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -28,9 +29,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xc6c7;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_c6c7);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

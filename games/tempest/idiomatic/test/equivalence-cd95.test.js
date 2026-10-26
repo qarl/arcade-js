@@ -5,19 +5,20 @@
 // POKEY-timing-coupled: on a fresh (or master-reset) POKEY the polys are frozen, so both arms see stable
 // samples and $0720 stays 0 -- so the CRAFTED arm asserts the deterministic RAM cells and leans on CAPTURE
 // for the poll. A leaf: the module omits the ROM ret and the seam completes it, so the arms compare RAM
-// (dumpState, minus STACK_SCRATCH), NOT pc/SP.
+// (dumpState, minus stack scratch below the entry SP), NOT pc/SP.
 // Run: node --test games/tempest/idiomatic/test/equivalence-cd95.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_cd95 as oracle } from "../../translated/loc_cd95.js";
+import { loc_cd95 } from "../../translated/loc_cd95.js";
 import { resetBothPokeyChips } from "../resetBothPokeyChips.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { u8, u16 } from "../../../../core/int.js";
-import { STACK_SCRATCH, SOUND_VOICE_VALUE, SOUND_VOICE_LEVEL, loc_720, POKEY1_AUDF1, POKEY2_AUDF1 } from "../names.js";
+import { SOUND_VOICE_VALUE, SOUND_VOICE_LEVEL, loc_720, POKEY1_AUDF1, POKEY2_AUDF1 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -30,9 +31,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xcd95;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_cd95);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

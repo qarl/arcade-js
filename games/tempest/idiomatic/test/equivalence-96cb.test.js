@@ -10,11 +10,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_96cb as oracle } from "../../translated/loc_96cb.js";
+import { loc_96cb } from "../../translated/loc_96cb.js";
 import { advanceCoordListByEntryStride } from "../advanceCoordListByEntryStride.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_29, COORD_LIST_PTR_LO, COORD_LIST_PTR_HI } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { loc_29, COORD_LIST_PTR_LO, COORD_LIST_PTR_HI } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const rd = (f) => (existsSync(new URL(f, ROM_DIR)) ? new Uint8Array(readFileSync(new URL(f, ROM_DIR))) : null);
@@ -25,9 +26,9 @@ const ROM_PRESENT = ROM !== null;
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x96cb;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_96cb);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

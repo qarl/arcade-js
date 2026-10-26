@@ -2,7 +2,7 @@
 // Equivalence for selectListEntryByDeltaParity (ROM 0x9700-0x970a) -- a sibling entry sharing computeCoordListBackDelta's file: it runs computeCoordListBackDelta
 // (which records the cursor at loc_29 and returns loc_2b minus the entry two slots back), advances the
 // cursor by the low bit of that result, and returns the list entry the cursor now points at. Contract is
-// RAM (dumpState minus STACK_SCRATCH) plus the returned byte (the oracle's exit A). Not necessarily reached
+// RAM (dumpState minus stack scratch below the entry SP) plus the returned byte (the oracle's exit A). Not necessarily reached
 // in a boot capture, so the proof rests on CRAFTED + TEETH.
 // Run: node --test games/tempest/idiomatic/test/equivalence-9700.test.js
 
@@ -10,12 +10,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9700 as oracle } from "../../translated/loc_96f4.js";
+import { loc_9700 } from "../../translated/loc_96f4.js";
 import { selectListEntryByDeltaParity } from "../computeCoordListBackDelta.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { u16 } from "../../../../core/int.js";
-import { STACK_SCRATCH, loc_2b, COORD_LIST_PTR_LO, COORD_LIST_PTR_HI } from "../names.js";
+import { loc_2b, COORD_LIST_PTR_LO, COORD_LIST_PTR_HI } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -27,9 +28,9 @@ function opt(name) {
 }
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9700);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // Point the zero-page cursor pointer COORD_LIST_PTR_LO/2d at a list in work RAM, seed the key loc_2b and a few list
 // bytes, and enter with a cursor Y so both computeCoordListBackDelta's (Y-2) read and the final (2c),y read land in the list.

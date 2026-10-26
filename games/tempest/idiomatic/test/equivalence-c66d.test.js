@@ -3,19 +3,20 @@
 // its wrap-around neighbour (round-up, sign-preserving halve) into $61/$62 and $63/$64, appends four bytes to
 // the ($74) display list (high bytes masked 0x1f), mirrors them to $6a-$6d, advances the $a9 cursor. Live-out
 // is memory only (A/X/Y at RTS are incidental), so each side runs on a clone and the contract is RAM
-// (dumpState, minus STACK_SCRATCH). A leaf: it omits the ROM ret and the seam completes it. No POKEY read.
+// (dumpState, minus stack scratch below the entry SP). A leaf: it omits the ROM ret and the seam completes it. No POKEY read.
 // Run: node --test games/tempest/idiomatic/test/equivalence-c66d.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_c66d as oracle } from "../../translated/loc_c66d.js";
+import { loc_c66d } from "../../translated/loc_c66d.js";
 import { emitSlotMidpointVertex } from "../emitSlotMidpointVertex.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH, TABLE_CURSOR, PROJ_Y_LO, PROJ_Y_HI, PROJ_X_LO, PROJ_X_HI, DRAW_CURSOR_OFFSET,
+  TABLE_CURSOR, PROJ_Y_LO, PROJ_Y_HI, PROJ_X_LO, PROJ_X_HI, DRAW_CURSOR_OFFSET,
   DRAW_CURSOR_LO, OBJ_DY_HI, OBJ_DY_LO, OBJ_DX_HI, OBJ_DX_LO,
 } from "../names.js";
 
@@ -30,9 +31,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xc66d;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_c66d);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

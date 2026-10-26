@@ -2,19 +2,20 @@
 // Memory-equivalence for requestSegmentHitSound (ROM 0xccf6-0xccf9) -- seeds the fixed sound id 0x9f then BNE-delegates
 // (always taken) into the sound gate. The idiomatic dissolves the m.call(0xccc3) into requestSoundIfEnabled(m, 0x9f, x, y);
 // caller X/Y pass through as register inputs. Live-out is memory only (A at RTS is incidental), so arms
-// compare RAM (dumpState minus STACK_SCRATCH). A leaf: the module omits the ROM ret, the seam completes it.
+// compare RAM (dumpState minus stack scratch below the entry SP). A leaf: the module omits the ROM ret, the seam completes it.
 // Run: node --test games/tempest/idiomatic/test/equivalence-ccf6.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_ccf6 as oracle } from "../../translated/loc_ccf6.js";
+import { loc_ccf6 } from "../../translated/loc_ccf6.js";
 import { requestSegmentHitSound } from "../requestSegmentHitSound.js";
 import { loadSoundVoiceSlots } from "../loadSoundVoiceSlots.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, STATUS_FLAGS, loc_31, loc_32 } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { STATUS_FLAGS, loc_31, loc_32 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -27,9 +28,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xccf6;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_ccf6);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

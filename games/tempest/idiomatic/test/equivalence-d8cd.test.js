@@ -2,7 +2,7 @@
 // Memory-equivalence for runPowerOnToneBursts (ROM 0xd8cd, second entry of playPowerOnTone.js) vs the frozen
 // loc_d8cd. Inputs are registers Y (stored at SEG_SPREAD_A_LO_1) and A (pass total); its only caller is d931's
 // jmp (self-test RAM-fault path, never hit in a normal boot), so the real dispatch is captured by running the
-// frozen loc_d931 with 0xd8cd hooked. Contract: RAM minus STACK_SCRATCH, plus a TONE arm comparing the ordered
+// frozen loc_d931 with 0xd8cd hooked. Contract: RAM minus stack scratch below the ROM-reseated SP, plus a TONE arm comparing the ordered
 // POKEY/LED writes and watchdog strobes up to the tail (the pass count is invisible to RAM). No register
 // live-out: the routine tail-jumps to da0a, which never returns. The oracle busy-waits on the 3kHz clock and
 // never returns, so it runs under a cycle BUDGET until its terminal spin trips FramesComplete (as d8ca's gate).
@@ -12,13 +12,14 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_d8cd as oracle } from "../../translated/loc_d8ca.js";
+import { loc_d8cd } from "../../translated/loc_d8ca.js";
 import { loc_d931 } from "../../translated/loc_d931.js";
 import { runPowerOnToneBursts } from "../playPowerOnTone.js";
 import { Machine, FramesComplete, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry, reseatedTop } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH, MODE_DISPATCH_SEL, SEG_SPREAD_A_LO_1, PENDING_WORK_FLAGS, loc_2e, loc_2f, SEG_SPREAD_A_LO,
+  MODE_DISPATCH_SEL, SEG_SPREAD_A_LO_1, PENDING_WORK_FLAGS, loc_2e, loc_2f, SEG_SPREAD_A_LO,
   POKEY1_AUDF1, POKEY1_AUDC1, LED_FLIP_LATCH, WATCHDOG_CLEAR,
 } from "../names.js";
 
@@ -34,9 +35,9 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0xd8cd;
 const BUDGET = 48000000; // d8ca's 40M plus headroom for up to four tone passes (~1.3M cycles each)
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_d8cd, reseatedTop); // runPowerOnToneBursts txs-seats S as a counter; it ends 0xff
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 const freezePokey = (m) => { for (const p of m.io.pokeys) p.skctl &= ~0x03; return m; };
 
 // The tail frame seed d8ca's gate uses, so da62 builds a real frame before its exit poll.

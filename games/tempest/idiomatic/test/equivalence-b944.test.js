@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for swapDrawPointers (ROM 0xb944) -- swaps the 16-bit pointers ($75:$74) <-> ($77:$76).
 // Live-out is RAM only (X/Y/A at RTS are incidental temporaries), so each arm compares RAM (dumpState,
-// minus STACK_SCRATCH). No POKEY/clock coupling -> the crafted diff is deterministic.
+// minus stack scratch below the entry SP). No POKEY/clock coupling -> the crafted diff is deterministic.
 // Run: node --test games/tempest/idiomatic/test/equivalence-b944.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_b944 as oracle } from "../../translated/loc_b944.js";
+import { loc_b944 } from "../../translated/loc_b944.js";
 import { swapDrawPointers } from "../swapDrawPointers.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, DRAW_CURSOR_LO, DRAW_CURSOR_HI, DRAW_CURSOR_ALT_LO, DRAW_CURSOR_ALT_HI } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { DRAW_CURSOR_LO, DRAW_CURSOR_HI, DRAW_CURSOR_ALT_LO, DRAW_CURSOR_ALT_HI } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -22,9 +23,9 @@ const OPTS = { vectorrom: opt("vectorrom.bin"), avgprom: opt("avgprom.bin") };
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xb944;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_b944);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

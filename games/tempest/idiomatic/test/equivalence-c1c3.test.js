@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for resetMathboxInputs -- zeroes six zero-page cells and most of a math-coprocessor input block,
 // then sets one control register. Live-out is memory only (A at RTS is incidental), so each side runs on a
-// clone and the contract is RAM (dumpState, minus STACK_SCRATCH). A leaf: the module omits the ROM ret and
+// clone and the contract is RAM (dumpState, minus stack scratch below the entry SP). A leaf: the module omits the ROM ret and
 // the seam completes it, so the arms compare RAM (-stack), NOT pc/SP.
 // Run: node --test games/tempest/idiomatic/test/equivalence-c1c3.test.js
 
@@ -9,11 +9,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_c1c3 as oracle } from "../../translated/loc_c1c3.js";
+import { loc_c1c3 } from "../../translated/loc_c1c3.js";
 import { resetMathboxInputs } from "../resetMathboxInputs.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, SEG_SPREAD_A_LO, SEG_SPREAD_A_HI, SEG_SPREAD_A_HI_1, SEG_SPREAD_B_LO, SEG_SPREAD_B_HI, SEG_SPREAD_B_HI_1 } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { SEG_SPREAD_A_LO, SEG_SPREAD_A_HI, SEG_SPREAD_A_HI_1, SEG_SPREAD_B_LO, SEG_SPREAD_B_HI, SEG_SPREAD_B_HI_1 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -26,9 +27,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xc1c3;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_c1c3);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

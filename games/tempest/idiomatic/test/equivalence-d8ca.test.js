@@ -5,7 +5,7 @@
 // checksum/self-test at checksumRomAndSettleEntropy. Its only work-RAM write is SEG_SPREAD_A_LO_1 (the POKEY/LED/watchdog cells are I/O,
 // not captured by dumpState); da0a's writes follow. The oracle's inner drains busy-wait on the 3kHz clock
 // bit of IN0_PORT, which advances only as the oracle steps cycles, so the oracle terminates naturally; the
-// idiomatic layer has no clock and drains by count. Contract: RAM (dumpState minus STACK_SCRATCH). No
+// idiomatic layer has no clock and drains by count. Contract: RAM (dumpState minus stack scratch below the ROM-reseated SP). No
 // live-out register (the routine tail-delegates; the exit registers belong to da0a's chain). Because the
 // tail (da0a -> da62) never returns in the oracle, the oracle is run under a cycle BUDGET so its terminal
 // spin trips FramesComplete. Oracle is the frozen translated playPowerOnTone.
@@ -15,12 +15,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_d8ca as oracle } from "../../translated/loc_d8ca.js";
+import { loc_d8ca } from "../../translated/loc_d8ca.js";
 import { playPowerOnTone } from "../playPowerOnTone.js";
 import { Machine, FramesComplete, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry, reseatedTop } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH,
   SEG_SPREAD_A_LO_1, PENDING_WORK_FLAGS, loc_2e, loc_2f, SEG_SPREAD_A_LO,
 } from "../names.js";
 
@@ -37,9 +37,9 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 const TARGET = 0xd8ca;
 const BUDGET = 40000000; // > the tone drains + the checksum walk + a single self-test frame; the spin then trips FramesComplete
 const INPUT = 4; // -> passes = 2 (both the count!=0 and count==0 burst branches run); low nibble nonzero
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_d8ca, reseatedTop); // runPowerOnToneBursts txs-seats S as a counter; it ends 0xff
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // The oracle drains on the 3kHz clock and its tail (da0a -> da62) never returns, so run it under a cycle
 // budget with the periodic IRQ quiesced. "done" = the tail reached its terminal spin; "notimpl" = a still-

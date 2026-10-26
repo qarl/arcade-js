@@ -2,19 +2,19 @@
 // Memory-equivalence for emitByteBitsAsDigitsFixed -- a caller that seats a fixed value byte, then dissolves its jmp into
 // the already-idiomatic emitByteBitsAsDigitsAtF8 (direct call). The routine and its callee chain shape vector work cells;
 // live-out is memory only (registers at exit are incidental), so each side runs on a clone and the contract
-// is RAM (dumpState, minus STACK_SCRATCH). Y flows in via the register bridge.
+// is RAM (dumpState, minus stack scratch below the entry SP). Y flows in via the register bridge.
 // Run: node --test games/tempest/idiomatic/test/equivalence-dd27.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_dd27 as oracle } from "../../translated/loc_dd27.js";
+import { loc_dd27 } from "../../translated/loc_dd27.js";
 import { emitByteBitsAsDigitsFixed } from "../emitByteBitsAsDigitsFixed.js";
 import { emitByteBitsAsDigitsAtF8 } from "../emitByteBitsAsDigitsAtF8.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -27,9 +27,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xdd27;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_dd27);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

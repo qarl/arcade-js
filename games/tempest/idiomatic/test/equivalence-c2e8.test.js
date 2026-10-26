@@ -12,11 +12,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_c2e8 as oracle } from "../../translated/loc_c2e8.js";
+import { loc_c2e8 } from "../../translated/loc_c2e8.js";
 import { resolveShapeTableIndex } from "../resolveShapeTableIndex.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, TUBE_SHAPE_INDEX } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { TUBE_SHAPE_INDEX } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -29,9 +30,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xc2e8;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_c2e8);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // Freeze the POKEY polys so both arms read the same $60ca on the >= 0x62 branch.
 const freezePokey = (m) => { for (const p of m.io.pokeys) p.skctl &= ~0x03; return m; };

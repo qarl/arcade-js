@@ -3,18 +3,19 @@
 // $3b/$3c pointer and toggles a per-slot parity flag, then writes the two-byte word chosen by the new
 // parity through that pointer. The idiomatic side dissolves the jsr $df09 into a direct emitRecordBodyC0(m)
 // call. Live-out is RAM plus the exit [X, Y] it returns (the buffer word's high byte, 1), so each arm compares
-// RAM (dumpState minus STACK_SCRATCH) and the CAPTURE arm also compares the returned pair.
+// RAM (dumpState minus stack scratch below the entry SP) and the CAPTURE arm also compares the returned pair.
 // Run: node --test games/tempest/idiomatic/test/equivalence-b2fe.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_b2fe as oracle } from "../../translated/loc_b2fe.js";
+import { loc_b2fe } from "../../translated/loc_b2fe.js";
 import { closeLayerPointer } from "../closeLayerPointer.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, POINTER_PARITY, DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { POINTER_PARITY, DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -27,9 +28,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xb2fe;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_b2fe);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

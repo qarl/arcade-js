@@ -8,21 +8,22 @@
 // does not, so the arms only agree when the POKEY poly is frozen (clear SK_RESET -> _advance early-returns
 // -> poly index constant). On a fresh machine skctl is already 0 (index 0 -> RANDOM reads 0xff), so the
 // crafted arm is deterministic; freezing the captured clones makes the CAPTURE arm deterministic too.
-// Live-out is memory only, so each arm compares RAM (dumpState minus STACK_SCRATCH).
+// Live-out is memory only, so each arm compares RAM (dumpState minus stack scratch below the entry SP).
 // Run: node --test games/tempest/idiomatic/test/equivalence-a65b.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_a65b as oracle } from "../../translated/loc_a65b.js";
+import { loc_a65b } from "../../translated/loc_a65b.js";
 import { spawnEnemyInSlot } from "../spawnEnemyInSlot.js";
 import { drawSignedVelocityNudge } from "../drawSignedVelocityNudge.js";
 import { gateSound1f } from "../gateSound1f.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { u8, u16 } from "../../../../core/int.js";
-import { STACK_SCRATCH, OBJECT_AXIS1_POS, ENEMY_SLOT_FLAGS, ENEMY_POS2, ENEMY_VEL1_LO, ENEMY_VEL0_LO, ENEMY_VEL2_LO, ENEMY_VEL1_HI, ENEMY_VEL0_HI, ENEMY_VEL2_HI, POKEY1_RANDOM, POKEY2_RANDOM } from "../names.js";
+import { OBJECT_AXIS1_POS, ENEMY_SLOT_FLAGS, ENEMY_POS2, ENEMY_VEL1_LO, ENEMY_VEL0_LO, ENEMY_VEL2_LO, ENEMY_VEL1_HI, ENEMY_VEL0_HI, ENEMY_VEL2_HI, POKEY1_RANDOM, POKEY2_RANDOM } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -35,9 +36,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xa65b;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_a65b);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // Freeze the POKEY polys: clearing SK_RESET (0x03) makes _advance early-return, so RANDOM ($60ca/$60da)
 // no longer moves with the cycle count -> both arms read the same random bytes.

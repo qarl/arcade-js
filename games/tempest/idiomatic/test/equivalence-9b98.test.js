@@ -3,14 +3,14 @@
 // word($9ba2+Y) and rts, jumping to word+1. The incoming A is a PRE-DOUBLED index (the caller left the
 // 2-byte table offset in it), so entry N sits at A = 2N -- the idiomatic form is TABLE[a >> 1]. The twenty
 // targets each act for their own side effects; none reads the incoming A as data (A is the dispatch index,
-// consumed), so the contract is RAM (dumpState minus STACK_SCRATCH); the oracle's stack gymnastics land in
-// STACK_SCRATCH. Run: node --test games/tempest/idiomatic/test/equivalence-9b98.test.js
+// consumed), so the contract is RAM (dumpState minus stack scratch below the entry SP); the oracle's stack gymnastics land
+// below the entry SP. Run: node --test games/tempest/idiomatic/test/equivalence-9b98.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9b98 as oracle } from "../../translated/loc_9b98.js";
+import { loc_9b98 } from "../../translated/loc_9b98.js";
 import { dispatchSlotMotionHandler } from "../dispatchSlotMotionHandler.js";
 import { endObjectMotionScript } from "../endObjectMotionScript.js";
 import { writeScriptConstantToSlot } from "../writeScriptConstantToSlot.js";
@@ -34,7 +34,7 @@ import { faceEnemyTowardPlayerSegment } from "../faceEnemyTowardPlayerSegment.js
 import { setFlagFromPhaseAccumulatorSign } from "../setFlagFromPhaseAccumulatorSign.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -51,9 +51,9 @@ const TABLE = [
   endObjectMotionScript, writeScriptConstantToSlot, skipScriptOperandWhenFlagClear, followScriptGoto, holdSlotPoseUntilTimerExpires, noopDispatchStub, stepEnemyDepthInLaneDirection, advanceClimberTrackingColumnMin, writeScriptVariableToSlot, stepClimberSegmentGuarded,
   animateFlipperTurn, toggleEnemyTurnSide, spawnType5OnCoordMatch, jumpScriptCursorWhenFlagClear, setFlagIfSlotPastSegmentBound, advanceEnemyPursuit, fireHitOnPlayerCollision, steerSlotCoordinate, faceEnemyTowardPlayerSegment, setFlagFromPhaseAccumulatorSign,
 ];
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9b98);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

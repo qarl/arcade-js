@@ -3,18 +3,19 @@
 // origin ($74/$75), then steps the cursor past it. A pure tail-caller that dissolves the jmp into a direct
 // emitVectorWord call. All live-out is RAM (the two emitted bytes + the advanced cursor); the oracle also leaves
 // A = the new cursor-low byte (a df5f-family live-out the idiomatic tail does not reproduce), and ab0d
-// reads no register after, so each arm compares RAM (dumpState minus STACK_SCRATCH) only, not A.
+// reads no register after, so each arm compares RAM (dumpState minus stack scratch below the entry SP) only, not A.
 // Run: node --test games/tempest/idiomatic/test/equivalence-ab0d.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_ab0d as oracle } from "../../translated/loc_ab0d.js";
+import { loc_ab0d } from "../../translated/loc_ab0d.js";
 import { emitFixedVectorWord } from "../emitFixedVectorWord.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -24,9 +25,9 @@ function opt(name) { const u = new URL(name, ROM_DIR); return existsSync(u) ? ne
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xab0d;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_ab0d);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

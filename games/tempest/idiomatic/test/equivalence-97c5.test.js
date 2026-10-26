@@ -4,18 +4,19 @@
 // entry seen. Otherwise it dissolves the m.call($a7a6) into a direct signedSegmentDelta(m, $02b9,idx, $0200)
 // and returns A = 0 (zero) / 0x09 (negative) / 0xf7 (positive), leaving the delta in Y. Live-out is A (the
 // returned code), Y (returned too; undefined = untouched) plus memory ($29/$2a and a7a6's $2a stash), so arms
-// compare RAM (dumpState, minus STACK_SCRATCH) AND the oracle's A and Y.
+// compare RAM (dumpState, minus stack scratch below the entry SP) AND the oracle's A and Y.
 // Run: node --test games/tempest/idiomatic/test/equivalence-97c5.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_97c5 as oracle } from "../../translated/loc_97c5.js";
+import { loc_97c5 } from "../../translated/loc_97c5.js";
 import { aimSpinnerAtNearestEnemy } from "../aimSpinnerAtNearestEnemy.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_29, loc_2a, ENEMY_SLOT_TOP, ENEMY_DEPTH, ENEMY_SEGMENT, PLAYER_SEGMENT, TUBE_GEOM_FLAG } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { loc_29, loc_2a, ENEMY_SLOT_TOP, ENEMY_DEPTH, ENEMY_SEGMENT, PLAYER_SEGMENT, TUBE_GEOM_FLAG } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -28,9 +29,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x97c5;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_97c5);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

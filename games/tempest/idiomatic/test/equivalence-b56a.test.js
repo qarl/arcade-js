@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for emitBlankValueRecord (ROM 0xb56a) -- stores 0,0,0,A into the four bytes at the $74/$75
 // pointer, then advances that pointer by four. A is the only input; live-out is RAM only (the oracle's
-// stack save/restore of A lands inside STACK_SCRATCH, excluded from the diff). Pure leaf, no dispatch;
+// stack save/restore of A lands below the entry SP, excluded from the diff). Pure leaf, no dispatch;
 // the seam completes it by omitting its ROM ret. No POKEY reads, so the crafted arms are deterministic.
 // Run: node --test games/tempest/idiomatic/test/equivalence-b56a.test.js
 
@@ -9,11 +9,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_b56a as oracle } from "../../translated/loc_b56a.js";
+import { loc_b56a } from "../../translated/loc_b56a.js";
 import { emitBlankValueRecord } from "../emitBlankValueRecord.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const opt = (name) => {
@@ -26,9 +27,9 @@ const OPTS = { vectorrom: opt("vectorrom.bin"), avgprom: opt("avgprom.bin") };
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xb56a;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_b56a);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

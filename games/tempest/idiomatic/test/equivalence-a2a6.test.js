@@ -3,7 +3,7 @@
 // underflows and whose RNG roll beats the per-wave gate, copies the spawn fields into the first free
 // destination slot and cues the sound via a dissolved jsr $ccbd -> gateSound8f(m, x, y). Live-out is memory
 // (the destination slot fields, the reseeded timer, the wave index $a6, and the sound cells ccbd stamps);
-// the routine returns the exit [X, Y] the ROM leaves, so each arm compares RAM (dumpState minus STACK_SCRATCH) and
+// the routine returns the exit [X, Y] the ROM leaves, so each arm compares RAM (dumpState minus stack scratch below the entry SP) and
 // the CAPTURE arm also the returned pair. POKEY
 // polys are frozen so RANDOM ($60ca) is stable across both arms -> the RNG gate is deterministic (0xff).
 // Run: node --test games/tempest/idiomatic/test/equivalence-a2a6.test.js
@@ -12,14 +12,15 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_a2a6 as oracle } from "../../translated/loc_a2a6.js";
+import { loc_a2a6 } from "../../translated/loc_a2a6.js";
 import { spawnClimbersFromSourceSlots } from "../spawnClimbersFromSourceSlots.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { u8, u16 } from "../../../../core/int.js";
 import { gateSound8f } from "../gateSound8f.js";
 import {
-  STACK_SCRATCH, STATUS_FLAGS, SPAWN_TIMER_RELOAD, FLYER_SLOT_TOP, PLAYER_FINE_ANGLE, ENEMY_SLOT_FLAGS, ENEMY_SLOT_DIR, ENEMY_TIMER,
+  STATUS_FLAGS, SPAWN_TIMER_RELOAD, FLYER_SLOT_TOP, PLAYER_FINE_ANGLE, ENEMY_SLOT_FLAGS, ENEMY_SLOT_DIR, ENEMY_TIMER,
   loc_2b5, ENEMY_SEGMENT, loc_2c8, ENEMY_PHASE, loc_2db, ENEMY_DEPTH, POKEY1_RANDOM, ACTIVE_ENEMY_COUNT, SPAWN_RATE_TABLE,
 } from "../names.js";
 
@@ -34,9 +35,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xa2a6;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_a2a6);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 const freezePokey = (m) => { for (const p of m.io.pokeys) p.skctl &= ~0x03; return m; };
 
 function captureDispatches(K, maxFrames) {

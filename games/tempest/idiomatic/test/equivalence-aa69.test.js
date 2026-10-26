@@ -9,12 +9,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_aa69 as oracle } from "../../translated/loc_aa69.js";
+import { loc_aa69 } from "../../translated/loc_aa69.js";
 import { prepCountThenComposeFrame } from "../prepCountThenComposeFrame.js";
 import { composeFrameDisplayList } from "../composeFrameDisplayList.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, GAME_MODE, STATUS_FLAGS } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { GAME_MODE, STATUS_FLAGS } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -35,9 +36,9 @@ function seedPipe(m) {
   for (let i = 0; i < 0x80; i += 2) { w(0x0400 + i, 0x20); w(0x0400 + i + 1, 0x04); } // every slot -> 0x0420
   w(0x0420, 0x00); w(0x0421, 0x80); // list: one entry then a bit7 terminator
 }
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_aa69);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

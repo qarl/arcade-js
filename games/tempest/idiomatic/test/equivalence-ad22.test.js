@@ -2,7 +2,7 @@
 // Memory-equivalence for armRequestedSoundSlot (ROM 0xad22) -- scans the packed request word, and for the first
 // in-range slot builds the paired value, arms selectProjectionScale + resetPerSlotStateTable, and writes a status into $0000. The
 // oracle m.calls the translated callees; the idiomatic dissolves them into direct idiomatic calls. Both
-// are memory-equivalent, so each arm compares RAM (dumpState, minus STACK_SCRATCH). Status is in $0000 (RAM); the
+// are memory-equivalent, so each arm compares RAM (dumpState, minus stack scratch below the entry SP). Status is in $0000 (RAM); the
 // exit [X, Y] it returns (the frame loop carries it to the sound loader's stash) is compared too. No POKEY read -> deterministic.
 // Run: node --test games/tempest/idiomatic/test/equivalence-ad22.test.js
 
@@ -10,11 +10,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_ad22 as oracle } from "../../translated/loc_ad22.js";
+import { loc_ad22 } from "../../translated/loc_ad22.js";
 import { armRequestedSoundSlot } from "../armRequestedSoundSlot.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, GAME_MODE, VG_MODE_FLAG, VG_SCALE, ENEMY_SLOT_FLAGS, SLOT_METRIC, ACTIVE_SLOT, REQUEST_BITS } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { GAME_MODE, VG_MODE_FLAG, VG_SCALE, ENEMY_SLOT_FLAGS, SLOT_METRIC, ACTIVE_SLOT, REQUEST_BITS } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const rd = (n) => new Uint8Array(readFileSync(new URL(n, ROM_DIR)));
@@ -25,9 +26,9 @@ const OPTS = { vectorrom: opt("vectorrom.bin"), avgprom: opt("avgprom.bin") };
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xad22;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_ad22);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for stepEnemyDepthInLaneDirection (ROM 0x9c58-0x9c62, the direction selector) -- reads the slot's segment
 // (ENEMY_SLOT_FLAGS,x & 7), then delegates to the ADD path (advanceEnemyLaneDepth) when ENEMY_SLOT_DIR,x bit7 is clear or the
-// SUBTRACT path (reverseEnemyLaneDepth) when it is set. Live-out is RAM (dumpState minus STACK_SCRATCH) plus A/X.
+// SUBTRACT path (reverseEnemyLaneDepth) when it is set. Live-out is RAM (dumpState minus stack scratch below the entry SP) plus A/X.
 // X is the slot index throughout (never rewritten). A is the delegate's result. The segment index is now
 // threaded as an EXPLICIT arg (no register Y bridge); on the ADD path advanceEnemyLaneDepth returns [A, Y], so the
 // Y live-out the seed tail reads is checked as that tuple element (settleEnemyAtTargetDepth/steerSlotCoordinate tests cover the
@@ -13,13 +13,14 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9c58 as oracle } from "../../translated/loc_9c58.js";
+import { loc_9c58 } from "../../translated/loc_9c58.js";
 import { stepEnemyDepthInLaneDirection, reverseEnemyLaneDepth } from "../stepEnemyDepthInLaneDirection.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { u16 } from "../../../../core/int.js";
 import {
-  STACK_SCRATCH, ENEMY_CLIMB_DELTA_LO_0, ENEMY_CLIMB_DELTA_HI_0, PLAYER_SHOT_DEPTH, ENEMY_SLOT_FLAGS, ENEMY_SLOT_DIR, ENEMY_DEPTH_LO, ENEMY_DEPTH,
+  ENEMY_CLIMB_DELTA_LO_0, ENEMY_CLIMB_DELTA_HI_0, PLAYER_SHOT_DEPTH, ENEMY_SLOT_FLAGS, ENEMY_SLOT_DIR, ENEMY_DEPTH_LO, ENEMY_DEPTH,
 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -30,9 +31,9 @@ function opt(name) { const u = new URL(name, ROM_DIR); return existsSync(u) ? ne
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x9c58;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9c58);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

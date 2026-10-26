@@ -4,14 +4,14 @@
 // then assemblePotStatusByte (pulses the POKEY pot-scan trigger $60db -- DISCARDED by the board, so the A fed in is
 // unobservable in RAM -- and returns the assembled pot-status byte from POKEY2_AUDCTL/POKEY1_AUDCTL), whose result
 // keys a final eight-digit run via Y. buildPotReadoutVectorList is UNREACHED in the capture, so this is CRAFTED-only.
-// Live-out is RAM (dumpState minus STACK_SCRATCH) plus A/Y. Oracle is the frozen translated buildPotReadoutVectorList.
+// Live-out is RAM (dumpState minus stack scratch below the entry SP) plus A/Y. Oracle is the frozen translated buildPotReadoutVectorList.
 // Run: node --test games/tempest/idiomatic/test/equivalence-dd0d.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_dd0d as oracle } from "../../translated/loc_dd0d.js";
+import { loc_dd0d } from "../../translated/loc_dd0d.js";
 import { buildPotReadoutVectorList } from "../buildPotReadoutVectorList.js";
 import { emitVectorHeaderWord } from "../emitVectorHeaderWord.js";
 import { emitBlankVectorWordTag70 } from "../emitBlankVectorWordTag70.js";
@@ -20,7 +20,8 @@ import { emitByteBitsAsDigitsFixed } from "../emitByteBitsAsDigitsFixed.js";
 import { assemblePotStatusByte } from "../assemblePotStatusByte.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, DRAW_CURSOR_LO, DRAW_CURSOR_HI, DSW1_COINAGE, DSW2_OPTIONS, POKEY2_AUDCTL, POKEY1_AUDCTL } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { DRAW_CURSOR_LO, DRAW_CURSOR_HI, DSW1_COINAGE, DSW2_OPTIONS, POKEY2_AUDCTL, POKEY1_AUDCTL } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -33,9 +34,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xdd0d;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_dd0d);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

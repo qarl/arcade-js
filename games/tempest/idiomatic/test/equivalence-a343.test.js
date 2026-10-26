@@ -10,12 +10,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_a343 as oracle343, loc_a347 as oracle347 } from "../../translated/loc_a343.js";
+import { loc_a343, loc_a347 } from "../../translated/loc_a343.js";
 import { insertObjectHeadTag9, insertObjectHeadTag7 } from "../insertObjectHeadTag9.js";
 import { insertType1WithHeadFlag } from "../primeTopPriorityObject.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, STATUS_FLAGS, COORD_LIST_PTR_LO, PLAYER_SEGMENT, PLAYER_SHOT_DEPTH, OBJECT_ANIM_PHASE, OBJECT_ANIM_TIMER } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { STATUS_FLAGS, COORD_LIST_PTR_LO, PLAYER_SEGMENT, PLAYER_SHOT_DEPTH, OBJECT_ANIM_PHASE, OBJECT_ANIM_TIMER } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -24,9 +25,10 @@ const OPTS = { vectorrom: opt("vectorrom.bin"), avgprom: opt("avgprom.bin") };
 function opt(name) { const u = new URL(name, ROM_DIR); return existsSync(u) ? new Uint8Array(readFileSync(u)) : undefined; }
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle343 = atEntry(loc_a343);
+const oracle347 = atEntry(loc_a347);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(target, oracleFn, K, maxFrames) {
   const caps = [];

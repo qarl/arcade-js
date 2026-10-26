@@ -14,22 +14,23 @@
 //   Sound gate: ccc3 only stamps when $05 bit7 is set. CRAFTED/TEETH open it ($05 = 0x80) or the $32 stamp
 // (and thus the register teeth) would be toothless.
 //   Live-out is RAM plus the exit [X, Y] it returns (0, the threaded Y; the frame loop carries it to the sound
-// loader's stash), so each arm compares the RAM diff (dumpState minus STACK_SCRATCH) and the CAPTURE arm the pair. An omitted-ret rewrite.
+// loader's stash), so each arm compares the RAM diff (dumpState minus stack scratch below the entry SP) and the CAPTURE arm the pair. An omitted-ret rewrite.
 // Run: node --test games/tempest/idiomatic/test/equivalence-a618.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_a618 as oracle } from "../../translated/loc_a618.js";
+import { loc_a618 } from "../../translated/loc_a618.js";
 import { stepEnemyFleetAndSpawn } from "../stepEnemyFleetAndSpawn.js";
 import { advanceEnemyFreeFlight } from "../advanceEnemyFreeFlight.js";
 import { decayEnemyFreeFlightVelocity } from "../decayEnemyFreeFlightVelocity.js";
 import { spawnEnemyInSlot } from "../spawnEnemyInSlot.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { u8, u16 } from "../../../../core/int.js";
-import { STACK_SCRATCH, GAME_MODE, FRAME_COUNTER, STATUS_FLAGS, loc_32, SLOT_LOOP_INDEX, SPAWN_FOUND_FLAG, SPAWN_BUDGET_TIMER, ENEMY_SLOT_FLAGS } from "../names.js";
+import { GAME_MODE, FRAME_COUNTER, STATUS_FLAGS, loc_32, SLOT_LOOP_INDEX, SPAWN_FOUND_FLAG, SPAWN_BUDGET_TIMER, ENEMY_SLOT_FLAGS } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -39,9 +40,9 @@ function opt(name) { const u = new URL(name, ROM_DIR); return existsSync(u) ? ne
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xa618;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_a618);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // Clearing SK_RESET (0x03) makes _advance early-return, so RANDOM ($60ca/$60da) no longer moves with the
 // cycle count -> both arms read the same random bytes.

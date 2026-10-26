@@ -4,18 +4,19 @@
 // relocated bit of a second ALLPOT read. The ALLPOT reads are POKEY-timing-coupled: on a fresh (master-
 // reset) POKEY they read 0, so $0037 is deterministic there -- the CRAFTED arm asserts that RAM cell and
 // the return value, and leans on CAPTURE for live-POKEY states. A leaf: the module omits the ROM ret and
-// the seam completes it, so the arms compare RAM (dumpState, minus STACK_SCRATCH), NOT pc/SP.
+// the seam completes it, so the arms compare RAM (dumpState, minus stack scratch below the entry SP), NOT pc/SP.
 // Run: node --test games/tempest/idiomatic/test/equivalence-dbe0.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_dbe0 as oracle } from "../../translated/loc_dbe0.js";
+import { loc_dbe0 } from "../../translated/loc_dbe0.js";
 import { assemblePotStatusByte } from "../assemblePotStatusByte.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, SLOT_LOOP_INDEX } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { SLOT_LOOP_INDEX } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -28,9 +29,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xdbe0;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_dbe0);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

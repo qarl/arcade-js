@@ -6,7 +6,7 @@
 // reloads $2b raw; both stash the incoming Y at $29, combine the value with the delta two entries back
 // through the ($2c) pointer, set Y to the result, and read the entry it points to into A. 0x96c4 is the bare
 // final (($2c),Y) load. Live-outs: RAM ($29 for the first two) plus A and Y. Each side runs on a clone; the
-// contract is RAM (dumpState, minus STACK_SCRATCH) plus A/Y. Leaves: the module omits the ROM ret and the
+// contract is RAM (dumpState, minus stack scratch below the entry SP) plus A/Y. Leaves: the module omits the ROM ret and the
 // seam completes it, so the arms compare RAM (-stack) + regs, NOT pc/SP. No POKEY read.
 // Run: node --test games/tempest/idiomatic/test/equivalence-96ab.test.js
 
@@ -14,11 +14,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_96ab as oracleAb, loc_96b7 as oracleB7, loc_96c4 as oracleC4 } from "../../translated/loc_96ab.js";
+import { loc_96ab, loc_96b7, loc_96c4 } from "../../translated/loc_96ab.js";
 import { fetchCoordListEntryByCounter, fetchCoordListEntryByIndex, readCoordListEntry } from "../fetchCoordListEntryByCounter.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_29, loc_2b, COORD_LIST_PTR_LO, COORD_LIST_PTR_HI } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { loc_29, loc_2b, COORD_LIST_PTR_LO, COORD_LIST_PTR_HI } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -30,9 +31,11 @@ function opt(name) {
 }
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracleAb = atEntry(loc_96ab);
+const oracleB7 = atEntry(loc_96b7);
+const oracleC4 = atEntry(loc_96c4);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(addr, oracleFn, K, maxFrames) {
   const caps = [];

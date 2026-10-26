@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for drawScoreStatusList -- flags a rebuild, gates on a byte, latches it into two slots and kicks a
 // spread build. The idiomatic side dissolves jsr bda0 into a direct call. Live-out is memory only, so each
-// arm compares RAM (dumpState minus STACK_SCRATCH).
+// arm compares RAM (dumpState minus stack scratch below the entry SP).
 // Run: node --test games/tempest/idiomatic/test/equivalence-b586.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_b586 as oracle } from "../../translated/loc_b586.js";
+import { loc_b586 } from "../../translated/loc_b586.js";
 import { drawScoreStatusList } from "../drawScoreStatusList.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_9e, PLAYER_SEGMENT, PLAYER_FINE_ANGLE, PLAYER_SHOT_DEPTH, loc_2f, RIM_ROT_OFFSET, OBJ_DEPTH, DEPTH_LO, DEPTH_HI } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { loc_9e, PLAYER_SEGMENT, PLAYER_FINE_ANGLE, PLAYER_SHOT_DEPTH, loc_2f, RIM_ROT_OFFSET, OBJ_DEPTH, DEPTH_LO, DEPTH_HI } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -25,9 +26,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xb586;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_b586);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

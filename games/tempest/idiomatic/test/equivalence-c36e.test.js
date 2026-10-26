@@ -4,22 +4,23 @@
 // its cursor to $b0/$b1, then draws one record per pass through emitProjectedSlotRecord, bumping the $37 index by 0x10 on
 // each low-nibble saturation. The idiomatic side dissolves the two jsr into direct emitObjectPositionVector(m, 0x61) and
 // emitProjectedSlotRecord(m) calls (c423 reads its index from $37 in RAM, so no register thread). Live-out is memory only,
-// so each arm compares RAM (dumpState minus STACK_SCRATCH); registers are NOT asserted.
+// so each arm compares RAM (dumpState minus stack scratch below the entry SP); registers are NOT asserted.
 // Run: node --test games/tempest/idiomatic/test/equivalence-c36e.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_c36e as oracle } from "../../translated/loc_c36e.js";
+import { loc_c36e } from "../../translated/loc_c36e.js";
 import { drawGatedRecordLoop } from "../drawGatedRecordLoop.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { u16 } from "../../../../core/int.js";
 import { emitObjectPositionVector } from "../emitObjectPositionVector.js";
 import { emitProjectedSlotRecord } from "../emitProjectedSlotRecord.js";
 import {
-  STACK_SCRATCH, SLOT_LOOP_INDEX, TABLE_CURSOR, PROJ_Y_LO, VG_RECORD_HEADER, DRAW_CURSOR_LO, DRAW_PATCH_PTR_LO, DRAW_PATCH_PTR_HI,
+  SLOT_LOOP_INDEX, TABLE_CURSOR, PROJ_Y_LO, VG_RECORD_HEADER, DRAW_CURSOR_LO, DRAW_PATCH_PTR_LO, DRAW_PATCH_PTR_HI,
   TUBE_GEOM_FLAG, COL_VAL_A, COL_SUB_A, COL_VAL_B, COL_SUB_B,
 } from "../names.js";
 
@@ -34,9 +35,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xc36e;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_c36e);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

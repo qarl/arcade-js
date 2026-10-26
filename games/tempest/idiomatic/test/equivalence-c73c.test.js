@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for emitDeltaVectorPair -- stores two 16-bit differences through the ($74) pointer at cursor $a9,
 // low bytes raw, high bytes masked to 5 bits (the second OR'd 0xa0), advancing $a9 by four. Live-out is
-// memory only, so each side runs on a clone and the contract is RAM (dumpState, minus STACK_SCRATCH). A leaf:
+// memory only, so each side runs on a clone and the contract is RAM (dumpState, minus stack scratch below the entry SP). A leaf:
 // the module omits the ROM ret and the seam completes it, so the arms compare RAM (-stack), NOT pc/SP.
 // Run: node --test games/tempest/idiomatic/test/equivalence-c73c.test.js
 
@@ -9,11 +9,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_c73c as oracle } from "../../translated/loc_c73c.js";
+import { loc_c73c } from "../../translated/loc_c73c.js";
 import { emitDeltaVectorPair } from "../emitDeltaVectorPair.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, DRAW_CURSOR_OFFSET, PROJ_Y_LO, PROJ_Y_HI, PROJ_X_LO, PROJ_X_HI, PREV_Y_LO, PREV_Y_HI, PREV_X_LO, PREV_X_HI, DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { DRAW_CURSOR_OFFSET, PROJ_Y_LO, PROJ_Y_HI, PROJ_X_LO, PROJ_X_HI, PREV_Y_LO, PREV_Y_HI, PREV_X_LO, PREV_X_HI, DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -26,9 +27,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xc73c;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_c73c);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

@@ -9,12 +9,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_b79a as oracle } from "../../translated/loc_b79a.js";
+import { loc_b79a } from "../../translated/loc_b79a.js";
 import { drawEnemyShapeList } from "../drawEnemyShapeList.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH, loc_9e, loc_9f, SLOT_LOOP_INDEX, loc_720, HIGH_LEVEL_MARKER,
+  loc_9e, loc_9f, SLOT_LOOP_INDEX, loc_720, HIGH_LEVEL_MARKER,
   SHAPE_ACTIVE, SHAPE_COORD, SHAPE_ID, SHAPE_ANIM, DRAW_CURSOR_LO, DRAW_CURSOR_HI,
 } from "../names.js";
 
@@ -29,9 +30,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xb79a;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_b79a);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];
@@ -86,8 +87,8 @@ test("CRAFTED: $9f below threshold -- no latch; RAM equal", () => {
 });
 
 test("TEETH: a twin that skips the final $01ff latch diverges from the oracle", () => {
-  // $01ff falls inside STACK_SCRATCH (0x01e0..0x0200), which ramDiff excludes, so the latch
-  // is verified on the cell directly: the module must reproduce the oracle's latch, and a twin
+  // $01ff sits above the entry floor (fresh S=0xfd: floor 0x01fe), so ramDiff compares it; the latch
+  // is also verified on the cell directly: the module must reproduce the oracle's latch, and a twin
   // that skips it must diverge on that exact cell.
   const o = new Machine(ROM, OPTS); seedSlots(o, 0x01, 0x20); oracle(o);
   const c = new Machine(ROM, OPTS); seedSlots(c, 0x01, 0x20);
@@ -96,6 +97,7 @@ test("TEETH: a twin that skips the final $01ff latch diverges from the oracle", 
   assert.equal(c.mem.read8(HIGH_LEVEL_MARKER), o.mem.read8(HIGH_LEVEL_MARKER), "module must reproduce the $01ff latch");
   c.mem.write8(HIGH_LEVEL_MARKER, 0x00); // BUG: undo the latch the oracle performed
   assert.notEqual(c.mem.read8(HIGH_LEVEL_MARKER), o.mem.read8(HIGH_LEVEL_MARKER), "skipping the $01ff latch must diverge");
+  assert.notEqual(ramDiff(o, c), null, "the RAM diff must hear the skipped $01ff latch");
 });
 
 test("SP-TOOTH: the omitted-ret routine (moved 0) is seam-placeable", () => {

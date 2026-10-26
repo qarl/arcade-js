@@ -3,7 +3,7 @@
 // (reverseEnemyLaneDepth with Y=0x04, then cmp #0x80 / bit ENEMY_FIRE_SELECT dispatch into maybeFireEnemyStep/flipEnemyLaneRandomSide/flipEnemyLaneTowardTarget); bit7 clear
 // -> ADVANCE the 16-bit coordinate (ENEMY_DEPTH_LO,x / ENEMY_DEPTH,x) by the delta (ENEMY_CLIMB_DELTA_LO_4 / ENEMY_CLIMB_DELTA_HI_4), clamp the hi at
 // floor PLAYER_SHOT_DEPTH, then FIRE_GATE / zp loc_9f / hi-vs-0x20 produce the carry that (with ENEMY_FIRE_SELECT's sign) picks the
-// same three callees. Live-out is RAM (minus STACK_SCRATCH); every non-early path tail-delegates, so its
+// same three callees. Live-out is RAM (minus stack scratch below the entry SP); every non-early path tail-delegates, so its
 // register state belongs to the chosen callee and is compared only on the early-rts arm (A = new hi, Y = 0).
 // Oracle is the frozen translated loc_9ef1 in translated/loc_9ef1.js.
 // Run: node --test games/tempest/idiomatic/test/equivalence-9ef1.test.js
@@ -12,13 +12,14 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9ef1 as oracle } from "../../translated/loc_9ef1.js";
+import { loc_9ef1 } from "../../translated/loc_9ef1.js";
 import { advanceEnemyPursuit } from "../advanceEnemyPursuit.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { u16 } from "../../../../core/int.js";
 import {
-  STACK_SCRATCH, loc_9f, ENEMY_FIRE_SELECT, ENEMY_CLIMB_DELTA_LO_0, ENEMY_CLIMB_DELTA_LO_4, ENEMY_CLIMB_DELTA_HI_0, ENEMY_CLIMB_DELTA_HI_4,
+  loc_9f, ENEMY_FIRE_SELECT, ENEMY_CLIMB_DELTA_LO_0, ENEMY_CLIMB_DELTA_LO_4, ENEMY_CLIMB_DELTA_HI_0, ENEMY_CLIMB_DELTA_HI_4,
   PLAYER_SHOT_DEPTH, ENEMY_SLOT_DIR, ENEMY_DEPTH_LO, ENEMY_DEPTH, FIRE_GATE,
 } from "../names.js";
 
@@ -33,9 +34,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x9ef1;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9ef1);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

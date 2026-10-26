@@ -2,7 +2,7 @@
 // Memory-equivalence for steerSlotCoordinate (ROM 0x9cb6-0x9d04) -- the per-slot(x) steering step keyed on the
 // direction/flags cell ENEMY_SLOT_DIR,x bit7. bit7 set -> SUB-step (reverseEnemyLaneDepth) + maybe flip bit7; bit7 clear ->
 // ADD-step (advanceEnemyLaneDepth); a common tail may seed an object via insertObjectHeadTag7. Output is RAM (dumpState minus the
-// dead STACK_SCRATCH); the slot register X is passed through, and A tracks the oracle's final compare
+// stack scratch below the entry SP); the slot register X is passed through, and A tracks the oracle's final compare
 // operand on every tail exit EXCEPT the insertObjectHeadTag7 arm (there A is that callee's incidental leftover). Y
 // IS a live-out into the insertObjectHeadTag7 seed arm -- the ADD step (advanceEnemyLaneDepth -> settleEnemyAtTargetDepth) leaves the scan index
 // in Y and the seed stores it to SAVED_INDEX2 -- so the bit7-clear->settleEnemyAtTargetDepth->a347 path is exercised below.
@@ -13,14 +13,15 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9cb6 as oracle } from "../../translated/loc_9cb6.js";
+import { loc_9cb6 } from "../../translated/loc_9cb6.js";
 import { steerSlotCoordinate } from "../steerSlotCoordinate.js";
 import { reverseEnemyLaneDepth, advanceEnemyLaneDepth } from "../stepEnemyDepthInLaneDirection.js";
 import { insertObjectHeadTag7 } from "../insertObjectHeadTag9.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH, SAVED_INDEX2, ENEMY_TOTAL_COUNT, ENEMY_TYPE_COUNT, OBJECT_ANIM_PHASE, OBJECT_ANIM_TIMER, ENEMY_ANIM_ACCUM, NEAR_DEPTH_THRESHOLD, ENEMY_CLIMB_DELTA_LO_0, ENEMY_CLIMB_DELTA_HI_0,
+  SAVED_INDEX2, ENEMY_TOTAL_COUNT, ENEMY_TYPE_COUNT, OBJECT_ANIM_PHASE, OBJECT_ANIM_TIMER, ENEMY_ANIM_ACCUM, NEAR_DEPTH_THRESHOLD, ENEMY_CLIMB_DELTA_LO_0, ENEMY_CLIMB_DELTA_HI_0,
   PLAYER_SEGMENT, PLAYER_FINE_ANGLE, PLAYER_SHOT_DEPTH, ENEMY_SLOT_FLAGS, ENEMY_SLOT_DIR, ENEMY_SEGMENT, ENEMY_PHASE, ENEMY_DEPTH, FIRE_GATE,
 } from "../names.js";
 
@@ -35,9 +36,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x9cb6;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9cb6);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

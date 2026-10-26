@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for skipScriptOperandWhenFlagClear (ROM 0x9bee) -- the attract/demo step tick: if the gate $010c != 0 do
 // nothing, else advance the step counter $010b by two. Live-out is RAM only, so each arm compares RAM
-// (dumpState, minus STACK_SCRATCH). No POKEY read -> crafted diffs are deterministic.
+// (dumpState, minus stack scratch below the entry SP). No POKEY read -> crafted diffs are deterministic.
 // Run: node --test games/tempest/idiomatic/test/equivalence-9bee.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9bee as oracle } from "../../translated/loc_9bee.js";
+import { loc_9bee } from "../../translated/loc_9bee.js";
 import { skipScriptOperandWhenFlagClear } from "../skipScriptOperandWhenFlagClear.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, SCRIPT_CURSOR, SCRIPT_BRANCH_FLAG } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { SCRIPT_CURSOR, SCRIPT_BRANCH_FLAG } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const rd = (n) => new Uint8Array(readFileSync(new URL(n, ROM_DIR)));
@@ -23,9 +24,9 @@ const OPTS = { vectorrom: opt("vectorrom.bin"), avgprom: opt("avgprom.bin") };
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x9bee;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9bee);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

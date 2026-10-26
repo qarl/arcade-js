@@ -4,14 +4,14 @@
 // 0xb85f/0xb875/0xb888/0xb896 and its RTS returns to dispatchDrawSetup's own caller. The idiomatic form dissolves the
 // push/pull16/rts-jump into TABLE[y>>1](m). Live-out is RAM: the dispatched targets are themselves idiomatic
 // seams that carry NO register live-out (they drop A/X/Y), so the contract is RAM (dumpState, minus
-// STACK_SCRATCH); the oracle's stack gymnastics land inside STACK_SCRATCH and are excluded.
+// stack scratch below the entry SP); the oracle's stack gymnastics land below the entry SP and are excluded.
 // Run: node --test games/tempest/idiomatic/test/equivalence-b84e.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_b84e as oracle } from "../../translated/loc_b84e.js";
+import { loc_b84e } from "../../translated/loc_b84e.js";
 import { dispatchDrawSetup } from "../dispatchDrawSetup.js";
 import { seedTripleArrays } from "../seedTripleArrays.js";
 import { rotateTripleArray } from "../rotateTripleArray.js";
@@ -19,7 +19,8 @@ import { resetVectorTailCursor } from "../resetVectorTailCursor.js";
 import { emitVectorTailRecord } from "../emitVectorTailRecord.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, COLOR_CYCLE_0, COLOR_RAM_9, VECRAM_TAIL_CURSOR_LO, VECRAM_TAIL_CURSOR_HI } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { COLOR_CYCLE_0, COLOR_RAM_9, VECRAM_TAIL_CURSOR_LO, VECRAM_TAIL_CURSOR_HI } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -32,9 +33,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xb84e;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_b84e);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // Dirty the cells the four table targets read/write so distinct entries produce distinct RAM.
 function seed(m) {

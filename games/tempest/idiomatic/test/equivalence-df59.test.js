@@ -2,7 +2,7 @@
 // Memory-equivalence for emitVectorWordAtOffset (ROM 0xdf59) -- store {A,X} at ($74/$75)+Y and +(Y+1), then advance the
 // ($74/$75) cursor by Y+2 (tail into advanceDisplayCursor). A/X/Y are register-bridge inputs. The oracle m.call(0xdf5f)s
 // the translated tail; the idiomatic calls the idiomatic advanceDisplayCursor -- both memory-equivalent, so the contract
-// is RAM (dumpState, minus STACK_SCRATCH). Registers are scratch for this display-builder family (the landed
+// is RAM (dumpState, minus stack scratch below the entry SP). Registers are scratch for this display-builder family (the landed
 // advanceDisplayCursor tail preserves none), so no register live-out is asserted. Plain (non-dispatching) caller -- no SP
 // tooth. No POKEY read, so the CRAFTED seeds are deterministic.
 // Run: node --test games/tempest/idiomatic/test/equivalence-df59.test.js
@@ -11,11 +11,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_df59 as oracle } from "../../translated/loc_df59.js";
+import { loc_df59 } from "../../translated/loc_df59.js";
 import { emitVectorWordAtOffset } from "../emitVectorWordAtOffset.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const opt = (name) => {
@@ -28,9 +29,9 @@ const OPTS = { vectorrom: opt("vectorrom.bin"), avgprom: opt("avgprom.bin") };
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xdf59;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_df59);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function seed(m, s) {
   for (const [a, v] of Object.entries(s)) m.mem.write8(Number(a), v);

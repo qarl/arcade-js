@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for the loc_9ab3 mid-entry (ROM 0x9ab3) -- it presets the index to 4 and runs the
 // shared pointer-pair setup (0x9b02[4]->$2c, 0x9afd[4]->$2d, 4->$2b, A<-$29). Neither the incoming A nor
-// Y is read (the entry sets its own index), so live-out is RAM (dumpState minus STACK_SCRATCH) plus A.
+// Y is read (the entry sets its own index), so live-out is RAM (dumpState minus stack scratch below the entry SP) plus A.
 // The mid-entry is not a separate export in the frozen translated module, so the oracle is composed from
 // the mid-entry's own preset (index 4) feeding the frozen translated setup routine seatCoordListPointer.
 // Run: node --test games/tempest/idiomatic/test/equivalence-9ab3.test.js
@@ -10,12 +10,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9aee as oracleSetup } from "../../translated/loc_9aee.js";
+import { loc_9aee } from "../../translated/loc_9aee.js";
 import { loc_9ab3 } from "../seatDemoCoordListPointer.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { u16 } from "../../../../core/int.js";
-import { STACK_SCRATCH, loc_29, loc_2b, COORD_LIST_PTR_LO, COORD_LIST_PTR_HI, LIST_PTR_TABLE_HI, LIST_PTR_TABLE_LO } from "../names.js";
+import { loc_29, loc_2b, COORD_LIST_PTR_LO, COORD_LIST_PTR_HI, LIST_PTR_TABLE_HI, LIST_PTR_TABLE_LO } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -30,9 +31,9 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 const TARGET = 0x9ab3;
 // The mid-entry: preset the index to 4, then run the frozen setup routine.
 const oracle = (m) => { m.regs.y = 0x04; return oracleSetup(m); };
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracleSetup = atEntry(loc_9aee);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

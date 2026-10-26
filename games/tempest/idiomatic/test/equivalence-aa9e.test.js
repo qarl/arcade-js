@@ -3,20 +3,21 @@
 // the pointer byte $61, set the pointer base (A=0x61) and count (Y=1), then tail-jmp emitNibbleDigitRun to emit that
 // one-byte run. The idiomatic side dissolves the tail jmp into a direct emitNibbleDigitRun(m, 0x61, 0x01) call.
 // dfb1 takes its base/count as args and clobbers X internally, so X is NOT a live-out; the contract is
-// memory only -- each arm compares RAM (dumpState minus STACK_SCRATCH).
+// memory only -- each arm compares RAM (dumpState minus stack scratch below the entry SP).
 // Run: node --test games/tempest/idiomatic/test/equivalence-aa9e.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_aa9e as oracle } from "../../translated/loc_aa9e.js";
+import { loc_aa9e } from "../../translated/loc_aa9e.js";
 import { emitSlotIndexDigit } from "../emitSlotIndexDigit.js";
 import { emitNibbleDigitRun } from "../emitNibbleDigitRun.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { u8 } from "../../../../core/int.js";
-import { STACK_SCRATCH, PROJ_Y_LO } from "../names.js";
+import { PROJ_Y_LO } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -29,9 +30,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xaa9e;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_aa9e);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

@@ -2,7 +2,7 @@
 // Memory-equivalence for resetWorkingRamForStateEntry (ROM 0x902b) -- the new-game reset spine: run six subsystem resets
 // (clearActiveShots, clearShotTableAndStateFlags, seedSlotRandomTags, clearEightByteTableAndFlag, clearByte50, buildLevelLayout) in order, then set $0124=$0148=0xff and
 // $0123=0x00. Live-out is RAM plus the exit [X, Y] it returns (buildLevelLayout's), so each side runs on a clone
-// and the contract is RAM (dumpState, minus STACK_SCRATCH) plus that pair (compared on the CAPTURE arm). A body-then-return routine: the module omits the ROM
+// and the contract is RAM (dumpState, minus stack scratch below the entry SP) plus that pair (compared on the CAPTURE arm). A body-then-return routine: the module omits the ROM
 // ret and the seam completes it, so the arms compare RAM (-stack), NOT pc/SP.
 //   POKEY coupling: seedSlotRandomTags draws slot tags from $60ca (POKEY1 RANDOM), clock-coupled. We freeze the
 // polys (clear SK_RESET) so both arms read the SAME RANDOM byte on every load, keeping the fill
@@ -13,11 +13,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_902b as oracle } from "../../translated/loc_902b.js";
+import { loc_902b } from "../../translated/loc_902b.js";
 import { resetWorkingRamForStateEntry } from "../resetWorkingRamForStateEntry.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, SPIKED_SEGMENT_COUNT, RIM_COLOR_ANIM, ENEMY_ANIM_ACCUM, FIRE_GATE, loc_9f } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { SPIKED_SEGMENT_COUNT, RIM_COLOR_ANIM, ENEMY_ANIM_ACCUM, FIRE_GATE, loc_9f } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const opt = (name) => {
@@ -30,9 +31,9 @@ const OPTS = { vectorrom: opt("vectorrom.bin"), avgprom: opt("avgprom.bin") };
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x902b;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_902b);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // Freeze the POKEY polys so the clock-coupled RANDOM index stays put across both arms.
 const freezePokey = (m) => { for (const p of m.io.pokeys) p.skctl &= ~0x03; return m; };

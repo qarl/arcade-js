@@ -2,20 +2,21 @@
 // Memory-equivalence for rebuildControlBlocksIfRequested (ROM 0xaba2-0xabab) -- refreshes the control state via requestRebuildIfSwitchesChanged, then
 // branches on ($01c9 & 3): zero -> the noRebuildRequestReturn no-op tail, else the rebuildControlBlocksFromTemplate rebuild/copy path. The
 // idiomatic side dissolves all three jsr into direct calls. Live-out is memory only, so each arm compares
-// RAM (dumpState minus STACK_SCRATCH). A caller: the module omits the ROM ret and the seam completes it.
+// RAM (dumpState minus stack scratch below the entry SP). A caller: the module omits the ROM ret and the seam completes it.
 // Run: node --test games/tempest/idiomatic/test/equivalence-aba2.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_aba2 as oracle } from "../../translated/loc_aba2.js";
+import { loc_aba2 } from "../../translated/loc_aba2.js";
 import { rebuildControlBlocksIfRequested } from "../rebuildControlBlocksIfRequested.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { requestRebuildIfSwitchesChanged } from "../requestRebuildIfSwitchesChanged.js";
 import { noRebuildRequestReturn } from "../noRebuildRequestReturn.js";
-import { STACK_SCRATCH, loc_100, PENDING_WORK_FLAGS, INPUT_SNAPSHOT_HI, INPUT_SNAPSHOT_LO } from "../names.js";
+import { loc_100, PENDING_WORK_FLAGS, INPUT_SNAPSHOT_HI, INPUT_SNAPSHOT_LO } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -28,9 +29,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xaba2;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_aba2);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

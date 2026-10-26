@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for drawSignedVelocityNudge (ROM 0xa69b) -- signed random step: magnitude = POKEY2 RANDOM ($60da) & 7,
 // sign from the incoming A's bit 0 (set bit 0 -> two's-complement). It writes NO memory, so the live-out is
-// register A; RAM (dumpState, minus STACK_SCRATCH) stays identical and A is compared directly.
+// register A; RAM (dumpState, minus stack scratch below the entry SP) stays identical and A is compared directly.
 //   POKEY coupling: RANDOM ($60da) is clock-coupled (the read charges cycles the idiomatic doesn't), so the
 // two arms can only agree when the POKEY poly is frozen. We freeze it (clear SK_RESET on both chips ->
 // _advance early-returns -> poly index constant) so oracle and idiomatic read the SAME RANDOM byte. On a
@@ -13,11 +13,11 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_a69b as oracle } from "../../translated/loc_a69b.js";
+import { loc_a69b } from "../../translated/loc_a69b.js";
 import { drawSignedVelocityNudge } from "../drawSignedVelocityNudge.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -27,9 +27,9 @@ const OPTS = { vectorrom: opt("vectorrom.bin"), avgprom: opt("avgprom.bin") };
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xa69b;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_a69b);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // Freeze the POKEY polys: clearing SK_RESET (0x03) makes _advance early-return, so the RANDOM index no
 // longer moves with the cycle count -> both arms read the same $60da byte.

@@ -2,7 +2,7 @@
 // Memory-equivalence for advanceEnemyFreeFlight (ROM 0xa6a9-0xa720) -- integrate slot x's three motion axes into their
 // fraction+whole coordinate pairs, resetting the whole on ring overflow. X is the slot index (param); the
 // live-out is RAM only (final A/Y just mirror the shared-cell whole), so each side runs on a clone and the
-// contract is RAM (dumpState, minus STACK_SCRATCH). A leaf: the module omits the ROM ret and the seam
+// contract is RAM (dumpState, minus stack scratch below the entry SP). A leaf: the module omits the ROM ret and the seam
 // completes it, so the arms compare RAM (-stack), NOT pc/SP.
 // Run: node --test games/tempest/idiomatic/test/equivalence-a6a9.test.js
 
@@ -10,12 +10,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_a6a9 as oracle } from "../../translated/loc_a6a9.js";
+import { loc_a6a9 } from "../../translated/loc_a6a9.js";
 import { advanceEnemyFreeFlight } from "../advanceEnemyFreeFlight.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH,
   OBJECT_AXIS0_FRAC, ENEMY_VEL0_LO, ENEMY_VEL0_HI, ENEMY_SLOT_FLAGS,
   OBJECT_INDEX_TABLE, ENEMY_VEL1_LO, ENEMY_VEL1_HI, OBJECT_AXIS1_POS,
   OBJECT_RECORD_TABLE, ENEMY_VEL2_LO, ENEMY_VEL2_HI, ENEMY_POS2,
@@ -32,9 +32,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xa6a9;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_a6a9);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

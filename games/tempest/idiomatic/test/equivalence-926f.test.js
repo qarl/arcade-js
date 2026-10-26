@@ -10,11 +10,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_926f as oracle } from "../../translated/loc_926f.js";
+import { loc_926f } from "../../translated/loc_926f.js";
 import { clearShotTableAndStateFlags } from "../clearShotTableAndStateFlags.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, ENEMY_TOTAL_COUNT, ENEMY_TYPE_COUNT, LANE_ENEMY_COUNT_3, LANE_ENEMY_COUNT_0, LANE_ENEMY_COUNT_2, LANE_ENEMY_COUNT_1, LANE_ENEMY_COUNT_4 } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { ENEMY_TOTAL_COUNT, ENEMY_TYPE_COUNT, LANE_ENEMY_COUNT_3, LANE_ENEMY_COUNT_0, LANE_ENEMY_COUNT_2, LANE_ENEMY_COUNT_1, LANE_ENEMY_COUNT_4 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const opt = (name) => {
@@ -28,9 +29,9 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0x926f;
 const FLAGS = [ENEMY_TOTAL_COUNT, ENEMY_TYPE_COUNT, LANE_ENEMY_COUNT_3, LANE_ENEMY_COUNT_0, LANE_ENEMY_COUNT_2, LANE_ENEMY_COUNT_1, LANE_ENEMY_COUNT_4];
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_926f);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

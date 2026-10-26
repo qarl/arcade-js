@@ -3,17 +3,18 @@
 // both counters are live) clears record slots and draws each counter's record set, tail-calling the drawer.
 // The idiomatic side dissolves the jsr chain (c473/c453/df6a/c3ee/df4c/c36e) into direct calls. Live-out is
 // RAM plus the value carried out by the tail drawer (validated by that callee's own equivalence), so each arm
-// compares dumpState minus STACK_SCRATCH. Run: node --test games/tempest/idiomatic/test/equivalence-c30d.test.js
+// compares dumpState minus stack scratch below the entry SP. Run: node --test games/tempest/idiomatic/test/equivalence-c30d.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_c30d as oracle } from "../../translated/loc_c30d.js";
+import { loc_c30d } from "../../translated/loc_c30d.js";
 import { initAndDrawRimDepthCounters } from "../initAndDrawRimDepthCounters.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_9e, loc_110, loc_113 } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { loc_9e, loc_110, loc_113 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -26,9 +27,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xc30d;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_c30d);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

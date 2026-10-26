@@ -3,7 +3,7 @@
 // == 0x82 it returns immediately; otherwise it runs a pre-pass (stepSpikeTableCollapse), sets bit7 of INPUT_EDGE_FLAGS, and
 // rts-dispatches to word($c7da+GAME_MODE)+1. The table has 19 entries (idx0..18); idx6 is an unused slot
 // (ROM word 0x0000 -> a jump into RAM, never validly selected). The idiomatic form dissolves the trick
-// into TABLE[GAME_MODE>>1](m, y, x). Contract: RAM (dumpState minus STACK_SCRATCH), plus the exit [X, Y] the
+// into TABLE[GAME_MODE>>1](m, y, x). Contract: RAM (dumpState minus stack scratch below the entry SP), plus the exit [X, Y] the
 // dispatcher returns (the handler's, or the entry X/Y when the DSW gate skips), which the main loop hands to
 // seedFramePhaseAndTick (EXIT-REGS). DSW1_COINAGE is the read-only DSW1 port (driven via m.io.dsw1); a handler
 // reaches the clock-coupled POKEY RANDOM so CAPTURE freezes it.
@@ -13,7 +13,7 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_c7bd as oracle } from "../../translated/loc_c7bd.js";
+import { loc_c7bd } from "../../translated/loc_c7bd.js";
 import { dispatchFramePhaseHandler } from "../dispatchFramePhaseHandler.js";
 import { resetLevelPlayfieldSlots } from "../resetLevelPlayfieldSlots.js";
 import { setupLevelTimers } from "../setupLevelTimers.js";
@@ -34,9 +34,10 @@ import { armModeAndRebuildIfEnabled } from "../armModeAndRebuildIfEnabled.js";
 import { stepEnemyFleetAndSpawn } from "../stepEnemyFleetAndSpawn.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { stepSpikeTableCollapse } from "../stepSpikeTableCollapse.js";
 import {
-  STACK_SCRATCH, GAME_MODE, INPUT_EDGE_FLAGS, SPIKED_SEGMENT_COUNT, PLAYER_FINE_ANGLE, STATUS_FLAGS, SPINNER_ACCUM,
+  GAME_MODE, INPUT_EDGE_FLAGS, SPIKED_SEGMENT_COUNT, PLAYER_FINE_ANGLE, STATUS_FLAGS, SPINNER_ACCUM,
   RIM_ROT_OFFSET, PLAYER_SEGMENT, TUBE_GEOM_FLAG, SPIKE_TABLE_GUARD, loc_3fe, loc_32,
 } from "../names.js";
 
@@ -54,8 +55,8 @@ const TABLE = [
   seedModeParamsFromMaskedFlags, tickWaveSpawnCadence, autoAdvanceRimRotation, seedModeParamsWithBounds, reseedWaveWorkingSet, seedModeParamsMinimal, runFrameStateUpdaters, armModeAndRebuildIfEnabled, stepEnemyFleetAndSpawn,
 ];
 const OFFSETS = TABLE.map((t, idx) => (t ? idx * 2 : -1)).filter((o) => o >= 0);
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+const oracle = atEntry(loc_c7bd);
+const ramDiff = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 const freezePokey = (m) => { for (const p of m.io.pokeys) p.skctl &= ~0x03; return m; };
 
 function captureDispatches(K, maxFrames) {

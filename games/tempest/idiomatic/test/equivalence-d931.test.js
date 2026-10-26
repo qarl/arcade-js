@@ -4,7 +4,7 @@
 // runs the tone drains and continues into the checksum/self-test checksumRomAndSettleEntropy, a non-terminating spin). Its
 // only RAM-observable effect through the chain is SEG_SPREAD_A_LO_1 = the burst count (the incoming A); the derived
 // pass-seed feeds only the POKEY drains (I/O, not in dumpState), so it is covered by review of the
-// faithful MODE_DISPATCH_SEL mask rather than by a RAM cell. Contract: RAM (dumpState minus STACK_SCRATCH); the
+// faithful MODE_DISPATCH_SEL mask rather than by a RAM cell. Contract: RAM (dumpState minus stack scratch below the ROM-reseated SP); the
 // oracle runs under a cycle BUDGET so its terminal self-test spin trips FramesComplete.
 // Run: node --test games/tempest/idiomatic/test/equivalence-d931.test.js
 
@@ -12,11 +12,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_d931 as oracle } from "../../translated/loc_d931.js";
+import { loc_d931 } from "../../translated/loc_d931.js";
 import { seedToneBurstCount } from "../seedToneBurstCount.js";
 import { Machine, FramesComplete } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, MODE_DISPATCH_SEL, SEG_SPREAD_A_LO_1, PENDING_WORK_FLAGS, loc_2e, loc_2f, SEG_SPREAD_A_LO } from "../names.js";
+import { atEntry, deadStackAtEntry, reseatedTop } from "./_entryFloor.js";
+import { MODE_DISPATCH_SEL, SEG_SPREAD_A_LO_1, PENDING_WORK_FLAGS, loc_2e, loc_2f, SEG_SPREAD_A_LO } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -28,8 +29,8 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 const BUDGET = 40000000;
 const COUNT = 0x04;   // burst count -> SEG_SPREAD_A_LO_1; low nibble nonzero
 const INDEX = 0x25;   // MODE_DISPATCH_SEL -> pass-seed (>= 0x20 folds by 0x18 then masks 0x1f)
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+const oracle = atEntry(loc_d931, reseatedTop); // runPowerOnToneBursts txs-seats S as a counter; it ends 0xff
+const ramDiff = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function seed(m) {
   m.mem.write8(MODE_DISPATCH_SEL, INDEX);

@@ -3,7 +3,7 @@
 // header at the cursor start (slots 0,1) then falls (bne, y=2 always taken) into emitObjectPositionRecord's body to
 // finish the vector. The idiomatic form dissolves that fall-through into a direct emitObjectPositionRecord(m, x, 2) call.
 // Effect is memory only (vector RAM via ($74) plus the $6a-$6d cache and cursor), so each side runs on a
-// clone and the contract is RAM (dumpState, minus STACK_SCRATCH). X (zeropage-pair index) is a register
+// clone and the contract is RAM (dumpState, minus stack scratch below the entry SP). X (zeropage-pair index) is a register
 // input, seated on both sides.
 // Run: node --test games/tempest/idiomatic/test/equivalence-c765.test.js
 
@@ -11,12 +11,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_c765 as oracle } from "../../translated/loc_c765.js";
+import { loc_c765 } from "../../translated/loc_c765.js";
 import { layHeaderAndBuildRecord } from "../layHeaderAndBuildRecord.js";
 import { emitObjectPositionRecord } from "../emitObjectPositionVector.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, MODE_DISPATCH_SEL, GAME_MODE_PENDING, FRAME_COUNTER, GAME_MODE, PREV_Y_LO, PREV_Y_HI, PREV_X_LO, PREV_X_HI, DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { MODE_DISPATCH_SEL, GAME_MODE_PENDING, FRAME_COUNTER, GAME_MODE, PREV_Y_LO, PREV_Y_HI, PREV_X_LO, PREV_X_HI, DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -29,9 +30,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xc765;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_c765);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

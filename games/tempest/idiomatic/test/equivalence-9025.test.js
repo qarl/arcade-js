@@ -2,7 +2,7 @@
 // Memory-equivalence for runLevelInit (ROM 0x9025-0x902a) -- the startup init entry: it runs two seed
 // routines in order (seedFrameControlTimers, then reseedStateTables) and TAIL-DELEGATES to the main init resetWorkingRamForStateEntry. The idiomatic
 // form dissolves the two JSRs and the tail fall-through into three plain calls. Contract is RAM
-// (dumpState, minus STACK_SCRATCH); runLevelInit takes no input register and tail-delegates, so its exit
+// (dumpState, minus stack scratch below the entry SP); runLevelInit takes no input register and tail-delegates, so its exit
 // registers are the delegate's and are NOT compared. resetWorkingRamForStateEntry writes the signature bytes 0x0124=0x0148=0xff
 // / 0x0123=0x00 and seedFrameControlTimers writes 0x0200=0x0e, so the chain produces observable RAM on a bare boot.
 // Run: node --test games/tempest/idiomatic/test/equivalence-9025.test.js
@@ -11,11 +11,11 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9025 as oracle } from "../../translated/loc_9025.js";
+import { loc_9025 } from "../../translated/loc_9025.js";
 import { runLevelInit } from "../runLevelInit.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -31,9 +31,9 @@ const TARGET = 0x9025;
 // The main-init signature byte: only resetWorkingRamForStateEntry (the tail delegate) writes it, so it distinguishes a run
 // that reached the delegate from one that did not.
 const SIG = 0x0124;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9025);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // POKEY coupling: runLevelInit tail-delegates to resetWorkingRamForStateEntry -> seedSlotRandomTags, which reads $60ca (POKEY1 RANDOM). That
 // register is clock-coupled -- its poly index advances with CPU cycles, and each read charges cycles the

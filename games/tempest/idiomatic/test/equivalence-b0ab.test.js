@@ -2,7 +2,7 @@
 // Memory-equivalence for nudgeBlasterRimPosition (ROM 0xb0ab) -- reads $0200, nudges it through foldStepIntoFraction, clamps the
 // result into [0, $0127], and writes it back to $0200 and to the A/Y live-outs. The oracle m.calls the
 // translated adce; the idiomatic dissolves it into a direct idiomatic call, capturing its return. Both
-// are memory-equivalent, so each arm compares RAM (dumpState, minus STACK_SCRATCH) AND the A/Y live-outs
+// are memory-equivalent, so each arm compares RAM (dumpState, minus stack scratch below the entry SP) AND the A/Y live-outs
 // (o.regs vs c.regs). No POKEY read -> deterministic.
 // Run: node --test games/tempest/idiomatic/test/equivalence-b0ab.test.js
 
@@ -10,11 +10,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_b0ab as oracle } from "../../translated/loc_b0ab.js";
+import { loc_b0ab } from "../../translated/loc_b0ab.js";
 import { nudgeBlasterRimPosition } from "../nudgeBlasterRimPosition.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, SPINNER_ACCUM, RIM_ROT_OFFSET, DEPTH_CEILING, PLAYER_SEGMENT } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { SPINNER_ACCUM, RIM_ROT_OFFSET, DEPTH_CEILING, PLAYER_SEGMENT } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const rd = (n) => new Uint8Array(readFileSync(new URL(n, ROM_DIR)));
@@ -25,9 +26,9 @@ const OPTS = { vectorrom: opt("vectorrom.bin"), avgprom: opt("avgprom.bin") };
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xb0ab;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_b0ab);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

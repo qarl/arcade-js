@@ -2,7 +2,7 @@
 // Memory-equivalence for unpackLevelNibbleTables -- from a level index, splits eight packed ROM-table bytes into low/high
 // nibbles, mirroring each into zero-page ($19.. / $21..) and color RAM ($0800.. / $0808..). Live-out is
 // RAM plus the exit [X, Y] it returns (read index, 0xff), so each side runs on a clone and the contract is RAM
-// (dumpState, minus STACK_SCRATCH), with the CAPTURE and CRAFTED arms also comparing the returned pair. Color RAM is CPU write-only (read8 throws), so it is read back via io.colorram. A
+// (dumpState, minus stack scratch below the entry SP), with the CAPTURE and CRAFTED arms also comparing the returned pair. Color RAM is CPU write-only (read8 throws), so it is read back via io.colorram. A
 // leaf: the module omits the ROM ret and the seam completes it, so the arms compare RAM (-stack), NOT pc/SP.
 // Run: node --test games/tempest/idiomatic/test/equivalence-c196.test.js
 
@@ -10,11 +10,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_c196 as oracle } from "../../translated/loc_c196.js";
+import { loc_c196 } from "../../translated/loc_c196.js";
 import { unpackLevelNibbleTables } from "../unpackLevelNibbleTables.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_9f, LEVEL_GEOM_LO, LEVEL_GEOM_HI } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { loc_9f, LEVEL_GEOM_LO, LEVEL_GEOM_HI } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -27,9 +28,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xc196;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_c196);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

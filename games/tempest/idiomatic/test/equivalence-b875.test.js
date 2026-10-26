@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for rotateTripleArray (ROM 0xb875-0xb887) -- rotates the three-entry array $22..$24 down by
 // one and mirrors each new entry into $0809..$080b. Live-out is memory only (registers at RTS incidental),
-// so each side runs on a clone and the contract is RAM (dumpState, minus STACK_SCRATCH). A leaf: the module
+// so each side runs on a clone and the contract is RAM (dumpState, minus stack scratch below the entry SP). A leaf: the module
 // omits the ROM ret and the seam completes it. No POKEY/clock read, so the crafted seed is deterministic.
 // Run: node --test games/tempest/idiomatic/test/equivalence-b875.test.js
 
@@ -9,11 +9,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_b875 as oracle } from "../../translated/loc_b875.js";
+import { loc_b875 } from "../../translated/loc_b875.js";
 import { rotateTripleArray } from "../rotateTripleArray.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, COLOR_CYCLE_0, COLOR_CYCLE_1, COLOR_CYCLE_2, COLOR_RAM_9, COLOR_RAM_A, COLOR_RAM_B } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { COLOR_CYCLE_0, COLOR_CYCLE_1, COLOR_CYCLE_2, COLOR_RAM_9, COLOR_RAM_A, COLOR_RAM_B } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -26,9 +27,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xb875;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_b875);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 // color RAM (0x0800-0x080F) is CPU write-only (read8 throws) -- read those back via io.colorram
 const readCell = (m, a) => (a >= 0x0800 && a <= 0x080f ? m.io.colorram[a & 0x0f] : m.mem.read8(a & 0xffff));
 

@@ -4,14 +4,14 @@
 // fall-through armRequestedSoundSlot (walk the request word). It bubble-sorts each channel's record rows counting passes,
 // records per-channel pass counts, nudges a running total, and derives a packed request byte. Live-out is RAM
 // plus the exit [X, Y] it returns (the request walker's), so each side runs on a clone and the contract is RAM
-// (dumpState, minus STACK_SCRATCH), with the CAPTURE and REQUEST-ZERO arms also comparing the returned pair.
+// (dumpState, minus stack scratch below the entry SP), with the CAPTURE and REQUEST-ZERO arms also comparing the returned pair.
 // Run: node --test games/tempest/idiomatic/test/equivalence-ac3f.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_ac3f as oracle } from "../../translated/loc_ac3f.js";
+import { loc_ac3f } from "../../translated/loc_ac3f.js";
 import { buildSortedSoundRequest } from "../buildSortedSoundRequest.js";
 import { clearChannelStagingBlock } from "../clearChannelStagingBlock.js";
 import { queueEaromRegionSave } from "../queueEaromRegionSave.js";
@@ -19,8 +19,9 @@ import { armRequestedSoundSlot } from "../armRequestedSoundSlot.js";
 import { Machine } from "../../machine.js";
 import { u8, u16 } from "../../../../core/int.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH, STATUS_FLAGS, DSW1_SNAPSHOT, loc_29, loc_2a, loc_2b, COORD_LIST_PTR_LO, COORD_LIST_PTR_HI, loc_2e, SAVED_INDEX2, loc_3d, ACTIVE_SLOT_COUNT,
+  STATUS_FLAGS, DSW1_SNAPSHOT, loc_29, loc_2a, loc_2b, COORD_LIST_PTR_LO, COORD_LIST_PTR_HI, loc_2e, SAVED_INDEX2, loc_3d, ACTIVE_SLOT_COUNT,
   loc_40, loc_41, loc_42, SORT_PAYLOAD_LO, SORT_PAYLOAD_MID, SORT_PAYLOAD_HI, SLOT_METRIC, loc_601, REQUEST_BITS, PASS_COUNTER, SORT_KEY_LO, SORT_KEY_MID, SORT_KEY_HI,
 } from "../names.js";
 
@@ -35,9 +36,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xac3f;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_ac3f);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

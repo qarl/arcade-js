@@ -10,12 +10,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_a8b4 as oracle } from "../../translated/loc_a8b4.js";
+import { loc_a8b4 } from "../../translated/loc_a8b4.js";
 import { buildTextOverlayList } from "../buildTextOverlayList.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH, STATUS_FLAGS, FRAME_COUNTER, PHASE_COUNTER, loc_a2, GAME_MODE, ACTIVE_SLOT_COUNT, loc_43, loc_44, loc_45,
+  STATUS_FLAGS, FRAME_COUNTER, PHASE_COUNTER, loc_a2, GAME_MODE, ACTIVE_SLOT_COUNT, loc_43, loc_44, loc_45,
   SPIKED_SEGMENT_COUNT, loc_3d, NIBBLE_GLYPH_TABLE, GLYPH_LIST_BUF_OFS, MIRROR_COPY_BUF_OFS, DECIMAL_MODE_FLAG, loc_102,
 } from "../names.js";
 
@@ -27,9 +28,9 @@ function opt(name) { const u = new URL(name, ROM_DIR); return existsSync(u) ? ne
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xa8b4;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_a8b4);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 const freezePokey = (m) => { for (const p of m.io.pokeys) p.skctl &= ~0x03; return m; };
 
 function captureDispatches(K, maxFrames) {

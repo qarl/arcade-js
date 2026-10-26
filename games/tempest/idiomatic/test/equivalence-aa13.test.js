@@ -4,20 +4,21 @@
 // packed counter via emitByteAsBcdDigits, then restores the low target byte and tail-jmps emitRecordBodyC0. The idiomatic
 // side dissolves jsr $af77 (into emitByteAsBcdDigits(m, $9f+1)) and the jmp $df09 tail (into emitRecordBodyC0(m)). Live-out
 // is memory only (pure tail-caller into the header emitter, reads no register after), so each arm compares
-// RAM (dumpState minus STACK_SCRATCH). ROM source/count tables live at $ce66/$cde6.
+// RAM (dumpState minus stack scratch below the entry SP). ROM source/count tables live at $ce66/$cde6.
 // Run: node --test games/tempest/idiomatic/test/equivalence-aa13.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_aa13 as oracle } from "../../translated/loc_aa13.js";
+import { loc_aa13 } from "../../translated/loc_aa13.js";
 import { stageTextLineWithCount } from "../stageTextLineWithCount.js";
 import { emitRecordBodyC0 } from "../emitRecordBodyC0.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { u16 } from "../../../../core/int.js";
-import { STACK_SCRATCH, ACTIVE_SLOT_COUNT, STATUS_FLAGS, loc_43, loc_44, loc_45, DRAW_CURSOR_LO, DRAW_CURSOR_HI, loc_9f, TEMPLATE_COPY_LEN, VECTOR_TEMPLATE_BLOCK, VEC_GLYPH_BUFFER } from "../names.js";
+import { ACTIVE_SLOT_COUNT, STATUS_FLAGS, loc_43, loc_44, loc_45, DRAW_CURSOR_LO, DRAW_CURSOR_HI, loc_9f, TEMPLATE_COPY_LEN, VECTOR_TEMPLATE_BLOCK, VEC_GLYPH_BUFFER } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -30,9 +31,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xaa13;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_aa13);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

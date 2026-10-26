@@ -2,7 +2,7 @@
 // Memory-equivalence for emitRecordBodyByte (ROM 0xdf12, second entry of emitHeaderedBodyRecord.js) vs the
 // frozen loc_df12, whole path: store A at ($74),0, then dfac stores A at ($74),1 and df5f advances the cursor
 // by 2 and rts. Input is register A (real callers enter via df09 with A=0xc0). Contract: RAM minus
-// STACK_SCRATCH. No register live-out: the oracle leaves A=new $74, Y=1, C; every caller overwrites them
+// stack scratch below the entry SP. No register live-out: the oracle leaves A=new $74, Y=1, C; every caller overwrites them
 // before reading (b2fe: pla/tax/asl/tay; b8ba: tail into b944 ldx/ldy/lda, C next set by b2fe's asl in
 // b1b6; aa13 -> c16e: lda #$80, then c235/c2e8 set X/Y and cmp before any C read).
 // Run: node --test games/tempest/idiomatic/test/equivalence-df12.test.js
@@ -11,12 +11,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_df12 as oracle } from "../../translated/loc_df0d.js";
+import { loc_df12 } from "../../translated/loc_df0d.js";
 import { emitRecordBodyByte } from "../emitHeaderedBodyRecord.js";
 import { emitRecordTailByte } from "../emitCoordinateRecord.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -29,9 +30,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xdf12;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_df12);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

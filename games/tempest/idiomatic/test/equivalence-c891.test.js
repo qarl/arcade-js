@@ -2,7 +2,7 @@
 // Equivalence for seedFramePhaseAndTick (ROM 0xc891-0xc90b) -- the per-frame dispatcher. It sets speed/mode cells from
 // the coin input + phase counters, then a common tail advances FRAME_COUNTER and fires the sub-steps advanceLevelCounter
 // (c8d2), stepEaromTransfer (odd frames) and requestActiveSoundCue (when SOUND_STEP_GATE is live), threading the slot index X/Y from one to
-// the next. Contract: RAM (dumpState minus STACK_SCRATCH), plus the exit [X, Y] it returns (compared on the CAPTURE and CRAFTED setup arms). The ROM's decimal-mode arm (SED gated on
+// the next. Contract: RAM (dumpState minus stack scratch below the entry SP), plus the exit [X, Y] it returns (compared on the CAPTURE and CRAFTED setup arms). The ROM's decimal-mode arm (SED gated on
 // DECIMAL_MODE_FLAG != 0 && loc_9f > 0x13) is DEAD -- DECIMAL_MODE_FLAG is the checksum 0xa7 ^ fold(ROM[0xaace..0xaad8]) of a
 // fixed program-ROM span, which is 0, so the gate never opens (verified statically and by a MAME tap over
 // gameplay). The idiomatic routine omits it; on every reachable state D is left untouched, matching the
@@ -15,15 +15,16 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_c891 as oracle } from "../../translated/loc_c891.js";
+import { loc_c891 } from "../../translated/loc_c891.js";
 import { seedFramePhaseAndTick } from "../seedFramePhaseAndTick.js";
 import { advanceLevelCounter } from "../advanceLevelCounter.js";
 import { stepEaromTransfer } from "../stepEaromTransfer.js";
 import { requestActiveSoundCue } from "../requestActiveSoundCue.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH, FRAME_COUNTER, SOUND_STEP_GATE, GAME_MODE, MODE_DISPATCH_SEL, PHASE_COUNTER, loc_a2, loc_31, loc_32, IN0_PORT,
+  FRAME_COUNTER, SOUND_STEP_GATE, GAME_MODE, MODE_DISPATCH_SEL, PHASE_COUNTER, loc_a2, loc_31, loc_32, IN0_PORT,
 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -34,8 +35,8 @@ function opt(name) { const u = new URL(name, ROM_DIR); return existsSync(u) ? ne
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xc891;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+const oracle = atEntry(loc_c891);
+const ramDiff = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 const freezePokey = (m) => { for (const p of m.io.pokeys) p.skctl &= ~0x03; return m; };
 
 function captureDispatches(K, maxFrames) {

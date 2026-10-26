@@ -2,7 +2,7 @@
 // Memory-equivalence for computeDisplayListChecksum (ROM 0xaeca) -- when $0156 is non-zero it seats it in $58, builds a record
 // via ab14 (X=0x34) and dfb1, and zeros $56/$57; then always folds 17 ROM bytes ($d575,y for y=0x10..0) plus
 // 0x85 (carry-chained) into $b5. Dissolves the m.calls to ab14/dfb1. Output is RAM ($b5 + record) plus the
-// checksum left in A (a register live-out), so arms compare RAM (dumpState minus STACK_SCRATCH) and the
+// checksum left in A (a register live-out), so arms compare RAM (dumpState minus stack scratch below the entry SP) and the
 // returned checksum vs the oracle's A. The flag-branch ab14 copy loop is bounded by a seeded terminator.
 // Run: node --test games/tempest/idiomatic/test/equivalence-aeca.test.js
 
@@ -10,11 +10,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_aeca as oracle } from "../../translated/loc_aeca.js";
+import { loc_aeca } from "../../translated/loc_aeca.js";
 import { computeDisplayListChecksum } from "../computeDisplayListChecksum.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, BONUS_LIFE_INTERVAL, PROJ_PT_X } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { BONUS_LIFE_INTERVAL, PROJ_PT_X } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const rd = (n) => new Uint8Array(readFileSync(new URL(n, ROM_DIR)));
@@ -26,9 +27,9 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0xaeca;
 const B5 = 0x00b5;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_aeca);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

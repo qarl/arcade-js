@@ -6,20 +6,20 @@
 // flags loc_2f = 0xff and re-arms the timer (inc OBJECT_RECORD_TABLE,x). Both callees preserve X (spawnClimberInFreeSlot saves it in
 // SAVED_INDEX2 and restores it; spawnEnemyOnTimerExpiry saves it in SAVED_INDEX and reloads it), so exit X == the reloaded SAVED_INDEX in
 // every path -- X is the only live-out register (the caller tickSpawnSlotTimers reads OBJECT_RECORD_TABLE,x right after the call).
-// Contract = RAM (dumpState minus STACK_SCRATCH) PLUS X. Oracle is the frozen translated spawnEnemyOnTimerExpiry.
+// Contract = RAM (dumpState minus stack scratch below the entry SP) PLUS X. Oracle is the frozen translated spawnEnemyOnTimerExpiry.
 // Run: node --test games/tempest/idiomatic/test/equivalence-9923.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9923 as oracle } from "../../translated/loc_9923.js";
+import { loc_9923 } from "../../translated/loc_9923.js";
 import { spawnEnemyOnTimerExpiry } from "../spawnEnemyOnTimerExpiry.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { u16 } from "../../../../core/int.js";
 import {
-  STACK_SCRATCH,
   loc_29, loc_2a, loc_2f, SAVED_INDEX, OBJECT_INDEX_TABLE, OBJECT_RECORD_TABLE, FIRE_GATE,
   ENEMY_SLOT_TOP, COLUMN_SPAWN_CAP, COLUMN_ENEMY_TARGET, LANE_ENEMY_COUNT_0, ENEMY_DEPTH,
 } from "../names.js";
@@ -35,9 +35,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x9923;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9923);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

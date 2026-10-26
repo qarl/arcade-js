@@ -2,18 +2,19 @@
 // Memory-equivalence for requestScoreAwardSound (ROM 0xccb9-) -- loads sound id 0x4f and requests it through the
 // sound gate requestSoundIfEnabled (which, when $0005 bit7 is set, registers via loadSoundVoiceSlots using the live X/Y bridge
 // into $0031/$0032). Effect is memory-only, so each side runs on a fresh Machine and the contract is RAM
-// (dumpState, minus STACK_SCRATCH). Leaf-omits the ROM ret; arms compare RAM (-stack), not pc/SP.
+// (dumpState, minus stack scratch below the entry SP). Leaf-omits the ROM ret; arms compare RAM (-stack), not pc/SP.
 // Run: node --test games/tempest/idiomatic/test/equivalence-ccb9.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_ccb9 as oracle } from "../../translated/loc_ccb9.js";
+import { loc_ccb9 } from "../../translated/loc_ccb9.js";
 import { requestScoreAwardSound } from "../requestScoreAwardSound.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, STATUS_FLAGS, loc_31, loc_32 } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { STATUS_FLAGS, loc_31, loc_32 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -26,9 +27,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xccb9;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_ccb9);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

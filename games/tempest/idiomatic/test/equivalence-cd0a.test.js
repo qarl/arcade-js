@@ -11,13 +11,14 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_cd0a as oracle } from "../../translated/loc_cd0a.js";
+import { loc_cd0a } from "../../translated/loc_cd0a.js";
 import { stepSoundVoices } from "../stepSoundVoices.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { u8, u16 } from "../../../../core/int.js";
 import {
-  STACK_SCRATCH, SOUND_SLOT_SENTINEL, SOUND_VOICE_VALUE, SOUND_VOICE_LEVEL, SOUND_FAST_TIMER, SOUND_SLOW_TIMER,
+  SOUND_SLOT_SENTINEL, SOUND_VOICE_VALUE, SOUND_VOICE_LEVEL, SOUND_FAST_TIMER, SOUND_SLOW_TIMER,
   VOICE_ENV_FASTTIMER, VOICE_ENV_LEVEL, VOICE_ENV_FASTTIMER_HI, VOICE_ENV_LEVEL_HI,
 } from "../names.js";
 
@@ -32,9 +33,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xcd0a;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_cd0a);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

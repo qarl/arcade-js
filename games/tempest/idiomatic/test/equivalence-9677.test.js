@@ -4,14 +4,14 @@
 // {2,4,6,8,10,12}; the six targets (word+1) are 0x96c4/0x96b7/0x96ab/0x96e2/0x96db/0x9700 and each RTS
 // returns to dispatchRangeValueBySelector's own caller. The idiomatic form dissolves the push/rts-jump into TABLE[sel>>1](m).
 // dispatchRangeValueBySelector tail-delegates, so its exit registers are the delegate's -- the contract is RAM-only
-// (dumpState minus STACK_SCRATCH); the oracle's stack gymnastics land in STACK_SCRATCH and are excluded.
+// (dumpState minus stack scratch below the entry SP); the oracle's stack gymnastics land below the entry SP and are excluded.
 // Run: node --test games/tempest/idiomatic/test/equivalence-9677.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9677 as oracle } from "../../translated/loc_9677.js";
+import { loc_9677 } from "../../translated/loc_9677.js";
 import { dispatchRangeValueBySelector } from "../dispatchRangeValueBySelector.js";
 import { fetchCoordListEntryByCounter, fetchCoordListEntryByIndex, readCoordListEntry } from "../fetchCoordListEntryByCounter.js";
 import { sumCoordListEntryRun } from "../sumCoordListEntryRun.js";
@@ -19,8 +19,8 @@ import { resolveCoordListEntryToAbsolute } from "../resolveCoordListEntryToAbsol
 import { selectListEntryByDeltaParity } from "../computeCoordListBackDelta.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { u16 } from "../../../../core/int.js";
-import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -37,9 +37,9 @@ const SEL_15E = 0x015e;
 const IDX = [2, 4, 6, 8, 10, 12];
 const TABLE = [null, readCoordListEntry, fetchCoordListEntryByIndex, fetchCoordListEntryByCounter, sumCoordListEntryRun, resolveCoordListEntryToAbsolute, selectListEntryByDeltaParity];
 
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9677);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // Point the zero-page list pointer at mapped RAM, fill it with deterministic bytes, and aim $015e at a
 // selector. 0x29 is pre-seeded to a sentinel so a handler that stashes the cursor there is observable.

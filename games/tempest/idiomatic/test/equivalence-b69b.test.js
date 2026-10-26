@@ -9,7 +9,7 @@
 // threaded register is verified in RAM ($a9 + the downstream cursor $74 / vector-list stores); the TEETH
 // arm proves that threading the WRONG register (the stale pre-bd3e $a9) diverges there.
 // Live-out is memory only (b69b tail-jmps df59, whose product is the vector list + cursor), so each arm
-// runs on a clone and the contract is RAM (dumpState, minus STACK_SCRATCH). The coprocessor is
+// runs on a clone and the contract is RAM (dumpState, minus stack scratch below the entry SP). The coprocessor is
 // instantaneous and deterministic, so identical seeds yield identical reads on both arms.
 // Run: node --test games/tempest/idiomatic/test/equivalence-b69b.test.js
 
@@ -17,10 +17,11 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_b69b as oracle } from "../../translated/loc_b69b.js";
+import { loc_b69b } from "../../translated/loc_b69b.js";
 import { emitInterpolatedSlotVector } from "../emitInterpolatedSlotVector.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { u16 } from "../../../../core/int.js";
 import { scaleByPhaseFraction } from "../scaleByPhaseFraction.js";
 import { projectPointThroughMathbox } from "../projectPointThroughMathbox.js";
@@ -28,7 +29,7 @@ import { layHeaderAndBuildRecord } from "../layHeaderAndBuildRecord.js";
 import { appendNormalizedMantissaExponent } from "../appendNormalizedMantissaExponent.js";
 import { emitVectorWordAtOffset } from "../emitVectorWordAtOffset.js";
 import {
-  STACK_SCRATCH, FRAME_COUNTER, PROJ_PT_Y, OBJ_DEPTH, PROJ_PT_X, DRAW_CURSOR_OFFSET,
+  FRAME_COUNTER, PROJ_PT_Y, OBJ_DEPTH, PROJ_PT_X, DRAW_CURSOR_OFFSET,
   ENEMY_SEGMENT, ENEMY_PHASE, ENEMY_DEPTH, SEG_BASE_X, SEG_BASE_Y, OBJ_TEMPLATE_WORD_LO, OBJ_TEMPLATE_WORD_HI,
 } from "../names.js";
 
@@ -43,9 +44,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xb69b;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_b69b);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

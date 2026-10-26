@@ -9,19 +9,19 @@
 // into a forever spin, so the oracle is run under a CYCLE BUDGET (the spin trips FramesComplete, leaving
 // RAM at its post-frame rest). The idiomatic layer has no clock, so its sync-drain is modelled as the
 // device strobes it performs (no work-RAM effect) and its exit poll leaves after one pass. Contract:
-// RAM (dumpState minus STACK_SCRATCH). No live-out register (the routine falls into a spin / returns).
+// RAM (dumpState minus stack scratch below the entry SP). No live-out register (the routine falls into a spin / returns).
 // Run: node --test games/tempest/idiomatic/test/equivalence-da62.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_da62 as oracle } from "../../translated/loc_da62.js";
+import { loc_da62 } from "../../translated/loc_da62.js";
 import { runSelfTestLoop } from "../runSelfTestLoop.js";
 import { Machine, FramesComplete } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH,
   GAME_MODE, DRAW_CURSOR_HI, INPUT_CUR, PENDING_WORK_FLAGS, loc_2e, loc_2f, SEG_SPREAD_A_LO, SEG_SPREAD_A_LO_5,
 } from "../names.js";
 
@@ -37,9 +37,9 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0xda62;
 const BUDGET = 2000000; // > any single self-test frame; the terminal spin then trips FramesComplete
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_da62);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // da62 never returns; run the oracle under a cycle budget so its terminal spin trips FramesComplete.
 // "done" = the frame completed and the spin was reached; "notimpl" = a still-stubbed draw arm.

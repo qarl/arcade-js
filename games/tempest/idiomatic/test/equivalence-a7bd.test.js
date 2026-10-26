@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for rebuildSpikeTable (ROM 0xa7bd) -- zeroes $03fe..$0405, then $0405 = 0xf0 and $0115 = 0xff.
-// Live-out is RAM only (A/X at RTS incidental), so each arm compares RAM (dumpState, minus STACK_SCRATCH).
+// Live-out is RAM only (A/X at RTS incidental), so each arm compares RAM (dumpState, minus stack scratch below the entry SP).
 // No POKEY/clock coupling -> the crafted diff is deterministic.
 // Run: node --test games/tempest/idiomatic/test/equivalence-a7bd.test.js
 
@@ -8,11 +8,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_a7bd as oracle } from "../../translated/loc_a7bd.js";
+import { loc_a7bd } from "../../translated/loc_a7bd.js";
 import { rebuildSpikeTable } from "../rebuildSpikeTable.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_3fe, loc_405, SPIKE_TABLE_GUARD } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { loc_3fe, loc_405, SPIKE_TABLE_GUARD } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -22,9 +23,9 @@ const OPTS = { vectorrom: opt("vectorrom.bin"), avgprom: opt("avgprom.bin") };
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xa7bd;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_a7bd);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

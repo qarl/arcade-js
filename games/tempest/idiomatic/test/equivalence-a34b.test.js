@@ -3,20 +3,21 @@
 // target cells, then fires the sound gate (gateSound5f) and the table insert (insertTimedObject), then raises two ready
 // flags. The idiomatic side dissolves the two jsr into direct gateSound5f/insertTimedObject calls, passing the entry
 // X/Y (preserved across both callees). Live-out is memory only (A at RTS is incidental; X/Y are restored to
-// their entry values), so each arm compares RAM (dumpState minus STACK_SCRATCH) and checks X/Y unchanged.
+// their entry values), so each arm compares RAM (dumpState minus stack scratch below the entry SP) and checks X/Y unchanged.
 // Run: node --test games/tempest/idiomatic/test/equivalence-a34b.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_a34b as oracle } from "../../translated/loc_a34b.js";
+import { loc_a34b } from "../../translated/loc_a34b.js";
 import { primeTopPriorityObject } from "../primeTopPriorityObject.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { gateSound5f } from "../gateSound5f.js";
 import { insertTimedObject } from "../insertTimedObject.js";
-import { STACK_SCRATCH, STATUS_FLAGS, loc_29, COORD_LIST_PTR_LO, COORD_LIST_PTR_HI, OBJECT_ANIM_PHASE, OBJECT_ANIM_TIMER, PLAYER_SEGMENT, PLAYER_FINE_ANGLE, PLAYER_SHOT_DEPTH } from "../names.js";
+import { STATUS_FLAGS, loc_29, COORD_LIST_PTR_LO, COORD_LIST_PTR_HI, OBJECT_ANIM_PHASE, OBJECT_ANIM_TIMER, PLAYER_SEGMENT, PLAYER_FINE_ANGLE, PLAYER_SHOT_DEPTH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -29,9 +30,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xa34b;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_a34b);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

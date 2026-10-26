@@ -3,7 +3,7 @@
 // setup passes, lays a header pair, emits a marker $0158 times, then a run of table-indexed coordinate
 // records selected by $016a/$0200/$004d/$0009, and finally falls through into emitScaledByteDigit (dissolved to a
 // direct call). The routine draws into vector RAM ($2000-$2fff) and returns no value, so the contract is
-// RAM only (dumpState minus STACK_SCRATCH) -- no register is a live-out. The one still-frozen callee is
+// RAM only (dumpState minus stack scratch below the entry SP) -- no register is a live-out. The one still-frozen callee is
 // the co-SCC reset arm reached only when the mask CMP matches and the slot index underflows (m.call);
 // the CRAFTED seeds keep that arm out of the picture. Oracle is the frozen translated buildVectorItemList.
 // Run: node --test games/tempest/idiomatic/test/equivalence-d804.test.js
@@ -12,12 +12,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_d804 as oracle } from "../../translated/loc_d804.js";
+import { loc_d804 } from "../../translated/loc_d804.js";
 import { buildVectorItemList } from "../buildVectorItemList.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH,
   SLOT_LOOP_INDEX, INPUT_DEBOUNCED, SPINNER_ACCUM, RIM_ROT_OFFSET, DRAW_CURSOR_LO, DRAW_CURSOR_HI, DSW_BONUS_CONFIG, PLAYER_SEGMENT, PENDING_WORK_FLAGS,
 } from "../names.js";
 
@@ -32,9 +32,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xd804;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_d804);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // Some callees dip into the POKEY random latches ($60ca/$60da); freeze the polynomials on both clones so
 // a captured/crafted compare is deterministic.

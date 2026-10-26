@@ -2,7 +2,7 @@
 // Memory-equivalence for tickActiveSoundSlot (ROM 0xad6e-0xadcd) -- a CALLER that dissolves three m.calls into direct
 // idiomatic calls: foldStepIntoFraction (fold/clamp the active slot value, consuming its returned A), requestWriteLowRegions (arm the
 // merge with mask 3), and armRequestedSoundSlot (walk the request word). Live-out is RAM plus the exit [X, Y] it
-// returns, so each side runs on a clone and the contract is RAM (dumpState, minus STACK_SCRATCH), with the CAPTURE
+// returns, so each side runs on a clone and the contract is RAM (dumpState, minus stack scratch below the entry SP), with the CAPTURE
 // arm also comparing the returned pair.
 // Run: node --test games/tempest/idiomatic/test/equivalence-ad6e.test.js
 
@@ -10,7 +10,7 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_ad6e as oracle } from "../../translated/loc_ad6e.js";
+import { loc_ad6e } from "../../translated/loc_ad6e.js";
 import { tickActiveSoundSlot } from "../tickActiveSoundSlot.js";
 import { foldStepIntoFraction } from "../foldStepIntoFraction.js";
 import { requestWriteLowRegions } from "../requestWriteLowRegions.js";
@@ -18,8 +18,9 @@ import { armRequestedSoundSlot } from "../armRequestedSoundSlot.js";
 import { Machine } from "../../machine.js";
 import { u8, u16 } from "../../../../core/int.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH, GAME_MODE, MODE_DISPATCH_SEL, FRAME_COUNTER, loc_3d, INPUT_EDGE_FLAGS, SPINNER_ACCUM, RIM_ROT_OFFSET,
+  GAME_MODE, MODE_DISPATCH_SEL, FRAME_COUNTER, loc_3d, INPUT_EDGE_FLAGS, SPINNER_ACCUM, RIM_ROT_OFFSET,
   SLOT_METRIC, ACTIVE_SLOT, REQUEST_BITS, REARM_COUNTER, PASS_COUNTER, SLOT_VALUE,
 } from "../names.js";
 
@@ -34,9 +35,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xad6e;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_ad6e);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

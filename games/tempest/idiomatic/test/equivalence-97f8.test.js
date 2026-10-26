@@ -3,19 +3,20 @@
 // 16-bit height advance with ceiling park + end sound, a table rebuild, a second accumulator step, a
 // delta rederive, and a slot-row collision scan. The idiomatic side dissolves every jsr into direct
 // idiomatic calls (ccee/ccf2/cd06 take their X/Y from the seated registers, a347 by explicit args).
-// Live-out is memory only, so each arm compares RAM (dumpState minus STACK_SCRATCH).
+// Live-out is memory only, so each arm compares RAM (dumpState minus stack scratch below the entry SP).
 // Run: node --test games/tempest/idiomatic/test/equivalence-97f8.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_97f8 as oracle } from "../../translated/loc_97f8.js";
+import { loc_97f8 } from "../../translated/loc_97f8.js";
 import { advanceMovingSpike } from "../advanceMovingSpike.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH, GAME_MODE, STATUS_FLAGS, DEPTH_ACCUM_LO, DEPTH_HI, loc_9f, SPIKE_STEP_LO, SPIKE_STEP_HI, SPIKE_ACTIVE_FLAG,
+  GAME_MODE, STATUS_FLAGS, DEPTH_ACCUM_LO, DEPTH_HI, loc_9f, SPIKE_STEP_LO, SPIKE_STEP_HI, SPIKE_ACTIVE_FLAG,
   SPIKE_HEIGHT_LO, SPIKE_TABLE_GUARD, PLAYER_SEGMENT, PLAYER_FINE_ANGLE, PLAYER_SHOT_DEPTH, LANE_LIMIT,
 } from "../names.js";
 
@@ -30,9 +31,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x97f8;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_97f8);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

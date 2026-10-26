@@ -2,7 +2,7 @@
 // Memory-equivalence for commitPendingModeAfterDelay -- while the guard flag ($03 & $016b) is clear, runs down the delay
 // counter $04; when it lands on zero it arms the next state ($00 = $02) and clears the guard $016b. Every
 // path tail-delegates jmp 0x9749 (dissolved into the idiomatic rotateBlasterAroundRim, X/Y threaded). Live-out is
-// memory plus the rotation's exit [X, Y], which it returns; each arm compares RAM (dumpState minus STACK_SCRATCH)
+// memory plus the rotation's exit [X, Y], which it returns; each arm compares RAM (dumpState minus stack scratch below the entry SP)
 // and the STALE-REGS arms also compare the returned pair. The routine seats state then tail-calls,
 // so it is an omitted-ret dispatch (SP-tooth). $0201 bit7 is seeded to steer the delegated update to its
 // deterministic early-out.
@@ -12,12 +12,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_c800 as oracle } from "../../translated/loc_c800.js";
+import { loc_c800 } from "../../translated/loc_c800.js";
 import { commitPendingModeAfterDelay } from "../commitPendingModeAfterDelay.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH, PLAYER_FINE_ANGLE, FRAME_COUNTER, MODE_DELAY_GUARD, MODE_DELAY_TIMER, GAME_MODE, GAME_MODE_PENDING,
+  PLAYER_FINE_ANGLE, FRAME_COUNTER, MODE_DELAY_GUARD, MODE_DELAY_TIMER, GAME_MODE, GAME_MODE_PENDING,
   STATUS_FLAGS, SPINNER_ACCUM, RIM_ROT_OFFSET, PLAYER_SEGMENT, TUBE_GEOM_FLAG, loc_31, loc_32,
 } from "../names.js";
 
@@ -29,9 +30,9 @@ function opt(name) { const u = new URL(name, ROM_DIR); return existsSync(u) ? ne
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xc800;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_c800);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

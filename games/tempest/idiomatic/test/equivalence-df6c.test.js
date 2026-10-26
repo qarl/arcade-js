@@ -2,19 +2,20 @@
 // Memory-equivalence for emitVectorWordTag70 (ROM 0xdf6c-0xdf72) -- tags A with the 0x70 header bits, then emits the
 // vector word {Y, tagged-A} at the cursor and advances it. The idiomatic side dissolves the jmp $df57 tail
 // into a direct emitVectorWord(m, y, a|0x70) call. Live-out is memory only (pure tail-caller, reads no register
-// after), so each arm compares RAM (dumpState minus STACK_SCRATCH).
+// after), so each arm compares RAM (dumpState minus stack scratch below the entry SP).
 // Run: node --test games/tempest/idiomatic/test/equivalence-df6c.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_df6c as oracle } from "../../translated/loc_df6c.js";
+import { loc_df6c } from "../../translated/loc_df6c.js";
 import { emitVectorWordTag70 } from "../emitVectorWordTag70.js";
 import { emitVectorWord } from "../emitVectorHeaderWord.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -27,9 +28,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xdf6c;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_df6c);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

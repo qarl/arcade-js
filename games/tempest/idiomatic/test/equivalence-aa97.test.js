@@ -2,19 +2,19 @@
 // Memory-equivalence for emitCountDigitRun (ROM 0xaa97-0xaa9d) -- emits a zero header run via emitScaleWordIfChanged(a=0),
 // then tail-enters emitSlotIndexDigit with X = the slot byte at $3d. Both m.calls are dissolved to direct
 // idiomatic calls. Live-out is memory only (vector cursor + published slot pointer; the tail return is
-// incidental), so each arm compares RAM (dumpState minus STACK_SCRATCH).
+// incidental), so each arm compares RAM (dumpState minus stack scratch below the entry SP).
 // Run: node --test games/tempest/idiomatic/test/equivalence-aa97.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_aa97 as oracle } from "../../translated/loc_aa97.js";
+import { loc_aa97 } from "../../translated/loc_aa97.js";
 import { emitCountDigitRun } from "../emitCountDigitRun.js";
 import { emitSlotIndexDigit } from "../emitSlotIndexDigit.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -27,9 +27,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xaa97;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_aa97);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

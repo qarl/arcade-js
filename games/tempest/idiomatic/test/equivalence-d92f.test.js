@@ -2,7 +2,7 @@
 // Equivalence for foldToneTableByte -- folds one byte (through the zero-page pointer GAME_MODE, indexed by the cursor)
 // into the running byte and continues into seedToneBurstCount, which carries that folded byte as the tone burst
 // count into runPowerOnToneBursts (tone drains -> checksum/self-test spin). Its RAM-observable effect through the
-// chain is SEG_SPREAD_A_LO_1 = the folded byte. Contract: RAM (dumpState minus STACK_SCRATCH); the oracle runs under
+// chain is SEG_SPREAD_A_LO_1 = the folded byte. Contract: RAM (dumpState minus stack scratch below the ROM-reseated SP); the oracle runs under
 // a cycle BUDGET so the terminal self-test spin trips FramesComplete.
 // Run: node --test games/tempest/idiomatic/test/equivalence-d92f.test.js
 
@@ -10,11 +10,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_d92f as oracle } from "../../translated/loc_d92f.js";
+import { loc_d92f } from "../../translated/loc_d92f.js";
 import { foldToneTableByte } from "../foldToneTableByte.js";
 import { Machine, FramesComplete } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, GAME_MODE, MODE_DISPATCH_SEL, SEG_SPREAD_A_LO_1, PENDING_WORK_FLAGS, loc_2e, loc_2f, SEG_SPREAD_A_LO } from "../names.js";
+import { atEntry, deadStackAtEntry, reseatedTop } from "./_entryFloor.js";
+import { GAME_MODE, MODE_DISPATCH_SEL, SEG_SPREAD_A_LO_1, PENDING_WORK_FLAGS, loc_2e, loc_2f, SEG_SPREAD_A_LO } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -26,8 +27,8 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 const BUDGET = 40000000;
 const A_IN = 0x11;   // incoming running byte
 const Y_IN = 0x02;   // cursor index into the table
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+const oracle = atEntry(loc_d92f, reseatedTop); // runPowerOnToneBursts txs-seats S as a counter; it ends 0xff
+const ramDiff = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // Pointer GAME_MODE/MODE_DISPATCH_SEL -> vector RAM 0x2000 (MODE_DISPATCH_SEL=0x20 also serves as seedToneBurstCount's pass-seed source), a
 // byte to fold at 0x2000+Y, and the self-test tail seed so the tail builds a real frame before its poll.

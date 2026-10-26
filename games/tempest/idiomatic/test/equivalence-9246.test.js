@@ -2,7 +2,7 @@
 // Memory-equivalence for seedSlotRandomTags (ROM 0x9246-0x926e) -- clears the tag table $0243..$0282, then for each
 // active slot (X = [$03ab]-1..0) writes a 4-bit random to $0203,x and packs (x<<4 | random) into $0243,x,
 // substituting 0x0f when that tag is zero. Live-out is memory only (A/X at RTS are incidental), so each side
-// runs on a clone and the contract is RAM (dumpState, minus STACK_SCRATCH). A leaf: the module omits the ROM
+// runs on a clone and the contract is RAM (dumpState, minus stack scratch below the entry SP). A leaf: the module omits the ROM
 // ret and the seam completes it, so the arms compare RAM (-stack), NOT pc/SP.
 //   POKEY coupling: the tag random comes from $60ca (POKEY1 RANDOM), which is clock-coupled (each read
 // charges cycles the idiomatic layer doesn't). We freeze the polys (clear SK_RESET) so both arms read the
@@ -13,11 +13,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9246 as oracle } from "../../translated/loc_9246.js";
+import { loc_9246 } from "../../translated/loc_9246.js";
 import { seedSlotRandomTags } from "../seedSlotRandomTags.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, OBJECT_INDEX_TABLE, OBJECT_RECORD_TABLE, FIRE_GATE } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { OBJECT_INDEX_TABLE, OBJECT_RECORD_TABLE, FIRE_GATE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -30,9 +31,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x9246;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9246);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // Freeze the POKEY polys so the clock-coupled RANDOM index stays put across both arms.
 const freezePokey = (m) => { for (const p of m.io.pokeys) p.skctl &= ~0x03; return m; };

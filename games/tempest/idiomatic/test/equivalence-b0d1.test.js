@@ -2,18 +2,19 @@
 // Memory-equivalence for emitColorStatIfChanged (ROM 0xb0d1-0xb0dc) -- returns early when $9e already equals the
 // input Y; otherwise latches Y into $9e and tail-emits a fixed-tag record via emitTaggedVectorWord. The idiomatic
 // side dissolves the tail jsr $df4c into a direct emitTaggedVectorWord(m, 0x08, y) call. Live-out is memory only
-// (tail-caller into the df-family emitter), so each arm compares RAM (dumpState minus STACK_SCRATCH).
+// (tail-caller into the df-family emitter), so each arm compares RAM (dumpState minus stack scratch below the entry SP).
 // Run: node --test games/tempest/idiomatic/test/equivalence-b0d1.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_b0d1 as oracle } from "../../translated/loc_b0d1.js";
+import { loc_b0d1 } from "../../translated/loc_b0d1.js";
 import { emitColorStatIfChanged } from "../emitColorStatIfChanged.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_9e, DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { loc_9e, DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -26,9 +27,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xb0d1;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_b0d1);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

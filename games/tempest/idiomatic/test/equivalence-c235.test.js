@@ -2,7 +2,7 @@
 // Memory-equivalence for buildTubeLaneCoords (ROM 0xc235-0xc2e7) -- level-geometry setup. Dissolves jsr $c2e8 into a
 // direct idiomatic call (passing $46,x explicitly, consuming its returned A as the seed index); the oracle
 // runs the TRANSLATED resolveShapeTableIndex via m.call. Live-out is memory only (final A/X/Y are incidental), so each
-// side runs on a clone and the contract is RAM (dumpState, minus STACK_SCRATCH). resolveShapeTableIndex reads POKEY
+// side runs on a clone and the contract is RAM (dumpState, minus stack scratch below the entry SP). resolveShapeTableIndex reads POKEY
 // random ($60ca) only when its input >= 0x62; the crafted seeds stay below that, and CAPTURE compares on
 // identical clones (poly-frozen), so both arms read the same byte. A caller: the module omits the ROM ret.
 // Run: node --test games/tempest/idiomatic/test/equivalence-c235.test.js
@@ -11,12 +11,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_c235 as oracle } from "../../translated/loc_c235.js";
+import { loc_c235 } from "../../translated/loc_c235.js";
 import { buildTubeLaneCoords } from "../buildTubeLaneCoords.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH, GAME_MODE_PENDING, loc_3d, PLAYER_LEVEL_TBL, DEPTH_LO, PROJ_OFS_Y_LO, PROJ_OFS_Y_HI,
+  GAME_MODE_PENDING, loc_3d, PLAYER_LEVEL_TBL, DEPTH_LO, PROJ_OFS_Y_LO, PROJ_OFS_Y_HI,
   PROJ_OFS_X_LO, PROJ_OFS_X_HI, loc_10f, loc_110, loc_113, SEG_MID_X,
 } from "../names.js";
 
@@ -31,9 +32,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xc235;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_c235);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

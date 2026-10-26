@@ -2,7 +2,7 @@
 // Memory-equivalence for drawCounterSlot (ROM 0xaf3f) -- draws one slot: when $0600,x is zero it returns at once,
 // else it emits the slot's capped count at a per-slot screen position, dissolving m.calls to b0d1/ab0d/df75/
 // af71/b56a/ab98/aa9e into direct idiomatic calls. All output is RAM, so each arm compares RAM (dumpState
-// minus STACK_SCRATCH). X is a live-in via the register bridge. The deep path runs ab98->ab3b, whose copy
+// minus stack scratch below the entry SP). X is a live-in via the register bridge. The deep path runs ab98->ab3b, whose copy
 // loop is bounded by a bit7-set terminator planted in the seeded pointer chain; ($74) points into vector RAM.
 // Run: node --test games/tempest/idiomatic/test/equivalence-af3f.test.js
 
@@ -10,11 +10,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_af3f as oracle } from "../../translated/loc_af3f.js";
+import { loc_af3f } from "../../translated/loc_af3f.js";
 import { drawCounterSlot } from "../drawCounterSlot.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, SLOT_METRIC, loc_2e } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { SLOT_METRIC, loc_2e } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const rd = (n) => new Uint8Array(readFileSync(new URL(n, ROM_DIR)));
@@ -25,9 +26,9 @@ const OPTS = { vectorrom: opt("vectorrom.bin"), avgprom: opt("avgprom.bin") };
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xaf3f;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_af3f);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

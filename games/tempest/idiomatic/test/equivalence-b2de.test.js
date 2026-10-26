@@ -2,7 +2,7 @@
 // Memory-equivalence for seatAltDrawPointer (ROM 0xb2de) -- load a 16-bit pointer from ROM table $ce7a (when the
 // per-index flag $0415+A is nonzero) or $ce68 (when zero), indexed by 2*A, into $3b/$3c, and clear $a9.
 // Live-out is RAM only (A/X/Y are addressing scratch no caller reads), so every arm compares RAM
-// (dumpState minus STACK_SCRATCH). It is a pure leaf (no dispatch); the seam completes it by omitting its
+// (dumpState minus stack scratch below the entry SP). It is a pure leaf (no dispatch); the seam completes it by omitting its
 // ROM ret. No POKEY reads, so the crafted arms are fully deterministic.
 // Run: node --test games/tempest/idiomatic/test/equivalence-b2de.test.js
 
@@ -10,11 +10,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_b2de as oracle } from "../../translated/loc_b2de.js";
+import { loc_b2de } from "../../translated/loc_b2de.js";
 import { seatAltDrawPointer } from "../seatAltDrawPointer.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, WORK_PTR_LO, WORK_PTR_HI, DRAW_CURSOR_OFFSET, POINTER_PARITY } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { WORK_PTR_LO, WORK_PTR_HI, DRAW_CURSOR_OFFSET, POINTER_PARITY } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const opt = (name) => {
@@ -27,9 +28,9 @@ const OPTS = { vectorrom: opt("vectorrom.bin"), avgprom: opt("avgprom.bin") };
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xb2de;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_b2de);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

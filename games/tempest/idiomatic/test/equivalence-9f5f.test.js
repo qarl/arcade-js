@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for maybeFireEnemyStep (per-slot fire gate). The oracle m.calls the translated
 // step routines; the idiomatic calls their idiomatic twins (flipEnemyLaneRandomSide / flipEnemyLaneTowardTarget) directly.
-// Both are memory-equivalent, so the contract is RAM (dumpState, minus STACK_SCRATCH). The
+// Both are memory-equivalent, so the contract is RAM (dumpState, minus stack scratch below the entry SP). The
 // slot index X is a register input (default from m.regs.x on both sides). POKEY RANDOM
 // ($60da here, $60ca inside the callees) is deterministic on identical fresh machine state,
 // so CRAFTED arms run twin fresh Machines; CAPTURE replays real dispatch clones.
@@ -11,11 +11,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9f5f as oracle } from "../../translated/loc_9f5f.js";
+import { loc_9f5f } from "../../translated/loc_9f5f.js";
 import { maybeFireEnemyStep } from "../maybeFireEnemyStep.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, ENEMY_DEPTH, ENEMY_FIRE_THRESHOLD, ENEMY_FIRE_SELECT } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { ENEMY_DEPTH, ENEMY_FIRE_THRESHOLD, ENEMY_FIRE_SELECT } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -28,9 +29,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x9f5f;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9f5f);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for reseedWaveWorkingSet (ROM 0x9108, second entry of selectWaveStartSlot.js) vs the
 // frozen loc_9108, whole path to its rts: the reseed body then the fall into loc_9149 (tickWaveSpawnCadence).
-// Contract: RAM minus STACK_SCRATCH, plus the exit [X, Y] it returns (compared on the CAPTURE arm). Its only
+// Contract: RAM minus stack scratch below the entry SP, plus the exit [X, Y] it returns (compared on the CAPTURE arm). Its only
 // return site is c7bd's rts-dispatch back into the frame loop at 0xc7b3, whose next jsr (c891) may hand X and Y
 // to the sound loader (ccc7 stashes them in $31/$32), so the frame loop threads them on. POKEY RANDOM (read on the off-sign spawn) is frozen both sides.
 // Run: node --test games/tempest/idiomatic/test/equivalence-9108.test.js
@@ -10,12 +10,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9108 as oracle } from "../../translated/loc_90c4.js";
+import { loc_9108 } from "../../translated/loc_90c4.js";
 import { reseedWaveWorkingSet } from "../selectWaveStartSlot.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH, GAME_MODE, MODE_DELAY_TIMER, STATUS_FLAGS, loc_3d, LEVEL_ID, INPUT_EDGE_FLAGS, PASS_COUNTER,
+  GAME_MODE, MODE_DELAY_TIMER, STATUS_FLAGS, loc_3d, LEVEL_ID, INPUT_EDGE_FLAGS, PASS_COUNTER,
   TUBE_GEOM_FLAG, SPINNER_ACCUM, RIM_ROT_OFFSET,
 } from "../names.js";
 
@@ -36,9 +37,9 @@ const TAPE_2P = [70, 100, 130].map((frame) => ({ port: 0, bits: 0x04, frame, dur
   .concat([{ port: 2, bits: 0x40, frame: 170, dur: 20 }]);
 
 const TARGET = 0x9108;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9108);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 const freezePokey = (m) => { for (const p of m.io.pokeys) p.skctl &= ~0x03; return m; };
 
 // Hook 0x9108 (m.call'd only by c7bd's table rts-dispatch; loc_90c4 falls in directly) and clone each dispatch.

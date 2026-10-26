@@ -2,19 +2,20 @@
 // Memory-equivalence for emitJumpModeSlot (ROM 0xb60f-0xb61b) -- picks a jump-mode byte from the 0xb61e table by
 // ($028a,x & 3), pairs it with the slot's target ($02b9,x), and tail-calls the shared emitter 0xbcfd. The
 // idiomatic side dissolves the tail jmp into a direct seatShapeParamsAndEmit(m, modeByte, target) call. Live-out is
-// memory only, so each arm compares RAM (dumpState minus STACK_SCRATCH). seatShapeParamsAndEmit seats $0055/$0056/$0058
+// memory only, so each arm compares RAM (dumpState minus stack scratch below the entry SP). seatShapeParamsAndEmit seats $0055/$0056/$0058
 // then runs the emit chain. Run: node --test games/tempest/idiomatic/test/equivalence-b60f.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_b60f as oracle } from "../../translated/loc_b60f.js";
+import { loc_b60f } from "../../translated/loc_b60f.js";
 import { emitJumpModeSlot } from "../emitJumpModeSlot.js";
 import { seatShapeParamsAndEmit } from "../seatShapeParamsAndEmit.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, ENEMY_SLOT_DIR, ENEMY_SEGMENT, JUMP_MODE_SHAPE, SEG_MID_X, SEG_MID_Y, DRAW_STYLE, PROJ_PT_Y, PROJ_PT_X } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { ENEMY_SLOT_DIR, ENEMY_SEGMENT, JUMP_MODE_SHAPE, SEG_MID_X, SEG_MID_Y, DRAW_STYLE, PROJ_PT_Y, PROJ_PT_X } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -27,9 +28,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xb60f;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_b60f);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

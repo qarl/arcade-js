@@ -4,19 +4,20 @@
 // cursor origin ($74) and running the record chain. A pure tail-caller: it dissolves the branch into a
 // direct emitRecordBodyByte(m, 0xc0) call. All live-out is RAM (the stored byte + the chain's writes); the oracle
 // also leaves A as a df5f-family cursor byte the idiomatic tail does not reproduce, and df09 reads no
-// register after, so each arm compares RAM (dumpState minus STACK_SCRATCH) only, not A.
+// register after, so each arm compares RAM (dumpState minus stack scratch below the entry SP) only, not A.
 // Run: node --test games/tempest/idiomatic/test/equivalence-df09.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_df09 as oracle } from "../../translated/loc_df09.js";
+import { loc_df09 } from "../../translated/loc_df09.js";
 import { emitRecordBodyC0 } from "../emitRecordBodyC0.js";
 import { emitRecordBodyByte } from "../emitHeaderedBodyRecord.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -26,9 +27,9 @@ function opt(name) { const u = new URL(name, ROM_DIR); return existsSync(u) ? ne
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xdf09;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_df09);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

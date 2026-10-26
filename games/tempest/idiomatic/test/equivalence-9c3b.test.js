@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for setFlagFromPhaseAccumulatorSign (ROM 0x9c3b-0x9c4e) -- derives $010c from the $0147/$0148 pair:
 // $010c = (((($0147 << 2) + $0148) & $0148) & $80) ^ $80. Live-out is memory only (A/flags at RTS are
-// incidental), so each side runs on a clone and the contract is RAM (dumpState, minus STACK_SCRATCH). A
+// incidental), so each side runs on a clone and the contract is RAM (dumpState, minus stack scratch below the entry SP). A
 // leaf: the module omits the ROM ret and the seam completes it, so the arms compare RAM (-stack), NOT pc/SP.
 // Run: node --test games/tempest/idiomatic/test/equivalence-9c3b.test.js
 
@@ -9,11 +9,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9c3b as oracle } from "../../translated/loc_9c3b.js";
+import { loc_9c3b } from "../../translated/loc_9c3b.js";
 import { setFlagFromPhaseAccumulatorSign } from "../setFlagFromPhaseAccumulatorSign.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, ENEMY_ANIM_DELTA, ENEMY_ANIM_ACCUM, SCRIPT_BRANCH_FLAG } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { ENEMY_ANIM_DELTA, ENEMY_ANIM_ACCUM, SCRIPT_BRANCH_FLAG } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -26,9 +27,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x9c3b;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9c3b);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

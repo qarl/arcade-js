@@ -4,7 +4,7 @@
 // replacement (insertObjectFromSlotDepth + retireEnemyAndSpawnSplit), then TAIL-DELEGATES the score award selected by the slot's lane
 // (LANE_SCORE_INDEX_TABLE indexed by ENEMY_SLOT_FLAGS,y & 7) to addBcdScoreAndAwardAtThreshold. Both spawn callees preserve Y (they park it in SAVED_INDEX2
 // and reload it), so the re-read of ENEMY_SLOT_FLAGS,y after the calls uses the entry Y -- the idiomatic form
-// threads that entry Y directly. Contract is RAM (dumpState minus STACK_SCRATCH): respawnEnemyAndAward takes no live-in
+// threads that entry Y directly. Contract is RAM (dumpState minus stack scratch below the entry SP): respawnEnemyAndAward takes no live-in
 // A and tail-delegates to addBcdScoreAndAwardAtThreshold, so its exit A/X/Y are the delegate's and are NOT compared.
 // Run: node --test games/tempest/idiomatic/test/equivalence-a398.test.js
 
@@ -12,12 +12,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_a398 as oracle } from "../../translated/loc_a398.js";
+import { loc_a398 } from "../../translated/loc_a398.js";
 import { respawnEnemyAndAward } from "../respawnEnemyAndAward.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH,
   COORD_LIST_PTR_HI, STATUS_FLAGS, ENEMY_SLOT_FLAGS, ENEMY_SEGMENT, ENEMY_SLOT_DIR, ENEMY_DEPTH, PLAYER_SHOT_DEPTH, LANE_ENEMY_COUNT_0,
 } from "../names.js";
 
@@ -32,9 +32,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xa398;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_a398);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // Seed slot Y for a clean, non-throwing run: gate STATUS_FLAGS bit7 clear (addBcdScoreAndAwardAtThreshold returns early) and the
 // spawn gate ENEMY_SLOT_DIR,y low bits clear (retireEnemyAndSpawnSplit retires the slot but skips the draw sub-calls). `desc`

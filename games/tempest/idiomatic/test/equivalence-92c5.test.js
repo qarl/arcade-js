@@ -5,18 +5,19 @@
 // rescales ENEMY_CLIMB_DELTA_LO_0/INITIAL_ACTIVE_COUNT per DSW_DIFFICULTY & 3 and folds ENEMY_CLIMB_DELTA_LO_3/OBJECT_VELOCITY_LO/ENEMY_CLIMB_DELTA_LO_0 through the helper, seeding
 // many loc_01xx cells. reseedStateTables takes no input register and ends with its OWN return (no tail-delegation).
 // It returns the exit [X, Y] its last fold leaves (tickWaveSpawnCadence hands the Y on as its own exit Y), so the
-// contract is RAM (dumpState minus STACK_SCRATCH) plus that returned pair. Oracle is the frozen translated reseedStateTables.
+// contract is RAM (dumpState minus stack scratch below the entry SP) plus that returned pair. Oracle is the frozen translated reseedStateTables.
 // Run: node --test games/tempest/idiomatic/test/equivalence-92c5.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_92c5 as oracle } from "../../translated/loc_92c5.js";
+import { loc_92c5 } from "../../translated/loc_92c5.js";
 import { reseedStateTables } from "../reseedStateTables.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_9f, DSW_DIFFICULTY, CANDIDATE_LANE_0 } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { loc_9f, DSW_DIFFICULTY, CANDIDATE_LANE_0 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -29,9 +30,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x92c5;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_92c5);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

@@ -3,18 +3,19 @@
 // tail-emits the three zeropage bytes at $29 through emitNibbleDigitRun. The idiomatic side dissolves jsr $91b5 and
 // the jmp $dfb1 tail-call into direct seatInPagePointer(m,x) / emitNibbleDigitRun(m,0x29,0x03) calls. Live-out is memory only
 // (the pointer slot + emit list; A/X/Y at RTS are incidental), so each arm compares RAM (dumpState minus
-// STACK_SCRATCH). Run: node --test games/tempest/idiomatic/test/equivalence-b0c6.test.js
+// stack scratch below the entry SP). Run: node --test games/tempest/idiomatic/test/equivalence-b0c6.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_b0c6 as oracle } from "../../translated/loc_b0c6.js";
+import { loc_b0c6 } from "../../translated/loc_b0c6.js";
 import { emitTableValueDigitRun } from "../emitTableValueDigitRun.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { seatInPagePointer } from "../seatInPagePointer.js";
-import { STACK_SCRATCH, loc_2a, loc_2b, DRAW_CURSOR_LO } from "../names.js";
+import { loc_2a, loc_2b, DRAW_CURSOR_LO } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -27,9 +28,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xb0c6;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_b0c6);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

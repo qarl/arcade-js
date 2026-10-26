@@ -2,19 +2,20 @@
 // Memory-equivalence for drawSlotShapeList -- a caller that walks twelve slots emitting each non-empty entry's shape
 // (dissolving its in-loop jmp into the already-idiomatic seatShapeParamsAndEmit, value + index passed explicitly) then
 // latches a level byte. The callee chain shapes vector work cells; live-out is memory only, so each side
-// runs on a clone and the contract is RAM (dumpState, minus STACK_SCRATCH). No register inputs.
+// runs on a clone and the contract is RAM (dumpState, minus stack scratch below the entry SP). No register inputs.
 // Run: node --test games/tempest/idiomatic/test/equivalence-b75b.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_b75b as oracle } from "../../translated/loc_b75b.js";
+import { loc_b75b } from "../../translated/loc_b75b.js";
 import { drawSlotShapeList } from "../drawSlotShapeList.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { u16 } from "../../../../core/int.js";
-import { STACK_SCRATCH, SLOT_STATE, TARGET_SEG, FRAME_COUNTER, ACTIVE_OBJECT_COUNT, COLOR_RAM_8, SLOT_LOOP_INDEX } from "../names.js";
+import { SLOT_STATE, TARGET_SEG, FRAME_COUNTER, ACTIVE_OBJECT_COUNT, COLOR_RAM_8, SLOT_LOOP_INDEX } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -27,9 +28,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xb75b;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_b75b);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

@@ -2,7 +2,7 @@
 // Memory-equivalence for tickHeartbeatCounters -- a dense per-lane update over $0d/$10/$13 driven by the control bits in
 // $07/$08/$09, then a position/score accumulation into $16/$17/$18 via a lookup table in ROM, then two clamp
 // passes over the $13 lane triple. Fully deterministic (no POKEY / clock reads), so the CRAFTED arm seeds the
-// working cells, runs both arms, and compares RAM (dumpState, minus STACK_SCRATCH). A leaf: the module omits
+// working cells, runs both arms, and compares RAM (dumpState, minus stack scratch below the entry SP). A leaf: the module omits
 // the ROM ret and the seam completes it, so the arms compare RAM (-stack), NOT pc/SP.
 // Run: node --test games/tempest/idiomatic/test/equivalence-cf24.test.js
 
@@ -10,11 +10,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_cf24 as oracle } from "../../translated/loc_cf24.js";
+import { loc_cf24 } from "../../translated/loc_cf24.js";
 import { tickHeartbeatCounters } from "../tickHeartbeatCounters.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, LANE_WRAP_POS, LANE_COUNTER } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { LANE_WRAP_POS, LANE_COUNTER } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -27,9 +28,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xcf24;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_cf24);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

@@ -14,12 +14,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9e5c as oracle, loc_9e5f as oracle5f } from "../../translated/loc_9e5c.js";
+import { loc_9e5c, loc_9e5f } from "../../translated/loc_9e5c.js";
 import { stepClimberSegmentGuarded } from "../stepClimberSegmentGuarded.js";
 import { stepClimberSegmentAndHeading } from "../stepClimberSegmentAndHeading.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, TUBE_GEOM_FLAG, ENEMY_SLOT_FLAGS, ENEMY_SEGMENT, ENEMY_PHASE, SEG_DIRECTION } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { TUBE_GEOM_FLAG, ENEMY_SLOT_FLAGS, ENEMY_SEGMENT, ENEMY_PHASE, SEG_DIRECTION } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -32,9 +33,10 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x9e5c;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9e5c);
+const oracle5f = atEntry(loc_9e5f);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // Seed the 16-entry ring table $03ee..$03fd so the 9ed7 half-turn (+8) bites in the segment != 4 path.
 const seedRing = (m) => { for (let i = 0; i < 16; i++) m.mem.write8((SEG_DIRECTION + i) & 0xffff, i); return m; };

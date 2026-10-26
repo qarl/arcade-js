@@ -6,7 +6,7 @@
 // seam) fired IDENTICALLY at each idiomatic yield and at each oracle wait poll that will loop, a sentinel at
 // the Nth. The self-test arm is bounded at the fork (the oracle's IN0 read at d983 vs the idiomatic first
 // yield): the diagnostic body past it is not ported (spinSelfTest has no RAM effects). RANDOM is one
-// deterministic stream per chip on both sides, the device clock pinned. Contract: RAM minus STACK_SCRATCH,
+// deterministic stream per chip on both sides, the device clock pinned. Contract: RAM minus stack scratch below the ROM-reseated SP,
 // device latch state, RANDOM read counts and AVG strobes. No register live-out: reached from the reset vector
 // and two JMPs (d714, d861), never a JSR.
 // Run: node --test games/tempest/idiomatic/test/equivalence-d93f.test.js
@@ -23,7 +23,8 @@ import { buildLevelLayout } from "../buildLevelLayout.js";
 import { runMainFrameLoop } from "../runMainFrameLoop.js";
 import { Machine, RESET_VECTOR } from "../../machine.js";
 import manifest from "../../manifest.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { firstStateDiff, deadStackBelow } from "../../../../core/equivalence.js";
+import { reseatedTop } from "./_entryFloor.js";
 import { STACK_SCRATCH, IRQ_HEARTBEAT, IN0_PORT, VG_SCALE, GAME_MODE, STATUS_FLAGS } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -41,7 +42,6 @@ const BURST = manifest.convergence.idiomatic.irq.irqVblank.length;
 const CHECKS = [1, 2, 3, 10, 40, 150];
 const LAST = CHECKS[CHECKS.length - 1];
 const BOUND = Symbol("d93f-bound");
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 function pin(m, held) {
   m.nextBoundary = Infinity; m.nextIrqCycle = Infinity; m.maxCycles = Infinity;
@@ -84,6 +84,7 @@ const snap = (m) => ({ ram: m.dumpState(), dev: dev(m), done: !!m.io.avg?.doneFl
 
 function runOracle(m, held) {
   const snaps = new Map(), read8 = m.mem.read8.bind(m.mem);
+  snaps.floor = reseatedTop(); // RESET: ldx #$ff txs before any push
   let n = 0;
   m.mem.read8 = (a) => {
     const v = read8(a);
@@ -101,6 +102,7 @@ function runOracle(m, held) {
 }
 function runGen(gen, m, held) {
   const snaps = new Map(), last = held ? 1 : LAST;
+  snaps.floor = reseatedTop();
   for (let n = 1; n <= last; n++) {
     if (gen.next().done) throw new Error("the boot returned");
     if (held || CHECKS.includes(n)) snaps.set(n, snap(m));
@@ -112,7 +114,7 @@ function diff(so, si, held, strict = false) {
   for (const n of held ? [1] : CHECKS) {
     const o = so.get(n), c = si.get(n);
     if (!o || !c) return `checkpoint ${n} missing (oracle ${!!o}, idiomatic ${!!c})`;
-    const d = firstStateDiff(o.ram, c.ram, o.at, inDeadStack);
+    const d = firstStateDiff(o.ram, c.ram, o.at, deadStackBelow(STACK_SCRATCH, Math.min(so.floor, si.floor)));
     if (d) return `burst ${n}: RAM 0x${d.addr.toString(16)} oracle=${d.a} idiomatic=${d.b}`;
     if (o.dev !== c.dev) return `burst ${n}: device state differs`;
     if (o.done !== c.done) return `burst ${n}: AVG done flag oracle=${o.done} idiomatic=${c.done}`;
@@ -174,7 +176,7 @@ ARMS.forEach(([label, , held], i) => {
 });
 
 const STRICT = { skip: ROM_PRESENT ? false : "ROM not built" };
-nodeTest("STRICT: every arm equal with only STACK_SCRATCH excluded", STRICT, () => {
+nodeTest("STRICT: every arm equal with only stack scratch below the ROM-reseated SP excluded", STRICT, () => {
   const red = ARMS.map(([label, , held], i) => [label, diff(oracleRun(i), genRun(i), held, true)]).filter(([, d]) => d);
   assert.deepEqual(red, []);
 });

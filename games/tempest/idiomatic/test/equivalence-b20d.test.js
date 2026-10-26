@@ -2,7 +2,7 @@
 // Equivalence for dispatchDisplayModeHandler (ROM 0xb20d-0xb217) -- an RTS-trampoline computed-jump dispatcher: it reads the
 // pre-doubled selector in MODE_DISPATCH_SEL, pushes word(0xb218+sel)(target-1), and rts-dispatches to target. The word
 // table at 0xb218 holds twelve entries; the idiomatic form dissolves the trick into TABLE[MODE_DISPATCH_SEL>>1](m).
-// Contract: RAM (dumpState minus STACK_SCRATCH). A dispatching rewrite -> SP-tooth (seamPlaceable). Some
+// Contract: RAM (dumpState minus stack scratch below the entry SP). A dispatching rewrite -> SP-tooth (seamPlaceable). Some
 // targets reach the clock-coupled POKEY RANDOM, so CAPTURE freezes it on both clones.
 // Run: node --test games/tempest/idiomatic/test/equivalence-b20d.test.js
 
@@ -10,7 +10,7 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_b20d as oracle } from "../../translated/loc_b20d.js";
+import { loc_b20d } from "../../translated/loc_b20d.js";
 import { dispatchDisplayModeHandler } from "../dispatchDisplayModeHandler.js";
 import { drawFrame } from "../drawFrame.js";
 import { buildVectorItemList } from "../buildVectorItemList.js";
@@ -26,7 +26,8 @@ import { advancePinchingSpanAnimation } from "../advancePinchingSpanAnimation.js
 import { drawFrameWithSlot32 } from "../drawFrameWithSlot32.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, MODE_DISPATCH_SEL } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { MODE_DISPATCH_SEL } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -37,8 +38,8 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0xb20d;
 const TABLE = [drawFrame, buildVectorItemList, drawMovingObjectSlots, drawScoreDeltaPanel, drawTubeWell, seedRngAndDrawCounterPanel, drawFrameWithSlot00, drawFrameWithSlot08, composeFrameThenDrawSlot06, advanceSpreadingSpanAnimation, advancePinchingSpanAnimation, drawFrameWithSlot32];
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+const oracle = atEntry(loc_b20d);
+const ramDiff = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 const freezePokey = (m) => { for (const p of m.io.pokeys) p.skctl &= ~0x03; return m; };
 
 function captureDispatches(K, maxFrames) {

@@ -6,17 +6,18 @@
 // emitVectorWordTag70, forms two clamped signed deltas, expands a fivefold spread, and emits N four-byte records
 // into the ($74) cursor before tail-advancing it via advanceDisplayCursor. The idiomatic side dissolves every
 // jsr into a direct call. Live-out is memory only (tail-caller into df5f), so each arm compares RAM
-// (dumpState minus STACK_SCRATCH). Run: node --test games/tempest/idiomatic/test/equivalence-bda0.test.js
+// (dumpState minus stack scratch below the entry SP). Run: node --test games/tempest/idiomatic/test/equivalence-bda0.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_bda0 as oracleBda0, loc_bdcb as oracleBdcb } from "../../translated/loc_bda0.js";
+import { loc_bda0, loc_bdcb } from "../../translated/loc_bda0.js";
 import { drawTubeRimSegmentFromCorner, emitTubeRimSegmentVectors } from "../drawTubeRimSegmentFromCorner.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, DEPTH_LO, DRAW_CURSOR_LO, DRAW_CURSOR_HI, DRAW_RECORD_COUNT } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { DEPTH_LO, DRAW_CURSOR_LO, DRAW_CURSOR_HI, DRAW_RECORD_COUNT } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -28,9 +29,10 @@ function opt(name) {
 }
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracleBda0 = atEntry(loc_bda0);
+const oracleBdcb = atEntry(loc_bdcb);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(addr, oracle, K, maxFrames) {
   const caps = [];

@@ -3,19 +3,20 @@
 // loc_2b, saving/restoring the caller's index in SAVED_INDEX2 around the call. When loc_29 >= 0x20 the index is
 // dispatched through the dispatchCoordListSetup list-setup selector; otherwise seatCoordListPointer seats the pointer pair directly.
 // The caller's index (entry Y) is preserved across the call, so live-out is RAM (dumpState minus
-// STACK_SCRATCH) PLUS Y (and A, which the setup callee reloads). Oracle is the frozen translated setupEnemyCoordList.
+// stack scratch below the entry SP) PLUS Y (and A, which the setup callee reloads). Oracle is the frozen translated setupEnemyCoordList.
 // Run: node --test games/tempest/idiomatic/test/equivalence-9b07.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9b07 as oracle } from "../../translated/loc_9b07.js";
+import { loc_9b07 } from "../../translated/loc_9b07.js";
 import { setupEnemyCoordList } from "../setupEnemyCoordList.js";
 import { seatCoordListPointer } from "../seatCoordListPointer.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_29, loc_2b, SAVED_INDEX2 } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { loc_29, loc_2b, SAVED_INDEX2 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -28,9 +29,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x9b07;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9b07);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

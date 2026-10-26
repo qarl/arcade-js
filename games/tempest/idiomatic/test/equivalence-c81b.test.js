@@ -2,18 +2,19 @@
 // Memory-equivalence for advanceLevelCounter -- from the $4e gate and a >=2 test on $06, derives a 0..2 step, subtracts
 // it from $06, and either seeds intro cells (gate clear) or sets status bits, zeroes cells, bumps a 16-bit
 // tally at $040c,x and clamps $0100. Live-out is memory only, so each side runs on a clone and the contract
-// is RAM (dumpState, minus STACK_SCRATCH). A leaf: the module omits the ROM ret and the seam completes it.
+// is RAM (dumpState, minus stack scratch below the entry SP). A leaf: the module omits the ROM ret and the seam completes it.
 // Run: node --test games/tempest/idiomatic/test/equivalence-c81b.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_c81b as oracle } from "../../translated/loc_c81b.js";
+import { loc_c81b } from "../../translated/loc_c81b.js";
 import { advanceLevelCounter } from "../advanceLevelCounter.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, GAME_MODE, MODE_DISPATCH_SEL, GAME_MODE_PENDING, MODE_DELAY_TIMER, STATUS_FLAGS, PHASE_COUNTER, HEARTBEAT_ACCUM_LO, HEARTBEAT_ACCUM_OVERFLOW, ACTIVE_SLOT_COUNT, INPUT_EDGE_FLAGS, SPINNER_ACCUM, loc_100, SPIKED_SEGMENT_COUNT, COORD_ACC_LO, COORD_ACC_HI } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { GAME_MODE, MODE_DISPATCH_SEL, GAME_MODE_PENDING, MODE_DELAY_TIMER, STATUS_FLAGS, PHASE_COUNTER, HEARTBEAT_ACCUM_LO, HEARTBEAT_ACCUM_OVERFLOW, ACTIVE_SLOT_COUNT, INPUT_EDGE_FLAGS, SPINNER_ACCUM, loc_100, SPIKED_SEGMENT_COUNT, COORD_ACC_LO, COORD_ACC_HI } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -26,9 +27,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xc81b;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_c81b);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

@@ -2,7 +2,7 @@
 // Memory-equivalence for selectProjectionScale (ROM 0xca48-0xca61) -- from two zero-page gates ($0117, $3d) it copies
 // bit 2 into flag $a1 (eor/and/eor RMW) and stores a paired count byte to $b4. Live-out is memory only
 // (A/Y at RTS are incidental), so each side runs on a clone and the contract is RAM (dumpState, minus
-// STACK_SCRATCH). A leaf: the module omits the ROM ret and the seam completes it, so the arms compare
+// stack scratch below the entry SP). A leaf: the module omits the ROM ret and the seam completes it, so the arms compare
 // RAM (-stack), NOT pc/SP.
 // Run: node --test games/tempest/idiomatic/test/equivalence-ca48.test.js
 
@@ -10,11 +10,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_ca48 as oracle } from "../../translated/loc_ca48.js";
+import { loc_ca48 } from "../../translated/loc_ca48.js";
 import { selectProjectionScale } from "../selectProjectionScale.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_117, loc_3d, VG_MODE_FLAG, VG_SCALE } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { loc_117, loc_3d, VG_MODE_FLAG, VG_SCALE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -27,9 +28,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xca48;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_ca48);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

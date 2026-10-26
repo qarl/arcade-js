@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for swapParallelTables (ROM 0x92b2) -- swaps the two 18-byte tables $03aa,x <-> $03bc,x for
 // x = 0x11..0. Live-out is RAM plus the exit [X, Y] it returns (0xff, slot 0's old $03bc byte), so the CAPTURE
-// and CRAFTED arms compare RAM (dumpState, minus STACK_SCRATCH) and the returned pair (the CAPTURE arm may capture none). No POKEY/clock coupling -> the crafted diff is deterministic.
+// and CRAFTED arms compare RAM (dumpState, minus stack scratch below the entry SP) and the returned pair (the CAPTURE arm may capture none). No POKEY/clock coupling -> the crafted diff is deterministic.
 // Run: node --test games/tempest/idiomatic/test/equivalence-92b2.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_92b2 as oracle } from "../../translated/loc_92b2.js";
+import { loc_92b2 } from "../../translated/loc_92b2.js";
 import { swapParallelTables } from "../swapParallelTables.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, SWEEP_STAGE, loc_3bc } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { SWEEP_STAGE, loc_3bc } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -22,9 +23,9 @@ const OPTS = { vectorrom: opt("vectorrom.bin"), avgprom: opt("avgprom.bin") };
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x92b2;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_92b2);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

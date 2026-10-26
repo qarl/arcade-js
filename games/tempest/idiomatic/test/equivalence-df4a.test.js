@@ -4,18 +4,19 @@
 // register input (unchanged by this routine, consumed by df4c). Live-out is memory only for this
 // display-builder family (the landed advanceDisplayCursor tail returns nothing; the ROM's incidental A=cursor-low is
 // not reproduced, and df4a's callers are pure tail-callers reading no register after), so the contract is
-// RAM (dumpState, minus STACK_SCRATCH). Plain tail-caller -- no SP tooth. No POKEY read -> deterministic.
+// RAM (dumpState, minus stack scratch below the entry SP). Plain tail-caller -- no SP tooth. No POKEY read -> deterministic.
 // Run: node --test games/tempest/idiomatic/test/equivalence-df4a.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_df4a as oracle } from "../../translated/loc_df4a.js";
+import { loc_df4a } from "../../translated/loc_df4a.js";
 import { emitVectorWordTag60FromKey } from "../emitVectorWordTag60FromKey.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, VG_RECORD_HEADER, DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { VG_RECORD_HEADER, DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const opt = (name) => {
@@ -28,9 +29,9 @@ const OPTS = { vectorrom: opt("vectorrom.bin"), avgprom: opt("avgprom.bin") };
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xdf4a;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_df4a);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function seed(m, s) {
   if (s.a !== undefined) m.regs.a = s.a;

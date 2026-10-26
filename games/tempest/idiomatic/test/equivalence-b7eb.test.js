@@ -12,15 +12,16 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_b7eb as oracle } from "../../translated/loc_b7eb.js";
+import { loc_b7eb } from "../../translated/loc_b7eb.js";
 import { animateShapeOneVector } from "../animateShapeOneVector.js";
 import { projectPointThroughMathbox } from "../projectPointThroughMathbox.js";
 import { layHeaderAndBuildRecord } from "../layHeaderAndBuildRecord.js";
 import { dispatchDrawSetup } from "../dispatchDrawSetup.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { u16 } from "../../../../core/int.js";
-import { STACK_SCRATCH, loc_29, PROJ_PT_Y, PROJ_PT_X, OBJECT_ANIM_PHASE, OBJECT_ANIM_TIMER, SEG_MID_X, SEG_MID_Y, ANIM_PHASE_DURATION, ANIM_PHASE_CODE, OBJ_TEMPLATE_WORD_LO, OBJ_TEMPLATE_WORD_HI, DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
+import { loc_29, PROJ_PT_Y, PROJ_PT_X, OBJECT_ANIM_PHASE, OBJECT_ANIM_TIMER, SEG_MID_X, SEG_MID_Y, ANIM_PHASE_DURATION, ANIM_PHASE_CODE, OBJ_TEMPLATE_WORD_LO, OBJ_TEMPLATE_WORD_HI, DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -30,9 +31,9 @@ function opt(name) { const u = new URL(name, ROM_DIR); return existsSync(u) ? ne
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xb7eb;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_b7eb);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

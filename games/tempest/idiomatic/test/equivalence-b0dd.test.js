@@ -3,18 +3,19 @@
 // otherwise latch A into $72 and tail into emitBlankVectorWordTag70 (emit the {0x00, A|0x70} vector word at the ($74/$75)
 // cursor, advancing it by 2). A is a register input. Live-out is memory only for this display-builder
 // family (the shared df5f tail returns nothing; the ROM's incidental A is not reproduced), so the
-// contract is RAM (dumpState, minus STACK_SCRATCH). Plain tail-caller -- no SP tooth. No POKEY read.
+// contract is RAM (dumpState, minus stack scratch below the entry SP). Plain tail-caller -- no SP tooth. No POKEY read.
 // Run: node --test games/tempest/idiomatic/test/equivalence-b0dd.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_b0dd as oracle } from "../../translated/loc_b0dd.js";
+import { loc_b0dd } from "../../translated/loc_b0dd.js";
 import { emitScaleWordIfChanged } from "../emitScaleWordIfChanged.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, VG_LAST_STAT, DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { VG_LAST_STAT, DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const opt = (name) => {
@@ -27,9 +28,9 @@ const OPTS = { vectorrom: opt("vectorrom.bin"), avgprom: opt("avgprom.bin") };
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xb0dd;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_b0dd);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function seed(m, s) {
   if (s.a !== undefined) m.regs.a = s.a;

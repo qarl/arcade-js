@@ -10,11 +10,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9fc4 as oracle } from "../../translated/loc_9fc4.js";
+import { loc_9fc4 } from "../../translated/loc_9fc4.js";
 import { advanceClimberTrackingColumnMin } from "../advanceClimberTrackingColumnMin.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, SCRIPT_BRANCH_FLAG, TUBE_GEOM_FLAG, ENEMY_SEGMENT, LANE_LIMIT, ENEMY_DEPTH, LANE_TARGET_FLAG, ENEMY_SLOT_DIR, ENEMY_SLOT_FLAGS, FIRE_GATE } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { SCRIPT_BRANCH_FLAG, TUBE_GEOM_FLAG, ENEMY_SEGMENT, LANE_LIMIT, ENEMY_DEPTH, LANE_TARGET_FLAG, ENEMY_SLOT_DIR, ENEMY_SLOT_FLAGS, FIRE_GATE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -24,9 +25,9 @@ function opt(name) { const u = new URL(name, ROM_DIR); return existsSync(u) ? ne
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x9fc4;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9fc4);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

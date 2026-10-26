@@ -2,19 +2,20 @@
 // Memory-equivalence for emitCappedCount (ROM 0xaf71-0xaf76) -- clamps A to a max of 0x63, then falls into
 // emitByteAsBcdDigits (pack-to-BCD + emit). The idiomatic side dissolves the jsr into a direct emitByteAsBcdDigits(m, clamped)
 // call, seating the clamped byte explicitly. Both sides pull A from m.regs.a, so seed it. Live-out is
-// memory only, so each arm compares RAM (dumpState minus STACK_SCRATCH).
+// memory only, so each arm compares RAM (dumpState minus stack scratch below the entry SP).
 // Run: node --test games/tempest/idiomatic/test/equivalence-af71.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_af71 as oracle } from "../../translated/loc_af71.js";
+import { loc_af71 } from "../../translated/loc_af71.js";
 import { emitCappedCount } from "../emitCappedCount.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { emitByteAsBcdDigits } from "../emitByteAsBcdDigits.js";
-import { STACK_SCRATCH, loc_29, COORD_LIST_PTR_LO, DRAW_CURSOR_LO } from "../names.js";
+import { loc_29, COORD_LIST_PTR_LO, DRAW_CURSOR_LO } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -27,9 +28,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xaf71;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_af71);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

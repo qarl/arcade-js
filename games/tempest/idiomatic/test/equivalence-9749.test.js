@@ -3,7 +3,7 @@
 // derives a delta (table scan when $05 bit7 is clear; a clamped $50 when set), folds it through $2b/$2c/$2a,
 // rings the sound gate on a changed $2a, and commits $2a/$2b/$2c to $0200/$0201/$51. The idiomatic side
 // dissolves jsr 97c5 (delta in A) and jsr ccb5 (X = $0111, Y = entry Y) into direct idiomatic calls.
-// Live-out is RAM plus the exit [X, Y] the routine returns. Each arm compares RAM (dumpState minus STACK_SCRATCH),
+// Live-out is RAM plus the exit [X, Y] the routine returns. Each arm compares RAM (dumpState minus stack scratch below the entry SP),
 // and the CAPTURE arm and the register-path arms also compare the returned X/Y with the oracle's.
 // Run: node --test games/tempest/idiomatic/test/equivalence-9749.test.js
 
@@ -11,11 +11,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9749 as oracle } from "../../translated/loc_9749.js";
+import { loc_9749 } from "../../translated/loc_9749.js";
 import { rotateBlasterAroundRim } from "../rotateBlasterAroundRim.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, STATUS_FLAGS, SPINNER_ACCUM, RIM_ROT_OFFSET, loc_2a, loc_2b, COORD_LIST_PTR_LO, TUBE_GEOM_FLAG, PLAYER_SEGMENT, PLAYER_FINE_ANGLE, loc_31, loc_32, ENEMY_SLOT_TOP, ENEMY_DEPTH, ENEMY_SEGMENT } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { STATUS_FLAGS, SPINNER_ACCUM, RIM_ROT_OFFSET, loc_2a, loc_2b, COORD_LIST_PTR_LO, TUBE_GEOM_FLAG, PLAYER_SEGMENT, PLAYER_FINE_ANGLE, loc_31, loc_32, ENEMY_SLOT_TOP, ENEMY_DEPTH, ENEMY_SEGMENT } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -28,9 +29,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x9749;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9749);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

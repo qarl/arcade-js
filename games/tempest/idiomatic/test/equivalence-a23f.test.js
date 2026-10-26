@@ -4,19 +4,19 @@
 // PLAYER_SEGMENT over the loc_2db-gated slots); a zero gate bails. Otherwise it fills the first free SLOT_STATE slot
 // (SLOT_STATE/TARGET_SEG/loc_2c0/HIT_TALLY), bumps ACTIVE_OBJECT_COUNT, and fires the two spawn helpers. It takes the entry Y
 // (the spawn sound's loader stashes it in loc_32) and returns the exit Y, which runFrameStateUpdaters hands to stepActiveShots,
-// so the contract is RAM (dumpState minus STACK_SCRATCH) plus the returned exit Y. Oracle is the frozen translated loc_a23f.
+// so the contract is RAM (dumpState minus stack scratch below the entry SP) plus the returned exit Y. Oracle is the frozen translated loc_a23f.
 // Run: node --test games/tempest/idiomatic/test/equivalence-a23f.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_a23f as oracle } from "../../translated/loc_a23f.js";
+import { loc_a23f } from "../../translated/loc_a23f.js";
 import { spawnEntityIntoFreeSlot } from "../spawnEntityIntoFreeSlot.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH,
   STATUS_FLAGS, loc_29, INPUT_DEBOUNCED, SPIKE_ACTIVE_FLAG, ACTIVE_OBJECT_COUNT,
   PLAYER_SEGMENT, PLAYER_FINE_ANGLE, PLAYER_SHOT_DEPTH, loc_2b5, SLOT_STATE, loc_2db,
 } from "../names.js";
@@ -32,9 +32,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xa23f;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_a23f);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

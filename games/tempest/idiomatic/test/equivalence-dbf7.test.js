@@ -5,7 +5,7 @@
 // builds the work word POKEY1_AUDF1-POKEY1_AUDC2 from INPUT_DEBOUNCED(=POKEY2_AUDCTL & 0x78)/INPUT_EDGE_FLAGS, fires the readout draws
 // (buildPotReadoutVectorList/dd2b/dd27), conditionally emits the SPINNER_POT_PREV-bit marker (LED_FLIP_LATCH + the 0x4000 latch), walks
 // SEG_SPREAD_A_LO_5,x for x=11..0 and SEG_SPREAD_A_LO,x for x=4..0, then TAIL-DELEGATES to emitKeyedScaledCoordinateRecord with the SPINNER_ACCUM-indexed
-// colour pair from COLOR_PAIR_HI/COLOR_PAIR_LO and Y = 0xc0. Live-out is RAM (dumpState minus STACK_SCRATCH) PLUS
+// colour pair from COLOR_PAIR_HI/COLOR_PAIR_LO and Y = 0xc0. Live-out is RAM (dumpState minus stack scratch below the entry SP) PLUS
 // A/X/Y: dbf7 takes no input register and tail-jmps emitKeyedScaledCoordinateRecord, so its exit registers are whatever emitKeyedScaledCoordinateRecord's
 // chain (emitScaledCoordinateRecord -> emitCoordinateRecord) leaves; both layers run the identical delegate from the identical clone, so
 // A/X/Y match value-for-value (a matching value never false-fails). Oracle is the frozen translated emitReadoutVectorList.
@@ -15,12 +15,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_dbf7 as oracle } from "../../translated/loc_dbf7.js";
+import { loc_dbf7 } from "../../translated/loc_dbf7.js";
 import { emitReadoutVectorList } from "../emitReadoutVectorList.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH,
   loc_2e, loc_2f, INPUT_DEBOUNCED, INPUT_EDGE_FLAGS, SPINNER_ACCUM, SPINNER_POT_PREV, DRAW_CURSOR_LO, DRAW_CURSOR_HI, SEG_SPREAD_A_LO, SEG_SPREAD_A_LO_5,
 } from "../names.js";
 
@@ -35,9 +35,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xdbf7;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_dbf7);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

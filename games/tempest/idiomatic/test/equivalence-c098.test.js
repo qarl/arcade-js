@@ -2,7 +2,7 @@
 // Memory-equivalence for projectPointThroughMathbox -- computes clamped signed X/Y deltas, drives the math coprocessor twice
 // (writing inputs, waiting on the status register, reading the result pair), and folds paired offsets into
 // two 16-bit accumulators with saturating limits. Live-out is memory only (A/X at RTS are incidental), so
-// each side runs on a clone and the contract is RAM (dumpState, minus STACK_SCRATCH). The coprocessor is
+// each side runs on a clone and the contract is RAM (dumpState, minus stack scratch below the entry SP). The coprocessor is
 // instantaneous and deterministic, so identical writes yield identical reads on both arms. A leaf: the module
 // omits the ROM ret and the seam completes it, so the arms compare RAM (-stack), NOT pc/SP.
 // Run: node --test games/tempest/idiomatic/test/equivalence-c098.test.js
@@ -11,12 +11,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_c098 as oracle } from "../../translated/loc_c098.js";
+import { loc_c098 } from "../../translated/loc_c098.js";
 import { projectPointThroughMathbox } from "../projectPointThroughMathbox.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH, loc_32, MATHBOX_SIGN_X, MATHBOX_SIGN_Y, PROJ_PT_Y, OBJ_DEPTH, PROJ_PT_X, DEPTH_LO, PROJ_Y_REF, DEPTH_HI, PROJ_X_REF,
+  loc_32, MATHBOX_SIGN_X, MATHBOX_SIGN_Y, PROJ_PT_Y, OBJ_DEPTH, PROJ_PT_X, DEPTH_LO, PROJ_Y_REF, DEPTH_HI, PROJ_X_REF,
   PROJ_OFS_Y_LO, PROJ_OFS_Y_HI, PROJ_OFS_X_LO, PROJ_OFS_X_HI,
 } from "../names.js";
 
@@ -31,9 +32,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xc098;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_c098);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

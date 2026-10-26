@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Equivalence for runPerFrameUpdates -- the per-frame update driver: runs nine per-frame passes in order then
-// tail-delegates to ageShotsAndAdvanceFrameClock. Contract: RAM (dumpState minus STACK_SCRATCH), plus the exit [X, Y]
+// tail-delegates to ageShotsAndAdvanceFrameClock. Contract: RAM (dumpState minus stack scratch below the entry SP), plus the exit [X, Y]
 // it returns (the tail pass's) where an arm compares it. Oracle = frozen translated.
 // Run: node --test games/tempest/idiomatic/test/equivalence-970b.test.js
 
@@ -8,7 +8,7 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_970b as oracle } from "../../translated/loc_970b.js";
+import { loc_970b } from "../../translated/loc_970b.js";
 import { runPerFrameUpdates } from "../runPerFrameUpdates.js";
 import { rotateBlasterAroundRim } from "../rotateBlasterAroundRim.js";
 import { spawnEntityIntoFreeSlot } from "../spawnEntityIntoFreeSlot.js";
@@ -21,8 +21,9 @@ import { ageTimedObjects } from "../ageTimedObjects.js";
 import { ageShotsAndAdvanceFrameClock } from "../ageShotsAndAdvanceFrameClock.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH, STATUS_FLAGS, PLAYER_FINE_ANGLE, ENEMY_ANIM_ACCUM, ENEMY_ANIM_DELTA, ENEMY_SLOT_TOP, ENEMY_DEPTH, SLOT_STATE,
+  STATUS_FLAGS, PLAYER_FINE_ANGLE, ENEMY_ANIM_ACCUM, ENEMY_ANIM_DELTA, ENEMY_SLOT_TOP, ENEMY_DEPTH, SLOT_STATE,
   PLAYER_SHOT_DEPTH, OBJECT_VELOCITY_LO, OBJECT_VELOCITY_HI, ACTIVE_ENEMY_COUNT, TARGET_SEG, PLAYER_SEGMENT, INPUT_DEBOUNCED, loc_31, loc_32,
   ACTIVE_OBJECT_COUNT,
 } from "../names.js";
@@ -35,8 +36,8 @@ function opt(name) { const u = new URL(name, ROM_DIR); return existsSync(u) ? ne
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x970b;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiff = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+const oracle = atEntry(loc_970b);
+const ramDiff = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

@@ -4,7 +4,7 @@
 // at (ENEMY_SLOT_TOP + 1) minus the LANE_ENEMY_COUNT_0 total, then by the count of nonzero columns (0 / 1 / >=2) tries dispatchListSetupByColumn
 // to place a list, returning on the first success; every exhausted path clears loc_29. The idiomatic form
 // dissolves the mid-routine JSRs to dispatchListSetupByColumn into direct calls and the m.ret(6) tails into plain returns.
-// Contract is RAM only (dumpState minus STACK_SCRATCH): the sole caller (spawnEnemyOnTimerExpiry) reads loc_29 back from
+// Contract is RAM only (dumpState minus stack scratch below the entry SP): the sole caller (spawnEnemyOnTimerExpiry) reads loc_29 back from
 // memory, not a register, so there is NO live-out register to compare, and the routine is not a tail
 // dispatcher (its exits are ordinary RTS), so there is no seam tooth. Oracle is the frozen translated placeSpawnListForColumnDeficit.
 // Run: node --test games/tempest/idiomatic/test/equivalence-99a5.test.js
@@ -13,12 +13,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_99a5 as oracle } from "../../translated/loc_99a5.js";
+import { loc_99a5 } from "../../translated/loc_99a5.js";
 import { placeSpawnListForColumnDeficit } from "../placeSpawnListForColumnDeficit.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH,
   ENEMY_SLOT_TOP, COLUMN_SPAWN_CAP, COLUMN_ENEMY_TARGET, SPAWN_DEFICIT_C0, SPAWN_DEFICIT_C2, SPAWN_DEFICIT_C3, LANE_ENEMY_COUNT_0, ENEMY_DEPTH, loc_29, POKEY2_RANDOM,
 } from "../names.js";
 
@@ -33,9 +33,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x99a5;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_99a5);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

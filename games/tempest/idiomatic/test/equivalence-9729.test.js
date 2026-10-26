@@ -3,7 +3,7 @@
 // SPIKED_SEGMENT_COUNT, runs the five state updaters rotateBlasterAroundRim/advanceMovingSpike/ageTimedObjects/spawnEntityIntoFreeSlot/stepActiveShots in order, then when
 // PLAYER_FINE_ANGLE is negative (bit7 set) runs ageShotsAndAdvanceFrameClock. It is a plain call-and-return routine (no computed
 // dispatch, no tail delegate) that returns the exit [X, Y] the ROM leaves (the frame dispatcher hands it to
-// seedFramePhaseAndTick), so the contract is RAM (dumpState minus STACK_SCRATCH) plus that pair; there is no
+// seedFramePhaseAndTick), so the contract is RAM (dumpState minus stack scratch below the entry SP) plus that pair; there is no
 // seam tooth. Oracle is the frozen translated runFrameStateUpdaters.
 // Run: node --test games/tempest/idiomatic/test/equivalence-9729.test.js
 
@@ -11,12 +11,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9729 as oracle } from "../../translated/loc_9729.js";
+import { loc_9729 } from "../../translated/loc_9729.js";
 import { runFrameStateUpdaters } from "../runFrameStateUpdaters.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH, SPIKED_SEGMENT_COUNT, PLAYER_FINE_ANGLE, STATUS_FLAGS, SPINNER_ACCUM, RIM_ROT_OFFSET, PLAYER_SEGMENT, TUBE_GEOM_FLAG,
+  SPIKED_SEGMENT_COUNT, PLAYER_FINE_ANGLE, STATUS_FLAGS, SPINNER_ACCUM, RIM_ROT_OFFSET, PLAYER_SEGMENT, TUBE_GEOM_FLAG,
   SPIKE_ACTIVE_FLAG, PLAYER_SHOT_DEPTH, TIMED_OBJECT_COUNT, SHAPE_ACTIVE, SHAPE_ID, INPUT_DEBOUNCED, SLOT_STATE, TARGET_SEG,
   loc_31, loc_32, SAVED_INDEX, SAVED_INDEX2, SOUND_VOICE_TABLE,
   ENEMY_SLOT_TOP, ENEMY_DEPTH, ENEMY_SEGMENT, ACTIVE_ENEMY_COUNT, OBJECT_VELOCITY_LO, OBJECT_VELOCITY_HI,
@@ -33,9 +34,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x9729;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9729);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

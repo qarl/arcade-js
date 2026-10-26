@@ -3,7 +3,7 @@
 // advances the running counter WAVE_PHASE_LATCH against the SWEEP_STAGE-indexed limit table ATTRACT_TIMER_LIMIT_TABLE (calling sweepLaneSlotsForRespawn
 // at the tail), or -- when WAVE_PHASE_LATCH is idle and PLAYER_FINE_ANGLE clear and INPUT_EDGE_FLAGS bit3 set -- arms the next stage
 // (bump SWEEP_STAGE, seed WAVE_PHASE_LATCH); every path clears bit7 of INPUT_EDGE_FLAGS. No input register; effect is on RAM
-// only, so live-out is RAM (dumpState minus STACK_SCRATCH) with no register compared. Oracle is the frozen
+// only, so live-out is RAM (dumpState minus stack scratch below the entry SP) with no register compared. Oracle is the frozen
 // translated stepAttractEnemySweepTimer.
 // Run: node --test games/tempest/idiomatic/test/equivalence-a83a.test.js
 
@@ -11,11 +11,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_a83a as oracle } from "../../translated/loc_a83a.js";
+import { loc_a83a } from "../../translated/loc_a83a.js";
 import { stepAttractEnemySweepTimer } from "../stepAttractEnemySweepTimer.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, STATUS_FLAGS, WAVE_PHASE_LATCH, PLAYER_FINE_ANGLE, SWEEP_STAGE, INPUT_EDGE_FLAGS } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { STATUS_FLAGS, WAVE_PHASE_LATCH, PLAYER_FINE_ANGLE, SWEEP_STAGE, INPUT_EDGE_FLAGS } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -28,9 +29,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xa83a;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_a83a);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

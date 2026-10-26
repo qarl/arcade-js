@@ -2,17 +2,18 @@
 // Memory-equivalence for stepVectorPhaseAnimation -- advances a phase counter (gated by a frame byte), picks a slot from
 // three parallel tables to seed two output cells, and emits three header words via dissolved emitCoordinateVectorWord /
 // emitVectorWordTag70. Live-out is memory only, so each arm runs on a clone and compares RAM (dumpState minus
-// STACK_SCRATCH). Run: node --test games/tempest/idiomatic/test/equivalence-db9a.test.js
+// stack scratch below the entry SP). Run: node --test games/tempest/idiomatic/test/equivalence-db9a.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_db9a as oracle } from "../../translated/loc_db9a.js";
+import { loc_db9a } from "../../translated/loc_db9a.js";
 import { stepVectorPhaseAnimation } from "../stepVectorPhaseAnimation.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, FRAME_COUNTER, loc_39, DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { FRAME_COUNTER, loc_39, DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -25,9 +26,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xdb9a;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_db9a);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

@@ -7,7 +7,7 @@
 // to runSelfTestLoop (the self-test session loop), which never returns in the oracle -- with the switch idle it
 // runs one frame then spins, so the oracle is run under a CYCLE BUDGET and its spin trips FramesComplete,
 // leaving RAM at its post-frame rest. The idiomatic layer has no clock, so its tail returns after one pass.
-// Contract: RAM (dumpState minus STACK_SCRATCH). No live-out register (the routine tail-delegates; the exit
+// Contract: RAM (dumpState minus stack scratch below the entry SP). No live-out register (the routine tail-delegates; the exit
 // registers belong to runSelfTestLoop's chain). Oracle is the frozen translated checksumRomAndSettleEntropy.
 // Run: node --test games/tempest/idiomatic/test/equivalence-da0a.test.js
 
@@ -15,12 +15,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_da0a as oracle } from "../../translated/loc_da0a.js";
+import { loc_da0a } from "../../translated/loc_da0a.js";
 import { checksumRomAndSettleEntropy } from "../checksumRomAndSettleEntropy.js";
 import { Machine, FramesComplete, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH,
   loc_2e, loc_2f, SEG_SPREAD_A_LO, SEG_SPREAD_A_LO_2, SEG_SPREAD_A_LO_3, SEG_SPREAD_A_LO_5, PENDING_WORK_FLAGS,
 } from "../names.js";
 
@@ -36,9 +36,9 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0xda0a;
 const BUDGET = 3000000; // > the checksum walk + a single self-test frame; the terminal spin then trips FramesComplete
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_da0a);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // The oracle tail-falls into runSelfTestLoop, which never returns; run it under a cycle budget so its terminal
 // spin trips FramesComplete. "done" = the checksum + frame completed and the spin was reached; "notimpl"

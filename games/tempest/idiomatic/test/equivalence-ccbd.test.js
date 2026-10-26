@@ -2,7 +2,7 @@
 // Memory-equivalence for gateSound8f (ROM 0xccbd-0xccc0) -- a sound trampoline: loads the fixed sound id 0x8f
 // and tail-calls the gate-register routine, carrying the caller's X/Y. The idiomatic side dissolves the
 // jsr $ccc3 into a direct requestSoundIfEnabled(m, 0x8f, x, y) call. Live-out is memory only (RAM incl. $31/$32 and the
-// per-slot sound cells $c0+/$e0+/$f0+), so each arm compares RAM (dumpState minus STACK_SCRATCH); A/X/Y at
+// per-slot sound cells $c0+/$e0+/$f0+), so each arm compares RAM (dumpState minus stack scratch below the entry SP); A/X/Y at
 // RTS are incidental and not asserted. Reads the $cb01 sound table (ROM, deterministic); no POKEY randoms.
 // Run: node --test games/tempest/idiomatic/test/equivalence-ccbd.test.js
 
@@ -10,11 +10,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_ccbd as oracle } from "../../translated/loc_ccbd.js";
+import { loc_ccbd } from "../../translated/loc_ccbd.js";
 import { gateSound8f } from "../gateSound8f.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, STATUS_FLAGS, loc_31, loc_32 } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { STATUS_FLAGS, loc_31, loc_32 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -27,9 +28,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xccbd;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_ccbd);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

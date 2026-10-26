@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for setFlagIfSlotPastSegmentBound (ROM 0x9c21) -- per-slot boundary test for slot X: segment = $02b9,x;
 // bound = $03ac[segment] (a 0 entry reads as 0xff); flag $010c = (bound >= $02df,x) ? 1 : 0. Live-out is
-// RAM only, so each arm compares RAM (dumpState, minus STACK_SCRATCH). X is an input register bridged to a
+// RAM only, so each arm compares RAM (dumpState, minus stack scratch below the entry SP). X is an input register bridged to a
 // param. No POKEY read -> crafted diffs are deterministic.
 // Run: node --test games/tempest/idiomatic/test/equivalence-9c21.test.js
 
@@ -9,11 +9,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9c21 as oracle } from "../../translated/loc_9c21.js";
+import { loc_9c21 } from "../../translated/loc_9c21.js";
 import { setFlagIfSlotPastSegmentBound } from "../setFlagIfSlotPastSegmentBound.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, ENEMY_SEGMENT, ENEMY_DEPTH, LANE_LIMIT, SCRIPT_BRANCH_FLAG } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { ENEMY_SEGMENT, ENEMY_DEPTH, LANE_LIMIT, SCRIPT_BRANCH_FLAG } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const rd = (n) => new Uint8Array(readFileSync(new URL(n, ROM_DIR)));
@@ -24,9 +25,9 @@ const OPTS = { vectorrom: opt("vectorrom.bin"), avgprom: opt("avgprom.bin") };
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x9c21;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9c21);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

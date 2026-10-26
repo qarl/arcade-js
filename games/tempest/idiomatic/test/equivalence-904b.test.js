@@ -3,7 +3,7 @@
 // steps the 16-bit position by a fixed stride, flags saturation, and on a zero high-difference rebuilds
 // the position seeds, then tail-delegates jmp 0x9749 (dissolved into the idiomatic rotateBlasterAroundRim, X/Y threaded).
 // Live-out is RAM plus the rotation's exit [X, Y], which it returns, so each arm compares RAM (dumpState minus
-// STACK_SCRATCH) and the CAPTURE arm also the returned pair. The routine seats
+// stack scratch below the entry SP) and the CAPTURE arm also the returned pair. The routine seats
 // state then tail-calls, so it is an omitted-ret dispatch (SP-tooth). $0201 bit7 is seeded to steer the
 // delegated spinner update to its deterministic early-out.
 // Run: node --test games/tempest/idiomatic/test/equivalence-904b.test.js
@@ -12,11 +12,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_904b as oracle } from "../../translated/loc_904b.js";
+import { loc_904b } from "../../translated/loc_904b.js";
 import { autoAdvanceRimRotation } from "../autoAdvanceRimRotation.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, PLAYER_FINE_ANGLE, LEVEL_GEOM_SCALE, DEPTH_HI, DEPTH_LO, DEPTH_TARGET, STATUS_FLAGS, loc_3d, GAME_MODE, SPIKE_TABLE_GUARD, PLAYER_SHOT_DEPTH, loc_102 } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { PLAYER_FINE_ANGLE, LEVEL_GEOM_SCALE, DEPTH_HI, DEPTH_LO, DEPTH_TARGET, STATUS_FLAGS, loc_3d, GAME_MODE, SPIKE_TABLE_GUARD, PLAYER_SHOT_DEPTH, loc_102 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -26,9 +27,9 @@ function opt(name) { const u = new URL(name, ROM_DIR); return existsSync(u) ? ne
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x904b;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_904b);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

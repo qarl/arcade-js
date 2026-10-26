@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for the seatCoordListPointerAtIndex3 mid-entry (ROM 0x9ab7) -- it presets the index to 3 and runs the
 // shared pointer-pair setup (0x9b02[3]->$2c, 0x9afd[3]->$2d, 3->$2b, A<-$29). Neither the incoming A nor
-// Y is read (the entry sets its own index), so live-out is RAM (dumpState minus STACK_SCRATCH) plus A.
+// Y is read (the entry sets its own index), so live-out is RAM (dumpState minus stack scratch below the entry SP) plus A.
 // The oracle is the frozen mid-entry export loc_9ab7 in translated/loc_9a9d.js.
 // Run: node --test games/tempest/idiomatic/test/equivalence-9ab7.test.js
 
@@ -9,12 +9,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9ab7 as oracle } from "../../translated/loc_9a9d.js";
+import { loc_9ab7 } from "../../translated/loc_9a9d.js";
 import { seatCoordListPointerAtIndex3 } from "../seatDemoCoordListPointer.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { u16 } from "../../../../core/int.js";
-import { STACK_SCRATCH, loc_29, loc_2b, COORD_LIST_PTR_LO, COORD_LIST_PTR_HI, LIST_PTR_TABLE_HI, LIST_PTR_TABLE_LO } from "../names.js";
+import { loc_29, loc_2b, COORD_LIST_PTR_LO, COORD_LIST_PTR_HI, LIST_PTR_TABLE_HI, LIST_PTR_TABLE_LO } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -27,9 +28,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x9ab7;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9ab7);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

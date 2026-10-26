@@ -10,11 +10,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9bdd as oracle } from "../../translated/loc_9bdd.js";
+import { loc_9bdd } from "../../translated/loc_9bdd.js";
 import { writeScriptVariableToSlot } from "../writeScriptVariableToSlot.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, SCRIPT_CURSOR, loc_298 } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { SCRIPT_CURSOR, loc_298 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const opt = (name) => {
@@ -27,9 +28,9 @@ const OPTS = { vectorrom: opt("vectorrom.bin"), avgprom: opt("avgprom.bin") };
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x9bdd;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9bdd);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // Run oracle vs rewrite from one captured seed. X (the slot index) is the only register read on entry;
 // the clone carries it, so pass c.regs.x to the rewrite's param bridge.

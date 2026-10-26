@@ -13,14 +13,15 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_ae1c as oracle } from "../../translated/loc_ae1c.js";
+import { loc_ae1c } from "../../translated/loc_ae1c.js";
 import { seedRngAndDrawCounterPanel } from "../seedRngAndDrawCounterPanel.js";
 import { buildTextOverlayList } from "../buildTextOverlayList.js";
 import { drawCounterPair } from "../drawCounterPair.js";
 import { drawHighlightedGlyphRowList } from "../drawHighlightedGlyphRowList.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_29, loc_11f, POKEY1_RANDOM, POKEY2_RANDOM } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { loc_29, loc_11f, POKEY1_RANDOM, POKEY2_RANDOM } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -30,9 +31,9 @@ function opt(name) { const u = new URL(name, ROM_DIR); return existsSync(u) ? ne
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xae1c;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_ae1c);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // Clearing SK_RESET (0x03) makes _advance early-return, so RANDOM ($60ca/$60da) reads a constant.
 const freezePokey = (m) => { for (const p of m.io.pokeys) p.skctl &= ~0x03; return m; };

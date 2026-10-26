@@ -2,7 +2,7 @@
 // Memory-equivalence for appendNormalizedMantissaExponent (ROM 0xbd3e-0xbd9f) -- appends a two-byte entry to the table at ($74)+$a9:
 // small $57 emits a fixed pair, otherwise it drives the math coprocessor and normalizes the result. Live-out
 // is memory only (registers at RTS incidental), so each side runs on a clone and the contract is RAM
-// (dumpState, minus STACK_SCRATCH). A leaf: the module omits the ROM ret and the seam completes it. The math
+// (dumpState, minus stack scratch below the entry SP). A leaf: the module omits the ROM ret and the seam completes it. The math
 // coprocessor is instantaneous and deterministic, so the crafted seeds are reproducible.
 // Run: node --test games/tempest/idiomatic/test/equivalence-bd3e.test.js
 
@@ -10,11 +10,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_bd3e as oracle } from "../../translated/loc_bd3e.js";
+import { loc_bd3e } from "../../translated/loc_bd3e.js";
 import { appendNormalizedMantissaExponent } from "../appendNormalizedMantissaExponent.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, OBJ_DEPTH, DEPTH_LO, DEPTH_HI, DRAW_CURSOR_LO, DRAW_CURSOR_HI, SEG_SPREAD_A_LO, loc_a0, DRAW_CURSOR_OFFSET } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { OBJ_DEPTH, DEPTH_LO, DEPTH_HI, DRAW_CURSOR_LO, DRAW_CURSOR_HI, SEG_SPREAD_A_LO, loc_a0, DRAW_CURSOR_OFFSET } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -27,9 +28,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xbd3e;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_bd3e);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

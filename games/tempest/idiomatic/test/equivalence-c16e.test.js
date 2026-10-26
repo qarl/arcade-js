@@ -2,7 +2,7 @@
 // Memory-equivalence for buildLevelLayout (ROM 0xc16e-0xc1c2) -- a CALLER that dissolves jsr $aa13 and jsr $c235
 // into direct idiomatic calls, then primes flags and unpacks a clamped $c1fd table entry into the four
 // per-column arrays. Live-out is RAM plus the exit [X, Y] it returns (table index, 0xff), so each arm compares RAM
-// (dumpState minus STACK_SCRATCH) and the CAPTURE arm also the returned pair. The
+// (dumpState minus stack scratch below the entry SP) and the CAPTURE arm also the returned pair. The
 // sub-calls can read POKEY random on some states, so CRAFTED runs both arms on clones of one seeded base
 // (poly-frozen); CAPTURE clones each real dispatch. Caller: the module omits the ROM ret, seam completes it.
 // Run: node --test games/tempest/idiomatic/test/equivalence-c16e.test.js
@@ -11,11 +11,11 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_c16e as oracle } from "../../translated/loc_c16e.js";
+import { loc_c16e } from "../../translated/loc_c16e.js";
 import { buildLevelLayout } from "../buildLevelLayout.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -28,9 +28,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xc16e;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_c16e);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

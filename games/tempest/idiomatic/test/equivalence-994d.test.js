@@ -2,7 +2,7 @@
 // Memory-equivalence for spawnClimberInFreeSlot -- scans the active-slot table for a free entry, seeds its parallel arrays,
 // bumps the active count and a per-lane counter, and returns 0x10 (or 0 when none free). Live-out is memory
 // plus A (0x10/0 the caller reads back); each side runs on a clone and the RAM contract is dumpState minus
-// STACK_SCRATCH. A leaf: the module omits the ROM ret and the seam completes it, so arms compare RAM (-stack).
+// stack scratch below the entry SP. A leaf: the module omits the ROM ret and the seam completes it, so arms compare RAM (-stack).
 // The CRAFTED seeds keep $2a != 0x0f so the POKEY-random branch is never taken (deterministic).
 // Run: node --test games/tempest/idiomatic/test/equivalence-994d.test.js
 
@@ -10,12 +10,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_994d as oracle } from "../../translated/loc_994d.js";
+import { loc_994d } from "../../translated/loc_994d.js";
 import { spawnClimberInFreeSlot } from "../spawnClimberInFreeSlot.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH, SAVED_INDEX2, ENEMY_SLOT_TOP, ENEMY_DEPTH, loc_29, loc_2a, loc_2b, COORD_LIST_PTR_LO, COORD_LIST_PTR_HI,
+  SAVED_INDEX2, ENEMY_SLOT_TOP, ENEMY_DEPTH, loc_29, loc_2a, loc_2b, COORD_LIST_PTR_LO, COORD_LIST_PTR_HI,
   ENEMY_SEGMENT, ENEMY_PHASE, ENEMY_TIMER, ENEMY_SLOT_DIR, ENEMY_SCRIPT_CURSOR, ENEMY_TOTAL_COUNT, ENEMY_SLOT_FLAGS, LANE_ENEMY_COUNT_0,
 } from "../names.js";
 
@@ -30,9 +31,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x994d;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_994d);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

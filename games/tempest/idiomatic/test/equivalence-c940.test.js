@@ -4,7 +4,7 @@
 // negative it installs the new-level timers (MODE_DISPATCH_SEL/GAME_MODE/MODE_DELAY_TIMER, the last picked by loc_117) and swaps
 // the paired tables via swapParallelTables; then it converges: selectProjectionScale, index PLAYER_LEVEL_TBL by loc_3d into loc_9f,
 // runLevelInit (startup init), and TAIL-DELEGATES to resetBothPokeyChips (readout reset). Live-out is RAM
-// (dumpState minus STACK_SCRATCH) plus the exit [X, Y] it returns: c940 takes no input register and tail-jmps
+// (dumpState minus stack scratch below the entry SP) plus the exit [X, Y] it returns: c940 takes no input register and tail-jmps
 // resetBothPokeyChips, so its exit registers are the delegate's, which the CAPTURE arm compares. Oracle is the frozen translated setupLevelTimers.
 // Run: node --test games/tempest/idiomatic/test/equivalence-c940.test.js
 
@@ -12,12 +12,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_c940 as oracle } from "../../translated/loc_c940.js";
+import { loc_c940 } from "../../translated/loc_c940.js";
 import { setupLevelTimers } from "../setupLevelTimers.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH,
   GAME_MODE, MODE_DISPATCH_SEL, GAME_MODE_PENDING, MODE_DELAY_TIMER, STATUS_FLAGS, loc_3d, LEVEL_ID, PLAYER_LEVEL_TBL, loc_9f, loc_117, DRAW_CURSOR_LO, DRAW_CURSOR_HI,
 } from "../names.js";
 
@@ -32,9 +32,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xc940;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_c940);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

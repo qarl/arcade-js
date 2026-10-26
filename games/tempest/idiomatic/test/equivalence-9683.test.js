@@ -4,7 +4,7 @@
 // Before dispatching, A is seated to the low byte of the selected pointer; the Y-only targets leave A alone,
 // so that byte is a live-out the caller reads back (it stores A right after the dispatch). The 96cb target
 // overwrites A with its own result, so comparing A is correct on every path. Contract = RAM (dumpState minus
-// STACK_SCRATCH) PLUS the A register. X is NOT compared: dispatchCursorAdvanceBySelector loads X purely as the table index and the
+// stack scratch below the entry SP) PLUS the A register. X is NOT compared: dispatchCursorAdvanceBySelector loads X purely as the table index and the
 // caller reloads X before reading it, so X is dead; Y is the target's, threaded by param in the idiomatic
 // layer. Oracle is the frozen translated dispatchCursorAdvanceBySelector.
 // Run: node --test games/tempest/idiomatic/test/equivalence-9683.test.js
@@ -13,13 +13,14 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9683 as oracle } from "../../translated/loc_9683.js";
+import { loc_9683 } from "../../translated/loc_9683.js";
 import { dispatchCursorAdvanceBySelector } from "../dispatchCursorAdvanceBySelector.js";
 import { advanceCursorPastPackedRecord, advanceListCursorByTwo } from "../advanceCursorPastPackedRecord.js";
 import { advanceCoordListByEntryStride } from "../advanceCoordListByEntryStride.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, COORD_DISPATCH_SEL, loc_29, COORD_LIST_PTR_LO, COORD_LIST_PTR_HI } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { COORD_DISPATCH_SEL, loc_29, COORD_LIST_PTR_LO, COORD_LIST_PTR_HI } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -36,9 +37,9 @@ const TARGET = 0x9683;
 const TABLE = [null, advanceListCursorByTwo, advanceCoordListByEntryStride, advanceCoordListByEntryStride, advanceCursorPastPackedRecord, advanceListCursorByTwo, advanceCursorPastPackedRecord];
 const VALID_INDICES = [2, 4, 6, 8, 10, 12];
 
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9683);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 // Contract: RAM (minus dead stack) plus the A live-out. Returns a reason string on divergence, else null.
 function stateDiff(ma, mb) {
   const rd = ramDiff(ma, mb);

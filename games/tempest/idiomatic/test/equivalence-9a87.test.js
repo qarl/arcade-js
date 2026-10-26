@@ -5,19 +5,20 @@
 // dispatchCoordListSetup(m, x, x). The five list-setup entries are selected by A=X (0..4); X is read only by
 // entry 2 (selectClimberSpawnLane) as its slot index, the other entries ignore it. This is a tail delegation --
 // the exit registers are the delegate's, NOT dispatchListSetupByColumn's. Contract is RAM
-// (dumpState minus STACK_SCRATCH); the oracle's stack gymnastics land in STACK_SCRATCH and are excluded.
+// (dumpState minus stack scratch below the entry SP); the oracle's stack gymnastics land below the entry SP and are excluded.
 // Run: node --test games/tempest/idiomatic/test/equivalence-9a87.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9a87 as oracle } from "../../translated/loc_9a87.js";
+import { loc_9a87 } from "../../translated/loc_9a87.js";
 import { dispatchListSetupByColumn } from "../dispatchListSetupByColumn.js";
 import { dispatchCoordListSetup } from "../dispatchCoordListSetup.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_29, LIST_PTR_HI, LIST_SELECT_FLAGS } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { loc_29, LIST_PTR_HI, LIST_SELECT_FLAGS } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -30,9 +31,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x9a87;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9a87);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

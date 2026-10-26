@@ -9,11 +9,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_d6bb as oracle } from "../../translated/loc_d6bb.js";
+import { loc_d6bb } from "../../translated/loc_d6bb.js";
 import { decodeOptionSwitches } from "../decodeOptionSwitches.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, DSW2_SNAPSHOT, DSW1_SNAPSHOT, loc_ac, loc_ad, BONUS_LIFE_INTERVAL, DSW_BONUS_CONFIG, DSW_DIFFICULTY, DSW1_COINAGE, DSW2_OPTIONS } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { DSW2_SNAPSHOT, DSW1_SNAPSHOT, loc_ac, loc_ad, BONUS_LIFE_INTERVAL, DSW_BONUS_CONFIG, DSW_DIFFICULTY, DSW1_COINAGE, DSW2_OPTIONS } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -26,9 +27,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xd6bb;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_d6bb);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

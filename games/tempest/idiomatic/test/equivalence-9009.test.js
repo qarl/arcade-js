@@ -2,7 +2,7 @@
 // Memory-equivalence for runWaveInit (ROM 0x9009-0x9024) -- an init sequence: run four setup subroutines
 // (reseedStateTables, seedPerLaneSpikeArray, resetWorkingRamForStateEntry, clearReadyLatchPair) in order, then seed DEPTH_LO = 250 and clear
 // SPIKE_ACTIVE_FLAG/DEPTH_HI/MODE_DISPATCH_SEL. No input register; ends with a plain return (not a tail-delegate). Live-out
-// is RAM (dumpState minus STACK_SCRATCH) plus the exit [X, Y] it returns (resetWorkingRamForStateEntry's), which
+// is RAM (dumpState minus stack scratch below the entry SP) plus the exit [X, Y] it returns (resetWorkingRamForStateEntry's), which
 // bumpLevelEnemyQuota hands back as its own; the CAPTURE arm compares it. Oracle is the frozen
 // translated runWaveInit.
 // Run: node --test games/tempest/idiomatic/test/equivalence-9009.test.js
@@ -11,11 +11,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9009 as oracle } from "../../translated/loc_9009.js";
+import { loc_9009 } from "../../translated/loc_9009.js";
 import { runWaveInit } from "../runWaveInit.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, DEPTH_LO, DEPTH_HI } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { DEPTH_LO, DEPTH_HI } from "../names.js";
 
 const MODE_DISPATCH_SEL = 0x0001;
 const SPIKE_ACTIVE_FLAG = 0x0106;
@@ -31,9 +32,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x9009;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9009);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // POKEY coupling: the init chain reaches resetWorkingRamForStateEntry -> seedSlotRandomTags, which reads $60ca (POKEY1 RANDOM). That
 // register is clock-coupled -- its poly index advances with CPU cycles, and each read charges cycles the

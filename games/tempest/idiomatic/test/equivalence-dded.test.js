@@ -1,19 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for eraseEaromLowRegions -- a trampoline that runs the shared mask-merge with the fixed mask
 // 0x03: $01c6 <- 0xff, $01c7 |= 0x03, $01c8 |= 0x03. Live-out is memory only (A/Y at RTS are incidental,
-// the merge leaf treats them as dead), so the arms compare RAM (dumpState, minus STACK_SCRATCH).
+// the merge leaf treats them as dead), so the arms compare RAM (dumpState, minus stack scratch below the entry SP).
 // Run: node --test games/tempest/idiomatic/test/equivalence-dded.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_dded as oracle } from "../../translated/loc_dded.js";
+import { loc_dded } from "../../translated/loc_dded.js";
 import { eraseEaromLowRegions } from "../eraseEaromLowRegions.js";
 import { requestEaromBlankWrite } from "../requestEaromBlankWrite.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, EAROM_BLANK_FLAG, EAROM_REGION_PENDING, EAROM_REGION_DIR } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { EAROM_BLANK_FLAG, EAROM_REGION_PENDING, EAROM_REGION_DIR } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -26,9 +27,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xdded;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_dded);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

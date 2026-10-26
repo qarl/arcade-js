@@ -3,18 +3,19 @@
 // slot timer and conditionally resets shot state (jsr $a5cb, jsr $928f); the negative arm ages the shot
 // table, advances a clock/counter, and clamps a running total (jsr $928f). The idiomatic side dissolves
 // every jsr into direct initWaveStateCountingSpikes / clearActiveShots calls. Live-out is RAM plus the exit [X, Y] it
-// returns, so the CAPTURE, CRAFTED and EXIT-X arms compare RAM (dumpState minus STACK_SCRATCH), and the CAPTURE and EXIT-X arms also the returned pair. Run: node --test games/tempest/idiomatic/test/equivalence-a504.test.js
+// returns, so the CAPTURE, CRAFTED and EXIT-X arms compare RAM (dumpState minus stack scratch below the entry SP), and the CAPTURE and EXIT-X arms also the returned pair. Run: node --test games/tempest/idiomatic/test/equivalence-a504.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_a504 as oracle } from "../../translated/loc_a504.js";
+import { loc_a504 } from "../../translated/loc_a504.js";
 import { ageShotsAndAdvanceFrameClock } from "../ageShotsAndAdvanceFrameClock.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH, GAME_MODE, loc_3d, SLOT_COUNTDOWN, ACTIVE_ENEMY_COUNT, SPIKE_ACTIVE_FLAG, ENEMY_TOTAL_COUNT, ENEMY_TYPE_COUNT,
+  GAME_MODE, loc_3d, SLOT_COUNTDOWN, ACTIVE_ENEMY_COUNT, SPIKE_ACTIVE_FLAG, ENEMY_TOTAL_COUNT, ENEMY_TYPE_COUNT,
   TIMED_OBJECT_COUNT, PLAYER_SHAPE_SUM, ENEMY_SLOT_TOP, ACTIVE_OBJECT_COUNT, PLAYER_FINE_ANGLE, PLAYER_SHOT_DEPTH, ENEMY_DEPTH, FIRE_GATE, loc_455,
   loc_40, loc_42, INPUT_DEBOUNCED, STATUS_FLAGS, DSW1_SNAPSHOT,
 } from "../names.js";
@@ -30,9 +31,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xa504;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_a504);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

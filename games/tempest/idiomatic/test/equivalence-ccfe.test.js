@@ -2,18 +2,19 @@
 // Memory-equivalence for requestLevelIntroSound (ROM 0xccfe-) -- loads sound id 0xbf and requests it through the
 // sound gate requestSoundIfEnabled (which, when $0005 bit7 is set, registers via loadSoundVoiceSlots using the live X/Y bridge
 // into $0031/$0032). Effect is memory-only, so each side runs on a fresh Machine and the contract is RAM
-// (dumpState, minus STACK_SCRATCH). Leaf-omits the ROM ret; arms compare RAM (-stack), not pc/SP.
+// (dumpState, minus stack scratch below the entry SP). Leaf-omits the ROM ret; arms compare RAM (-stack), not pc/SP.
 // Run: node --test games/tempest/idiomatic/test/equivalence-ccfe.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_ccfe as oracle } from "../../translated/loc_ccfe.js";
+import { loc_ccfe } from "../../translated/loc_ccfe.js";
 import { requestLevelIntroSound } from "../requestLevelIntroSound.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, STATUS_FLAGS, loc_31, loc_32 } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { STATUS_FLAGS, loc_31, loc_32 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -26,9 +27,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xccfe;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_ccfe);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

@@ -3,7 +3,7 @@
 // preset: store A at ($74/$75)+0 and X at +1, then advance the ($74/$75) cursor by 2 (tail into
 // advanceDisplayCursor). emitVectorHeaderWord falls into it with the fixed {0x40,0x80}; emitTaggedVectorWord/emitVectorWordTag70/emitFixedVectorWord reach it
 // with a computed pair. The oracle m.call(0xdf5f)s the translated tail; the idiomatic calls the
-// idiomatic advanceDisplayCursor -- both memory-equivalent, so the contract is RAM (dumpState, minus STACK_SCRATCH).
+// idiomatic advanceDisplayCursor -- both memory-equivalent, so the contract is RAM (dumpState, minus stack scratch below the entry SP).
 // A/X are INPUTS (read from the register bridge); the display-builder family leaves no asserted
 // register live-out (the landed advanceDisplayCursor tail preserves none). Plain caller -- no SP tooth, no POKEY read.
 // Run: node --test games/tempest/idiomatic/test/equivalence-df57.test.js
@@ -12,12 +12,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_df57 as oracle } from "../../translated/loc_df53.js";
+import { loc_df57 } from "../../translated/loc_df53.js";
 import { emitVectorWord } from "../emitVectorHeaderWord.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import { u16 } from "../../../../core/int.js";
-import { STACK_SCRATCH, DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
+import { DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const opt = (name) => {
@@ -30,9 +31,9 @@ const OPTS = { vectorrom: opt("vectorrom.bin"), avgprom: opt("avgprom.bin") };
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xdf57;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_df57);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function seedRegs(m, a, x) { m.regs.a = a; m.regs.x = x; }
 function seedCursor(m, lo, hi) { m.mem.write8(DRAW_CURSOR_LO, lo); m.mem.write8(DRAW_CURSOR_HI, hi); }

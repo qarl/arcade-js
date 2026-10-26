@@ -2,7 +2,7 @@
 // Memory-equivalence for drawFramedCounterSlot (ROM 0xc3ee-0xc422) -- a CALLER that dissolves jsr $df4c/$c43c/$c772/
 // $c423/$c3ba into direct idiomatic calls: a two-pass framed draw with the colour live then stepped-back
 // uncoloured. Effect is memory (vector RAM via the ($74) cursor plus the $6a-$73 caches). Live-out is the
-// stepped-back slot index in X, so each arm compares RAM (dumpState minus STACK_SCRATCH) AND the returned
+// stepped-back slot index in X, so each arm compares RAM (dumpState minus stack scratch below the entry SP) AND the returned
 // index against the oracle's exit X (fn-return vs oracle-register). Caller: the module omits the ROM ret.
 // Run: node --test games/tempest/idiomatic/test/equivalence-c3ee.test.js
 
@@ -10,11 +10,11 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_c3ee as oracle } from "../../translated/loc_c3ee.js";
+import { loc_c3ee } from "../../translated/loc_c3ee.js";
 import { drawFramedCounterSlot } from "../drawFramedCounterSlot.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -27,9 +27,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xc3ee;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_c3ee);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

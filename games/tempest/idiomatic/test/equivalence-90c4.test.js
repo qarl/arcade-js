@@ -11,12 +11,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_90c4 as oracle } from "../../translated/loc_90c4.js";
+import { loc_90c4 } from "../../translated/loc_90c4.js";
 import { selectWaveStartSlot } from "../selectWaveStartSlot.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH,
   MODE_DELAY_TIMER, STATUS_FLAGS, DSW1_SNAPSHOT, LEVEL_ID, INPUT_EDGE_FLAGS, DEPTH_LO, SEG_SPREAD_A_LO_4,
   WAVE_PEAK_SEED, DEPTH_CEILING, DSW_DIFFICULTY, PLAYER_SEGMENT, PASS_COUNTER, loc_71d,
 } from "../names.js";
@@ -32,9 +32,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x90c4;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_90c4);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // POKEY coupling: the emit block reads $60ca (POKEY RANDOM) at loc_9195, folding (rand & 7) into the
 // slot/emit cells; the reseedStateTables chain then re-scales state through $29 scratch. RANDOM = poly17Table[p17],

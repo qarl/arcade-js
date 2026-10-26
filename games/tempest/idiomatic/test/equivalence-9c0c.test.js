@@ -2,18 +2,19 @@
 // Memory-equivalence for holdSlotPoseUntilTimerExpires (ROM 0x9c0c-0x9c20) -- decrements $0298,x; if still nonzero it
 // dissolves the tail m.call($9c17) into a direct followScriptGoto(m) (table-driven $010b step), else bumps
 // $010b. Live-out is memory only (dec/inc are RMW; A/X survive unchanged), so each side runs on a
-// clone and the contract is RAM (dumpState, minus STACK_SCRATCH).
+// clone and the contract is RAM (dumpState, minus stack scratch below the entry SP).
 // Run: node --test games/tempest/idiomatic/test/equivalence-9c0c.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9c0c as oracle } from "../../translated/loc_9c0c.js";
+import { loc_9c0c } from "../../translated/loc_9c0c.js";
 import { holdSlotPoseUntilTimerExpires } from "../holdSlotPoseUntilTimerExpires.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_298, SCRIPT_CURSOR } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { loc_298, SCRIPT_CURSOR } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -26,9 +27,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x9c0c;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9c0c);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

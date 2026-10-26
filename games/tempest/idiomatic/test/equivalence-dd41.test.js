@@ -2,7 +2,7 @@
 // Memory-equivalence for buildLargeDecimalNumber -- packed-decimal prologue (two input pairs, the first doubled, forced to
 // a minimum of one) then five binary-to-BCD double-dabble passes over the three-byte source the running
 // pointer walks, with dissolved runMathboxDivide / emitCoordinateVectorWord / emitNibbleDigitRun / emitScaledCoordinateRecord. Live-out is memory only; each arm
-// runs on a clone and compares RAM (dumpState minus STACK_SCRATCH). The double-dabble result is independent
+// runs on a clone and compares RAM (dumpState minus stack scratch below the entry SP). The double-dabble result is independent
 // of the entry carry (its residue lands in overwritten scratch), so the arms may enter with either carry.
 // Run: node --test games/tempest/idiomatic/test/equivalence-dd41.test.js
 
@@ -10,12 +10,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_dd41 as oracle } from "../../translated/loc_dd41.js";
+import { loc_dd41 } from "../../translated/loc_dd41.js";
 import { buildLargeDecimalNumber } from "../buildLargeDecimalNumber.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH, MATHBOX_LD_R7_LO, MATHBOX_LD_R7_HI, COORD_ACC_LO, COORD_ACC_HI, DIGIT_IN_LO, DIGIT_IN_HI,
+  MATHBOX_LD_R7_LO, MATHBOX_LD_R7_HI, COORD_ACC_LO, COORD_ACC_HI, DIGIT_IN_LO, DIGIT_IN_HI,
   TIMER2_LO, TIMER2_MID, TIMER2_HI, DRAW_CURSOR_LO, DRAW_CURSOR_HI,
 } from "../names.js";
 
@@ -30,9 +31,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xdd41;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_dd41);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

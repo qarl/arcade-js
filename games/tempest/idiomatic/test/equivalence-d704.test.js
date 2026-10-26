@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for serviceHeartbeatInterrupt (ROM 0xd704-0xd7dc) -- the periodic ~246Hz IRQ handler. Contract:
-// RAM only (dumpState minus STACK_SCRATCH). The ROM saves A/X/Y and restores them around the body and
+// RAM only (dumpState minus stack scratch below the entry SP). The ROM saves A/X/Y and restores them around the body and
 // returns via RTI, so A/X/Y/P/PC are plumbing, not live-outs, and the only register READ is S (the stack
 // pointer, for the depth guard) -- passed as the m.regs.s param default. Two internal JSRs (tickHeartbeatCounters,
 // stepSoundVoices) are dissolved to direct idiomatic calls; the rare BRK re-init arm stays a TEMPORARY m.call.
@@ -14,12 +14,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_d704 as oracle } from "../../translated/loc_d704.js";
+import { loc_d704 } from "../../translated/loc_d704.js";
 import { serviceHeartbeatInterrupt } from "../serviceHeartbeatInterrupt.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH,
   STATUS_FLAGS, PHASE_COUNTER, IRQ_SUBTIMER, INPUT_PORT_LATCH, ACTIVE_SLOT_COUNT, IRQ_HEARTBEAT,
   TIMER1_LO, TIMER1_MID, TIMER1_HI, TIMER2_LO, TIMER2_MID, TIMER2_HI,
 } from "../names.js";
@@ -35,9 +35,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xd704;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_d704);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // Freeze the cycle-derived IN0 bit7 so the stepped oracle and the step-free idiomatic layer read the same
 // raw IN0 byte into $08. clock()=0 keeps (cycles & 0x100) == 0 on every read.

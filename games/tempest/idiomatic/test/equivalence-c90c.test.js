@@ -2,7 +2,7 @@
 // Memory-equivalence for resetLevelPlayfieldSlots (ROM 0xc90c-0xc93f) -- the per-slot state reset. It runs rebuildControlBlocksIfRequested and
 // buildLevelLayout (and clearChannelStagingBlock when STATUS_FLAGS is negative), clears SLOT_COUNTDOWN_HI, seeds every slot from ACTIVE_SLOT_COUNT down to 0
 // (SLOT_COUNTDOWN,slot = DSW_BONUS_CONFIG; PLAYER_LEVEL_TBL,slot = 0xff), clears LEVEL_ID and SPIKE_TABLE_GUARD, reloads loc_3d from ACTIVE_SLOT_COUNT, then
-// TAIL-DELEGATES to selectWaveStartSlot. Contract is RAM-equivalence (dumpState minus STACK_SCRATCH) plus the exit [X, Y]
+// TAIL-DELEGATES to selectWaveStartSlot. Contract is RAM-equivalence (dumpState minus stack scratch below the entry SP) plus the exit [X, Y]
 // it returns -- resetLevelPlayfieldSlots takes no live-in register and tail-jmps selectWaveStartSlot, so its exit registers are the
 // delegate's, which the CAPTURE arm compares with the oracle's.
 // Oracle is the frozen translated resetLevelPlayfieldSlots.
@@ -12,12 +12,12 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_c90c as oracle } from "../../translated/loc_c90c.js";
+import { loc_c90c } from "../../translated/loc_c90c.js";
 import { resetLevelPlayfieldSlots } from "../resetLevelPlayfieldSlots.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
 import {
-  STACK_SCRATCH,
   STATUS_FLAGS, PLAYER_LEVEL_TBL, SLOT_COUNTDOWN, SLOT_COUNTDOWN_HI, loc_3d, ACTIVE_SLOT_COUNT, LEVEL_ID, SPIKE_TABLE_GUARD, DSW_BONUS_CONFIG,
 } from "../names.js";
 
@@ -32,9 +32,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xc90c;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_c90c);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

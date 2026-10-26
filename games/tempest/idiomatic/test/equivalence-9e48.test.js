@@ -2,18 +2,19 @@
 // Memory-equivalence for fireHitOnPlayerCollision (ROM 0x9e48-0x9e5b) -- a collision test that calls $a343 only when a
 // slot's coords match the player's ($02df,x==$0202 and $02b9,x==$0200). The idiomatic side dissolves the
 // jsr $a343 into a direct insertObjectHeadTag9(m, x) call. Effect is memory-only, so each arm compares RAM (dumpState
-// minus STACK_SCRATCH); registers are not asserted (the dissolved callee leaves them per its own contract).
+// minus stack scratch below the entry SP); registers are not asserted (the dissolved callee leaves them per its own contract).
 // Run: node --test games/tempest/idiomatic/test/equivalence-9e48.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_9e48 as oracle } from "../../translated/loc_9e48.js";
+import { loc_9e48 } from "../../translated/loc_9e48.js";
 import { fireHitOnPlayerCollision } from "../fireHitOnPlayerCollision.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, PLAYER_SEGMENT, PLAYER_SHOT_DEPTH, ENEMY_SEGMENT, ENEMY_DEPTH, OBJECT_ANIM_PHASE } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { PLAYER_SEGMENT, PLAYER_SHOT_DEPTH, ENEMY_SEGMENT, ENEMY_DEPTH, OBJECT_ANIM_PHASE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -26,9 +27,9 @@ function opt(name) {
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x9e48;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_9e48);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

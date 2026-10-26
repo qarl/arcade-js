@@ -4,18 +4,19 @@
 // input (unchanged here, consumed by df6c). Live-out is memory only for this display-builder family (the
 // landed advanceDisplayCursor tail returns nothing; the ROM's incidental A=cursor-low is not reproduced, and df6a's
 // callers are pure tail-callers reading no register after), so the contract is RAM (dumpState, minus
-// STACK_SCRATCH). Plain tail-caller -- no SP tooth. No POKEY read -> deterministic.
+// stack scratch below the entry SP). Plain tail-caller -- no SP tooth. No POKEY read -> deterministic.
 // Run: node --test games/tempest/idiomatic/test/equivalence-df6a.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_df6a as oracle } from "../../translated/loc_df6a.js";
+import { loc_df6a } from "../../translated/loc_df6a.js";
 import { emitBlankVectorWordTag70 } from "../emitBlankVectorWordTag70.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
+import { atEntry, deadStackAtEntry } from "./_entryFloor.js";
+import { DRAW_CURSOR_LO, DRAW_CURSOR_HI } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const opt = (name) => {
@@ -28,9 +29,9 @@ const OPTS = { vectorrom: opt("vectorrom.bin"), avgprom: opt("avgprom.bin") };
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0xdf6a;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const oracle = atEntry(loc_df6a);
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function seed(m, s) {
   if (s.a !== undefined) m.regs.a = s.a;
