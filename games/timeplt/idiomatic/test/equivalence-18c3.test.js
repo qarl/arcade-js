@@ -45,7 +45,8 @@ import { readFileSync } from "node:fs";
 import { makeMachine, COIN_FRAME, COIN_START_TAPE, romsPresent } from "./_harness.js";
 import { assertDeadAtExit, TAPE_SESSIONS } from "./_deadAtExit.js";
 import { withOmittedRet } from "../../machine.js";
-import { seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, seamPlaceable } from "../../../../core/equivalence.js";
+import { recordFrameFloors } from "./_frameFloor.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
 import { stepHighScoreInitialsEntry } from "../stepHighScoreInitialsEntry.js";
 import { loc_18c3 as oracle } from "../../translated/loc_18c3.js";
@@ -320,6 +321,7 @@ function wholeRun(candidate, tape, frames) {
     sps.add(mm.regs.sp);
     return hosted(candidate)(mm);
   }]]), tape);
+  const floors = recordFrameFloors(host);
   const hostFrames = host.runFrames(frames);
   const lo = Math.min(...sps) - SCRATCH_BYTES;
   const hi = Math.max(...sps);
@@ -331,7 +333,7 @@ function wholeRun(candidate, tape, frames) {
     for (let o = 0; o < x.length; o++) {
       if (x[o] === y[o]) continue;
       const addr = base.stateOffsetToAddr(o);
-      if (addr !== null && addr >= lo && addr < hi) continue;
+      if (deadStackBelow({ lo, hi }, floors[i])(addr)) continue; // only below the sample's SP
       cells.add(addr);
     }
   }

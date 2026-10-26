@@ -69,6 +69,7 @@ import { loc_50ee as oracle } from "../../translated/loc_50ee.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
 import { ERA_INDEX, PLAYER_STATE, MOTHER_SHIP_STATE } from "../names.js";
 import { u8, u16 } from "../../../../core/int.js";
+import { liveStackDiffs, recordFrameFloors } from "./_frameFloor.js";
 
 const TARGET = 0x50ee;
 /** The only site that transfers here, and the only place a real entry can be taken from. */
@@ -297,6 +298,7 @@ function wholeRunCells(candidate, label, opts, shim = withOmittedRet) {
   );
   let hostFrames = [];
   let threw = null;
+  const floors = recordFrameFloors(host);
   try {
     hostFrames = host.runFrames(CORPUS_FRAMES);
   } catch (e) {
@@ -309,6 +311,9 @@ function wholeRunCells(candidate, label, opts, shim = withOmittedRet) {
     const y = hostFrames[i];
     for (let o = 0; o < x.length; o++) if (x[o] !== y[o]) cells.add(base.toAddr(o));
   }
+  const live = liveStackDiffs(base.frames, hostFrames, floors, (o) => base.toAddr(o));
+  // A cell that differs in a live frame fails the run like a throw: it is never stack scratch.
+  if (live.length && threw === null) threw = `live stack ${live.map((c) => c.toString(16)).join(",")} differs at or above a frame sample's SP`;
   return {
     cells: [...cells].sort((a, b) => a - b),
     frames: n,

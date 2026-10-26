@@ -71,6 +71,7 @@ import { unitEquivalence } from "../../../../core/equivalence.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
 import { u8, u16 } from "../../../../core/int.js";
 import { FRAME_TICK } from "../names.js";
+import { liveStackDiffs, recordFrameFloors } from "./_frameFloor.js";
 
 const TARGET = 0x2a57;
 const skip = romsPresent() ? false : "ROM images are gitignored and absent";
@@ -369,8 +370,10 @@ function substitution(candidate) {
     fired++;
     return hosted(candidate)(mm);
   }]]));
+  const floors = recordFrameFloors(sub);
   const subFrames = sub.runFrames(ENTRY_FRAMES);
   const top = drivenSession().lowSp;
+  const live = liveStackDiffs(base.frames, subFrames, floors, (o) => base.offToAddr(o)); // never scratch
   const lastAt = new Map();
   const n = Math.min(base.frames.length, subFrames.length);
   for (let f = 0; f < n; f++) {
@@ -379,7 +382,7 @@ function substitution(candidate) {
     for (let o = 0; o < x.length; o++) if (x[o] !== y[o]) lastAt.set(base.offToAddr(o), f);
   }
   const outside = [...lastAt.entries()].filter(
-    ([addr]) => addr < u16(top - SCRATCH_BYTES) || addr >= top,
+    ([addr]) => addr < u16(top - SCRATCH_BYTES) || addr >= top || live.includes(addr),
   );
   return {
     fired,

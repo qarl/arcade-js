@@ -2,8 +2,8 @@
 /**
  * loseLifeAndHandOver — memory-equivalent to the frozen oracle at ROM 0x11ED.
  *
- * GATE: strict unit-capture at the one real dispatch of the coin -> start tape, compared outside
- *   the measured stack window, plus a crafted cross-product that drives both the lives-zero tail
+ * GATE: strict unit-capture at the one real dispatch of the coin -> start tape, compared minus
+ *   the stack scratch below the entry SP, plus a crafted cross-product that drives both the lives-zero tail
  *   and the selector/toggle arms the natural run never takes, plus teeth. Each dissolved call —
  *   the sprite hide, the round start, the sound queue and the tail banner — is held load-bearing
  *   by a twin that drops it.
@@ -26,6 +26,7 @@ import { startNextRound } from "../startNextRound.js";
 import { postGameOverBanner } from "../postGameOverBanner.js";
 import { loc_11ed as oracle } from "../../translated/loc_11ed.js";
 import manifest from "../../manifest.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
 import { u8 } from "../../../../core/int.js";
 
@@ -44,13 +45,15 @@ const IMAGE_TARGET = 0xa9ac;
 const IMAGE_BYTE = 0x4b52;
 
 const [STACK_LO, STACK_HI] = manifest.convergence.stateExclude.stack;
+const STACK_WINDOW = { lo: STACK_LO, hi: STACK_HI };
 const EXCLUDED = ["a", "f", "b", "c", "d", "e", "h", "l", "sp"];
 
 const skip = romsPresent() ? false : "ROM images are gitignored; none assembled";
 const hex4 = (v) => "0x" + (v & 0xffff).toString(16).padStart(4, "0");
 const show = (d) => (d ? `${hex4(d.addr ?? 0)}: oracle=${d.a} candidate=${d.b}` : "identical");
 
-const outsideStack = (addr) => addr === null || addr < STACK_LO || addr >= STACK_HI;
+/** Stack scratch below the entry SP `floor` is dead; every cell from the floor up is compared. */
+const deadStack = (floor) => deadStackBelow(STACK_WINDOW, floor);
 
 function allDiffs(a, b) {
   const da = a.dumpState();
@@ -71,7 +74,8 @@ function unitDiff(candidate, machine) {
   } catch (e) {
     return { addr: null, a: "completed", b: String(e).slice(0, 60) };
   }
-  return allDiffs(a, b).find((d) => outsideStack(d.addr)) ?? null;
+  const dead = deadStack(machine.regs.sp);
+  return allDiffs(a, b).find((d) => !dead(d.addr)) ?? null;
 }
 
 let entry = null;
@@ -82,6 +86,7 @@ function replay(candidate) {
   const host = makeMachine(new Map([[TARGET, (mm) => {
     dispatches++;
     if (entry === null) entry = mm.clone();
+    const dead = deadStack(mm.regs.sp);
     const b = mm.clone();
     try {
       candidate(b);
@@ -90,7 +95,7 @@ function replay(candidate) {
       return oracle(mm);
     }
     const r = oracle(mm);
-    if (allDiffs(mm, b).some((d) => outsideStack(d.addr))) caught++;
+    if (allDiffs(mm, b).some((d) => !dead(d.addr))) caught++;
     return r;
   }]]));
   const frames = host.runFrames(ENTRY_FRAMES);
@@ -278,7 +283,7 @@ const TWINS = [
 
 // ── the gate ──────────────────────────────────────────────────────────────────────────────
 
-test("EQUAL at the real dispatch: loseLifeAndHandOver == oracle outside the stack window", { skip }, () => {
+test("EQUAL at the real dispatch: loseLifeAndHandOver == oracle minus stack scratch below the entry SP", { skip }, () => {
   const r = replay(loseLifeAndHandOver);
   assert.equal(r.dispatches, DISPATCHES, "the dispatch count moved");
   assert.equal(r.caught, 0, "the rewrite diverged at the real dispatch");
@@ -293,7 +298,7 @@ test("CRAFTED EQUAL: every branch combination behaves as the oracle", { skip }, 
 test("NOT VACUOUS: a no-op candidate FAILS on a real cell", { skip }, () => {
   const d = unitDiff(brokenNoOp, craft({ flag: 0, selector: 0, count: 2, otherHead: 0 }));
   assert.notEqual(d, null, "the masked diff passed a candidate that does nothing");
-  assert.notEqual(d.addr, null, "the no-op must be caught on a real cell, not in the stack");
+  assert.notEqual(d.addr, null, "the no-op must be caught on a real cell, not in the stack scratch");
   console.log(`  NOT VACUOUS: ${show(d)}`);
 });
 

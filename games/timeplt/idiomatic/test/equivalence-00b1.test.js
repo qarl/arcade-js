@@ -78,6 +78,7 @@ import { tileCharPlaneWithBoxLattice } from "../tileCharPlaneWithBoxLattice.js";
 import { stampGridBox } from "../stampGridBox.js";
 import { loc_00b1 as oracle } from "../../translated/loc_00b1.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
+import { liveStackDiffs, recordFrameFloors } from "./_frameFloor.js";
 
 const TARGET = 0x00b1;
 
@@ -361,6 +362,7 @@ function wholeRun(candidate, label, opts) {
   const host = makeMachine(new Map([[TARGET, hosted(candidate, fired)]]), opts);
   let hostFrames = [];
   let threw = null;
+  const floors = recordFrameFloors(host);
   try { hostFrames = host.runFrames(CORPUS_FRAMES); } catch (e) { threw = String(e).slice(0, 100); }
   const lastFrame = new Map();
   const framesOf = new Map();
@@ -374,6 +376,9 @@ function wholeRun(candidate, label, opts) {
       framesOf.get(addr).add(i);
     }
   }
+  const live = liveStackDiffs(baseFrames, hostFrames, floors, (o) => toAddr(o));
+  // A cell that differs in a live frame fails the run like a throw: it is never stack scratch.
+  if (live.length && threw === null) threw = `live stack ${live.map((c) => c.toString(16)).join(",")} differs at or above a frame sample's SP`;
   return { lastFrame, framesOf, frames: n, fired: fired.n, threw, stopped: host.stoppedBy };
 }
 

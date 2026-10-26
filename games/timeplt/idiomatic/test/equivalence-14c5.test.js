@@ -5,7 +5,7 @@
  *   are a real attract machine with the countdown, the script pointer and a written script poked
  *   identically on both arms; a live control proves the tap can see a dispatch. Live-out is
  *   memory-only -- the sole caller returns the instant this does -- so the contract is RAM outside
- *   the measured stack window, scanned in full so a stack-scratch diff cannot mask a real one, and
+ *   the stack scratch below the entry SP, scanned in full so a stack-scratch diff cannot mask a real one, and
  *   the omitted ret is witnessed as SP left unmoved while the oracle rets for itself.
  * HOLE: the script and its window are fabricated; which script the game feeds this, at which step,
  *   is not observed here.
@@ -20,6 +20,7 @@ import { ROUTINES as TRANSLATED } from "../../routines.js";
 import { advanceScriptedCharPlaneBandTo4 } from "../advanceScriptedCharPlaneBandTo4.js";
 import { loc_14c5 as oracle } from "../../translated/loc_14c5.js";
 import manifest from "../../manifest.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 import { u8 } from "../../../../core/int.js";
 
 const skip = romsPresent() ? false : "ROM images are gitignored; none assembled";
@@ -33,7 +34,9 @@ const SCRIPT_AT = 0xa960;
 const WALK_LO = SCRIPT_AT - 14; // the furthest byte the two backward walks read
 const RUN = 0xa400;
 const [STACK_LO, STACK_HI] = manifest.convergence.stateExclude.stack;
-const outsideStack = (a) => a === null || a < STACK_LO || a >= STACK_HI;
+const STACK_WINDOW = { lo: STACK_LO, hi: STACK_HI };
+/** Stack scratch below the entry SP `floor` is dead; every cell from the floor up is compared. */
+const deadStack = (floor) => deadStackBelow(STACK_WINDOW, floor);
 
 const hex4 = (v) => "0x" + (v & 0xffff).toString(16).padStart(4, "0");
 const show = (d) => (d ? `${hex4(d.addr ?? 0)}: oracle=${d.a} candidate=${d.b}` : "identical");
@@ -79,7 +82,7 @@ function scenarios() {
   ];
 }
 
-/** First byte that differs OUTSIDE the stack window; full scan, so a scratch diff cannot mask it. */
+/** First byte that differs outside the stack scratch below the entry SP; full scan, so a scratch diff cannot mask it. */
 function diffOutsideStack(machine, candidate) {
   const a = machine.clone();
   const b = machine.clone();
@@ -91,10 +94,11 @@ function diffOutsideStack(machine, candidate) {
   }
   const da = a.dumpState();
   const db = b.dumpState();
+  const dead = deadStack(machine.regs.sp);
   for (let i = 0; i < da.length; i++) {
     if (da[i] !== db[i]) {
       const addr = machine.stateOffsetToAddr(i);
-      if (outsideStack(addr)) return { addr, a: da[i], b: db[i] };
+      if (!dead(addr)) return { addr, a: da[i], b: db[i] };
     }
   }
   return null;
@@ -174,7 +178,7 @@ test("UNREACHED: no tape dispatches this address, with a live control", { skip }
   }
 });
 
-test("EQUIVALENT: every crafted pass, RAM outside the stack", { skip }, () => {
+test("EQUIVALENT: every crafted pass, RAM minus stack scratch below the entry SP", { skip }, () => {
   for (const [label, m] of scenarios()) {
     assert.equal(show(diffOutsideStack(m, advanceScriptedCharPlaneBandTo4)), "identical", label);
   }

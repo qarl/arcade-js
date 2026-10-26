@@ -4,8 +4,8 @@
  * work-RAM block, seeds/loads/empties via three dissolved callees kicking the watchdog after each,
  * and tail-jumps into the settings and cold-start chain, which hands off to the foreground loop as a
  * COROUTINE and never returns. Both arms run with that loop (0x0B93) SEVERED to an empty coroutine,
- * so the live-out is the machine at the handover: RAM outside the measured stack window (the frozen
- * side nests calls and leaves dead return bytes there, the rewrite does not), the LS259 latch, the
+ * so the live-out is the machine at the handover: RAM minus the stack scratch below the entry SP (the
+ * frozen side nests calls and leaves dead return bytes there, the rewrite does not), the LS259 latch, the
  * sound latch, the watchdog kicks, and the register/kick pair captured where control reaches the
  * loop. The raw return is that coroutine, not a value to compare. Boot runs the routine once, so the
  * paint region's prior is crafted to prove the repaint is no accidental match.
@@ -23,7 +23,7 @@ import { loadDefaultHighScores } from "../loadDefaultHighScores.js";
 import { emptyBothDeferredCellLists } from "../emptyBothDeferredCellLists.js";
 import { seedGameConfigFromDipSwitches } from "../seedGameConfigFromDipSwitches.js";
 import manifest from "../../manifest.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { COMMAND_READ_CURSOR } from "../names.js";
 import { Severed, severAtDirectCall } from "./_spineSever.js";
 
@@ -31,6 +31,7 @@ const TARGET = 0x2511;
 const DRAIN = 0x0b93; // the foreground loop, severed so both arms stop at the same handover
 const DRAIN_NAME = "runCommandRingDrainLoop";
 const [STACK_LO, STACK_HI] = manifest.convergence.stateExclude.stack;
+const STACK_WINDOW = { lo: STACK_LO, hi: STACK_HI };
 
 const FILL_BASE = 0xac00;
 const FILL_BYTES = 64;
@@ -43,7 +44,8 @@ const EXPECTED_DISPATCHES = 1; // boot-time; it runs once under any tape
 const skip = romsPresent() ? false : "ROM images are gitignored; none assembled";
 const hex4 = (v) => "0x" + (v & 0xffff).toString(16).padStart(4, "0");
 const show = (d) => (d ? d.k : "identical");
-const outsideStack = (addr) => addr === null || addr < STACK_LO || addr >= STACK_HI;
+/** Stack scratch below the entry SP `floor` is dead; every cell from the floor up is compared. */
+const deadStack = (floor) => deadStackBelow(STACK_WINDOW, floor);
 
 // ── the rig: capture the boot entry, sever the foreground, drive the coroutine ────────────
 
@@ -125,8 +127,9 @@ function diff(cand, machine) {
   } catch (e) {
     return { k: "threw:" + String(e).slice(0, 40) };
   }
-  const ram = firstStateDiff(a.dumpState(), b.dumpState(), (off) => a.stateOffsetToAddr(off));
-  if (ram && outsideStack(ram.addr)) return { k: "ram@" + hex4(ram.addr) };
+  const ram = firstStateDiff(a.dumpState(), b.dumpState(), (off) => a.stateOffsetToAddr(off),
+    deadStack(machine.regs.sp));
+  if (ram) return { k: "ram@" + hex4(ram.addr) };
   for (let i = 0; i < a.io.latch.length; i++) {
     if (a.io.latch[i] !== b.io.latch[i]) return { k: "latch" + i };
   }
@@ -196,7 +199,7 @@ test("DISPATCHED: boot reaches the routine once under both tapes, and both repla
   }
 });
 
-test("EQUAL at the real dispatch: RAM outside stack, latch, sound, kicks and handover", { skip }, () => {
+test("EQUAL at the real dispatch: RAM minus stack scratch below the entry SP, latch, sound, kicks and handover", { skip }, () => {
   assert.equal(show(diff(candidate, entryState())), "identical");
   console.log("  EQUAL: the boot entry replays identically to the severed handover");
 });

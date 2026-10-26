@@ -75,7 +75,7 @@ import { ERA_INDEX } from "../names.js";
 import { loc_290e as oracle } from "../../translated/loc_290e.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
 import { withOmittedRet } from "../../machine.js";
-import { seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, seamPlaceable } from "../../../../core/equivalence.js";
 import { assertDeadAtExit } from "./_deadAtExit.js";
 import { serviceEra0EnemyCraftSlot } from "../serviceEra0EnemyCraftSlot.js";
 import { serviceEra1EnemyCraftSlot } from "../serviceEra1EnemyCraftSlot.js";
@@ -234,7 +234,8 @@ function diffOf(candidate, machine) {
   const da = a.dumpState();
   const db = b.dumpState();
   const exitSp = a.regs.sp;
-  const outside = (addr) => !(addr >= exitSp - WINDOW && addr < exitSp);
+  const dead = deadStackBelow({ lo: exitSp - WINDOW, hi: exitSp }, machine.regs.sp); // cut at the entry SP
+  const outside = (addr) => !dead(addr);
   const raw = [];
   let informative = false;
   for (let off = 0; off < da.length; off++) {

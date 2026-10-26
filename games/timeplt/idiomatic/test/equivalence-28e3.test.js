@@ -91,6 +91,7 @@ import { ERA_INDEX, MOTHER_SHIP_ARMED } from "../names.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
 import { seamPlaceable } from "../../../../core/equivalence.js";
 import { assertDeadAtExit } from "./_deadAtExit.js";
+import { liveStackDiffs, recordFrameFloors } from "./_frameFloor.js";
 
 const TARGET = 0x28e3;
 const HANDLER = 0x290e;
@@ -314,6 +315,7 @@ function wholeRunCells(candidate, label, opts) {
   const host = makeMachine(new Map([[TARGET, seam((mm) => (fired++, candidate(mm)))]]), opts);
   let hostFrames = [];
   let threw = null;
+  const floors = recordFrameFloors(host);
   try { hostFrames = host.runFrames(CORPUS_FRAMES); } catch (e) { threw = String(e).slice(0, 100); }
   const cells = new Set();
   const n = Math.min(baseFrames.length, hostFrames.length);
@@ -322,6 +324,9 @@ function wholeRunCells(candidate, label, opts) {
       if (baseFrames[i][o] !== hostFrames[i][o]) cells.add(toAddr(o));
     }
   }
+  const live = liveStackDiffs(baseFrames, hostFrames, floors, (o) => toAddr(o));
+  // A cell that differs in a live frame fails the run like a throw: it is never stack scratch.
+  if (live.length && threw === null) threw = `live stack ${live.map((c) => c.toString(16)).join(",")} differs at or above a frame sample's SP`;
   return { cells: [...cells].sort((x, y) => x - y), frames: n, fired, threw, stopped: host.stoppedBy };
 }
 

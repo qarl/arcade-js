@@ -46,6 +46,7 @@ import { driftAtThreeQuartersWorldScroll } from "../driftAtThreeQuartersWorldScr
 import { driftWithWorldScroll } from "../driftWithWorldScroll.js";
 import { placeAbuttingTile } from "../placeAbuttingTile.js";
 import { WORLD_SCROLL_X, WORLD_SCROLL_Y } from "../names.js";
+import { liveStackDiffs, recordFrameFloors } from "./_frameFloor.js";
 
 const TARGET = 0x2d36;
 
@@ -198,6 +199,7 @@ function wholeRunCells(candidate) {
   const host = factory(new Map([[TARGET, (mm) => (fired++, candidate(mm))]]));
   let hostFrames = [];
   let threw = null;
+  const floors = recordFrameFloors(host);
   try {
     hostFrames = host.runFrames(WHOLE_FRAMES);
   } catch (e) {
@@ -210,6 +212,9 @@ function wholeRunCells(candidate) {
     const y = hostFrames[i];
     for (let o = 0; o < x.length; o++) if (x[o] !== y[o]) cells.add(baseline.offsetToAddr(o));
   }
+  const live = liveStackDiffs(baseline.frames, hostFrames, floors, (o) => baseline.offsetToAddr(o));
+  // A cell that differs in a live frame fails the run like a throw: it is never stack scratch.
+  if (live.length && threw === null) threw = `live stack ${live.map((c) => c.toString(16)).join(",")} differs at or above a frame sample's SP`;
   return { cells: [...cells].sort((a, b) => a - b), frames: n, fired, threw, stopped: host.stoppedBy };
 }
 

@@ -45,7 +45,7 @@ import { dispatchSequenceSubStepArm } from "../dispatchSequenceSubStepArm.js";
 import { PLAY_ACTIVE, SEQUENCE_SUBSTEP } from "../names.js";
 import { loc_0f1f as oracle } from "../../translated/loc_0f1f.js";
 import { withOmittedRet } from "../../machine.js";
-import { seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, seamPlaceable } from "../../../../core/equivalence.js";
 
 const TARGET = 0x0f1f;
 const skip = romsPresent() ? false : "ROM images are gitignored; none assembled";
@@ -113,7 +113,8 @@ function diffOf(candidate, machine) {
   try { oracle(a); } catch (e) { faultA = e.constructor.name; }
   try { seated(candidate)(b); } catch (e) { faultB = e.constructor.name; }
   const exitSp = a.regs.sp;
-  const outside = (addr) => !(addr !== null && addr >= exitSp - WINDOW && addr < exitSp);
+  const dead = deadStackBelow({ lo: exitSp - WINDOW, hi: exitSp }, machine.regs.sp); // cut at the entry SP
+  const outside = (addr) => !dead(addr);
   const da = a.dumpState();
   const db = b.dumpState();
   const raw = [];

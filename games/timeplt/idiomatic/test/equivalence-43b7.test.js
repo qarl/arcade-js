@@ -2,14 +2,14 @@
 /**
  * armMotherShipOrStep against the frozen oracle: one booted machine, cloned and poked to land each of the five
  * exits — wave-hold set, a special already armed, an off-phase frame, an occupied bank, and the spawn.
- * Every arm compares the whole work-RAM dump, the stack scratch both sides push masked off; registers,
+ * Every arm compares the whole work-RAM dump, the stack scratch both sides push below the entry SP masked off; registers,
  * the flag byte and the stack pointer are excluded, and the teeth below prove each gate condition is
  * independently load-bearing.
  *
  * DISSOLVED FORM: the active arm's `m.call(loc_43f0)` is dissolved to a direct `loc_43f0(m)`
  * (frogger call=0 form). The caller no longer dispatches the stepper through the routine map, so this
  * arm can no longer be stubbed via the registry — it runs the REAL stepper on both sides and compares
- * work RAM with the stack scratch masked (the ROM's call pushes a return frame the direct JS call does
+ * work RAM with the stack scratch below the entry SP masked (the ROM's call pushes a return frame the direct JS call does
  * not). The stepper's own byte-equivalence is proven by equivalence-43f0.test.js; here we only prove the
  * caller reaches it and returns its result.
  *
@@ -28,7 +28,7 @@ import { makeMachine, romsPresent } from "./_harness.js";
 import { armMotherShipOrStep } from "../armMotherShipOrStep.js";
 import { loc_43b7 as oracle } from "../../translated/loc_43b7.js";
 import { retireEntryPairIntoCooldown } from "../retireEntryPairIntoCooldown.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { assertDeadAtExit } from "./_deadAtExit.js";
 
 const TARGET = 0x43b7;
@@ -101,8 +101,8 @@ function craftArm(name) {
   return m;
 }
 
-/** Whole-dump oracle-vs-candidate on independent clones, the stack scratch both sides push masked off
- * (the active arm's ROM `call` pushes a return frame the dissolved direct call does not; every other arm
+/** Whole-dump oracle-vs-candidate on independent clones, the stack scratch both sides push below the entry SP
+ * masked off (the active arm's ROM `call` pushes a return frame the dissolved direct call does not; every other arm
  * pushes nothing, so its scratch set is empty and the diff is exact). Identical throws count as equal. */
 function unitDiff(candidate, machine) {
   const a = machine.clone();
@@ -120,7 +120,9 @@ function unitDiff(candidate, machine) {
     if (ea && eb && String(ea) === String(eb)) return null;
     return { addr: null, a: ea ? `threw ${ea.message}` : "returned", b: eb ? `threw ${eb.message}` : "returned" };
   }
-  return firstStateDiff(a.dumpState(), b.dumpState(), (off) => a.stateOffsetToAddr(off), (addr) => scratch.has(addr));
+  const belowEntry = deadStackBelow({ lo: 0, hi: 0x10000 }, machine.regs.sp);
+  return firstStateDiff(a.dumpState(), b.dumpState(), (off) => a.stateOffsetToAddr(off),
+    (addr) => scratch.has(addr) && belowEntry(addr));
 }
 
 function footprint(machine) {

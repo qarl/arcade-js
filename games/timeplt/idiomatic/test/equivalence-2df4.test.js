@@ -62,6 +62,7 @@ import { unitEquivalence } from "../../../../core/equivalence.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
 import { u16 } from "../../../../core/int.js";
 import { WORLD_SCROLL_X, WORLD_SCROLL_Y } from "../names.js";
+import { liveStackDiffs, recordFrameFloors } from "./_frameFloor.js";
 
 const TARGET = 0x2df4;
 const skip = romsPresent() ? false : "ROM images are not assembled";
@@ -414,7 +415,9 @@ function replayAddrs(raw, label = "turning", opts = { tape: turnTape() }) {
     fired++;
     return raw(mm);
   }]]), opts);
+  const floors = recordFrameFloors(m);
   const frames = m.runFrames(WHOLE_FRAMES);
+  const live = new Set(liveStackDiffs(base.frames, frames, floors, (o) => base.machine.stateOffsetToAddr(o)));
   const addrs = new Set();
   const n = Math.min(base.frames.length, frames.length);
   for (let f = 0; f < n; f++) {
@@ -423,7 +426,7 @@ function replayAddrs(raw, label = "turning", opts = { tape: turnTape() }) {
     for (let o = 0; o < x.length; o++) if (x[o] !== y[o]) addrs.add(base.machine.stateOffsetToAddr(o));
   }
   return {
-    addrs: [...addrs].sort((p, q) => p - q),
+    addrs: Object.assign([...addrs].sort((p, q) => p - q), { live }), // live: differed at/above a sample's SP
     fired,
     frames: n,
     stoppedBy: m.stoppedBy,
@@ -446,7 +449,7 @@ const scratchWindow = () => addressesAround(SCRATCH_BELOW, SCRATCH_ABOVE);
 /** The whole stack band around the routine's entry depth: nothing here is a live game cell. */
 const stackBand = () => addressesAround(SCRATCH_BELOW, BAND_ABOVE);
 
-const outside = (addrs, band = scratchWindow()) => addrs.filter((a) => !band.includes(a));
+const outside = (addrs, band = scratchWindow()) => addrs.filter((a) => !band.includes(a) || addrs.live.has(a));
 const liveCells = (addrs) => outside(addrs, stackBand());
 
 // ── the gate ────────────────────────────────────────────────────────────────────────────────

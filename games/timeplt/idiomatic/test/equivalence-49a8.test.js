@@ -2,7 +2,7 @@
 /**
  * finishBootSelfTestAndColdStart — memory-equivalent to the frozen oracle at ROM 0x49A8. The routine tiles the character
  * plane and cold-starts, so both arms are run with the foreground loop (0x0b93) severed and compared
- * on RAM outside the measured stack window, the LS259 latch, the sound latch, the watchdog kicks and
+ * on RAM minus the stack scratch below the entry SP, the LS259 latch, the sound latch, the watchdog kicks and
  * the handover. Registers are not compared: the dissolved lattice leaves different register residue,
  * and the cold-start tail never returns, so no caller consumes one. The oracle reaches the loop
  * through the routine map and the rewrite by `yield*` into a direct import; _spineSever.js catches
@@ -23,7 +23,7 @@ import { tileCharPlaneWithBoxLattice } from "../tileCharPlaneWithBoxLattice.js";
 import { enterVerticalBlankService } from "../enterVerticalBlankService.js";
 import { petWatchdogThroughStartupDelayThenStartMachine } from "../petWatchdogThroughStartupDelayThenStartMachine.js";
 import manifest from "../../manifest.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { COMMAND_READ_CURSOR } from "../names.js";
 import { Severed, severAtDirectCall } from "./_spineSever.js";
 
@@ -33,6 +33,7 @@ const TARGET = 0x49a8;
 const DRAIN = 0x0b93;
 const DRAIN_NAME = "runCommandRingDrainLoop";
 const [STACK_LO, STACK_HI] = manifest.convergence.stateExclude.stack;
+const STACK_WINDOW = { lo: STACK_LO, hi: STACK_HI };
 
 const CONFIG_LOW3 = 0xa9c4;
 const CONFIG_BIT = 0xa9c6;
@@ -51,7 +52,8 @@ const CONFIG_INPUTS = [0x00, 0x01, 0x0f, 0x33, 0x55, 0x96, 0xaa, 0xff];
 
 const hex4 = (v) => "0x" + (v & 0xffff).toString(16).padStart(4, "0");
 const show = (d) => (d ? d.k : "identical");
-const outsideStack = (addr) => addr === null || addr < STACK_LO || addr >= STACK_HI;
+/** Stack scratch below the entry SP `floor` is dead; every cell from the floor up is compared. */
+const deadStack = (floor) => deadStackBelow(STACK_WINDOW, floor);
 
 let entry = null;
 function entryState() {
@@ -113,7 +115,7 @@ function craftTampered(a, delta) {
   return m;
 }
 
-// The real contract: RAM outside the stack, the whole LS259, the sound latch, the KICK COUNT and
+// The real contract: RAM minus stack scratch below the entry SP, the whole LS259, the sound latch, the KICK COUNT and
 // the handover. Registers are excluded for the reasons in the header.
 function unitDiff(cand, machine) {
   const logA = [];
@@ -128,8 +130,9 @@ function unitDiff(cand, machine) {
   } catch (e) {
     return { k: "threw:" + String(e).slice(0, 40) };
   }
-  const ram = firstStateDiff(a.dumpState(), b.dumpState(), (off) => a.stateOffsetToAddr(off));
-  if (ram && outsideStack(ram.addr)) return { k: "ram@" + hex4(ram.addr) };
+  const ram = firstStateDiff(a.dumpState(), b.dumpState(), (off) => a.stateOffsetToAddr(off),
+    deadStack(machine.regs.sp));
+  if (ram) return { k: "ram@" + hex4(ram.addr) };
   for (let i = 0; i < a.io.latch.length; i++) {
     if (a.io.latch[i] !== b.io.latch[i]) return { k: "latch" + i };
   }

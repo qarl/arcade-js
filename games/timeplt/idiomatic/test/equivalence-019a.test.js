@@ -52,6 +52,7 @@ import { withOmittedRet } from "../../machine.js";
 import { armWholePlaneWipeThenDerailOnATamperedImage } from "../armWholePlaneWipeThenDerailOnATamperedImage.js";
 import { loc_019a as oracle } from "../../translated/loc_019a.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
+import { recordFrameFloors } from "./_frameFloor.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
 import { BLANK_LINES_LEFT, BLANK_LINE_CURSOR } from "../names.js";
 
@@ -450,6 +451,7 @@ function driven(candidate, baseline) {
     if (mm.regs.sp < lowSp) lowSp = mm.regs.sp;
     return candidate(mm);
   }]]));
+  const floors = recordFrameFloors(m);
   let frames = [];
   let threw = null;
   try {
@@ -459,14 +461,20 @@ function driven(candidate, baseline) {
     frames = m.frames;
   }
   const differing = new Set();
+  const live = new Set(); // differed at or above the baseline sample's SP: a live frame, never scratch
   const compared = baseline === null ? 0 : Math.min(baseline.frames.length, frames.length);
   for (let f = 0; f < compared; f++) {
     const a = baseline.frames[f];
     const b = frames[f];
-    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) differing.add(m.stateOffsetToAddr(i));
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] === b[i]) continue;
+      const addr = m.stateOffsetToAddr(i);
+      differing.add(addr);
+      if (addr >= baseline.floors[f]) live.add(addr);
+    }
   }
-  return { frames, calls, lowSp, threw, compared, stopped: m.stoppedBy ? String(m.stoppedBy) : null,
-    differing: [...differing].sort((x, y) => x - y) };
+  return { frames, floors, calls, lowSp, threw, compared, stopped: m.stoppedBy ? String(m.stoppedBy) : null,
+    differing: [...differing].sort((x, y) => x - y), live };
 }
 
 let baselineRun = null;
@@ -488,7 +496,7 @@ test("DRIVEN: wired live for a whole session, divergence confined to dead stack"
   assert.ok(r.calls > 0, "vacuous: the rewrite was never dispatched in the driven run");
 
   const floor = base.lowSp - TRAP_SCRATCH_BYTES;
-  const escaped = r.differing.filter((a) => a < floor || a >= STACK_SEAT);
+  const escaped = r.differing.filter((a) => a < floor || a >= STACK_SEAT || r.live.has(a));
   assert.deepEqual(escaped.map(hex4), [], "a divergence reached memory outside the dead stack " +
     "region, so this rewrite is not a transparent swap after all");
   console.log(`  DRIVEN: ${r.calls} dispatch(es) over ${DRIVEN_FRAMES} frames; ` +
@@ -532,7 +540,7 @@ for (const [label, twin] of [...TWINS, TAMPER_ONLY_TWIN]) {
 test("TEETH: the driven arm catches a twin too", { skip }, () => {
   const r = driven(withOmittedRet(brokenNoOp, TARGET), baseline());
   const floor = baseline().lowSp - TRAP_SCRATCH_BYTES;
-  const escaped = r.differing.filter((a) => a < floor || a >= STACK_SEAT);
+  const escaped = r.differing.filter((a) => a < floor || a >= STACK_SEAT || r.live.has(a));
   assert.ok(r.threw !== null || r.stopped !== null || escaped.length > 0,
     "the driven arm PASSED a no-op twin, so its confinement result is vacuous");
   console.log(`  TEETH/driven: no-op twin — reached frame ${r.frames.length}, ` +

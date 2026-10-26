@@ -15,7 +15,7 @@ import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { ROUTINES as TRANSLATED } from "../../routines.js";
 import { flyDemoShipByScript } from "../flyDemoShipByScript.js";
 import { loc_214b as oracle } from "../../translated/loc_214b.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -63,14 +63,15 @@ function unitDiff(candidate, machine) {
   oracle(a);
   candidate(b);
   // The dissolved mover writes no dead stack scratch and takes no ROM ret, so the diff masks the
-  // window below the oracle's exit pointer; pc is the tail's return address, dead once flyDemoShipByScript ends.
+  // window below the oracle's exit pointer, cut at the entry SP; pc is the tail's return address, dead once flyDemoShipByScript ends.
   const sp = a.regs.sp;
+  const dead = deadStackBelow({ lo: sp - SCRATCH_BYTES, hi: sp }, machine.regs.sp);
   const da = a.dumpState();
   const db = b.dumpState();
   for (let i = 0; i < da.length; i++) {
     if (da[i] === db[i]) continue;
     const ad = a.stateOffsetToAddr(i);
-    if (ad !== null && ad >= sp - SCRATCH_BYTES && ad < sp) continue;
+    if (dead(ad)) continue;
     return `${hex(ad)} frozen=${da[i]} rewrite=${db[i]}`;
   }
   for (const k of REG_FIELDS) {
@@ -234,12 +235,12 @@ test("WINDOW: the widest divergence is exactly the declared dead-scratch window"
     for (let i = 0; i < da.length; i++) {
       if (da[i] === db[i]) continue;
       const ad = a.stateOffsetToAddr(i);
-      assert.ok(ad !== null && ad < sp, `a divergence at ${hex(ad)} is at or above the exit pointer ${hex(sp)}`);
+      assert.ok(ad !== null && ad < mc.regs.sp, `a divergence at ${hex(ad)} is at or above the entry pointer ${hex(mc.regs.sp)}`);
       widest = Math.max(widest, sp - ad);
     }
   }
   assert.equal(widest, SCRATCH_BYTES, "the widest dead-scratch divergence moved; the window is the wrong size");
-  console.log(`  WINDOW: widest divergence sp-${widest}, all below the exit pointer`);
+  console.log(`  WINDOW: widest divergence sp-${widest}, all below the entry pointer`);
 });
 
 test("SP: the rewrite drops exactly the ROM tail return the oracle pops", { skip }, () => {

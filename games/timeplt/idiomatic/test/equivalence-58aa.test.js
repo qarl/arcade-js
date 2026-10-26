@@ -72,6 +72,7 @@ import { loc_58aa as oracle } from "../../translated/loc_58aa.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
 import { WORLD_SCROLL_X, WORLD_SCROLL_Y } from "../names.js";
+import { liveStackDiffs, recordFrameFloors } from "./_frameFloor.js";
 
 const TARGET = 0x58aa;
 
@@ -228,6 +229,7 @@ function wholeRunCells(candidate) {
   );
   let hostFrames = [];
   let threw = null;
+  const floors = recordFrameFloors(host);
   try {
     hostFrames = host.runFrames(FRAMES);
   } catch (e) {
@@ -240,6 +242,9 @@ function wholeRunCells(candidate) {
       if (baseFrames[i][o] !== hostFrames[i][o]) cells.add(base.stateOffsetToAddr(o));
     }
   }
+  const live = liveStackDiffs(baseFrames, hostFrames, floors, (o) => base.stateOffsetToAddr(o));
+  // A cell that differs in a live frame fails the run like a throw: it is never stack scratch.
+  if (live.length && threw === null) threw = `live stack ${live.map((c) => c.toString(16)).join(",")} differs at or above a frame sample's SP`;
   return { cells: [...cells].sort((a, b) => a - b), frames: n, fired, threw, stopped: host.stoppedBy };
 }
 

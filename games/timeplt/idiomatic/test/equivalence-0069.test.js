@@ -3,7 +3,7 @@
  * clearWorkRamAndSpriteBank1ThenColdInit — memory-equivalent to the frozen oracle at ROM 0x0069.
  * GATE: crafted-boot-entry; the single boot dispatch replayed with the foreground loop (0x0B93)
  * severed to an empty coroutine so both arms stop at the same handover, comparing work + sprite RAM
- * outside the stack window, the LS259 latches, the sound latch and the watchdog kicks. Priors
+ * minus the stack scratch below the entry SP, the LS259 latches, the sound latch and the watchdog kicks. Priors
  * pre-load the two cleared regions so EQUAL is no accidental match on already-zero RAM.
  * Run: node --test games/timeplt/idiomatic/test/equivalence-0069.test.js
  */
@@ -17,6 +17,7 @@ import { loc_0069 as oracle } from "../../translated/loc_0069.js";
 import { clearScreenRamAndVerifyImageThenColdInit } from "../clearScreenRamAndVerifyImageThenColdInit.js";
 import { enterVerticalBlankService } from "../enterVerticalBlankService.js";
 import manifest from "../../manifest.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 import { u8 } from "../../../../core/int.js";
 import { COMMAND_READ_CURSOR } from "../names.js";
 import { Severed, severAtDirectCall } from "./_spineSever.js";
@@ -25,6 +26,7 @@ const TARGET = 0x0069;
 const DRAIN = 0x0b93; // the foreground loop, severed so both arms stop at the same handover
 const DRAIN_NAME = "runCommandRingDrainLoop";
 const [STACK_LO, STACK_HI] = manifest.convergence.stateExclude.stack;
+const STACK_WINDOW = { lo: STACK_LO, hi: STACK_HI };
 
 const WATCHDOG = 0xc200;
 const CLEARED = [[0xb411, 0x30], [0xb410, 0x30], [0xa800, 0x800]];
@@ -38,7 +40,6 @@ const EXPECTED_DISPATCHES = 1;
 const skip = romsPresent() ? false : "ROM images are gitignored; none assembled";
 const hex4 = (v) => "0x" + (v & 0xffff).toString(16).padStart(4, "0");
 const show = (d) => (d ? d.k : "identical");
-const outsideStack = (addr) => addr < STACK_LO || addr >= STACK_HI;
 
 let entry = null;
 let dispatches = 0;
@@ -93,18 +94,19 @@ function drive(fn, m) {
   throw new Error("still yielding after the budget");
 }
 
-/** First RAM byte that differs OUTSIDE the stack window, scanning the whole dump. */
-function ramDiff(a, b) {
+/** First RAM byte that differs outside the stack scratch below the entry SP `floor`, scanning the whole dump. */
+function ramDiff(a, b, floor) {
   const da = a.dumpState(), db = b.dumpState();
+  const dead = deadStackBelow(STACK_WINDOW, floor);
   for (let i = 0; i < da.length; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (outsideStack(addr)) return addr;
+    if (!dead(addr)) return addr;
   }
   return null;
 }
 
-/** The live-out at the severed handover: RAM outside the stack, the latches, the sound latch, the kicks. */
+/** The live-out at the severed handover: RAM minus stack scratch below the entry SP, the latches, the sound latch, the kicks. */
 function diff(cand, machine) {
   const logA = [], logB = [];
   const a = severed(machine, logA);
@@ -115,7 +117,7 @@ function diff(cand, machine) {
   } catch (e) {
     return { k: "threw:" + String(e).slice(0, 40) };
   }
-  const bad = ramDiff(a, b);
+  const bad = ramDiff(a, b, machine.regs.sp);
   if (bad !== null) return { k: "ram@" + hex4(bad) };
   for (let i = 0; i < a.io.latch.length; i++) if (a.io.latch[i] !== b.io.latch[i]) return { k: "latch" + i };
   if (a.io.soundData !== b.io.soundData) return { k: "sound" };
@@ -186,7 +188,7 @@ test("DISPATCHED: boot reaches the routine once under both tapes, and both repla
   }
 });
 
-test("EQUAL at the boot dispatch: RAM outside stack, latches, sound, kicks and handover", { skip }, () => {
+test("EQUAL at the boot dispatch: RAM minus stack scratch below the entry SP, latches, sound, kicks and handover", { skip }, () => {
   assert.equal(show(diff(candidate, entryState())), "identical");
   console.log("  EQUAL: the boot entry replays identically to the severed handover");
 });

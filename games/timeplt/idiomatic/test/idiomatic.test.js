@@ -21,6 +21,7 @@ import { existsSync, readFileSync } from "node:fs";
 
 import { Machine, CYCLES_PER_FRAME, resolveAllIdiomatic } from "../../machine.js";
 import manifest from "../../manifest.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 import { COIN_COUNTER_PULSES_OWED, PLAY_ACTIVE } from "../names.js";
 import { runIdiomaticGame } from "../../../../core/frame-stepped.js";
 
@@ -57,16 +58,15 @@ function inputAt(n, live) {
   return a;
 }
 
-/** dumpState minus the stack, built from the memory's OWN offset-to-address map so it cannot drift
- *  if the layout is reordered. ⚠ Do NOT widen past the measured floor -- the bytes below are
- *  written by nothing, so a leaking SP walks into them FIRST and a wider window hides it. */
-function buildMask(mem) {
+/** dumpState minus the stack scratch below `sp` (the oracle's SP at that interrupt), built from the
+ *  memory's OWN offset-to-address map so it cannot drift if the layout is reordered. ⚠ Do NOT widen
+ *  past the measured floor -- the bytes below are written by nothing, so a leaking SP walks into them
+ *  FIRST and a wider window hides it. */
+function buildMask(mem, sp) {
   const size = mem.dumpState().length;
   const keep = new Uint8Array(size);
-  for (let off = 0; off < size; off++) {
-    const addr = mem.stateOffsetToAddr(off);
-    keep[off] = addr >= STACK_LO && addr < STACK_HI ? 0 : 1;
-  }
+  const dead = deadStackBelow({ lo: STACK_LO, hi: STACK_HI }, sp);
+  for (let off = 0; off < size; off++) keep[off] = dead(mem.stateOffsetToAddr(off)) ? 0 : 1;
   return keep;
 }
 
@@ -81,17 +81,19 @@ async function runOracle(live) {
   const m = await Machine.create(ROM, {});
   m.maxCycles = (NMIS + 500) * CYCLES_PER_FRAME;
   const states = new Map();
+  const sps = new Map();
   const realFire = m.fireNmi.bind(m);
   m.fireNmi = function () {
     if (m.nmiCount <= NMIS) {
       m.io.inputAssert = inputAt(m.nmiCount, live);
       states.set(m.nmiCount, Buffer.from(m.mem.dumpState()));
+      sps.set(m.nmiCount, m.regs.sp);
     }
     return realFire();
   };
   let stop = null;
   try { m.reset(); } catch (e) { stop = e; }
-  return { m, states, stop };
+  return { m, states, sps, stop };
 }
 
 async function runIdiomatic(live) {
@@ -126,11 +128,10 @@ test("the idiomatic game reproduces the oracle byte for byte, through coin, star
     `the oracle produced only ${oracle.states.size} interrupts; it stopped on ${oracle.stop}`,
   );
 
-  const keep = buildMask(cand.m.mem);
   for (let n = 0; n < NMIS; n++) {
     const a = oracle.states.get(n), b = cand.states.get(n);
     assert.ok(a && b, `missing a sample at interrupt ${n}`);
-    const d = firstDifference(a, b, keep, cand.m.mem);
+    const d = firstDifference(a, b, buildMask(cand.m.mem, oracle.sps.get(n)), cand.m.mem);
     assert.equal(
       d, null,
       d && `interrupt ${n}: 0x${d.addr.toString(16)} oracle=${d.a} idiomatic=${d.b} -- the idiomatic ` +

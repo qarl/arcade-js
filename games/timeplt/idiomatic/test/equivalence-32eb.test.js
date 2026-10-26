@@ -25,10 +25,10 @@
  *      dispatches. So the counter, pointer and accumulator the frozen side leaves behind are dead,
  *      the rewrite leaves them unset, and they are not compared. The interrupt-enable setting the
  *      frozen side carries in A is still compared — as the latch line it drives.
- *   3. THE STACK IS EXCLUDED, and only the measured window. The oracle pushes a return slot before
+ *   3. ONLY STACK SCRATCH BELOW THE ENTRY SP IS EXCLUDED. The oracle pushes a return slot before
  *      its sound call where the rewrite's direct import pushes nothing, so the TWO bytes of that
  *      slot -- 0xAFFE and 0xAFFF, holding the pushed 0x3305 -- differ by construction. The window
- *      comes from the manifest, not from a number typed here.
+ *      comes from the manifest, cut at the entry SP, not from a number typed here.
  *   4. TEETH — one twin per way the collapse could have been taken too far, each with the exact
  *      count of crafted entries it is caught on. This does NOT claim to catch every wrong
  *      collapse; it claims each listed twin is caught.
@@ -50,7 +50,7 @@ import { makeMachine, romsPresent } from "./_harness.js";
 import { petWatchdogThroughStartupDelayThenStartMachine } from "../petWatchdogThroughStartupDelayThenStartMachine.js";
 import { loc_32eb as oracle } from "../../translated/loc_32eb.js";
 import manifest from "../../manifest.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { SEQUENCE_DELAY, COMMAND_READ_CURSOR } from "../names.js";
 import { Severed, severAtDirectCall } from "./_spineSever.js";
 
@@ -60,6 +60,7 @@ const TARGET = 0x32eb;
 const DRAIN = 0x0b93;
 const DRAIN_NAME = "runCommandRingDrainLoop";
 const [STACK_LO, STACK_HI] = manifest.convergence.stateExclude.stack;
+const STACK_WINDOW = { lo: STACK_LO, hi: STACK_HI };
 
 const EXPECTED_KICKS = 1 + 12 * 256 + 1;
 
@@ -131,9 +132,10 @@ function drive(fn, m, ...args) {
   throw new Error(`still yielding after ${YIELD_BUDGET} resumptions; the oracle returned`);
 }
 
-const outsideStack = (addr) => addr === null || addr < STACK_LO || addr >= STACK_HI;
+/** Stack scratch below the entry SP `floor` is dead; every cell from the floor up is compared. */
+const deadStack = (floor) => deadStackBelow(STACK_WINDOW, floor);
 
-/** The real contract: RAM outside the stack, the whole LS259, the KICK COUNT, the untouched
+/** The real contract: RAM minus stack scratch below the entry SP, the whole LS259, the KICK COUNT, the untouched
  *  registers, and the handover. */
 function unitDiff(candidate, machine, carried) {
   const logA = [];
@@ -153,8 +155,9 @@ function unitDiff(candidate, machine, carried) {
     return { addr: null, a: "completed", b: String(e).slice(0, 60) };
   }
 
-  const ram = firstStateDiff(a.dumpState(), b.dumpState(), (off) => a.stateOffsetToAddr(off));
-  if (ram && outsideStack(ram.addr)) return ram;
+  const ram = firstStateDiff(a.dumpState(), b.dumpState(), (off) => a.stateOffsetToAddr(off),
+    deadStack(machine.regs.sp));
+  if (ram) return ram;
 
   for (let i = 0; i < a.io.latch.length; i++) {
     if (a.io.latch[i] !== b.io.latch[i]) return { addr: null, a: `latch[${i}]=${a.io.latch[i]}`, b: b.io.latch[i] };
@@ -308,9 +311,10 @@ test("★ THE STATE DUMP IS BLIND: a rewrite that under-kicks passes a RAM compa
   const b = severed(entryState(), []);
   drive(oracle, a);
   drive(brokenFewerTicks, b);
-  const ram = firstStateDiff(a.dumpState(), b.dumpState(), (off) => a.stateOffsetToAddr(off));
+  const ram = firstStateDiff(a.dumpState(), b.dumpState(), (off) => a.stateOffsetToAddr(off),
+    deadStack(entryState().regs.sp));
   assert.ok(
-    ram === null || !outsideStack(ram.addr),
+    ram === null,
     "expected the fewer-ticks twin to be INVISIBLE to RAM; if this fails the gate below proves less than it claims",
   );
   assert.notEqual(a.io.watchdogKicks, b.io.watchdogKicks, "and yet the kick counts must differ");

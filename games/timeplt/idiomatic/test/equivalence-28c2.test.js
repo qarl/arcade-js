@@ -105,8 +105,9 @@ import { ERA_INDEX } from "../names.js";
 import { loc_28c2 as oracle } from "../../translated/loc_28c2.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
 import { withOmittedRet } from "../../machine.js";
-import { seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, seamPlaceable } from "../../../../core/equivalence.js";
 import { assertDeadAtExit } from "./_deadAtExit.js";
+import { recordFrameFloors } from "./_frameFloor.js";
 
 const TARGET = 0x28c2;
 /** The era-keyed dispatch this entry hands its seated pair to. */
@@ -326,7 +327,8 @@ function diffOf(candidate, machine) {
   const da = a.dumpState();
   const db = b.dumpState();
   const exitSp = a.regs.sp;
-  const outside = (addr) => !(addr >= exitSp - WINDOW && addr < exitSp);
+  const dead = deadStackBelow({ lo: exitSp - WINDOW, hi: exitSp }, machine.regs.sp); // cut at the entry SP
+  const outside = (addr) => !dead(addr);
   const raw = [];
   let informative = false;
   for (let off = 0; off < da.length; off++) {
@@ -454,9 +456,10 @@ const baselineRuns = new Map();
 function baseline(spec) {
   if (!baselineRuns.has(spec.label)) {
     const base = makeMachine(undefined, spec.tape === undefined ? {} : { tape: spec.tape });
+    const floors = recordFrameFloors(base);
     const frames = base.runFrames(spec.frames);
     assert.equal(base.stoppedBy, null, `the ${spec.label} baseline run stopped early: ${base.stoppedBy}`);
-    baselineRuns.set(spec.label, { frames, offsetToAddr: (o) => base.stateOffsetToAddr(o) });
+    baselineRuns.set(spec.label, { frames, floors, offsetToAddr: (o) => base.stateOffsetToAddr(o) });
   }
   return baselineRuns.get(spec.label);
 }
@@ -500,13 +503,18 @@ function wholeRun(candidate, matchCycles, spec = WHOLE_SESSION) {
     threw = e.constructor.name;
   }
   const cells = new Set();
+  const live = new Set(); // differed at or above the baseline sample's SP: a live frame, never scratch
   const n = Math.min(base.frames.length, frames.length);
   for (let i = 0; i < n; i++) {
     const x = base.frames[i];
     const y = frames[i];
-    for (let o = 0; o < x.length; o++) if (x[o] !== y[o]) cells.add(base.offsetToAddr(o));
+    for (let o = 0; o < x.length; o++) {
+      if (x[o] === y[o]) continue;
+      cells.add(base.offsetToAddr(o));
+      if (base.offsetToAddr(o) >= base.floors[i]) live.add(base.offsetToAddr(o));
+    }
   }
-  return { cells: [...cells].sort((a, b) => a - b), frames: n, fired, threw, overspent, stopped: host.stoppedBy };
+  return { cells: [...cells].sort((a, b) => a - b), live, frames: n, fired, threw, overspent, stopped: host.stoppedBy };
 }
 
 // ── the gate ────────────────────────────────────────────────────────────────────────────
@@ -784,11 +792,11 @@ test("TEETH: a whole run of the attract tape, where this record is live, sees th
   const good = wholeRun(seatCraftSlot1ThenDispatchByEra, true, LIVE_WHOLE_SESSION);
   assert.equal(good.threw, null, `the rewrite's attract run threw: ${good.threw}`);
   assert.equal(good.overspent, 0, "the rewrite spent MORE cycles than the frozen side at some dispatch");
-  assert.deepEqual(good.cells.filter((c) => !scratch(c)).map(hex4), [],
+  assert.deepEqual(good.cells.filter((c) => !scratch(c) || good.live.has(c)).map(hex4), [],
     "the rewrite's cycle-matched attract run diverged outside the dead scratch below the exit pointer");
   const bad = wholeRun(brokenNoOp, true, LIVE_WHOLE_SESSION);
   assert.ok(bad.fired > 0, "vacuous: the twin never dispatched");
-  const escaped = bad.cells.filter((c) => !scratch(c));
+  const escaped = bad.cells.filter((c) => !scratch(c) || bad.live.has(c));
   assert.ok(bad.threw !== null || escaped.length > 0, "the attract whole run is blind to a candidate that does nothing");
   console.log(`  TEETH/no-op (attract whole run): the rewrite differs only in ` +
     `[${good.cells.map(hex4).join(" ")}], below exit pointer ${[...exitSps].map(hex4).join(" ")}; ` +

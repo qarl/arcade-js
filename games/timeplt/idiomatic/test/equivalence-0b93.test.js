@@ -32,15 +32,15 @@
  *   by behaviour: every slot the registry transcribes gives identical results on both sides, and
  *   every slot it does not is refused by both.
  *
- * ★ THE STACK WINDOW IS EXCLUDED — the manifest's measured window, not a number typed here. The
- *   frozen side parks return slots there that the rewrite never pushes, and its handlers push their
- *   own scratch.
+ * ★ STACK SCRATCH BELOW THE ENTRY SP IS EXCLUDED — the manifest's measured window cut at the entry
+ *   SP. The frozen side parks return slots there that the rewrite never pushes, and its handlers push
+ *   their own scratch; every cell from the entry SP up is compared.
  *
  * GATE: crafted-entry, one command per run, over the ring's whole command space. Holes stated:
  *
  *   1. THE ENTRY — captured at the one real dispatch, which happens once per session at boot.
  *   2. ONE COMMAND — both sides stop after exactly one command.
- *   3. EQUAL — identical outside the stack window on the real cursor.
+ *   3. EQUAL — identical outside the stack scratch below the entry SP on the real cursor.
  *   4. NOT VACUOUS — a no-op FAILS the same masked diff on a real cell.
  *   5. SLOTS — all sixteen table words against the switch.
  *   6. EXHAUSTIVE — all 128 occupied command bytes against several cursors and arguments.
@@ -63,6 +63,7 @@ import { runCommandRingDrainLoop } from "../runCommandRingDrainLoop.js";
 import { loc_0b93 as oracle } from "../../translated/loc_0b93.js";
 import { buildRoutines } from "../../routines.js";
 import manifest from "../../manifest.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 import { NotImplemented } from "../../../../boards/timeplt/io.js";
 import { COMMAND_READ_CURSOR, COMMAND_RING, ROUTINES } from "../names.js";
 import { Severed, severAtDirectCall } from "./_spineSever.js";
@@ -80,6 +81,7 @@ const TABLE_READ = 0x018c;
 const ESCAPE = 0xffff;
 
 const [STACK_LO, STACK_HI] = manifest.convergence.stateExclude.stack;
+const STACK_WINDOW = { lo: STACK_LO, hi: STACK_HI };
 
 const skip = romsPresent() ? false : "ROM images are not assembled";
 
@@ -87,7 +89,6 @@ const hex4 = (v) => "0x" + (v & 0xffff).toString(16).padStart(4, "0");
 const show = (d) => (d ? `${d.addr === null ? "-" : hex4(d.addr)}: oracle=${d.a} candidate=${d.b}` : "identical");
 const u8 = (x) => x & 0xff;
 const everyByte = Array.from({ length: 256 }, (_unused, v) => v);
-const inStack = (addr) => addr >= STACK_LO && addr < STACK_HI;
 
 // ── the entry ───────────────────────────────────────────────────────────────────────────
 
@@ -188,14 +189,16 @@ function craft(cursor, command, argument) {
   return m;
 }
 
-function strayDiffs(a, b) {
+/** Differing cells outside the stack scratch below the entry SP `floor`. */
+function strayDiffs(a, b, floor) {
   const da = a.dumpState();
   const db = b.dumpState();
+  const dead = deadStackBelow(STACK_WINDOW, floor);
   const out = [];
   for (let i = 0; i < da.length; i++) {
     if (da[i] === db[i]) continue;
     const addr = a.stateOffsetToAddr(i);
-    if (!inStack(addr)) out.push({ addr, a: da[i], b: db[i] });
+    if (!dead(addr)) out.push({ addr, a: da[i], b: db[i] });
   }
   return out;
 }
@@ -204,12 +207,12 @@ const deviceSignature = (c) =>
   `${[...c.io.latch].join(",")}|wd=${c.io.watchdogKicks}|snd=${c.io.soundData}` +
   `|ur=${c.mem.unmappedReads}|uw=${c.mem.unmappedWrites}`;
 
-/** Both sides once on the same crafted state: how they ended, RAM outside the stack, the devices. */
+/** Both sides once on the same crafted state: how they ended, RAM minus stack scratch below entry SP, the devices. */
 function unitDiff(candidate, machine) {
   const left = runSide(oracle, machine);
   const right = runSide(candidate, machine);
   if (left.outcome !== right.outcome) return { addr: null, a: left.outcome, b: right.outcome };
-  const ram = strayDiffs(left.m, right.m)[0];
+  const ram = strayDiffs(left.m, right.m, machine.regs.sp)[0];
   if (ram) return ram;
   if (deviceSignature(left.m) !== deviceSignature(right.m)) {
     return { addr: null, a: deviceSignature(left.m), b: deviceSignature(right.m) };
@@ -315,15 +318,15 @@ test("ONE COMMAND: both sides stop after exactly one command", { skip }, () => {
   assert.equal(right.m.mem8[COMMAND_RING], FREE, "the rewrite did not consume the command");
 });
 
-test("EQUAL: identical outside the stack window, on the real cursor", { skip }, () => {
+test("EQUAL: identical outside the stack scratch below the entry SP, on the real cursor", { skip }, () => {
   const machine = craft(entryState().mem8[COMMAND_READ_CURSOR] & (RING_CELLS - 1), 1, 31);
   const left = runSide(oracle, machine);
   const right = runSide(runCommandRingDrainLoop, machine);
-  const strays = strayDiffs(left.m, right.m);
-  const moved = strayDiffs(machine, right.m).length;
-  console.log(`  EQUAL: the command moved ${moved} bytes, ${strays.length} of them differ outside the window`);
+  const strays = strayDiffs(left.m, right.m, machine.regs.sp);
+  const moved = strayDiffs(machine, right.m, machine.regs.sp).length;
+  console.log(`  EQUAL: the command moved ${moved} bytes, ${strays.length} of them differ outside the stack scratch`);
   assert.ok(moved > 2, "the command wrote nothing beyond its two cells, so the handler never ran");
-  assert.deepEqual(strays, [], `a divergence escaped the stack window: ${show(strays[0])}`);
+  assert.deepEqual(strays, [], `a divergence escaped the stack scratch below the entry SP: ${show(strays[0])}`);
   assert.equal(deviceSignature(right.m), deviceSignature(left.m), "the devices differ");
 });
 

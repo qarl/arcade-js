@@ -6,7 +6,7 @@
  * dispatching through the registry, so a stub inside it no longer stops the rewrite; both arms are
  * run with the foreground loop (0x0B93) SEVERED to an empty coroutine, reached by the frozen side's
  * plain call and the rewrite's `yield*` alike, with `drive` iterating the rewrite to that handover.
- * What is compared there is RAM outside the measured stack window, the LS259 latch, the sound latch
+ * What is compared there is RAM minus the stack scratch below the entry SP, the LS259 latch, the sound latch
  * and the watchdog kicks — the live-out. DSW inputs are crafted on the Io both sides read through.
  * Registers are not compared: the dissolved chain scrambles them and the cold-start tail never returns.
  * Run: node --test games/timeplt/idiomatic/test/equivalence-52aa.test.js
@@ -22,7 +22,7 @@ import { unpackCoinage } from "../unpackCoinage.js";
 import { unpackTheFirstThreeSwitchSettings } from "../unpackTheFirstThreeSwitchSettings.js";
 import { COINAGE_SETTINGS, KILL_QUOTA } from "../names.js";
 import manifest from "../../manifest.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { u8 } from "../../../../core/int.js";
 import { COMMAND_READ_CURSOR } from "../names.js";
 import { Severed, severAtDirectCall } from "./_spineSever.js";
@@ -31,6 +31,7 @@ const TARGET = 0x52aa;
 const DRAIN = 0x0b93; // the foreground loop, severed so both arms stop at the same handover
 const DRAIN_NAME = "runCommandRingDrainLoop";
 const [STACK_LO, STACK_HI] = manifest.convergence.stateExclude.stack;
+const STACK_WINDOW = { lo: STACK_LO, hi: STACK_HI };
 
 const BOOT_BYTE_A = 0x08c9;
 const BOOT_BYTE_B = 0x0874;
@@ -46,7 +47,8 @@ const EXPECTED_DISPATCHES = 1; // the routine is boot-time; it runs once
 const skip = romsPresent() ? false : "ROM images are gitignored; none assembled";
 const hex4 = (v) => "0x" + (v & 0xffff).toString(16).padStart(4, "0");
 const show = (d) => (d ? d.k : "identical");
-const outsideStack = (addr) => addr === null || addr < STACK_LO || addr >= STACK_HI;
+/** Stack scratch below the entry SP `floor` is dead; every cell from the floor up is compared. */
+const deadStack = (floor) => deadStackBelow(STACK_WINDOW, floor);
 
 // ── the rig: capture the boot entry, sever the foreground, drive the coroutine ────────────
 
@@ -107,7 +109,7 @@ function drive(fn, m) {
   throw new Error("still yielding after the budget; the tail returned");
 }
 
-/** The live-out at the severed handover: RAM outside the stack, the LS259, the sound latch, the
+/** The live-out at the severed handover: RAM minus stack scratch below the entry SP, the LS259, the sound latch, the
  *  watchdog kick count and the handover. */
 function diff(cand, machine) {
   const logA = [];
@@ -122,8 +124,9 @@ function diff(cand, machine) {
   } catch (e) {
     return { k: "threw:" + String(e).slice(0, 40) };
   }
-  const ram = firstStateDiff(a.dumpState(), b.dumpState(), (off) => a.stateOffsetToAddr(off));
-  if (ram && outsideStack(ram.addr)) return { k: "ram@" + hex4(ram.addr) };
+  const ram = firstStateDiff(a.dumpState(), b.dumpState(), (off) => a.stateOffsetToAddr(off),
+    deadStack(machine.regs.sp));
+  if (ram) return { k: "ram@" + hex4(ram.addr) };
   for (let i = 0; i < a.io.latch.length; i++) {
     if (a.io.latch[i] !== b.io.latch[i]) return { k: "latch" + i };
   }

@@ -57,7 +57,8 @@ import assert from "node:assert/strict";
 import { makeMachine, ENTRY_FRAMES, romsPresent } from "./_harness.js";
 import { advanceCharCursor } from "../advanceCharCursor.js";
 import { loc_0020 as oracle } from "../../translated/loc_0020.js";
-import { firstStateDiff, unitEquivalence } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff, unitEquivalence } from "../../../../core/equivalence.js";
+import { recordFrameFloors } from "./_frameFloor.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
 
 const TARGET = 0x0020;
@@ -179,7 +180,7 @@ function corpus() {
 
 /**
  * Wire a candidate into a driven run and diff every frame against the all-oracle baseline.
- * Divergence inside the stack window is the dead scratch the contract excludes; anything else
+ * Divergence in the stack window below the SP of that frame's sample is the dead scratch the contract excludes; anything else
  * has ESCAPED. A run that stops early reports how far it got instead.
  */
 function drivenRun(candidate) {
@@ -190,6 +191,7 @@ function drivenRun(candidate) {
       return oracle(m);
     }]]),
   );
+  const floors = recordFrameFloors(base);
   const baseFrames = base.runFrames(CORPUS_FRAMES);
   assert.equal(base.stoppedBy, null, `the baseline itself stopped early: ${base.stoppedBy}`);
 
@@ -203,10 +205,11 @@ function drivenRun(candidate) {
   for (let f = 0; f < compared; f++) {
     const a = baseFrames[f];
     const b = optFrames[f];
+    const dead = deadStackBelow({ lo: lowestSp, hi: WORK_RAM_TOP + 1 }, floors[f]); // live from the sample's SP up
     for (let i = 0; i < a.length; i++) {
       if (a[i] === b[i]) continue;
       const addr = base.stateOffsetToAddr(i);
-      if (addr >= lowestSp && addr <= WORK_RAM_TOP) scratch.add(addr);
+      if (dead(addr)) scratch.add(addr);
       else escaped.add(addr);
     }
   }
@@ -317,7 +320,7 @@ test("LIVE-OUT (MEASURED): supply the return and nothing the display reads diver
   assert.deepEqual(
     r.escaped.map(hex4),
     [],
-    "a divergence reached memory outside the stack window — the dropped accumulator or " +
+    "a divergence reached memory outside the dead stack scratch — the dropped accumulator or " +
       "flags are live somewhere after all, and EXCLUDED is wrong",
   );
   console.log(

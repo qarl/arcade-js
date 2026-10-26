@@ -65,9 +65,10 @@ import { makeMachine, COIN_FRAME, START_FRAME, ENTRY_FRAMES, romsPresent } from 
 import { negateVelocityIntoWorldScrollThenDressSprite } from "../negateVelocityIntoWorldScrollThenDressSprite.js";
 import { dressPlayerSpriteForHeading } from "../dressPlayerSpriteForHeading.js";
 import { loc_1f55 as oracle } from "../../translated/loc_1f55.js";
-import { unitEquivalence } from "../../../../core/equivalence.js";
+import { deadStackBelow, unitEquivalence } from "../../../../core/equivalence.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
 import { u16 } from "../../../../core/int.js";
+import { liveStackDiffs, recordFrameFloors } from "./_frameFloor.js";
 
 const TARGET = 0x1f55;
 const skip = romsPresent() ? false : "ROM images are gitignored and absent";
@@ -288,6 +289,7 @@ function wholeRunCells(candidate) {
   const host = sharedMachine(new Map([[TARGET, (mm) => (fired++, hosted(candidate)(mm))]]));
   let hostFrames = [];
   let threw = null;
+  const floors = recordFrameFloors(host);
   try {
     hostFrames = host.runFrames(WHOLE_FRAMES);
   } catch (e) {
@@ -300,6 +302,9 @@ function wholeRunCells(candidate) {
     const y = hostFrames[i];
     for (let o = 0; o < x.length; o++) if (x[o] !== y[o]) cells.add(base.offsetToAddr(o));
   }
+  const live = liveStackDiffs(base.frames, hostFrames, floors, (o) => base.offsetToAddr(o));
+  // A cell that differs in a live frame fails the run like a throw: it is never stack scratch.
+  if (live.length && threw === null) threw = `live stack ${live.map((c) => c.toString(16)).join(",")} differs at or above a frame sample's SP`;
   return { cells: [...cells].sort((p, q) => p - q), frames: n, fired, threw };
 }
 
@@ -375,12 +380,14 @@ const TWINS = [
 // ── the gate ────────────────────────────────────────────────────────────────────────────
 
 test("CONTRACT: the shared unit harness reaches the routine", { skip }, () => {
-  const r = unitEquivalence(sharedMachine, TARGET, oracle, negateVelocityIntoWorldScrollThenDressSprite, { maxFrames: ENTRY_FRAMES });
+  let floor = null; // the entry SP: the harness's first oracle call is at the captured entry
+  const tapped = (mm) => { floor ??= mm.regs.sp; return oracle(mm); };
+  const r = unitEquivalence(sharedMachine, TARGET, tapped, negateVelocityIntoWorldScrollThenDressSprite, { maxFrames: ENTRY_FRAMES });
   const onlyScratch = r.ram === null || r.ram.addr === null ||
-    (r.ram.addr >= STACK_FLOOR && r.ram.addr < STACK_TOP);
+    deadStackBelow({ lo: STACK_FLOOR, hi: STACK_TOP }, floor)(r.ram.addr);
   console.log(`  CONTRACT: reached within ${ENTRY_FRAMES} frames; first byte ${show(r.ram)}`);
-  assert.equal(onlyScratch, true, "the shared harness found a divergence outside the stack, which " +
-    "the masked arms below would also have to be failing on");
+  assert.equal(onlyScratch, true, "the shared harness's FIRST differing byte is outside the stack scratch below the entry SP " +
+    "(this arm checks reach; the arms below compare every cell)");
 });
 
 test("WRITE-SET: what the frozen routine moves, and where the scratch window is", { skip }, () => {

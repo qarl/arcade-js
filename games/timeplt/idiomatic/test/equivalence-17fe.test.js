@@ -55,6 +55,7 @@ import { dispatchSequencePhase2SubStepArm } from "../dispatchSequencePhase2SubSt
 import { SEQUENCE_SUBSTEP } from "../names.js";
 import { loc_17fe as oracle } from "../../translated/loc_17fe.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 
 const TARGET = 0x17fe;
 const ARM_TABLE = 0x1806;
@@ -158,7 +159,8 @@ function diffOf(candidate, machine) {
   const exitSp = a.regs.sp;
   // The only place the dissolved rewrite may differ from the oracle is the dead stack-scratch band;
   // everything else is the live contract. `outside` is what the memory comparison actually enforces.
-  const outside = (addr) => !(addr >= SCRATCH_LO && addr <= SCRATCH_HI);
+  const dead = deadStackBelow({ lo: SCRATCH_LO, hi: SCRATCH_HI + 1 }, machine.regs.sp); // cut at the entry SP
+  const outside = (addr) => !dead(addr);
   const raw = [];
   let informative = false;
   for (let off = 0; off < da.length; off++) {

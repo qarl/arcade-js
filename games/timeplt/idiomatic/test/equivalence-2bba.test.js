@@ -59,6 +59,7 @@ import { requestTwoSounds } from "../requestTwoSounds.js";
 import { withOmittedRet } from "../../machine.js";
 import { KILLS_REMAINING } from "../names.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
+import { recordFrameFloors } from "./_frameFloor.js";
 
 const TARGET = 0x2bba;
 const FRAMES = 4000;
@@ -475,6 +476,7 @@ test("ORDINAL: all 256 ordinals, the mark added and not or-ed", { skip }, () => 
 test("SESSION: a whole session swapped, differing only inside the measured stack band", { skip }, () => {
   const run = (fn) => {
     const m = makeMachine(fn ? new Map([[TARGET, withOmittedRet(fn, TARGET)]]) : null, { tape: [] });
+    const floors = recordFrameFloors(m);
     let deepest = STACK_SEAT;
     const push = m.push16.bind(m);
     m.push16 = (v) => {
@@ -482,16 +484,22 @@ test("SESSION: a whole session swapped, differing only inside the measured stack
       if (m.regs.sp < deepest) deepest = m.regs.sp;
       return r;
     };
-    return { frames: m.runFrames(FRAMES), deepest, m };
+    return { frames: m.runFrames(FRAMES), floors, deepest, m };
   };
   const differing = (base, swap) => {
     const out = new Set();
+    const live = new Set(); // at or above the base sample's SP: a live frame, never the band
     for (let i = 0; i < base.frames.length; i++) {
       const x = base.frames[i];
       const y = swap.frames[i];
-      for (let j = 0; j < x.length; j++) if (x[j] !== y[j]) out.add(base.m.stateOffsetToAddr(j));
+      for (let j = 0; j < x.length; j++) {
+        if (x[j] === y[j]) continue;
+        const a = base.m.stateOffsetToAddr(j);
+        out.add(a);
+        if (a >= base.floors[i]) live.add(a);
+      }
     }
-    return [...out];
+    return Object.assign([...out], { live });
   };
   // The control takes ONE extra kill on each dispatch: the smallest wrong thing this entry could
   // do, and something the dead-stack band must not be able to swallow.
@@ -502,16 +510,16 @@ test("SESSION: a whole session swapped, differing only inside the measured stack
   const base = run(null);
   const swap = run(countTheKillAndGrantTheSharedToken);
   const floor = Math.min(base.deepest, swap.deepest);
-  const inBand = (a) => a >= floor && a < STACK_SEAT;
+  const inBand = (a, d) => a >= floor && a < STACK_SEAT && !d.live.has(a);
   const ours = differing(base, swap);
   const control = differing(base, run(overCounter));
   console.log(`  SESSION: ${FRAMES} frames, stack band [${hex4(floor)}, ${hex4(STACK_SEAT)}); the ` +
     `rewrite differs at ${ours.length} address(es), all inside it; the control twin differs at ` +
-    `${control.length}, ${control.filter((a) => !inBand(a)).length} of them outside`);
-  assert.ok(control.some((a) => !inBand(a)),
+    `${control.length}, ${control.filter((a) => !inBand(a, control)).length} of them outside`);
+  assert.ok(control.some((a) => !inBand(a, control)),
     "a twin that miscounts one kill per dispatch differs nowhere outside the stack band either, " +
       "so this arm cannot tell a transparent swap from a broken one");
-  assert.deepEqual(ours.filter((a) => !inBand(a)).map(hex4), [],
+  assert.deepEqual(ours.filter((a) => !inBand(a, ours)).map(hex4), [],
     "the swapped session differs outside the stack band");
   assert.equal(swap.m.regs.sp, base.m.regs.sp, "the swapped session left the stack somewhere else");
 });

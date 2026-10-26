@@ -68,6 +68,7 @@ import { requestOneShotCountdownSound } from "../requestOneShotCountdownSound.js
 import { ERA_INDEX, PLAY_ACTIVE } from "../names.js";
 import { loc_409d as oracle } from "../../translated/loc_409d.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
+import { liveStackDiffs, recordFrameFloors } from "./_frameFloor.js";
 
 const TARGET = 0x409d;
 
@@ -259,6 +260,7 @@ function wholeRunCells(candidate) {
   const host = drivenMachine(new Map([[TARGET, (mm) => (fired++, hosted(candidate)(mm))]]));
   let hostFrames = [];
   let threw = null;
+  const floors = recordFrameFloors(host);
   try {
     hostFrames = host.runFrames(TAPE_FRAMES);
   } catch (e) {
@@ -271,6 +273,9 @@ function wholeRunCells(candidate) {
     const y = hostFrames[i];
     for (let o = 0; o < x.length; o++) if (x[o] !== y[o]) cells.add(base.offsetToAddr(o));
   }
+  const live = liveStackDiffs(base.frames, hostFrames, floors, (o) => base.offsetToAddr(o));
+  // A cell that differs in a live frame fails the run like a throw: it is never stack scratch.
+  if (live.length && threw === null) threw = `live stack ${live.map((c) => c.toString(16)).join(",")} differs at or above a frame sample's SP`;
   return { cells: [...cells].sort((a, b) => a - b), frames: n, fired, threw };
 }
 

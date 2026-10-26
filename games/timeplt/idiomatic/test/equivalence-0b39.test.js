@@ -51,6 +51,7 @@ import { postCommand } from "../postCommand.js";
 import { loc_0b39 as oracle } from "../../translated/loc_0b39.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
 import { COMMAND_RING, FRAME_TICK } from "../names.js";
+import { liveStackDiffs, recordFrameFloors } from "./_frameFloor.js";
 
 const TARGET = 0x0b39;
 
@@ -186,6 +187,7 @@ function wholeRunCells(candidate, opts) {
   );
   let hostFrames = [];
   let threw = null;
+  const floors = recordFrameFloors(host);
   try {
     hostFrames = host.runFrames(CORPUS_FRAMES);
   } catch (e) {
@@ -198,6 +200,9 @@ function wholeRunCells(candidate, opts) {
     const y = hostFrames[i];
     for (let o = 0; o < x.length; o++) if (x[o] !== y[o]) cells.add(base.stateOffsetToAddr(o));
   }
+  const live = liveStackDiffs(baseFrames, hostFrames, floors, (o) => base.stateOffsetToAddr(o));
+  // A cell that differs in a live frame fails the run like a throw: it is never stack scratch.
+  if (live.length && threw === null) threw = `live stack ${live.map((c) => c.toString(16)).join(",")} differs at or above a frame sample's SP`;
   return { cells: [...cells].sort((a, b) => a - b), frames: n, fired, threw, stopped: host.stoppedBy };
 }
 

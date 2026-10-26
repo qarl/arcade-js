@@ -64,6 +64,7 @@ import { passTurnToOtherPlayerIfLivesElseStepSequence } from "../passTurnToOther
 import { loc_12e7 as oracle } from "../../translated/loc_12e7.js";
 import { unitEquivalence } from "../../../../core/equivalence.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
+import { liveStackDiffs, recordFrameFloors } from "./_frameFloor.js";
 
 const TARGET = 0x12e7;
 const skip = romsPresent() ? false : "ROM images are gitignored and absent";
@@ -294,6 +295,7 @@ function wholeRunCells(candidate) {
   const host = twoPlayerMachine(new Map([[TARGET, (mm) => (fired++, hosted(candidate)(mm))]]));
   let hostFrames = [];
   let threw = null;
+  const floors = recordFrameFloors(host);
   try {
     hostFrames = host.runFrames(WHOLE_FRAMES);
   } catch (e) {
@@ -306,6 +308,9 @@ function wholeRunCells(candidate) {
     const y = hostFrames[i];
     for (let o = 0; o < x.length; o++) if (x[o] !== y[o]) cells.add(base.offsetToAddr(o));
   }
+  const live = liveStackDiffs(base.frames, hostFrames, floors, (o) => base.offsetToAddr(o));
+  // A cell that differs in a live frame fails the run like a throw: it is never stack scratch.
+  if (live.length && threw === null) threw = `live stack ${live.map((c) => c.toString(16)).join(",")} differs at or above a frame sample's SP`;
   return { cells: [...cells].sort((p, q) => p - q), frames: n, fired, threw };
 }
 

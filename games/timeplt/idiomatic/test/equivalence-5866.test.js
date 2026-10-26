@@ -2,8 +2,8 @@
 /**
  * clearScreenRamAndVerifyImageThenColdInit — memory-equivalent to the frozen oracle at ROM 0x5866.
  * GATE: crafted-boot-entry; the single boot dispatch replayed with the foreground loop (0x0B93)
- * severed to an empty coroutine so both arms stop at the same handover, comparing work RAM outside
- * the stack window, the LS259 and sound latches, and the watchdog kicks. The raw return is that
+ * severed to an empty coroutine so both arms stop at the same handover, comparing work RAM minus
+ * the stack scratch below the entry SP, the LS259 and sound latches, and the watchdog kicks. The raw return is that
  * coroutine, driven not compared; fill priors prove the two fills are no accidental match.
  *
  * THE TAMPER ARM RAISES, AND IT IS DEAD ON A GENUINE IMAGE. The fold covers the program image and
@@ -25,7 +25,7 @@ import { clearScreenRamAndVerifyImageThenColdInit as candidate } from "../clearS
 import { loc_5866 as oracle } from "../../translated/loc_5866.js";
 import { initColdStartRamThenSeedConfig } from "../initColdStartRamThenSeedConfig.js";
 import manifest from "../../manifest.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { NotImplemented } from "../../../../boards/timeplt/io.js";
 import { readFileSync } from "node:fs";
 import { COMMAND_READ_CURSOR } from "../names.js";
@@ -36,6 +36,7 @@ const DRAIN = 0x0b93; // the foreground loop, severed so both arms stop at the s
 const DRAIN_NAME = "runCommandRingDrainLoop";
 const DERAIL = 0x59d7; // the tampered-image branch: data, never a genuine tail
 const [STACK_LO, STACK_HI] = manifest.convergence.stateExclude.stack;
+const STACK_WINDOW = { lo: STACK_LO, hi: STACK_HI };
 
 const COLOUR_BASE = 0xa000;
 const VIDEO_BASE = 0xa400;
@@ -52,7 +53,8 @@ const GENUINE_TOTAL = 0xaf;
 const skip = romsPresent() ? false : "ROM images are gitignored; none assembled";
 const hex4 = (v) => "0x" + (v & 0xffff).toString(16).padStart(4, "0");
 const show = (d) => (d ? d.k : "identical");
-const outsideStack = (addr) => addr === null || addr < STACK_LO || addr >= STACK_HI;
+/** Stack scratch below the entry SP `floor` is dead; every cell from the floor up is compared. */
+const deadStack = (floor) => deadStackBelow(STACK_WINDOW, floor);
 const u8 = (x) => x & 0xff;
 const u16 = (x) => x & 0xffff;
 
@@ -128,7 +130,7 @@ function runOracle(machine) {
   return c;
 }
 
-/** The live-out at the severed handover: RAM outside the stack window, the latches, the kicks. */
+/** The live-out at the severed handover: RAM minus stack scratch below the entry SP, the latches, the kicks. */
 function diff(cand, machine) {
   const logA = [];
   const logB = [];
@@ -142,8 +144,9 @@ function diff(cand, machine) {
   } catch (e) {
     return { k: "threw:" + String(e).slice(0, 40) };
   }
-  const ram = firstStateDiff(a.dumpState(), b.dumpState(), (off) => a.stateOffsetToAddr(off));
-  if (ram && outsideStack(ram.addr)) return { k: "ram@" + hex4(ram.addr) };
+  const ram = firstStateDiff(a.dumpState(), b.dumpState(), (off) => a.stateOffsetToAddr(off),
+    deadStack(machine.regs.sp));
+  if (ram) return { k: "ram@" + hex4(ram.addr) };
   for (let i = 0; i < a.io.latch.length; i++) {
     if (a.io.latch[i] !== b.io.latch[i]) return { k: "latch" + i };
   }
@@ -229,6 +232,7 @@ function tamperedAt(at, delta) {
 function derailOutcome(cand, at, delta) {
   const o = tamperedAt(at, delta);
   const r = tamperedAt(at, delta);
+  const floor = o.c.regs.sp;
   drive(oracle, o.c);
   let raised = 0;
   try {
@@ -236,7 +240,7 @@ function derailOutcome(cand, at, delta) {
   } catch (e) {
     raised = e instanceof NotImplemented ? 1 : -1;
   }
-  return { oracle: o.hits.n, candidate: raised + r.hits.n, o: o.c, r: r.c, probe: r.hits.n };
+  return { oracle: o.hits.n, candidate: raised + r.hits.n, o: o.c, r: r.c, probe: r.hits.n, floor };
 }
 
 // ── the gate ─────────────────────────────────────────────────────────────────────────────────
@@ -258,7 +262,7 @@ test("DISPATCHED: boot reaches the routine once under both tapes, and both repla
   }
 });
 
-test("EQUAL at the boot dispatch: RAM outside stack, latches, kicks and handover", { skip }, () => {
+test("EQUAL at the boot dispatch: RAM minus stack scratch below the entry SP, latches, kicks and handover", { skip }, () => {
   assert.equal(show(diff(candidate, entryState())), "identical");
   console.log("  EQUAL: the boot entry replays identically to the severed handover");
 });
@@ -323,8 +327,9 @@ test("THROWS: a tampered image raises NotImplemented, fills already laid as the 
   assert.equal(r.oracle, 1, "the tampered oracle did not reach the derail");
   assert.equal(r.candidate, 1, "the rewrite did not raise NotImplemented on a tampered image");
   assert.equal(r.probe, 0, "the rewrite jumped into the table instead of raising");
-  const d = firstStateDiff(r.o.dumpState(), r.r.dumpState(), (off) => r.o.stateOffsetToAddr(off));
-  assert.ok(d === null || !outsideStack(d.addr), `before the derail the sides differ at ${hex4(d?.addr ?? 0)}`);
+  const d = firstStateDiff(r.o.dumpState(), r.r.dumpState(), (off) => r.o.stateOffsetToAddr(off),
+    deadStack(r.floor));
+  assert.ok(d === null, `before the derail the sides differ at ${hex4(d?.addr ?? 0)}`);
   assert.equal(r.o.io.watchdogKicks, r.r.io.watchdogKicks, "the kicks before the derail differ");
   const still = derailOutcome(body({ stillDerails: true }), 0x1234, 1);
   assert.equal(still.candidate, still.oracle, "control: the still-derailing twin should agree with the oracle's probe count");

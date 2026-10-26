@@ -82,9 +82,10 @@ import { foldImageBlockIntoSignatureThenAdvanceSequence } from "../foldImageBloc
 import { foldBlockIntoTotal } from "../foldBlockIntoTotal.js";
 import { advanceSequenceSubStep } from "../advanceSequenceSubStep.js";
 import { loc_17e2 as oracle } from "../../translated/loc_17e2.js";
-import { unitEquivalence } from "../../../../core/equivalence.js";
+import { deadStackBelow, unitEquivalence } from "../../../../core/equivalence.js";
 import { REG_FIELDS } from "../../../../core/cpu/z80.js";
 import { u16 } from "../../../../core/int.js";
+import { liveStackDiffs, recordFrameFloors } from "./_frameFloor.js";
 
 const TARGET = 0x17e2;
 const skip = romsPresent() ? false : "ROM images are gitignored and absent";
@@ -320,6 +321,7 @@ function wholeRunCells(candidate) {
   const host = attractMachine(new Map([[TARGET, (mm) => (fired++, hosted(candidate)(mm))]]));
   let hostFrames = [];
   let threw = null;
+  const floors = recordFrameFloors(host);
   try {
     hostFrames = host.runFrames(WHOLE_FRAMES);
   } catch (e) {
@@ -332,6 +334,9 @@ function wholeRunCells(candidate) {
     const y = hostFrames[i];
     for (let o = 0; o < x.length; o++) if (x[o] !== y[o]) cells.add(base.offsetToAddr(o));
   }
+  const live = liveStackDiffs(base.frames, hostFrames, floors, (o) => base.offsetToAddr(o));
+  // A cell that differs in a live frame fails the run like a throw: it is never stack scratch.
+  if (live.length && threw === null) threw = `live stack ${live.map((c) => c.toString(16)).join(",")} differs at or above a frame sample's SP`;
   return { cells: [...cells].sort((p, q) => p - q), frames: n, fired, threw };
 }
 
@@ -446,12 +451,14 @@ const INVISIBLE_TWINS = [
 // ── the gate ────────────────────────────────────────────────────────────────────────────
 
 test("CONTRACT: the shared unit harness reaches the routine", { skip }, () => {
-  const r = unitEquivalence(attractMachine, TARGET, oracle, foldImageBlockIntoSignatureThenAdvanceSequence, { maxFrames: REACH_FRAMES });
+  let floor = null; // the entry SP: the harness's first oracle call is at the captured entry
+  const tapped = (mm) => { floor ??= mm.regs.sp; return oracle(mm); };
+  const r = unitEquivalence(attractMachine, TARGET, tapped, foldImageBlockIntoSignatureThenAdvanceSequence, { maxFrames: REACH_FRAMES });
   const onlyScratch = r.ram === null || r.ram.addr === null ||
-    (r.ram.addr >= STACK_FLOOR && r.ram.addr < STACK_TOP);
+    deadStackBelow({ lo: STACK_FLOOR, hi: STACK_TOP }, floor)(r.ram.addr);
   console.log(`  CONTRACT: reached within ${REACH_FRAMES} frames; first byte ${show(r.ram)}`);
-  assert.equal(onlyScratch, true, "the shared harness found a divergence outside the stack, which " +
-    "the masked arms below would also have to be failing on");
+  assert.equal(onlyScratch, true, "the shared harness's FIRST differing byte is outside the stack scratch below the entry SP " +
+    "(this arm checks reach; the arms below compare every cell)");
 });
 
 test("WRITE-SET: what the frozen routine moves, and where the scratch window is", { skip }, () => {
@@ -659,6 +666,7 @@ for (const [label, twin, why] of INVISIBLE_TWINS) {
     assert.equal(sweep, 0, `the ${label} twin moved a cell, so it is no longer the invisible case`);
     assert.deepEqual(corpus, [0, 0, 0, 0], `the ${label} twin was caught by a real dispatch`);
     assert.deepEqual(strayCells, [], `the ${label} twin forked the whole machine`);
+    assert.equal(whole.threw, null, `the ${label} twin touched a live stack frame: ${whole.threw}`);
     // POSITIVE CONTROLS, same three instruments, same run: a twin that DOES move a cell is caught
     // by each of them. Without these the three zeros above would be indistinguishable from three
     // instruments that cannot detect anything.
