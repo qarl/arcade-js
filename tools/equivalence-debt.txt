@@ -3,9 +3,7 @@
 # line whose gate now exists. Shrink only. Format: <game> 0x<addr>  <reason>
 centiped 0x200e  loc_200e: coroutine (function*), no per-routine gate
 centiped 0x2015  mainLoop: coroutine (function*), no per-routine gate
-centiped 0x2e9d  advanceHeadOrientationAndStampTile: second entry of advanceHeadOrientation.js; tested against the oracle inside equivalence-2e94, no gate file of its own
 centiped 0x3801  rewritePointerTableRowFromStart: second entry of writePointerTableRow.js; equivalence-37d5 tests a different entry
-centiped 0x3907  buildObjectShadowEntry: second entry of serviceFrameIrq.js; tested against the oracle inside equivalence-3871, no gate file of its own
 centiped 0x3b04  coldBootReset: coroutine (function*), no per-routine gate
 dkong 0x0000  boot: coroutine (function*), no per-routine gate
 dkong 0x02bd  mainLoop: coroutine (function*), no per-routine gate
@@ -27,19 +25,7 @@ invaders 0x189e  runHandshakedAttractAnim: coroutine (function*), no per-routine
 invaders 0x18df  enterAttractCycle: coroutine (function*), no per-routine gate
 tempest 0x9108  reseedWaveWorkingSet: second entry of selectWaveStartSlot.js; equivalence-90c4 tests a different entry
 tempest 0x9149  tickWaveSpawnCadence: second entry of selectWaveStartSlot.js; equivalence-90c4 tests a different entry
-tempest 0x96b7  fetchCoordListEntryByIndex: second entry of fetchCoordListEntryByCounter.js; tested against the oracle inside equivalence-96ab, no gate file of its own
-tempest 0x96c4  readCoordListEntry: second entry of fetchCoordListEntryByCounter.js; tested against the oracle inside equivalence-96ab, no gate file of its own
-tempest 0x96c8  advanceListCursorByTwo: second entry of advanceCursorPastPackedRecord.js; tested against the oracle inside equivalence-96c7, no gate file of its own
-tempest 0x9e5f  stepClimberSegmentAndHeading: mid-entry of stepClimberSegmentGuarded's body; tested against the oracle inside equivalence-9e5c (MID-ENTRY), no gate file of its own
-tempest 0x9f8a  flipEnemyLaneRandomSide: second entry of flipEnemyLaneTowardTarget.js; tested against the oracle inside equivalence-9f81, no gate file of its own
-tempest 0xa347  insertObjectHeadTag7: second entry of insertObjectHeadTag9.js; tested against the oracle inside equivalence-a343, no gate file of its own
-tempest 0xbdcb  emitTubeRimSegmentVectors: second entry of drawTubeRimSegmentFromCorner.js; tested against the oracle inside equivalence-bda0, no gate file of its own
-tempest 0xc774  emitObjectPositionRecord: second entry of emitObjectPositionVector.js; tested against the oracle inside equivalence-c772, no gate file of its own
 tempest 0xc7a0  runMainFrameLoop: coroutine (function*), no per-routine gate
 tempest 0xd8cd  runPowerOnToneBursts: second entry of playPowerOnTone.js; equivalence-d8ca tests a different entry
 tempest 0xd93f  bootMachineFromReset: coroutine (function*), no per-routine gate
-tempest 0xddfd  queueEaromRequestAtIndexZero: second entry of queueEaromRegionSave.js; tested against the oracle inside equivalence-ddfb, no gate file of its own
-tempest 0xddff  queueEaromRequest: second entry of queueEaromRegionSave.js; tested against the oracle inside equivalence-ddfb, no gate file of its own
 tempest 0xdf12  emitRecordBodyByte: second entry of emitHeaderedBodyRecord.js; equivalence-df0d tests a different entry
-tempest 0xdf24  emitStrokeWordByIndex: second entry of emitStrokeWordFromNibblePlusOne.js; tested against the oracle inside equivalence-df1f, no gate file of its own
-tempest 0xdfac  emitRecordTailByte: second entry of emitCoordinateRecord.js; tested against the oracle inside equivalence-df92, no gate file of its own

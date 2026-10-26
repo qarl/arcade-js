@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
+// also gates: 0x96c8 advanceListCursorByTwo
 // Memory-equivalence for advanceCursorPastPackedRecord + advanceListCursorByTwo (ROM 0x96c7-0x96ca) -- two adjacent $969d dispatch entries
 // that advance the vector-list cursor Y by 3 (0x96c7) or 2 (0x96c8). No RAM write, so the RAM diff is
 // vacuously null; the contract is the single register live-out Y. Both are leaves: they omit the ROM ret

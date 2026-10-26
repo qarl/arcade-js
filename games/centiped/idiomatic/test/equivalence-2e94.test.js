@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
+// also gates: 0x2e9d advanceHeadOrientationAndStampTile
 // Memory-equivalence for the loc_2e94 ROM body (0x2e94-0x2ec5), which has TWO entries that the frozen
 // oracle dispatches on m.pc:
 //   * 0x2e9d -> advanceHeadOrientationAndStampTile: every 4th tick rotate the head orientation $40, then

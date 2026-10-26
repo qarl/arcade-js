@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
+// also gates: 0x3907 buildObjectShadowEntry
 // Memory-equivalence for the 0x3871 interrupt front, which has TWO entries the frozen oracle dispatches:
 //   * 0x3871 -> serviceFrameIrq: pulse the coin sound latch, bump the frame + packed-decimal counters on
 //     the 32V beat, read both trackball axes into their accumulators, normalize the current object, then

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
+// also gates: 0x9f8a flipEnemyLaneRandomSide
 // Memory-equivalence for flipEnemyLaneTowardTarget / flipEnemyLaneRandomSide (ROM 0x9f81-0x9fc3) -- a per-slot(x) segment-flag step that
 // tail-jmps into stepClimberSegmentAndHeading. The idiomatic side dissolves jsr $9d67, jsr $9c4f and the jmp $9e5f into direct
 // faceEnemyTowardPlayerSegment / toggleEnemyTurnSide / stepClimberSegmentAndHeading calls. All output is RAM plus the tail's A live-out (stepClimberSegmentAndHeading's stored

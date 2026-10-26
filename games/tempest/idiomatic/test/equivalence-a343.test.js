@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
+// also gates: 0xa347 insertObjectHeadTag7
 // Memory-equivalence for insertObjectHeadTag9 / insertObjectHeadTag7 -- two seed entries that stamp the head flag ($013b)
 // with a per-entry tag (0x09 / 0x07), then tail-JMP into the shared insert (insertType1WithHeadFlag). Each side
 // dissolves the jmp into a direct insertType1WithHeadFlag call, passing the entry X/Y (preserved across the callee).

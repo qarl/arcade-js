@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
+// also gates: 0xddfd queueEaromRequestAtIndexZero
+// also gates: 0xddff queueEaromRequest
 // Memory-equivalence for queueEaromRegionSave -- Y into $01c6, mask A OR-ed into $01c7/$01c8. Entry ddfb presets A=4,Y=0;
 // alt-entries ddfd (Y=0) and ddff (shared tail) are exercised directly. The oracle's push/pull is a bare A
 // save/restore whose scratch byte lands in the excluded stack window when SP is high. A leaf: the module omits

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
+// also gates: 0xbdcb emitTubeRimSegmentVectors
 // Memory-equivalence for drawTubeRimSegmentFromCorner / emitTubeRimSegmentVectors (ROM 0xbda0-0xbfb4). drawTubeRimSegmentFromCorner captures a segment's two
 // endpoints then falls into emitTubeRimSegmentVectors, the shared builder (also entered directly at 0xbdcb from other
 // sites). bdcb early-outs unless active, transforms both endpoints via projectPointThroughMathbox/layHeaderAndBuildRecord/emitTaggedVectorWord/

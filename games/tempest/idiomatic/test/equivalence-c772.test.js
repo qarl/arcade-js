@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
+// also gates: 0xc774 emitObjectPositionRecord
 // Memory-equivalence for emitObjectPositionVector/emitObjectPositionRecord (ROM 0xc772-0xc79f) -- a CALLER that dissolves its tail m.call
 // into a direct idiomatic call (df5f, the cursor advance). emitObjectPositionVector seeds y=0 and falls into emitObjectPositionRecord;
 // emitObjectPositionRecord is the second entry, reached with X (zeropage-pair index) and Y (write cursor) live. Effect is

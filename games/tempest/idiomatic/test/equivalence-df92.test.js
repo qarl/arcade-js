@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
+// also gates: 0xdfac emitRecordTailByte
 // Memory-equivalence for emitCoordinateRecord (ROM 0xdf92) -- emits a 4-byte record through the ($74) cursor from four
 // zeropage slots (packed y and a key-folded 5-bit last byte), then falls into emitRecordTailByte which stores the
 // last byte and tail-branches to advanceDisplayCursor (advance cursor, y nonzero) or emitNibbleDigitRun (y wrapped to 0). The

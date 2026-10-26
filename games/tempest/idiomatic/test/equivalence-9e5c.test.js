@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
+// also gates: 0x9e5f stepClimberSegmentAndHeading
 // Memory-equivalence for stepClimberSegmentGuarded (ROM 0x9e5c-0x9eaa) -- the FULL entry of a mid-entry split: it runs the
 // gated $9eab bit6-keeper guard, then falls into the shared body stepClimberSegmentAndHeading (0x9e5f, also reached guardless by
 // flipEnemyLaneTowardTarget/loc_9f99). The body forces bit7 on $0283,x and, per its low-3-bit segment, steps the $02b9,x

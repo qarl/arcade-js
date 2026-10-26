@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
+// also gates: 0xdf24 emitStrokeWordByIndex
 // Memory-equivalence for emitStrokeWordFromNibblePlusOne (ROM 0xdf1f) -- index = (A & 0x0f) + 1 into the $31e4 word table, copy
 // the two-byte entry through the ($74) display-list cursor, then advance the cursor by 2 (dissolved:
 // idiomatic calls advanceDisplayCursor directly with y=1). emitStrokeWordByIndex is the shared tail (entry with the index already

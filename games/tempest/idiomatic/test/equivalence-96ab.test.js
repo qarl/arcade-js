@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
+// also gates: 0x96b7 fetchCoordListEntryByIndex
+// also gates: 0x96c4 readCoordListEntry
 // Memory-equivalence for fetchCoordListEntryByCounter + fetchCoordListEntryByIndex + readCoordListEntry (ROM 0x96ab-0x96c6) -- three vector-list dispatch
 // entries reached via the computed-jmp tables. 0x96ab derives a running value from the $2b counter, 0x96b7
 // reloads $2b raw; both stash the incoming Y at $29, combine the value with the delta two entries back
