@@ -3,7 +3,6 @@
 # line whose gate now exists. Shrink only. Format: <game> 0x<addr>  <reason>
 centiped 0x200e  loc_200e: coroutine (function*), no per-routine gate
 centiped 0x2015  mainLoop: coroutine (function*), no per-routine gate
-centiped 0x3801  rewritePointerTableRowFromStart: second entry of writePointerTableRow.js; equivalence-37d5 tests a different entry
 centiped 0x3b04  coldBootReset: coroutine (function*), no per-routine gate
 dkong 0x0000  boot: coroutine (function*), no per-routine gate
 dkong 0x02bd  mainLoop: coroutine (function*), no per-routine gate
@@ -23,9 +22,5 @@ invaders 0x183a  typeDrawScript: coroutine (function*), no per-routine gate
 invaders 0x184c  typeDrawScriptRecord: coroutine (function*), no per-routine gate
 invaders 0x189e  runHandshakedAttractAnim: coroutine (function*), no per-routine gate
 invaders 0x18df  enterAttractCycle: coroutine (function*), no per-routine gate
-tempest 0x9108  reseedWaveWorkingSet: second entry of selectWaveStartSlot.js; equivalence-90c4 tests a different entry
-tempest 0x9149  tickWaveSpawnCadence: second entry of selectWaveStartSlot.js; equivalence-90c4 tests a different entry
 tempest 0xc7a0  runMainFrameLoop: coroutine (function*), no per-routine gate
-tempest 0xd8cd  runPowerOnToneBursts: second entry of playPowerOnTone.js; equivalence-d8ca tests a different entry
 tempest 0xd93f  bootMachineFromReset: coroutine (function*), no per-routine gate
-tempest 0xdf12  emitRecordBodyByte: second entry of emitHeaderedBodyRecord.js; equivalence-df0d tests a different entry
