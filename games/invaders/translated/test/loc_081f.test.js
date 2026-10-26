@@ -42,21 +42,47 @@ test("loc_081f 0x2082==0: delegates to loc_09ef; 95 T", () => {
   assert.deepEqual(m.pcSeq, [0x1618, 0x190a, 0x15f3, 0x0988, 0x082e, 0x082f, 0x09ef], "step boundaries");
 });
 
-test("loc_081f 0x2082!=0: full chain (B=0x04), falls through to loc_0849; 214 T", () => {
+test("loc_081f 0x2082!=0: full chain (B=0x04), falls through to loc_0849, then loops back to 0x081f; 214 T a pass", () => {
   const m = makeMachine();
   m.regs.sp = 0x2400;
   m.mem.write8(0x2082, 0x01);
+  const record = m.call.bind(m);
+  let aAtTail;
+  m.call = (addr) => { if (addr === 0x0849) { aAtTail = m.regs.a; m.mem.write8(0x2082, 0x00); } return record(addr); }; // end the loop next pass
 
   loc_081f(m);
 
-  assert.equal(m.regs.a, 0x01, "ana a leaves A=0x01");
+  assert.equal(aAtTail, 0x01, "ana a leaves A=0x01 on the full pass");
   assert.equal(m.regs.b, 0x04, "mvi b,0x04 on the not-taken arm");
-  assert.equal(m.tstates, 17 * 10 + 13 + 4 + 10 + 10 + 7, "full-path T total");
+  assert.equal(m.tstates, 17 * 10 + 13 + 4 + 10 + 10 + 7 + (17 * 4 + 13 + 4 + 10), "full pass, then the delegating pass");
   assert.deepEqual(
     m.calls,
-    [0x1618, 0x190a, 0x15f3, 0x0988, 0x170e, 0x0935, 0x08d8, 0x172c, 0x0a59, 0x18fa, 0x0849],
-    "ten calls then delegate 0849",
+    [0x1618, 0x190a, 0x15f3, 0x0988, 0x170e, 0x0935, 0x08d8, 0x172c, 0x0a59, 0x18fa, 0x0849, 0x1618, 0x190a, 0x15f3, 0x0988, 0x09ef],
+    "ten calls, 0849, then the loop's next pass delegates 09ef",
   );
+});
+
+test("loc_081f 0x0a59 sets Z: jz 0x0849 skips 0x18fa, then the loop's next pass delegates 09ef", () => {
+  const m = makeMachine();
+  m.regs.sp = 0x2400;
+  m.regs.b = 0x55;
+  m.mem.write8(0x2082, 0x01);
+  const record = m.call.bind(m);
+  m.call = (addr) => {
+    if (addr === 0x0a59) m.regs.and(0x00);
+    if (addr === 0x0849) m.mem.write8(0x2082, 0x00);
+    return record(addr);
+  };
+
+  loc_081f(m);
+
+  assert.equal(m.regs.b, 0x55, "the taken jz leaves B untouched");
+  assert.deepEqual(
+    m.calls,
+    [0x1618, 0x190a, 0x15f3, 0x0988, 0x170e, 0x0935, 0x08d8, 0x172c, 0x0a59, 0x0849, 0x1618, 0x190a, 0x15f3, 0x0988, 0x09ef],
+    "nine calls, 0849 without 18fa, then the next pass delegates 09ef",
+  );
+  assert.equal(m.tstates, 17 * 9 + 13 + 4 + 10 + 10 + (17 * 4 + 13 + 4 + 10), "taken-jz pass, then the delegating pass");
 });
 
 test("loc_081f MUTATION: lda mis-charged 7T (not 13T) is caught", () => {

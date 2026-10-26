@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Equivalence test for loc_0849 (ROM 0x0849-0x0853): two calls around `out 0x06`, then loops back
-// to loc_081f. Pins the port write, the calls, T-states, and push returns.
+// Equivalence test for loc_0849 (ROM 0x0849-0x0853): two calls around `out 0x06`, then `jmp 0x081f`,
+// taken by returning into loc_081f's loop. Pins the port write, the calls, T-states, and push returns.
 // Run: node --test games/invaders/translated/test/loc_0849.test.js
 
 import test from "node:test";
@@ -29,7 +29,7 @@ function makeMachine() {
   };
 }
 
-test("loc_0849: out 0x06 <- A, calls 1775+1804, loops to loc_081f; 54 T", () => {
+test("loc_0849: out 0x06 <- A, calls 1775+1804, steps to 0x081f without calling it; 54 T", () => {
   const m = makeMachine();
   m.regs.sp = 0x2400;
   m.regs.a = 0x3c;
@@ -38,7 +38,7 @@ test("loc_0849: out 0x06 <- A, calls 1775+1804, loops to loc_081f; 54 T", () => 
 
   assert.deepEqual(m.io.outs, [[0x06, 0x3c]], "out 0x06 writes A");
   assert.equal(m.tstates, 17 + 10 + 17 + 10, "T total");
-  assert.deepEqual(m.calls, [0x1775, 0x1804, 0x081f], "two calls then loop to 081f");
+  assert.deepEqual(m.calls, [0x1775, 0x1804], "two calls; the jmp to 081f is its caller's loop, not a call");
   assert.deepEqual(m.pcSeq, [0x1775, 0x084e, 0x1804, 0x081f], "step boundaries");
   assert.equal(m.mem.read16(0x23fe), 0x084c, "call 0x1775 return addr");
   assert.equal(m.mem.read16(0x23fc), 0x0851, "call 0x1804 return addr");
