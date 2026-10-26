@@ -135,8 +135,12 @@ screen, and that a collected one drops out of the cycle and holds still, is a fi
 *game*, recovered by watching it run. It lives in the name and the comment because there is nowhere
 in the machine code for it to live.
 
-Every such routine keeps a gate proving it memory-equivalent to the faithful translation, so
-readability is never bought with correctness. Where each game stands in that sweep is in the
+Almost every such routine keeps a gate of its own proving it memory-equivalent to the faithful
+translation, so readability is not bought with correctness. The routines with no gate file of their
+own are listed by address in [`tools/equivalence-debt.txt`](tools/equivalence-debt.txt): mostly
+coroutines (boot, main loops, frame waits) and second entry points into a module, many of which are
+compared to the oracle inside the gate for that module's other entry. A test fails if any routine
+outside that list has no gate file. Where each game stands in that sweep is in the
 [status table](#games) below.
 
 Alongside the code, the game's **mechanics** are written up in the same way: *grounded by playing it
