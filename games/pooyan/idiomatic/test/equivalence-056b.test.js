@@ -7,7 +7,7 @@
  * CYCLE-FREE / memory-equivalence gate (docs/decompiler-pipeline). The routine WRITES video RAM, so
  * each case runs the oracle on one FRESH clone and drawBcdCounterColumn on another, compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * pc/SP are NOT compared. No register live-out is declared: the sole caller that keeps running
  * reloads its own pointer afterwards (its stack pop is a saved-value restore, not a result of this
@@ -34,7 +34,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_056b as oracle } from "../../translated/loc_056b.js";
 import { drawBcdCounterColumn } from "../drawBcdCounterColumn.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -47,12 +47,12 @@ const test = ROM_PRESENT
 const TARGET = 0x056b;
 const ROW_UP = 0xffe0; // -0x20, one tilemap row up (the column step)
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
-function ramDiffMinusStack(ma, mb) {
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
@@ -113,7 +113,7 @@ test("CAPTURED: real dispatches replay identically (if reached)", () => {
     const c = cap.clone();
     oracle(o);
     drawBcdCounterColumn(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `captured RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} mine=${d.b}`);
   }
   console.log(`  CAPTURED: ${caps.length} real dispatch(es) replayed identically`);

@@ -8,7 +8,7 @@
  *
  * This is the CYCLE-FREE / memory-equivalence gate. The routine WRITES VRAM, so every case
  * runs the oracle on one FRESH clone and the module on another, compared on the go-forward
- * contract: RAM (dumpState, minus STACK_SCRATCH). There is NO register live-out — every
+ * contract: RAM (dumpState, minus stack scratch below the entry SP). There is NO register live-out — every
  * caller (paintRoundNumberHud/loc_1f14/loc_3fb5) discards it — so nothing else is compared.
  *
  * Jobs:
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_34c9 as oracle } from "../../translated/loc_34c9.js";
 import { renderStageCountdownDigits } from "../renderStageCountdownDigits.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, STAGE_COUNTDOWN, PLAY_MODE_LATCH, HUD_STAGE_DIGIT_LO } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -40,18 +40,18 @@ const test = ROM_PRESENT
 
 const TARGET = 0x34c9;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 const TILE_UNITS = HUD_STAGE_DIGIT_LO & 0xffff; // units digit tile
 const TILE_TENS = (HUD_STAGE_DIGIT_LO + 0x20) & 0xffff; // tens digit tile, one row over
 const WRITTEN = new Set([TILE_UNITS, TILE_TENS]);
 const DIRT = 0xee; // sentinel pre-loaded into both HUD tiles
 
-/** First RAM difference on the go-forward contract: dumpState minus the dead STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
+/** First RAM difference on the go-forward contract: dumpState minus the dead stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** Fresh machine: countdown + latch seeded, both HUD tiles pre-dirtied, SP parked in dead scratch. */
@@ -111,7 +111,7 @@ test("CAPTURED: real 0x34c9 dispatches replay identically (if reached in the boo
     const c = cap.clone();
     oracle(o);
     renderStageCountdownDigits(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `captured RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} mine=${d.b}`);
   }
   console.log(`  CAPTURED: ${caps.length} real 0x34c9 dispatch(es) replayed identically`);

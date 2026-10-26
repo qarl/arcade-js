@@ -8,7 +8,7 @@
  * This is the CYCLE-FREE / memory-equivalence gate. The routine WRITES work RAM, so every case uses
  * a FRESH clone per side, compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) + the declared register live-out (A).
+ *     RAM (dumpState, minus stack scratch below the entry SP) + the declared register live-out (A).
  *
  * pc/SP/cycles are NOT compared. A IS a live-out: the appender leaves the advanced cursor (or 0 on
  * the gates-closed path) in A across the tail, matching the appender's own contract; it is checked
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0f3f as oracle } from "../../translated/loc_0f3f.js";
 import { queueSoundCommand12 } from "../queueSoundCommand12.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, GAME_ACTIVE_FLAG, PLAY_MODE_LATCH, SOUND_RING_WRITE_PTR, SOUND_RING_PENDING_BYTE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -43,7 +43,7 @@ const CMD = 0x12;
 const RING_LAST = 0x5e;
 const RING_FIRST = 0x43;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

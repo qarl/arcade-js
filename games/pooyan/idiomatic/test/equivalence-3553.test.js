@@ -8,7 +8,7 @@
  * CYCLE-FREE / memory-equivalence gate (docs/decompiler-pipeline). The routine WRITES RAM, so
  * each case runs the oracle on one FRESH clone and blankActorSpriteBand on another, compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH)  +  the declared register live-out (HL and B).
+ *     RAM (dumpState, minus stack scratch below the entry SP)  +  the declared register live-out (HL and B).
  *
  * HL — the advanced pointer IX+0x17 — and B = 0 (the fill counter the djnz drains) are genuine
  * live-outs the fill helper leaves; several handlers tail-jump into blankActorSpriteBand, so its exit state
@@ -34,7 +34,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3553 as oracle } from "../../translated/loc_3553.js";
 import { blankActorSpriteBand } from "../blankActorSpriteBand.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -47,7 +47,7 @@ const test = ROM_PRESENT
 const BAND_LEN = 0x17;
 const DIRT = 0xaa; // a nonzero pre-fill so every zero write is observable
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, STACK_SCRATCH.hi - 0x10);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

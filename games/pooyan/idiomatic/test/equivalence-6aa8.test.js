@@ -7,7 +7,7 @@
  * the record's state byte (IX+2).
  *
  * CYCLE-FREE / memory-equivalence gate (docs/decompiler-pipeline). The routine writes work RAM, so
- * every case uses a FRESH clone per side, compared on RAM (dumpState, minus STACK_SCRATCH).
+ * every case uses a FRESH clone per side, compared on RAM (dumpState, minus stack scratch below the entry SP).
  *
  * LIVE-OUT: none — memory-only. Reached as a tail dispatch (dispatchDescendingObjectState table[0]) whose ret unwinds to a
  * per-record sweep that reads no result register; all effect is in the record and the latch. The
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6aa8 as oracle } from "../../translated/loc_6aa8.js";
 import { descendObjectThenAdvanceStateAtBottom } from "../descendObjectThenAdvanceStateAtBottom.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -47,7 +47,7 @@ const LATCH = 0x8f56; // TILE_SUM_ONCE_LATCH
 const HOLD = 0x05; // a non-zero animation hold: advanceObjectAnimationFrame merely decrements it (minimal, deterministic)
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

@@ -10,7 +10,7 @@
  * This routine takes ONLY the pop-af path, so the module always returns false; the caller
  * (applyRoundDeltaAndRearmMatchedRecord) reads that and aborts in place of the discarded frame.
  *
- * Fidelity contract: RAM (dumpState, minus STACK_SCRATCH) PLUS the boolean return matching
+ * Fidelity contract: RAM (dumpState, minus stack scratch below the entry SP) PLUS the boolean return matching
  * which path the oracle took. pc/SP/cycles/register-file are NOT compared: the pop-af abort
  * clobbers AF with stack bytes and the scan cursors are volatile. To confirm the oracle DID
  * take the pop-af path we measure its SP movement: a pop-af+ret unwinds two words above the
@@ -37,7 +37,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6274 as oracle } from "../../translated/loc_6274.js";
 import { retireParityTargetSlotAndQueueSound } from "../retireParityTargetSlotAndQueueSound.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ENEMY_TARGET_REC0, ENEMY_TARGET_REC1 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -51,7 +51,7 @@ const RECORD_LEN = 0x18;
 const SP_SEAT = 0x8fe0; // inside STACK_SCRATCH: transient pushes/pops stay in the excluded window
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP_SEAT);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

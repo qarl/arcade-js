@@ -8,7 +8,7 @@
  * the tile id 0x2c into rec+9.
  *
  * This is the CYCLE-FREE / memory-equivalence gate. Contract: RAM (dumpState, minus
- * STACK_SCRATCH). pc/SP/cycles are NOT compared; the routine is table-dispatched and returns
+ * stack scratch below the entry SP). pc/SP/cycles are NOT compared; the routine is table-dispatched and returns
  * no register live-out, so the contract is memory only.
  *
  * Every case is CRAFTED (dispatched in gameplay): identical (IX record image, gate, countdown)
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_66fd as oracle } from "../../translated/loc_66fd.js";
 import { advanceEnemyActorToDescentStateOnDelay } from "../advanceEnemyActorToDescentStateOnDelay.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -43,7 +43,7 @@ const GATE = 0x8930; // shared phase gate flag
 const COUNTDOWN = 0x892e; // shared phase countdown
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

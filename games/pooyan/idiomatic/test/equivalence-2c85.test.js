@@ -8,7 +8,7 @@
  * This is the CYCLE-FREE / memory-equivalence gate (docs/decompiler-pipeline). The routine
  * WRITES the record, so each case uses a FRESH clone per side: the oracle runs on one clone,
  * advanceRecordStateAndSeedMoveScript on another, and they are compared on the go-forward contract — RAM (dumpState)
- * minus STACK_SCRATCH. pc/SP/cycles are NOT compared. advanceRecordStateAndSeedMoveScript has NO consumed register
+ * minus stack scratch below the entry SP. pc/SP/cycles are NOT compared. advanceRecordStateAndSeedMoveScript has NO consumed register
  * live-out (a sweep helper). The oracle's `push16 + call 0x381e` writes a return address into
  * STACK_SCRATCH which the idiomatic direct call does not — excluded by contract.
  *
@@ -35,7 +35,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2c85 as oracle } from "../../translated/loc_2c85.js";
 import { advanceRecordStateAndSeedMoveScript } from "../advanceRecordStateAndSeedMoveScript.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -62,7 +62,7 @@ const EXPECTED = new Map([
 ]);
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

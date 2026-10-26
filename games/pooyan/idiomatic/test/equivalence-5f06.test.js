@@ -8,7 +8,7 @@
  * taken-djnz branch tail-jumps back into testAndCatchActorSlotOnOverlap (no net stack move). testAndCatchActorSlotOnOverlap is NOT lifted this
  * batch, so the module keeps the register-marshalled m.call(0x5ebd); the oracle drives the same
  * frozen testAndCatchActorSlotOnOverlap, so both walk identical downstream code. Compared on RAM (dumpState) minus
- * STACK_SCRATCH; the register file is not compared (void tail). Entry HL/IX/B are the loop state,
+ * stack scratch below the entry SP; the register file is not compared (void tail). Entry HL/IX/B are the loop state,
  * bridged from the entry registers.
  *
  * Cases are CRAFTED: a plain boot does not seat this sweep geometry. The HIT case makes testAndCatchActorSlotOnOverlap
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5f06 as oracle } from "../../translated/loc_5f06.js";
 import { advanceActorSweepToNextSlot } from "../advanceActorSweepToNextSlot.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { u16 } from "../../../../core/int.js";
 import { STACK_SCRATCH } from "../names.js";
 
@@ -50,7 +50,7 @@ const BOX = 0x8848; // proximity target box (IY)
 const SP0 = 0x8ff0; // inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0 - 2); // entry SP: the seat pushes the caller's return word below SP0
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

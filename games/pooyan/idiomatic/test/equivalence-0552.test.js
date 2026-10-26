@@ -7,7 +7,7 @@
  * (blank budget 4, one row up per digit). Since the bytes were just zeroed, the six digits paint as
  * four blank tiles (0x10) followed by two zero tiles (0x00).
  *
- * Cycle-free / memory-equivalence gate. Compared on RAM (dumpState) MINUS STACK_SCRATCH. pc/SP/cycles
+ * Cycle-free / memory-equivalence gate. Compared on RAM (dumpState) MINUS stack scratch below the entry SP. pc/SP/cycles
  * and the register file are NOT compared — this is a memory-only routine (its selector is the sole
  * input register; nothing is read back). The sole input A is poked identically on both sides.
  *
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0552 as oracle } from "../../translated/loc_0552.js";
 import { resetBcdCounterAndRepaintColumn } from "../resetBcdCounterAndRepaintColumn.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   P1_SCORE_BCD,
@@ -51,10 +51,10 @@ const DIGITS = 6;
 const EXPECTED_HUD = [0x10, 0x10, 0x10, 0x10, 0x00, 0x00]; // 4 blanks then 2 zeros
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
-function ramDiffMinusStack(ma, mb) {
-  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
+  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** {base, dest, counterCells, hudCells} for a selector, matching the routine's own mapping. */
@@ -144,7 +144,7 @@ test("CAPTURE: real 0x0552 dispatches replay identically (if reached)", () => {
     const c = cap.clone();
     oracle(o);
     resetBcdCounterAndRepaintColumn(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
   }
   console.log(`  CAPTURE: ${caps.length} real dispatch(es) replayed`);

@@ -11,7 +11,7 @@
  *
  * The record base is a register-bridge input (IX); both sides seat IX to the same RAM record. The
  * animation field +0x0e is pre-loaded non-zero so the animation step is a deterministic decrement
- * (no stream reads). Compared on RAM (dumpState) minus STACK_SCRATCH; SP is parked in STACK_SCRATCH
+ * (no stream reads). Compared on RAM (dumpState) minus stack scratch below the entry SP; SP is parked in STACK_SCRATCH
  * so the oracle's call/ret drops fall out of the diff.
  *
  * Jobs: 1. EQUAL across borrow / no-borrow / retire (state!=4) / retire (state==4) / digit-capped /
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1270 as oracle } from "../../translated/loc_1270.js";
 import { advanceEnemyCountdownThenRetireAndTickStage } from "../advanceEnemyCountdownThenRetireAndTickStage.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   ENEMY_ACTOR_TABLE,
@@ -54,7 +54,7 @@ const ANIM_HOLD = REC + 0x0e;
 const SP0 = 0x8fe0; // inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

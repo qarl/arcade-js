@@ -6,7 +6,7 @@
  * each advancing the ring cursor (0x8a40), wrapping 0x5e -> 0x43.
  *
  * Cycle-free memory-equivalence gate: fresh clone per side, compared on RAM (dumpState, minus
- * STACK_SCRATCH) PLUS the register live-out A — the advanced ring cursor left by the final
+ * stack scratch below the entry SP) PLUS the register live-out A — the advanced ring cursor left by the final
  * append (0 when the gate is closed). AF is not restored across the calls and the emitter
  * family's callers read the cursor from A; it is checked against the oracle clone and the
  * module's own clone must SET it (a sentinel is seated first). pc is NOT compared.
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0f88 as oracle } from "../../translated/loc_0f88.js";
 import { queueSound82ThenRun1C } from "../queueSound82ThenRun1C.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   GAME_ACTIVE_FLAG,
@@ -48,7 +48,7 @@ const test = ROM_PRESENT
 const RING_PAGE = SOUND_RING_WRITE_PTR & 0xff00; // page-0x8a ring base
 const RUN = [0x82, 0x1c, 0x15, 0x16, 0x17]; // the five bytes appended, in order
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

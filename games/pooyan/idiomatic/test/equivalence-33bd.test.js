@@ -7,7 +7,7 @@
  * and the flap byte, re-run seatTurnAnimationFromColumnLimit, then install the 0x3847/0x3856 flap table by bit0 of rec+0x08).
  *
  * Cycle-free / memory-equivalence gate: a fresh clone per side, oracle on one and advanceEnemyState0AndArmFlapReset on the
- * other, compared on RAM (dumpState, minus STACK_SCRATCH). pc/SP/cycles are NOT compared, and there
+ * other, compared on RAM (dumpState, minus stack scratch below the entry SP). pc/SP/cycles are NOT compared, and there
  * is NO register live-out (the record-dispatch caller reloads A and reads no other register back).
  * The oracle's seatTurnAnimationFromColumnLimit call (frozen return-slot push at 0x340a), rst-0x20 lookup, and any armInteriorBandOrMarkActorActive
  * tail all land inside STACK_SCRATCH; the idiomatic layer drops that push, so the SP-tooth is what
@@ -34,7 +34,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_33bd as oracle } from "../../translated/loc_33bd.js";
 import { advanceEnemyState0AndArmFlapReset } from "../advanceEnemyState0AndArmFlapReset.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   ANIM_TABLE_3418,
@@ -65,7 +65,7 @@ const OFF_ANIM = 0x0c;
 const DIRT = 0xaa;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0); // the RAM diffs all enter at the craft seat
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

@@ -7,7 +7,7 @@
  *
  * SEATING: TAIL-CALL. The bail is a plain ret; the fall-through hands its result to the scanner.
  * LIVE-OUT: A. On the bail path the oracle leaves A = the last scanned state byte, so the module
- * sets it through the return; the test compares A as well as RAM (dumpState) minus STACK_SCRATCH.
+ * sets it through the return; the test compares A as well as RAM (dumpState) minus stack scratch below the entry SP.
  *
  * RECONCILE DEPENDENCY: the module dissolves the fall-through into a direct call to the idiomatic
  * spawnObjectIntoFreeSlot; the tail cases run once that module lands. The bail cases are self-contained.
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_365d as oracle } from "../../translated/loc_365d.js";
 import { spawnObjectGatedByArmedActorCount } from "../spawnObjectGatedByArmedActorCount.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { ENEMY_ACTOR_TABLE, STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -50,7 +50,7 @@ const SP0 = 0x8ff0;
 const ENTRY_A = 0x99; // distinctive entry A so a dropped A live-out shows
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0 - 2); // entry SP: the seat pushes the caller's return word below SP0
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

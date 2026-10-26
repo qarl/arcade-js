@@ -7,7 +7,7 @@
  * Cycle-free memory-equivalence gate. The routine writes work RAM and uses the byte-table lookup
  * helper (which reads a fixed column table), so each case runs on a FRESH clone per side, compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * There is no register live-out: it is dispatched as a per-frame state handler and rets to the state
  * loop, so pc/SP/registers are NOT compared. Every input is a work-RAM cell poked identically on both
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2d80 as oracle } from "../../translated/loc_2d80.js";
 import { addRopeSegmentAndAdvanceExtendState } from "../addRopeSegmentAndAdvanceExtendState.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   WAVE_ARRIVAL_COUNTER,
@@ -55,7 +55,7 @@ const test = ROM_PRESENT
 const VIDEO_PAGE = 0x84;
 const RELOAD = 0x10;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

@@ -7,7 +7,7 @@
  * nudging its step field, and storing a rotating display attribute back on the launcher.
  *
  * SEATING: BALANCED. Both the no-free-slot exit and the tail are plain rets; the module is a void
- * driver (LIVE-OUT none). Compared on RAM (dumpState) minus STACK_SCRATCH; the register file is not
+ * driver (LIVE-OUT none). Compared on RAM (dumpState) minus stack scratch below the entry SP; the register file is not
  * compared. SP is parked in STACK_SCRATCH so the oracle's pushes/pop and nested calls drop out.
  *
  * The module calls the idiomatic siblings (word-table lookup, set-animation, byte-table lookup)
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3a6c as oracle } from "../../translated/loc_3a6c.js";
 import { launchProjectileIntoFreeSlot } from "../launchProjectileIntoFreeSlot.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -51,7 +51,7 @@ const IX = 0x8ae0; // launcher record (does not overlap the table)
 const SP0 = 0x8ff0; // inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

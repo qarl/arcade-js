@@ -3,7 +3,7 @@
  * Memory-equivalence test for dispatchInPlaySubState (ROM 0x15a1) — the in-play sub-state dispatcher. Tail-hands
  * (0x880a)&0x1f to one of 19 handlers via the inline table 0x15a8; the handler returns to the caller's
  * seated continuation (a tail dispatch). Oracle reaches handlers through rst 0x28; the module switches
- * directly. Compared: RAM (dumpState −STACK_SCRATCH). Indices 15/16/17 dispatch to the deep-state
+ * directly. Compared: RAM (dumpState − stack scratch below the entry SP). Indices 15/16/17 dispatch to the deep-state
  * handlers (dispatchLevelIntroElseMainLoop/announceBonusStageAndStartPlay/commitPromotedObjectsAndClearHelpScreenOnCountdown) exactly as the oracle's table does, so they are checked by
  * memory-eq like every other index; only 19..31 (guard-slack past the 19-entry table) throw.
  *
@@ -19,7 +19,7 @@ import { dispatchInPlaySubState } from "../dispatchInPlaySubState.js";
 import { initRoundArenaAndRestorePlayerBank } from "../initRoundArenaAndRestorePlayerBank.js";
 import { spawnEnemyWave } from "../spawnEnemyWave.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, PLAY_STATE_INDEX } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -29,8 +29,8 @@ const test = ROM_PRESENT ? nodeTest : (n, f) => nodeTest(n, { skip: "skipped: RO
 const TARGET = 0x15a1;
 const SP0 = 0x8fe0;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiffMinusStack = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(), (o) => ma.stateOffsetToAddr(o), inDeadStack);
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
+const ramDiffMinusStack = (ma, mb, dead = inDeadStack) => firstStateDiff(ma.dumpState(), mb.dumpState(), (o) => ma.stateOffsetToAddr(o), dead);
 const runGuarded = (fn, m) => { try { fn(m); return { threw: false }; } catch (e) { return { threw: true, msg: String(e && e.message) }; } };
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
@@ -56,7 +56,7 @@ test("CAPTURE: real 0x15a1 dispatches replay identically (oracle vs module)", ()
     const o = cap.clone(), c = cap.clone();
     const ro = runGuarded(oracle, o), rc = runGuarded(dispatchInPlaySubState, c);
     assert.equal(ro.threw, rc.threw, `divergent control flow (oracle=${ro.threw} module=${rc.threw}) msg=${rc.msg}`);
-    if (!ro.threw) { const d = ramDiffMinusStack(o, c); assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`); }
+    if (!ro.threw) { const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp)); assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`); }
   }
   console.log(`  CAPTURE: ${caps.length} real 0x15a1 dispatch(es) replayed identically`);
 });

@@ -7,7 +7,7 @@
  * aborts it); the idiomatic caller runs the idiomatic testTargetSlotGrabAndCatchObject + early-returns. The two must land
  * byte-identical in RAM (−stack).
  *
- * Contract compared: RAM (dumpState, minus STACK_SCRATCH). There is NO register live-out — the
+ * Contract compared: RAM (dumpState, minus stack scratch below the entry SP). There is NO register live-out — the
  * sweep is a tail delegate and its caller reloads registers before reading any — so the advanced
  * IY/HL/B and pc/SP are not compared.
  *
@@ -34,7 +34,7 @@ import { sweepTargetSlotsForGrab } from "../sweepTargetSlotsForGrab.js";
 import { testTargetSlotGrabAndCatchObject } from "../testTargetSlotGrabAndCatchObject.js";
 import { Machine } from "../../machine.js";
 import { u16 } from "../../../../core/int.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   SPRITE_DISPLAY_LIST,
@@ -56,7 +56,6 @@ const test = ROM_PRESENT
 const SLOT_STRIDE_REC = 0x18; // HL advances one record per slot
 const SLOT_STRIDE_TGT = 0x04; // IY advances one target per slot
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
@@ -65,6 +64,7 @@ function ramDiffMinusStack(ma, mb) {
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 const SP_SEAT = 0x8fe0; // inside STACK_SCRATCH
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP_SEAT);
 
 /** A fresh clone seeded exactly as gateAndRunProjectileTargetSweep seeds the sweep, with all three records inert (state 0). */
 function craft() {

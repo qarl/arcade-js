@@ -12,7 +12,7 @@
  *
  * The oracle runs the TRANSLATED subtree through the routines map; the idiomatic module imports the
  * IDIOMATIC siblings directly. The two must land byte-identical in RAM (dumpState) minus
- * STACK_SCRATCH. No register is a live-out: the caller (spawnPairedEnemyOnDelaySweep) protects its own loop counter and
+ * stack scratch below the entry SP. No register is a live-out: the caller (spawnPairedEnemyOnDelaySweep) protects its own loop counter and
  * stride and advances IX/IY itself, so nothing the spawn leaves in registers is read back —
  * registers are NOT compared. The boolean return IS, and the oracle's SP delta (+2 normal / +4 skip)
  * confirms which path it took.
@@ -37,7 +37,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6931 as oracle } from "../../translated/loc_6931.js";
 import { spawnPairedEnemyRecordAndAnnounceWave } from "../spawnPairedEnemyRecordAndAnnounceWave.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -57,7 +57,7 @@ const HUD_LO = 0x861b; // low BCD digit tile (HUD_HI - 0x20)
 const SP0 = 0x8fe0; // inside STACK_SCRATCH; room for the nested-call dips + the pop-af/ret
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

@@ -4,7 +4,7 @@
  * loop body.
  *
  * The cycle-free / memory-equivalence gate: a fresh clone per side, the oracle on one and testAndCatchActorSlotOnOverlap
- * on the other, compared on RAM (dumpState) minus STACK_SCRATCH. pc/SP/cycles are NOT compared, and
+ * on the other, compared on RAM (dumpState) minus stack scratch below the entry SP. pc/SP/cycles are NOT compared, and
  * there is no register live-out — it is tail-reached from a sweep dispatcher and its output is the
  * caught slot, the zero-filled struck target and the hit-sound ring writes. The advanced HL/IX/B
  * cursors handed to the loop tail are registers no caller reads back.
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5ebd as oracle } from "../../translated/loc_5ebd.js";
 import { testAndCatchActorSlotOnOverlap } from "../testAndCatchActorSlotOnOverlap.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -52,7 +52,7 @@ const FILL_LEN = 0x17;
 const SP0 = 0x8ff0; //  inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

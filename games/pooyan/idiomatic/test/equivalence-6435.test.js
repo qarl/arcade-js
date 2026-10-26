@@ -10,7 +10,7 @@
  *
  * The oracle runs the TRANSLATED subtree (setActorAnimation, queueSoundCommand06, enqueueDisplayCommand, verifyTerminatorTableOrCountTamper)
  * through the routines map; the idiomatic module imports the IDIOMATIC siblings directly. The
- * two must land byte-identical in RAM (dumpState) minus STACK_SCRATCH. No register is a
+ * two must land byte-identical in RAM (dumpState) minus stack scratch below the entry SP. No register is a
  * live-out: the caller (scanActorCollisionsBothSlots) protects its own B/DE via exx and keeps IY, so nothing the
  * scan leaves in registers is read back — registers are NOT compared. The boolean return is,
  * and the oracle's SP delta (+2 normal, +4 skip) confirms which path it took.
@@ -34,7 +34,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6435 as oracle } from "../../translated/loc_6435.js";
 import { scanObjectBankForActorCollision } from "../scanObjectBankForActorCollision.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -55,7 +55,7 @@ const SP0 = 0x8ff8; // inside STACK_SCRATCH; deep enough for the effect-call dip
 const RECORD_STRIDE = 0x18;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

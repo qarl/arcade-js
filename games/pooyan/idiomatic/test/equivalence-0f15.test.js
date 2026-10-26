@@ -5,7 +5,7 @@
  * game is active OR the play-mode latch is set, writing the byte into the ring page at the
  * cursor and advancing/ wrapping the cursor. With both gates closed it appends nothing.
  *
- * Contract compared: RAM (dumpState, minus STACK_SCRATCH) PLUS the register live-out A.
+ * Contract compared: RAM (dumpState, minus stack scratch below the entry SP) PLUS the register live-out A.
  * pc/SP/cycles are NOT compared. A IS a genuine live-out: the append helper leaves the
  * advanced cursor in A (0 on the gates-closed path) and does not restore it, and callers
  * read it back — so the EQUAL job checks the module SET A (return-assignment) to the oracle's
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0f15 as oracle } from "../../translated/loc_0f15.js";
 import { queueSoundCommand0D } from "../queueSoundCommand0D.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   SOUND_RING_WRITE_PTR,
@@ -54,7 +54,7 @@ const RING_LAST = 0x5e;
 const RING_FIRST = 0x43;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ff0);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

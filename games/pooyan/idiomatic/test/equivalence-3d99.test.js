@@ -9,7 +9,7 @@
  * so its effective seating is that delegatee's (a plain balanced ret). WIRE. The module returns
  * the delegatee's result directly (void). Entry register IX is the record pointer, seated as the
  * param-default bridge. armEnemyTurnAnimation is void — no register the caller reads — so equivalence is RAM
- * (dumpState) minus STACK_SCRATCH; SP is parked in STACK_SCRATCH so the nested pushes drop out.
+ * (dumpState) minus stack scratch below the entry SP; SP is parked in STACK_SCRATCH so the nested pushes drop out.
  *
  * The state is CRAFTED at a spare record; a boot does not seat this state entry.
  *
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3d99 as oracle } from "../../translated/loc_3d99.js";
 import { armEnemyTurnAnimation } from "../armEnemyTurnAnimation.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -49,7 +49,7 @@ const FRAME = 0x0e; //   record: animation frame index reset to 0
 const SP0 = 0x8ff0; //   inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

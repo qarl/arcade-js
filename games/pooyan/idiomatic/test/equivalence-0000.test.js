@@ -8,7 +8,7 @@
  * disableNmiAndEnterBoot is exactly the boot's final state. This gate therefore runs the whole boot on both sides
  * and compares it, the way runSelfTestAndInitMachineState's own gate does.
  *
- * The contract is RAM (dumpState, minus STACK_SCRATCH) with NO register live-out (control transfers
+ * The contract is RAM (dumpState, minus stack scratch below the entry SP) with NO register live-out (control transfers
  * into the main-loop generator), PLUS one dedicated cell:
  *
  *   THE SELF-TEST TALLY (0x8FFF) IS LOAD-BEARING BUT LIVES INSIDE STACK_SCRATCH. The frozen boot
@@ -37,7 +37,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0000 as oracle } from "../../translated/loc_0000.js";
 import { disableNmiAndEnterBoot } from "../disableNmiAndEnterBoot.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -53,7 +53,7 @@ const TALLY_ADDR = 0x8fff; // ROM self-test pass tally — real, consumed, but i
 const FULL_PASS = 0x10; // bank count + eight matches on an intact image
 const MAIN_LOOP_ADDR = 0x020f;
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x9000);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

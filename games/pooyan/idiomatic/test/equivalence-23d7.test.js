@@ -9,7 +9,7 @@
  * every case runs the oracle on one FRESH clone and the module on another, compared on the
  * go-forward contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * The routine has NO register live-out: it sets IX internally to a constant and leaves A =
  * base Y - 6, but all four callers (clampActorYAndAdvanceRenderPhase/236a/2901/32bd) reload from RAM (or ret) right
@@ -33,7 +33,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_23d7 as oracle } from "../../translated/loc_23d7.js";
 import { deriveStackedSpriteYs } from "../deriveStackedSpriteYs.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ACTOR_TABLE, PLAYER_Y } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -45,7 +45,7 @@ const test = ROM_PRESENT
 
 const TARGET = 0x23d7;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 // The three Y slots the routine stamps, as absolute addresses.
 const SLOT3 = (ACTOR_TABLE + 0x4c) & 0xffff; // base Y
@@ -53,11 +53,11 @@ const SLOT2 = (ACTOR_TABLE + 0x34) & 0xffff; // base Y - 0x10
 const SLOT1 = (ACTOR_TABLE + 0x1c) & 0xffff; // base Y - 0x06
 const WRITTEN = new Set([SLOT1, SLOT2, SLOT3]);
 
-/** First RAM difference on the go-forward contract: dumpState minus the dead STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
+/** First RAM difference on the go-forward contract: dumpState minus the dead stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** Actor arena pre-dirtied to 0xAA, PLAYER_Y seeded to the test base Y, SP parked in dead scratch. */
@@ -114,7 +114,7 @@ test("CAPTURED: real 0x23d7 dispatches replay identically (if reached in the boo
     const c = cap.clone();
     oracle(o);
     deriveStackedSpriteYs(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `captured RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} mine=${d.b}`);
   }
   console.log(`  CAPTURED: ${caps.length} real 0x23d7 dispatch(es) replayed identically`);

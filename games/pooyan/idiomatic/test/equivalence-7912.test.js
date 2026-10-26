@@ -6,7 +6,7 @@
  * on the roll, BCD-carries the seconds then minutes digit (low nibble rolls at 0x0a, high nibble at
  * 0x60). It is a LEAF that calls nothing.
  *
- * Contract compared: RAM (dumpState, minus STACK_SCRATCH). There is no register live-out — every exit
+ * Contract compared: RAM (dumpState, minus stack scratch below the entry SP). There is no register live-out — every exit
  * is a plain ret and no caller reads a register/flag back — so the register file is not compared. Every
  * arm is CRAFTED: the routine's inputs (GAME_ACTIVE_FLAG, ACTIVE_PLAYER, the gate byte, and the three
  * timer bytes) are poked identically on both sides, which is also the only way to reach the carry arms.
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_7912 as oracle } from "../../translated/loc_7912.js";
 import { tickActivePlayerPlayTimer } from "../tickActivePlayerPlayTimer.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   GAME_ACTIVE_FLAG,
@@ -46,7 +46,7 @@ const test = ROM_PRESENT
   : (name, fn) => nodeTest(name, { skip: "skipped: ROM not built — run 'make -C games/pooyan rom'" }, fn);
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

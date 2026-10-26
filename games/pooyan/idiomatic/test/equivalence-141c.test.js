@@ -6,7 +6,7 @@
  * rec+0x0D:=0x38, rec+0x0E:=0), via the animation helper it tail-calls.
  *
  * This is the CYCLE-FREE / memory-equivalence gate. The routine WRITES an actor record, so
- * every case uses a FRESH clone per side, compared on RAM (dumpState, minus STACK_SCRATCH).
+ * every case uses a FRESH clone per side, compared on RAM (dumpState, minus stack scratch below the entry SP).
  * pc/SP/cycles are NOT compared. IX (the record pointer) is the only input; the routine has
  * no register live-out — both callers tail-jump into it and its exit runs in the dispatch
  * chain — so the contract is memory only.
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_141c as oracle } from "../../translated/loc_141c.js";
 import { restartActorAnimUnlessPhaseAdvanced } from "../restartActorAnimUnlessPhaseAdvanced.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -41,7 +41,7 @@ const test = ROM_PRESENT
 const REC = 0x8a80; // an actor-record base in work RAM (arbitrary; the routine takes IX)
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

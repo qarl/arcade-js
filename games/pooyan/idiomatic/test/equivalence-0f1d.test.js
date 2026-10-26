@@ -5,7 +5,7 @@
  * caller.
  *
  * Cycle-free memory-equivalence gate: fresh clone per side, compared on RAM (dumpState, minus
- * STACK_SCRATCH) PLUS the declared register live-out A. The append helper leaves the advanced ring
+ * stack scratch below the entry SP) PLUS the declared register live-out A. The append helper leaves the advanced ring
  * cursor in A (0 when both gates are shut) and the AF pair is not restored across the hand-off, so
  * A is a genuine register-dispatched live-out; it is checked against the oracle clone and the
  * module's own clone must SET it.
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0f1d as oracle } from "../../translated/loc_0f1d.js";
 import { queueSoundCommand0F } from "../queueSoundCommand0F.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   GAME_ACTIVE_FLAG,
@@ -49,7 +49,7 @@ const RING_PAGE = SOUND_RING_WRITE_PTR & 0xff00; // page the ring lives in
 const RING_LAST = 0x5e; // last cursor slot before wrap
 const RING_FIRST = 0x43; // wrap target
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

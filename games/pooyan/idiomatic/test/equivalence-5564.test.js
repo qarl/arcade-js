@@ -6,7 +6,7 @@
  *
  * The module dissolves the rst-20 table fetch (fetchByteFromTableIndex) and the scan/seed tail (seedFirstFreeSlotForTimedSpawnWithTamperCheck) into
  * direct calls; the oracle keeps them frozen. spawnFormationEnemiesOnTimer is a void spawner (no register survives), so
- * equivalence is RAM (dumpState) minus STACK_SCRATCH, SP parked in dead stack.
+ * equivalence is RAM (dumpState) minus stack scratch below the entry SP, SP parked in dead stack.
  *
  * The expiry arm seats the timer at 1 (drains to 0 -> the reload/advance/tail runs) with the round at
  * 5 (spawn count 2) and both walked formation blocks held live, so the tail seeds nothing and the
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5564 as oracle } from "../../translated/loc_5564.js";
 import { spawnFormationEnemiesOnTimer } from "../spawnFormationEnemiesOnTimer.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -44,7 +44,7 @@ const BLOCK = 0x8c60; //   formation-spawn block table (FORMATION_SPAWN_TABLE), 
 const SP0 = 0x8ff0; //     inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

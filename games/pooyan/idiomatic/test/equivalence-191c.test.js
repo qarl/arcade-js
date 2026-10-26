@@ -9,7 +9,7 @@
  * below 0x20 to 0x1f, stores it to SPEED_INDEX (0x8900), and clears 0x8a87/0x8905/0x8906.
  *
  * Cycle-free memory-equivalence gate: fresh clone per side, compared on RAM (dumpState,
- * minus STACK_SCRATCH). The routine reads no incoming register and no caller reads one
+ * minus stack scratch below the entry SP). The routine reads no incoming register and no caller reads one
  * back, so it is memory-only — no register is compared.
  *
  * Jobs:
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_191c as oracle } from "../../translated/loc_191c.js";
 import { pickEnemyGroupSpeedAndClearAim } from "../pickEnemyGroupSpeedAndClearAim.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -53,7 +53,7 @@ const CELL_8906 = 0x8906;
 const STRIDE = 0x18;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

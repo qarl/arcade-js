@@ -6,7 +6,7 @@
  * tail (via the dissolved fetchWordFromTableIndex + setActorAnimation) into its landing animation.
  *
  * descendObjectToLanding is void — no register survives — so the register file is not compared; equivalence is
- * RAM (dumpState) minus STACK_SCRATCH via firstStateDiff, SP parked in dead stack. IX is passed
+ * RAM (dumpState) minus stack scratch below the entry SP via firstStateDiff, SP parked in dead stack. IX is passed
  * through the param bridge. advanceObjectAnimationFrame is held on its frame-hold arm (+0x0e nonzero) so the diff
  * isolates the descent step; the dissolved fetchWordFromTableIndex / setActorAnimation read/write identical bytes.
  *
@@ -26,7 +26,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_4137 as oracle } from "../../translated/loc_4137.js";
 import { descendObjectToLanding } from "../descendObjectToLanding.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -41,7 +41,7 @@ const SOUND_LATCH = 0x8d1d; // SOUND_ID_LATCH_8D1D: (+0x17)+1 on landing
 const SP0 = 0x8ff0; //       inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

@@ -12,7 +12,7 @@
  * The two must land byte-identical in RAM(-stack).
  *
  * CYCLE-FREE / memory-equivalence gate (docs/decompiler-pipeline). Each case runs the oracle on one
- * FRESH clone and spawnFormationChildIntoFreeSlotOnTimer on another and compares RAM (dumpState, minus STACK_SCRATCH). IX (the
+ * FRESH clone and spawnFormationChildIntoFreeSlotOnTimer on another and compares RAM (dumpState, minus stack scratch below the entry SP). IX (the
  * parent) is the input; SP is seated in the dead stack. NO register live-out is declared — a
  * dispatched state handler whose effects are entirely in memory; pc/SP are not compared.
  *
@@ -38,7 +38,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3c92 as oracle } from "../../translated/loc_3c92.js";
 import { spawnFormationChildIntoFreeSlotOnTimer } from "../spawnFormationChildIntoFreeSlotOnTimer.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, FORMATION_TABLE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -56,7 +56,7 @@ const SP_START = 0x8ff8; // inside STACK_SCRATCH; leaves room for the oracle's p
 const DIRT = 0xaa;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const rec = (i) => (FORMATION_TABLE + i * STRIDE) & 0xffff;
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP_START);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

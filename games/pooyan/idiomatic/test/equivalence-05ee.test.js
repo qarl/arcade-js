@@ -8,7 +8,7 @@
  * units tile. Only when the units digit is exactly 2 does a 31-byte ROM checksum run; against the
  * intact ROM it matches its sentinel and writes nothing.
  *
- * Contract compared: RAM (dumpState, minus STACK_SCRATCH). pc/SP/cycles are NOT compared, and
+ * Contract compared: RAM (dumpState, minus stack scratch below the entry SP). pc/SP/cycles are NOT compared, and
  * there is NO register live-out — this is a dispatch target whose exit registers differ per path
  * and are not consumed.
  *
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_05ee as oracle } from "../../translated/loc_05ee.js";
 import { drawCreditCountAndTamperCheck } from "../drawCreditCountAndTamperCheck.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, CREDIT_COUNT, CREDIT_HUD_TENS_VRAM, CREDIT_HUD_UNITS_VRAM } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -44,7 +44,7 @@ const test = ROM_PRESENT
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

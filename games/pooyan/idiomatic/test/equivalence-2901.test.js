@@ -9,7 +9,7 @@
  * SEATING: BALANCED — the oracle's own exits are plain `ret`; the branch exits tail-`jp` to sibling
  * handlers (23a1/2ae8/2b9a), forwarded by the module as `return loc_XXXX(m)`. LIVE-OUT: none — the
  * dispatch epilogue reads the outcome from memory, so the register file is not compared; equivalence
- * is RAM (dumpState) minus STACK_SCRATCH. Entry IX is the param-default bridge (rst-28 dispatch).
+ * is RAM (dumpState) minus stack scratch below the entry SP. Entry IX is the param-default bridge (rst-28 dispatch).
  *
  * Cases are CRAFTED: a plain boot does not seat this record at these Ys.
  *
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2901 as oracle } from "../../translated/loc_2901.js";
 import { advanceLeadActorDescentToLanding } from "../advanceLeadActorDescentToLanding.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ACTOR_TABLE, TILE_ANIM_CURSOR } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -46,7 +46,7 @@ const SCRIPT_FRAME = 0x8f37; // even/odd frame counter the script-advance helper
 const SP0 = 0x8ff0; // inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

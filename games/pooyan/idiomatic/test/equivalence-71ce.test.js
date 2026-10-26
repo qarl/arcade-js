@@ -14,7 +14,7 @@
  * CYCLE-FREE / memory-equivalence gate (docs/decompiler-pipeline). The routine writes work + video
  * RAM, so each case runs the oracle on one FRESH clone and advanceEagleApproachAndPaintGridMarker on another, compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * LIVE-OUT: none. Every exit leaves scratch registers in a state the sole caller (which reloads HL
  * and A immediately) never reads, so the contract is memory only — pc/SP/cycles and the register
@@ -41,7 +41,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_71ce as oracle } from "../../translated/loc_71ce.js";
 import { advanceEagleApproachAndPaintGridMarker } from "../advanceEagleApproachAndPaintGridMarker.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -71,7 +71,7 @@ const EDGE = 0xd0;
 const BASELINE = [HOLD, TARGET0, GATE2, AIM, LATCHED_X, EAGLE_X, ARRIVED, FINISH, TICK, GRID_COL, GRID_POS, PHASE];
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, STACK_SCRATCH.hi - 0x10);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

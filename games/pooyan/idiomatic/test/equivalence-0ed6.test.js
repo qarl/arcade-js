@@ -7,7 +7,7 @@
  * named by the write pointer (ring base + pointer) and advances the pointer, wrapping the last
  * slot (0x5e) back to the first (0x43). The one crafted input is that write pointer.
  *
- * Contract compared: RAM (dumpState, minus STACK_SCRATCH). pc/SP/cycles are NOT compared, and
+ * Contract compared: RAM (dumpState, minus stack scratch below the entry SP). pc/SP/cycles are NOT compared, and
  * there is NO register live-out — the helper round-trips BC/DE/HL and enqueue sites reload A.
  *
  * All cases are CRAFTED: the write pointer is poked identically on both sides, sp seated inside
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0ed6 as oracle } from "../../translated/loc_0ed6.js";
 import { queueSoundCommand02 } from "../queueSoundCommand02.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, SOUND_RING_WRITE_PTR, HIGH_SCORE_TABLE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -43,7 +43,7 @@ const RING_LAST = 0x5e;
 const RING_FIRST = 0x43;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

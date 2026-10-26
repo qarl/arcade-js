@@ -8,7 +8,7 @@
  * 0x7715 word table). The dispatcher itself touches only the stack + registers (no game RAM) and the
  * ROM table, and the handlers reload their working state from IX — so skipping the trampoline and
  * calling the handler directly leaves identical game RAM. This test proves that: oracle-vs-module on
- * fresh clones, compared on RAM (dumpState, minus STACK_SCRATCH). It also validates the module's
+ * fresh clones, compared on RAM (dumpState, minus stack scratch below the entry SP). It also validates the module's
  * hardwired selector->handler mapping against the real ROM 0x7715 table (the oracle reads it live).
  *
  * The record fields are set so every handler takes its shallow early-return: (IX+0x0e) and (IX+0x11)
@@ -35,7 +35,7 @@ import { dispatchActiveObjectState } from "../dispatchActiveObjectState.js";
 import { loc_771d } from "../../translated/loc_771d.js";
 import { loc_7881 } from "../../translated/loc_7881.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -48,7 +48,7 @@ const test = ROM_PRESENT
 const TARGET = 0x7707;
 const REC = 0x8ba0; // a record base inside the object arena dispatchAllObjectStates scans (work RAM)
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 // Record offsets used to force shallow handler returns.
 const OFF_STATE = 0x02;   // (IX+2) state byte -> &3 selects the handler
@@ -56,11 +56,11 @@ const OFF_SUBPOS = 0x04;  // (IX+4) sub-position; &0x1f>=9 keeps the state-1 mov
 const OFF_ANIM = 0x0e;    // (IX+0x0e) 0x4006 frame-hold; nonzero => 0x4006 just decrements and returns
 const OFF_FRAME = 0x11;   // (IX+0x11) state frame timer; nonzero => the state guards return early
 
-/** First RAM difference on the go-forward contract: whole dump, skipping the dead STACK_SCRATCH.
+/** First RAM difference on the go-forward contract: whole dump, skipping the dead stack scratch below the entry SP.
  *  (The oracle reaches its handler through the rst-0x28 trampoline, which pushes onto the stack;
  *  the module calls the handler directly, so the two leave different stack bytes — all excluded.) */
-function ramDiffMinusStack(ma, mb) {
-  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
+  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** A machine with a record at REC: byte0/byte1 set the active bits, byte2 the selector. */
@@ -101,7 +101,7 @@ test("CAPTURE: real 0x7707 dispatches replay identically (if reached)", () => {
     const c = cap.clone();
     oracle(o);
     dispatchActiveObjectState(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
   }
   console.log(`  CAPTURE: ${caps.length} real 0x7707 dispatch(es) replayed identically`);

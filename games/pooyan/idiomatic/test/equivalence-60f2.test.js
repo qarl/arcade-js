@@ -8,7 +8,7 @@
  * SEATING: BALANCED (WIRE). The oracle ends in a plain `ret` on completion (net SP 0); the loop
  * arm tail-`jp`s back to the scan head. The module returns a boolean: true = the scan completed
  * with no hit, false = a caller-skip forwarded up from a hit deeper in the loop. Compared on RAM
- * (dumpState) minus STACK_SCRATCH; the register file is not compared (the advanced pointers are
+ * (dumpState) minus stack scratch below the entry SP; the register file is not compared (the advanced pointers are
  * dead once the scan returns). Entry registers HL/IX/B are the param-default bridge.
  *
  * Cases are CRAFTED: a plain boot does not seat this loop geometry.
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_60f2 as oracle } from "../../translated/loc_60f2.js";
 import { loc_60f2 } from "../loc_60f2.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -58,7 +58,7 @@ const SEED_FIELDS = [0x00, 0x01, 0x02, 0x12, 0x16, 0x17];
 const SP0 = 0x8ff0;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

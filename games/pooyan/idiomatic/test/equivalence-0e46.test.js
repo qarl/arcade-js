@@ -12,7 +12,7 @@
  * IDENTICALLY on both sides, and the oracle and clearBit2AcrossSixSlots run on separate
  * clones. Cloning sets nextNmi=Infinity, so the oracle's m.step traffic fires no NMI.
  *
- * The contract is whole RAM (dumpState) minus STACK_SCRATCH + the idiomatic side leaving
+ * The contract is whole RAM (dumpState) minus stack scratch below the entry SP + the idiomatic side leaving
  * SP and pc unchanged (it models no ret; the oracle's only stack traffic is its terminal
  * pop, a register move, and it writes no stack bytes at all).
  *
@@ -37,7 +37,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0e46 as oracle } from "../../translated/loc_0e46.js";
 import { clearBit2AcrossSixSlots } from "../clearBit2AcrossSixSlots.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -50,7 +50,7 @@ const test = ROM_PRESENT
 const BASE = 0x8a80; // HL: six stride-4 entries live at 0x8A80,0x8A84,…,0x8A94 (all work RAM)
 const SLOTS = [0, 4, 8, 12, 16, 20].map((o) => BASE + o);
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0); // crafted entries keep the reset SP 0, so no scratch cell lies below it
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

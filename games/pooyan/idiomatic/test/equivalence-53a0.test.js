@@ -6,7 +6,7 @@
  * frozen oracle the body's `pop af; ret` unwinds past this wrapper, landing in the wrapper's own
  * caller; the idiomatic wrapper reproduces that as a plain delegate + return. This gate COMPOSES
  * the real idiomatic body (the module under test imports it) and checks that oracle and module land
- * byte-identical in RAM (dumpState, minus STACK_SCRATCH). seedSpawnColumnAndRunBody has no register live-out, so only
+ * byte-identical in RAM (dumpState, minus stack scratch below the entry SP). seedSpawnColumnAndRunBody has no register live-out, so only
  * RAM is compared; SP sits in STACK_SCRATCH so the body's skip frames drop out of the diff.
  *
  * IX points at a spawn record; the level/round bytes the body reads are seated benign so the body
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_53a0 as oracle } from "../../translated/loc_53a0.js";
 import { seedSpawnColumnAndRunBody } from "../seedSpawnColumnAndRunBody.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ENEMY_ACTOR_TABLE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -47,7 +47,7 @@ const SPAWN_TALLY = 0x8d40; // the body bumps this once per spawn
 const SP0 = 0x8fe0; // inside STACK_SCRATCH; the body's skip frames land here
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

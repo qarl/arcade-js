@@ -10,7 +10,7 @@
  * This is the CYCLE-FREE / memory-equivalence gate. The routine WRITES work RAM, so every case uses
  * a FRESH clone per side, compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * The contract is MEMORY ONLY: a per-frame state handler reached only through anti-tamper / object-
  * dispatch tails (reinitRoundArenaAndPlayfieldIfImageIntact, dispatchDescendingObjectState) that do not read back its leftover registers. pc/SP/cycles are
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_67a0 as oracle } from "../../translated/loc_67a0.js";
 import { ascendEnemyActorAndLinkedSlotOnTimer } from "../ascendEnemyActorAndLinkedSlotOnTimer.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, SHARED_FRAME_DELAY_TIMER } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -44,7 +44,7 @@ const test = ROM_PRESENT
 const REC = 0x8a80; // object record base
 const LINK = 0x8ae0; // linked record base
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

@@ -7,7 +7,7 @@
  * SEATING: BALANCED-WIRE. The oracle ends with a plain `ret` (net SP 0); each per-record dispatch
  * is a plain call that returns to the sweep — the sweep seats no return slot. A void driver — no
  * register is read back — so the register file is not compared; equivalence is RAM (dumpState)
- * minus STACK_SCRATCH, SP parked in scratch so the dispatch's nested pushes drop out of the diff.
+ * minus stack scratch below the entry SP, SP parked in scratch so the dispatch's nested pushes drop out of the diff.
  *
  * The states are CRAFTED: records 0 and 13 are seated to pass the dispatcher gate and route to the
  * frame-hold state handler (index 2) with their pre-step and hold fields kept high, so each dispatch
@@ -33,7 +33,7 @@ import { loc_1219 as oracle } from "../../translated/loc_1219.js";
 import { stepEnemyActorStates } from "../stepEnemyActorStates.js";
 import { stepEnemyActorState } from "../stepEnemyActorState.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ENEMY_ACTOR_TABLE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -54,7 +54,7 @@ const IDX_FRAME_HOLD = 0x02; // handler index 2 = the frame-hold tick
 const SP0 = 0x8ff0; // inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

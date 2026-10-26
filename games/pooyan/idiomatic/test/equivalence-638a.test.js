@@ -8,7 +8,7 @@
  * the pop-af skip / hit path — and the caller early-returns on false instead of unwinding the stack.
  *
  * This gate checks both halves:
- *   1. RAM-equivalence (dumpState minus STACK_SCRATCH): a fresh clone per side, oracle on one and
+ *   1. RAM-equivalence (dumpState minus stack scratch below the entry SP): a fresh clone per side, oracle on one and
  *      scanTargetSlotsAndSpawnOnProximityHit on the other, identical over empty / hit-I0 / hit-I1(negate) / dx-reject / dy-reject
  *      / two-slot-then-hit cases. pc/SP/cycles are NOT compared — the oracle drives SP through the
  *      modelled pushes/pops the dissolution drops, so those land in STACK_SCRATCH and are excluded.
@@ -34,7 +34,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_638a as oracle } from "../../translated/loc_638a.js";
 import { scanTargetSlotsAndSpawnOnProximityHit } from "../scanTargetSlotsAndSpawnOnProximityHit.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, FLIP_SCREEN_FLAG, OBJ_HIT_FLAG_I0, OBJ_HIT_FLAG_I1 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -55,7 +55,7 @@ const ANIM_HI = 0x63;
 const HUNTER_CMD_HI = 0x03; // the queued spawn display command 0x0315, high byte
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP_ENTRY);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

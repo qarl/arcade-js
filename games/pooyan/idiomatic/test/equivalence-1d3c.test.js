@@ -7,7 +7,7 @@
  * dissolves zeroSpriteListAndActorArena (a verified idiomatic module) to zero the board RAM, KEEPS m.call(0x0ecf)
  * (sound command 0, unlifted) with its push16 return slot, and unpacks the 0x1e4c ROM table
  * (each byte >> 1) into the display-message buffer to the 0x7f terminator. LIVE-OUT is memory
- * only, so the comparison is RAM (dumpState) minus STACK_SCRATCH; the register file is not compared.
+ * only, so the comparison is RAM (dumpState) minus stack scratch below the entry SP; the register file is not compared.
  *
  * The two sides differ in transient stack use (the oracle m.call's frozen zeroSpriteListAndActorArena with a push16;
  * the module calls idiomatic zeroSpriteListAndActorArena directly) — masked because SP ends where it started and all
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1d3c as oracle } from "../../translated/loc_1d3c.js";
 import { resetGameToAttractState } from "../resetGameToAttractState.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   MAIN_GAME_STATE,
@@ -47,7 +47,7 @@ const test = ROM_PRESENT
 
 const SP0 = 0x8ff0; // inside STACK_SCRATCH; kept/dissolved calls stay below it, in scratch
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

@@ -9,7 +9,7 @@
  *
  * SEATING: BALANCED — the ret-below-bound WIREs; the equal and spawned branches are tail-jumps
  * forwarding the delegatee's result. LIVE-OUT: A — spawnChildActorIfInRange's result on the equal branch, else the
- * compare field itself. Compared per case on RAM (dumpState, minus STACK_SCRATCH) PLUS the register
+ * compare field itself. Compared per case on RAM (dumpState, minus stack scratch below the entry SP) PLUS the register
  * live-out A (a register-dispatched caller reads it back — see dispatchSpawnScheduleUnlessActorFlagged). pc/SP are not compared.
  *
  * The idiomatic matchActorScheduleThenSpawnOrAnimate imports the idiomatic fetchWordFromTableIndex/fetchByteFromTableIndex/spawnChildActorIfInRange/setActorAnimation; the
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_12d0 as oracle } from "../../translated/loc_12d0.js";
 import { matchActorScheduleThenSpawnOrAnimate } from "../matchActorScheduleThenSpawnOrAnimate.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { u16 } from "../../../../core/int.js";
 import { STACK_SCRATCH, ROUND_COUNTER, ANIM_FRAME_COUNTER, ANIM_SEQ_TABLE_12FB, ANIM_TABLE_3838 } from "../names.js";
 
@@ -44,7 +44,7 @@ const test = ROM_PRESENT
   : (name, fn) => nodeTest(name, { skip: "skipped: ROM not built — run 'make -C games/pooyan rom'" }, fn);
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ff0);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

@@ -9,7 +9,7 @@
  * 5146 to direct idiomatic calls; the oracle drives all of them
  * through the routines map. serviceEnemySpawns plain-returns — it does NOT tail-dispatch, so no SP-tooth applies. serviceEnemySpawns is a void
  * updater — no register survives — so the register file is not compared; equivalence is RAM
- * (dumpState) minus STACK_SCRATCH, SP parked in dead stack so the nested pushes drop out of the diff.
+ * (dumpState) minus stack scratch below the entry SP, SP parked in dead stack so the nested pushes drop out of the diff.
  *
  * Two crafted rounds cover both branches: an even round exercises the formation spawn/init (53b0) and
  * the shared tail; an odd round with the hunter-flip flag exercises the three schedulers and the
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_511b as oracle } from "../../translated/loc_511b.js";
 import { serviceEnemySpawns } from "../serviceEnemySpawns.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -47,7 +47,7 @@ const FORMATION = 0x8c30; //      FORMATION_TABLE; 53b0 writes rec+0 = 1 on spaw
 const SP0 = 0x8ff0; //            inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

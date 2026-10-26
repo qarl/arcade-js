@@ -6,7 +6,7 @@
  * handler returns immediately with no effect; when clear it delegates to the target-tile resolver
  * (resolveTargetColumnAndArmApproach), which runs in this same tail frame.
  *
- * CYCLE-FREE / memory-equivalence gate. Contract: RAM (dumpState minus STACK_SCRATCH) ONLY — a
+ * CYCLE-FREE / memory-equivalence gate. Contract: RAM (dumpState minus stack scratch below the entry SP) ONLY — a
  * tail-dispatched guard with NO register live-out. pc/SP/cycles are NOT compared. The self-contained
  * arm exercises the GUARD path (bit0 set), where the routine touches no RAM at all; this both proves
  * equivalence and pins the branch — an inverted module would fall through and run the resolver,
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3625 as oracle } from "../../translated/loc_3625.js";
 import { resolveActorTargetUnlessCommitted } from "../resolveActorTargetUnlessCommitted.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -46,7 +46,7 @@ const RESOLVER_MODE = 0x8d79; // resolveTargetColumnAndArmApproach's lead select
 const SP_SCRATCH = 0x8ff0;   // parked in STACK_SCRATCH so ret/call stack churn drops out of the diff
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP_SCRATCH);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

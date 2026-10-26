@@ -3,7 +3,7 @@
  * Memory-equivalence test for spawnHunterIntoTableAndAdvanceLaunch (ROM 0x2856) — "launch state 2: seed a hunter, advance state".
  *
  * The cycle-free / memory-equivalence gate: oracle and module run on fresh clones and are
- * compared on RAM (dumpState, minus STACK_SCRATCH). pc/SP/cycles are not compared.
+ * compared on RAM (dumpState, minus stack scratch below the entry SP). pc/SP/cycles are not compared.
  *
  * LIVE-OUT: memory only — a dispatched state handler whose scratch registers (A/B/DE/HL/IX)
  * no caller reads.
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2856 as oracle } from "../../translated/loc_2856.js";
 import { spawnHunterIntoTableAndAdvanceLaunch } from "../spawnHunterIntoTableAndAdvanceLaunch.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   PLAY_MODE_LATCH,
@@ -57,7 +57,7 @@ const test = ROM_PRESENT
   : (name, fn) => nodeTest(name, { skip: "skipped: ROM not built — run 'make -C games/pooyan rom'" }, fn);
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

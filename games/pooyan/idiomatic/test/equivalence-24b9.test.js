@@ -8,7 +8,7 @@
  * delay +0x11 to 2, and advances the record's dispatch state +0x02.
  *
  * Cycle-free memory-equivalence gate: a fresh clone per side, compared on RAM (dumpState, minus
- * STACK_SCRATCH). The routine is memory-only — a state dispatcher reads no register or flag back
+ * stack scratch below the entry SP). The routine is memory-only — a state dispatcher reads no register or flag back
  * (its sibling state-4 handler is likewise memory-only), so there is no register live-out and the
  * early-return path's leftover compare flags are outside the contract.
  *
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_24b9 as oracle } from "../../translated/loc_24b9.js";
 import { descendLeadActorToLanding } from "../descendLeadActorToLanding.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, GAME_ACTIVE_FLAG, SOUND_RING_WRITE_PTR } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -45,7 +45,7 @@ const REC = 0x8a80; // actor record base in work RAM (queueSoundCommands95And10'
 const RECORD_LEN = 0x18;
 const FLOOR_Y = 0xdc;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {
@@ -64,7 +64,7 @@ function craft({ y, sub, dec6, delay11 = 0, state2 = 0, gameActive = 0 }) {
   m.mem.write8(GAME_ACTIVE_FLAG, gameActive);
   m.mem.write8(SOUND_RING_WRITE_PTR, 0x43); // first ring slot -> appends land at 0x8a43+
   m.regs.ix = REC;
-  m.regs.sp = 0x8fe0; // inside STACK_SCRATCH: the call push/ret is diff-excluded
+  m.regs.sp = 0x8fe0; // inside STACK_SCRATCH: the call push lands below SP (diff-excluded)
   return m;
 }
 

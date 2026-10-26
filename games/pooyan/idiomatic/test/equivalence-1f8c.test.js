@@ -6,7 +6,7 @@
  * the full pointer +0x1d (net +0x20 per row) to the next row's column origin.
  *
  * CYCLE-FREE / memory-equivalence gate. The routine WRITES RAM, so each case runs the oracle on a
- * FRESH clone and blitGlyphBlock4x3 on another, compared on RAM (dumpState, minus STACK_SCRATCH)
+ * FRESH clone and blitGlyphBlock4x3 on another, compared on RAM (dumpState, minus stack scratch below the entry SP)
  * AND the advanced HL/DE live-outs: refreshRoundStageHud/drawStageLabelOncePerLevel `rst 0x10` (memset at HL) right after the call,
  * so the advanced HL is live-out; DE matches the oracle for a chained caller.
  *
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1f8c as oracle } from "../../translated/loc_1f8c.js";
 import { blitGlyphBlock4x3 } from "../blitGlyphBlock4x3.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -42,15 +42,15 @@ const test = ROM_PRESENT
 
 const TARGET = 0x1f8c;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 const SRC = 0x8a00;          // source glyph bytes (work RAM), pre-seeded distinct
 const DST_WRAP = 0x84fd;     // dest low byte near 0xff -> exercises the inner low-byte-only wrap
 const DST_PLAIN = 0x8420;    // dest with room -> plain +0x20 rows
 
-/** First RAM difference on the go-forward contract: whole dump, skipping the dead STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
-  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+/** First RAM difference on the go-forward contract: whole dump, skipping the dead stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
+  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** Reference: the ordered list of destination addresses the blit writes, low-byte-only inner step. */
@@ -73,7 +73,7 @@ function craft(dst) {
   for (const addr of writtenCells(dst)) m.mem.write8(addr, 0xaa);
   m.regs.de = SRC;
   m.regs.hl = dst;
-  m.regs.sp = 0x8fe0; // inside STACK_SCRATCH: the ret's pop reads dead, diff-excluded RAM
+  m.regs.sp = 0x8fe0; // inside STACK_SCRATCH: the ret only pops (reads) the word at SP
   return m;
 }
 
@@ -101,7 +101,7 @@ test("CAPTURE: real 0x1f8c dispatches replay identically (if reached)", () => {
     const c = cap.clone();
     oracle(o);
     const [retHl, retDe] = blitGlyphBlock4x3(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
     assert.equal(c.regs.hl, o.regs.hl, `HL live-out: module ${hx(c.regs.hl)} != oracle ${hx(o.regs.hl)}`);
     assert.equal(c.regs.de, o.regs.de, `DE live-out: module ${hx(c.regs.de)} != oracle ${hx(o.regs.de)}`);

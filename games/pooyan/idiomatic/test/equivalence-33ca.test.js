@@ -9,7 +9,7 @@
  * armInteriorBandOrMarkActorActive. Every non-defer arm writes rec+0x08 and installs the animation (setActorAnimation).
  *
  * Cycle-free / memory-equivalence gate: a fresh clone per side, oracle on one and seatTurnAnimationFromColumnLimit on the
- * other, compared on RAM (dumpState, minus STACK_SCRATCH). pc/SP/cycles are NOT compared, and there
+ * other, compared on RAM (dumpState, minus stack scratch below the entry SP). pc/SP/cycles are NOT compared, and there
  * is NO register live-out (the record-dispatch caller reloads A on return and reads no other register
  * back). The oracle's rst-0x20 lookup and its armInteriorBandOrMarkActorActive tail call/push/ret land inside STACK_SCRATCH.
  *
@@ -33,7 +33,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_33ca as oracle } from "../../translated/loc_33ca.js";
 import { seatTurnAnimationFromColumnLimit } from "../seatTurnAnimationFromColumnLimit.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   ANIM_TABLE_3418,
@@ -60,7 +60,7 @@ const OFF_ANIM = 0x0c; // little-endian anim pointer + frame index (0x0c/0x0d/0x
 const DIRT = 0xaa;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0); // the RAM diffs all enter at the craft seat
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

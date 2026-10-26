@@ -8,7 +8,7 @@
  * This is the CYCLE-FREE / memory-equivalence gate. The routine WRITES work RAM, so every case uses
  * a FRESH clone per side, compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * The contract is MEMORY ONLY: a state-dispatch handler whose leftover registers (A/B/HL) the
  * dispatcher does not read. pc/SP/cycles are not compared. The one input is the hold timer, poked
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_7421 as oracle } from "../../translated/loc_7421.js";
 import { clearWaveStateAndArenaOnHoldExpiry } from "../clearWaveStateAndArenaOnHoldExpiry.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH, WAVE_HOLD_TIMER, TILE_ANIM_PARITY, ENEMY_ACTOR_TABLE,
   PLAY_STATE_INDEX, LATCHED_ENEMY_X, ATTRACT_SUBSTATE,
@@ -42,7 +42,7 @@ const test = ROM_PRESENT
 
 const ATTRACT_AFTER = 0x07;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 const B9_LO = TILE_ANIM_PARITY, B9_HI = TILE_ANIM_PARITY + 0x09;
 const EN_LO = ENEMY_ACTOR_TABLE, EN_HI = ENEMY_ACTOR_TABLE + 0x48;

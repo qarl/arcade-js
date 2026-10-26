@@ -6,7 +6,7 @@
  * runs the phase-reset epilogue (clear 0x8a87 and 0x8f5b, advance 0x8f38, clear 0x8f39), and returns
  * A = 0.
  *
- * Contract: RAM (dumpState minus STACK_SCRATCH) PLUS the register live-out A. A is load-bearing —
+ * Contract: RAM (dumpState minus stack scratch below the entry SP) PLUS the register live-out A. A is load-bearing —
  * the translated caller at 0x724f reads A straight after the call (it derives a grid loop count from
  * it), so the module must SET the register, not merely return the value. pc/SP/cycles are NOT part of
  * the contract (the oracle drives them through the modelled stack; the module does not).
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_7287 as oracle } from "../../translated/loc_7287.js";
 import { armEagleFinishAtGridEdge } from "../armEagleFinishAtGridEdge.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -51,12 +51,12 @@ const EDGE = 0xd0;
 const WRITTEN = [DONE_LATCH, AIM, LATCHED_X, PHASE, SUBCOUNT];
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, STACK_SCRATCH.hi - 0x10);
 
-function ramDiffMinusStack(ma, mb) {
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
@@ -107,7 +107,7 @@ test("CAPTURE: real 0x7287 dispatches — module == oracle in RAM (−stack) + A
     const c = cap.clone();
     oracle(o);
     const ret = armEagleFinishAtGridEdge(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
     assert.equal(ret, o.regs.a, "A return matches oracle");
     assert.equal(c.regs.a, o.regs.a, "module SET A for the translated caller");

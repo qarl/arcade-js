@@ -7,7 +7,7 @@
  * 0x3370); emit a sound command (queueSoundCommand0E) and run the return-scan (scanDisplaySlotsAndTickBoardClear); then verify a ROM
  * self-check copy (0x3278) against its original (0x68ac) — a match returns, a mismatch wipes work RAM.
  *
- * The go-forward contract is RAM (dumpState, minus STACK_SCRATCH). pc/SP/cycles are NOT compared;
+ * The go-forward contract is RAM (dumpState, minus stack scratch below the entry SP). pc/SP/cycles are NOT compared;
  * there is no register live-out (an rst-0x30 dispatch handler whose caller discards results). With
  * the intact ROM the self-check matches, so the clean ret path runs (no wipe).
  *
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_30f1 as oracle } from "../../translated/loc_30f1.js";
 import { launchHunterFormationAndSeedSlots } from "../launchHunterFormationAndSeedSlots.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -55,7 +55,7 @@ const REC_FIELDS = [0x04, 0x06, 0x09, 0x0f, 0x10];
 const DIRTY = 0xaa;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

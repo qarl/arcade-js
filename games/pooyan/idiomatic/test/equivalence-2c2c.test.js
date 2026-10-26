@@ -9,7 +9,7 @@
  * reports as a boolean the module early-returns on. dispatchOneHunterRecordState is now idiomatic (dissolved this batch),
  * so the module DIRECT-CALLS it (no seated-return push16) — the frozen oracle consumed the CALL's
  * pushed word via its own ret, so dropping the push keeps the module SP-neutral. Compared on RAM
- * (dumpState) minus STACK_SCRATCH; PLUS an SP-baseline tooth (the sweep must leave SP unchanged — a
+ * (dumpState) minus stack scratch below the entry SP; PLUS an SP-baseline tooth (the sweep must leave SP unchanged — a
  * retained/orphaned push would leak per iteration, invisible to the RAM diff).
  *
  * Cases are CRAFTED: two records are poked active with in-range states so the sweep dispatches
@@ -34,7 +34,7 @@ import { loc_2c2c as oracle } from "../../translated/loc_2c2c.js";
 import { dispatchAllHunterRecordStates } from "../dispatchAllHunterRecordStates.js";
 import { dispatchOneHunterRecordState } from "../dispatchOneHunterRecordState.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { ENEMY_ACTOR_TABLE, STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -51,7 +51,7 @@ const LAST = RECORD_COUNT - 1;
 const SP0 = 0x8ff0;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0 - 2); // entry SP: the seat pushes the caller's return word below SP0
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

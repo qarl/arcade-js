@@ -5,7 +5,7 @@
  *
  * SEATING: BALANCED (plain ret). LIVE-OUT is memory only — the routine writes rec+2 = 0 and
  * rec+0x11 = 0x20 and returns; nothing reads a register back — so the comparison is RAM (dumpState)
- * minus STACK_SCRATCH. The record is pre-dirtied so both writes are observable.
+ * minus stack scratch below the entry SP. The record is pre-dirtied so both writes are observable.
  *
  * Jobs:
  *   1. EQUAL — oracle == module in RAM (−stack).
@@ -22,7 +22,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3a48 as oracle } from "../../translated/loc_39af.js";
 import { resetActorSubstateAndReloadStateTimer } from "../resetActorSubstateAndReloadStateTimer.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -36,7 +36,7 @@ const REC = 0x8b80; // isolated actor record base (rec..rec+0x17)
 const REC_SUBSTATE = 0x02;
 const REC_TIMER = 0x11;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ff0);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

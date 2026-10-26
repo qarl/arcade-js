@@ -6,7 +6,7 @@
  * over the hunter table (0x8c78 / 0x8c60 / 0x8c48).
  *
  * Cycle-free memory-equivalence gate: fresh clone per side, compared on RAM (dumpState, minus
- * STACK_SCRATCH). pc/SP/cycles are NOT compared. This is a dispatch handler run for side effects;
+ * stack scratch below the entry SP). pc/SP/cycles are NOT compared. This is a dispatch handler run for side effects;
  * the oracle protects its loop counter/stride across the calls with exx/djnz (register-only), and
  * nothing is read back from a register — so no register live-out is declared or compared. IX is the
  * loop-start pointer, seated via the module's register-default bridge; cycleActorGroupSpriteFramesOnTimer is always applied to
@@ -36,7 +36,7 @@ import { advanceActorGroupRiseAndCycleTiles } from "../advanceActorGroupRiseAndC
 import { advanceActorToTopRowThenRetire } from "../advanceActorToTopRowThenRetire.js";
 import { cycleActorGroupSpriteFramesOnTimer } from "../cycleActorGroupSpriteFramesOnTimer.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -57,7 +57,7 @@ const BOARD_CLEAR_FLAG = 0x89e5;
 const SUBPOS = 0x10, STEP = 0x05; // carry-free advance: rec+5 0x10 -> 0x15
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

@@ -9,7 +9,7 @@
  * and advancing the state.
  *
  * SEATING: BALANCED — the plain rets WIRE; the self-check diversion is a tail-jump forwarding the
- * delegatee's result. Compared per case on RAM (dumpState, minus STACK_SCRATCH); advanceWaveTeardownByState has no
+ * delegatee's result. Compared per case on RAM (dumpState, minus stack scratch below the entry SP); advanceWaveTeardownByState has no
  * register live-out of its own. pc/SP/full register file are not compared. queueSoundRun26/queueSoundCommands95And03And11/loc_23d7
  * are self-contained and composed; the tamper diversion (findTableSlotAndPaintStageHeader) pulls the HUD render subtree, so
  * its gate liveness is shown by the data invariant (intact mask == 0, tampered != 0) rather than run.
@@ -35,7 +35,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_32bd as oracle } from "../../translated/loc_32bd.js";
 import { advanceWaveTeardownByState } from "../advanceWaveTeardownByState.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   WAVE_TEARDOWN_STATE,
@@ -55,7 +55,7 @@ const test = ROM_PRESENT
   : (name, fn) => nodeTest(name, { skip: "skipped: ROM not built — run 'make -C games/pooyan rom'" }, fn);
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ff8);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

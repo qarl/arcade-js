@@ -7,7 +7,7 @@
  *
  * This is the CYCLE-FREE / memory-equivalence gate (docs/decompiler-pipeline). The routine WRITES
  * the ring, so each case uses a FRESH clone per side: oracle on one, queueSoundCommands95And10 on the other, compared
- * on RAM (dumpState) minus STACK_SCRATCH PLUS the declared register live-out A. pc/SP/cycles are NOT
+ * on RAM (dumpState) minus stack scratch below the entry SP PLUS the declared register live-out A. pc/SP/cycles are NOT
  * compared. A is a GENUINE live-out: the tail hand-off leaves the second append's advanced cursor in
  * A, which the AF pair (unlike BC/DE/HL) does not restore, and callers read it. The oracle's
  * `push16 + call 0x0ea2` return address lands in STACK_SCRATCH, excluded by contract.
@@ -33,7 +33,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0f21 as oracle } from "../../translated/loc_0f21.js";
 import { queueSoundCommands95And10 } from "../queueSoundCommands95And10.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, GAME_ACTIVE_FLAG, PLAY_MODE_LATCH, SOUND_RING_WRITE_PTR, SOUND_RING_PENDING_BYTE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -48,7 +48,7 @@ const CMD_FIRST = 0x95;
 const CMD_SECOND = 0x10;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

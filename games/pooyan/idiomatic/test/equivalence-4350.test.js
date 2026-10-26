@@ -6,7 +6,7 @@
  * (limit 0xff, script 0x4203) when rec+0x08 bit0 is clear, else clearColumnLimitAndArmTurnAnimation (limit 0, script 0x4212).
  *
  * CYCLE-FREE / memory-equivalence gate. The routine WRITES RAM, so every case uses a FRESH clone
- * per side. Contract: RAM (dumpState minus STACK_SCRATCH) ONLY — every callee is memory-only and the
+ * per side. Contract: RAM (dumpState minus stack scratch below the entry SP) ONLY — every callee is memory-only and the
  * per-frame dispatcher reads no result register, so there is no register live-out. pc/SP/cycles are
  * NOT compared.
  *
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_4350 as oracle } from "../../translated/loc_4350.js";
 import { countdownThenRearmTurnAnimationByFlag } from "../countdownThenRearmTurnAnimationByFlag.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, TURN_COLUMN_LIMIT } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -52,7 +52,7 @@ const ANIM_LO = 0x0c, ANIM_HI = 0x0d;
 const SCRIPT_4203 = 0x4203; // bit0-clear turn script
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

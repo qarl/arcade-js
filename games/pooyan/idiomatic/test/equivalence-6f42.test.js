@@ -7,7 +7,7 @@
  * up at 0x85d4. Each pair is tens at the cursor + units one row up (-0x20).
  *
  * CYCLE-FREE / memory-equivalence gate. Writes video + work RAM, so each case runs the oracle on
- * one FRESH clone and advanceIntroPhaseAndDrawHitTally on another, compared on RAM (dumpState, minus STACK_SCRATCH). pc/SP
+ * one FRESH clone and advanceIntroPhaseAndDrawHitTally on another, compared on RAM (dumpState, minus stack scratch below the entry SP). pc/SP
  * are NOT compared; there is no register live-out (an intro phase handler; no caller reads a
  * register back). The oracle's calls to 0x1119/0x1131 resolve through the translated registry
  * `new Machine(ROM)` builds; the gate cross-checks the idiomatic drawStackedBcdDigits/binToPackedBcd
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6f42 as oracle } from "../../translated/loc_6f42.js";
 import { advanceIntroPhaseAndDrawHitTally } from "../advanceIntroPhaseAndDrawHitTally.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -47,7 +47,7 @@ const SECOND_UNITS = (SECOND_TENS + 0xffe0) & 0xffff; // 0x85b4
 const HUD_CELLS = [HUD_BASE, FIRST_UNITS, SECOND_TENS, SECOND_UNITS];
 const WRITTEN = new Set([INTRO_PHASE, ...HUD_CELLS]);
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

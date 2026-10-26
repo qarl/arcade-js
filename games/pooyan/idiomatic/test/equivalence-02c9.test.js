@@ -8,7 +8,7 @@
  * (0x8809).
  *
  * Cycle-free memory-equivalence gate: a fresh clone per side, compared on RAM (dumpState, minus
- * STACK_SCRATCH) PLUS the declared register live-out. The genuine live-out is the Z flag from the
+ * stack scratch below the entry SP) PLUS the declared register live-out. The genuine live-out is the Z flag from the
  * final `dec (0x8809)`: every caller (rebuildFieldAndLatchPlayStateWithTamperCheck/floodFieldAndLatchPlayStatePhaseTimer/initRoundArenaAndRestorePlayerBank) does `ret nz` right after the
  * call, looping until the counter drains. So Z is checked against the oracle clone AND the module
  * clone must SET it. A/B/DE/HL are left modified but no caller reads them back, so they are not
@@ -35,7 +35,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_02c9 as oracle } from "../../translated/loc_02c9.js";
 import { clearBoardRamAndBlankFillRow } from "../clearBoardRamAndBlankFillRow.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -52,7 +52,7 @@ const ROW_WIDTH = 0x20;
 const VISIBLE_TILES = 0x1d;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ff0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

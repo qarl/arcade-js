@@ -7,7 +7,7 @@
  * This gate composes the REAL idiomatic skip: applyRoundDeltaAndRearmMatchedRecord (idiomatic) imports retireParityTargetSlotAndQueueSound
  * (idiomatic) and calls it directly, early-returning on its `false`; the oracle applyRoundDeltaAndRearmMatchedRecord
  * (translated) runs the translated retireParityTargetSlotAndQueueSound internally, whose pop-af aborts. The two must
- * land byte-identical in RAM (dumpState, minus STACK_SCRATCH). The oracle's transient stack
+ * land byte-identical in RAM (dumpState, minus stack scratch below the entry SP). The oracle's transient stack
  * (its `call` return words plus retireParityTargetSlotAndQueueSound's pop-af/ret unwind) lives in STACK_SCRATCH and is
  * excluded; the idiomatic side spends no stack. pc/SP/cycles/register-file are NOT compared.
  *
@@ -40,7 +40,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_62e6 as oracle } from "../../translated/loc_62e6.js";
 import { applyRoundDeltaAndRearmMatchedRecord } from "../applyRoundDeltaAndRearmMatchedRecord.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   ROUND_COUNTER,
@@ -71,7 +71,7 @@ const REARM_BIT = 0x20;
 const DELTA_SEED = 0x10;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP_SEAT);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

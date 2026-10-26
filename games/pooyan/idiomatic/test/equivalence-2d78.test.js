@@ -8,7 +8,7 @@
  * module runs the dispatch through an idiomatic switch; the oracle drives the frozen rst-0x28
  * trampoline (0x0028, not lifted this batch) and the same handlers, so both walk identical downstream
  * code. Compared on RAM (dumpState)
- * minus STACK_SCRATCH; the register file is not compared (void dispatch).
+ * minus stack scratch below the entry SP; the register file is not compared (void dispatch).
  *
  * Cases are CRAFTED: the rope-state byte is poked directly. State 0 (segment-add handler) runs
  * cleanly from a boot clone; state 1 (blit handler) is seated with a nonzero hold counter so it takes
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2d78 as oracle } from "../../translated/loc_2d78.js";
 import { dispatchRopeExtendState } from "../dispatchRopeExtendState.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { ROPE_EXTEND_STATE, ROPE_EXTEND_TIMER, ROPE_EXTEND_DISPATCH_TABLE, STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -46,7 +46,7 @@ const HOLD = 0x05; // nonzero rope-extend hold counter -> blit handler takes the
 const STATES = [0, 1];
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0 - 2); // entry SP: the seat pushes the caller's return word below SP0
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

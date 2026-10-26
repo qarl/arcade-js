@@ -5,7 +5,7 @@
  * anti-tamper checks, and queues the attract display.
  *
  * paintAttractColorsAndQueueDraws is a void handler — no register survives — so the register file is not compared;
- * equivalence is RAM (dumpState) minus STACK_SCRATCH, SP parked in dead stack so nested pushes
+ * equivalence is RAM (dumpState) minus stack scratch below the entry SP, SP parked in dead stack so nested pushes
  * drop out. The two crafted states seat the frame gate on its two arms: drained (row counter
  * hits zero -> the full body runs) and still-counting (one tick -> early return).
  *
@@ -25,7 +25,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_092c as oracle } from "../../translated/loc_092c.js";
 import { paintAttractColorsAndQueueDraws } from "../paintAttractColorsAndQueueDraws.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -42,7 +42,7 @@ const PLAYFIELD = 0x8402; //        a valid tilemap start for the fill cursor
 const SP0 = 0x8ff0; //              inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

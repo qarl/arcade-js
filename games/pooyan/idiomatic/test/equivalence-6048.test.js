@@ -9,7 +9,7 @@
  * caller's loop); its fall-through delegates the whole scan. The module folds all three into a
  * boolean return — true = the slot completed normally (the two inert kinds, and a scan with no
  * hit), false = a hit inside the scan skip-returns past the caller's loop. Compared on RAM
- * (dumpState) minus STACK_SCRATCH; the register file is not compared. The slot selector is the
+ * (dumpState) minus stack scratch below the entry SP; the register file is not compared. The slot selector is the
  * param-default register bridge; a live block forces the scan's own pointers.
  *
  * The oracle runs the TRANSLATED latchObjectTypeAndEnterProximityScan, which m.call()s the scan subtree through the registry;
@@ -34,7 +34,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6048 as oracle } from "../../translated/loc_6048.js";
 import { latchObjectTypeAndEnterProximityScan } from "../latchObjectTypeAndEnterProximityScan.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -59,7 +59,7 @@ const KEY = 0x42;
 const SP0 = 0x8ff0;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

@@ -8,7 +8,7 @@
  * ret returns to this routine's own caller — WIRE. The module returns the fall-through delegate's
  * result on expiry and returns void while the timer runs. Entry register IX is the record pointer,
  * seated as the param-default bridge. advanceObjectStateOnFrameTimerExpiry is void — no register the caller reads — so
- * equivalence is RAM (dumpState) minus STACK_SCRATCH; SP is parked so the nested pushes drop out.
+ * equivalence is RAM (dumpState) minus stack scratch below the entry SP; SP is parked so the nested pushes drop out.
  *
  * The record is CRAFTED. The animation frame-hold (+0x0e) is left running so the animation tick
  * only decrements it (its stream walk is covered by its own gate). The HOLD case keeps the frame
@@ -36,7 +36,7 @@ import { loc_3f72 as oracle } from "../../translated/loc_3f72.js";
 import { advanceObjectStateOnFrameTimerExpiry } from "../advanceObjectStateOnFrameTimerExpiry.js";
 import { advanceObjectAnimationFrame } from "../advanceObjectAnimationFrame.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -53,7 +53,7 @@ const STATE = 0x02; //  record: state byte advanced on expiry
 const SP0 = 0x8ff0; //  inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

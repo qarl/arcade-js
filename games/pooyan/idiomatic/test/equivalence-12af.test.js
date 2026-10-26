@@ -12,7 +12,7 @@
  *
  * This is the memory-equivalence gate: the routine WRITES RAM (its own record cells plus everything
  * the delegate chains touch), so every case uses a FRESH clone per side, compared on RAM (dumpState,
- * minus STACK_SCRATCH) via firstStateDiff. pc/SP/cycles are NOT compared; advanceEnemyTravelAndSpawnChildActors has no load-
+ * minus stack scratch below the entry SP) via firstStateDiff. pc/SP/cycles are NOT compared; advanceEnemyTravelAndSpawnChildActors has no load-
  * bearing register/return output of its own — it forwards each delegate's tail.
  *
  * Bridge input: ix (the record base). Every read field is crafted per case: the flag, the sub/step
@@ -33,7 +33,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_12af as oracle } from "../../translated/loc_12af.js";
 import { advanceEnemyTravelAndSpawnChildActors } from "../advanceEnemyTravelAndSpawnChildActors.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   STAGE_COUNTDOWN,
@@ -58,7 +58,7 @@ const OFF_HOLD = 0x0e; //   animation frame-hold (nonzero -> plain decrement)
 const SP0 = 0x8fe0; //      inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

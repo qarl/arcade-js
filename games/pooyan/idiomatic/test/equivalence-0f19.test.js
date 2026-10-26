@@ -7,7 +7,7 @@
  * (through the helper), so each case runs the oracle on one FRESH clone and queueSoundCommand0E on
  * another, compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH)  +  the declared register live-out (A).
+ *     RAM (dumpState, minus stack scratch below the entry SP)  +  the declared register live-out (A).
  *
  * pc/SP are NOT compared (the oracle drives them through the dropped call/stack ABI). A IS
  * a genuine live-out: the helper leaves its advanced ring cursor in A (0 when the append
@@ -37,7 +37,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0f19 as oracle } from "../../translated/loc_0f19.js";
 import { queueSoundCommand0E } from "../queueSoundCommand0E.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   GAME_ACTIVE_FLAG,
@@ -60,7 +60,7 @@ const RING_LAST = 0x5e;
 const RING_PAGE = HIGH_SCORE_TABLE & 0xff00; // 0x8a00: the ring page base
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

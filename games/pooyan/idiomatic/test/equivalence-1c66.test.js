@@ -2,7 +2,7 @@
 /**
  * Memory-equivalence test for dispatchRoundEndElseWipeColumn (ROM 0x1c66) — the round-clear / game-over / player-swap
  * master of the play-state dispatch handler. Void handler; LIVE-OUT is memory only, comparison is RAM
- * minus STACK_SCRATCH. Cases: not-armed pre-pass, armed-but-not-expired pre-pass, armed+expired with a
+ * minus stack scratch below the entry SP. Cases: not-armed pre-pass, armed-but-not-expired pre-pass, armed+expired with a
  * failing integrity checksum (stamp the reset column then abort), and armed+expired with a passing
  * checksum (disarm + dispatch to a split-out tail). The checksum region is seeded so the pass/fail
  * arms are deterministic; the reset column is pre-dirtied so the stamp is observable.
@@ -17,7 +17,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1c66 as oracle } from "../../translated/loc_1c66.js";
 import { dispatchRoundEndElseWipeColumn } from "../dispatchRoundEndElseWipeColumn.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -36,7 +36,7 @@ const ROW_STRIDE = 0x20;
 const SP0 = 0x8ff0;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

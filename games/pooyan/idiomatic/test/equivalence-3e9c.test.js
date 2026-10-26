@@ -6,7 +6,7 @@
  * flight (velocity + homing-toward-target or a 4-frame drift). Either mode can land the object,
  * which queues the settle animation and flips it to the landing state.
  *
- * Contract compared: RAM (dumpState, minus STACK_SCRATCH). pc/SP/cycles are NOT compared, and
+ * Contract compared: RAM (dumpState, minus stack scratch below the entry SP). pc/SP/cycles are NOT compared, and
  * there is NO register live-out — this is a per-frame state handler reached from a table
  * dispatch, and its whole result lives in the object record. So the gate is RAM-only.
  *
@@ -34,7 +34,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3e9c as oracle } from "../../translated/loc_3e9c.js";
 import { advanceInFlightEnemyAndLand } from "../advanceInFlightEnemyAndLand.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -50,7 +50,7 @@ const SCRIPT_LO = SCRIPT_BASE & 0xff;
 const SCRIPT_HI = SCRIPT_BASE >> 8;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ff0);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

@@ -8,7 +8,7 @@
  * the shared render tail (wrapRenderPhaseAndPaintTileTriplet) redraws.
  *
  * CYCLE-FREE / memory-equivalence gate. The routine WRITES RAM, so each case uses a FRESH clone
- * per side, compared on RAM (dumpState, minus STACK_SCRATCH). pc/SP/cycles are not compared (the
+ * per side, compared on RAM (dumpState, minus stack scratch below the entry SP). pc/SP/cycles are not compared (the
  * oracle drives them through m.step/push/ret, the stack ABI the direct-call layer replaces).
  * movePlayerVerticallyAndTickStatusRender has NO register live-out — its only caller (dispatchPerFrameActorUpdatePasses) invokes the next helper straight
  * after and reads nothing back — so the contract is memory alone. The oracle drives its inlined
@@ -35,7 +35,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2329 as oracle } from "../../translated/loc_2329.js";
 import { movePlayerVerticallyAndTickStatusRender } from "../movePlayerVerticallyAndTickStatusRender.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -58,7 +58,7 @@ const VRAM_BASE = 0x8425; // STATUS_RENDER_VRAM_BASE
 const FIELD_STRIDE = 0x40;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x9000);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

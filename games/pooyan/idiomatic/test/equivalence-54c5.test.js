@@ -6,7 +6,7 @@
  * only when it hits zero, reloaded from the ROM table (indexed by the schedule cursor), the cursor is
  * advanced, and the routine falls into the formation spawn loop (seedFirstFreeActorBlockFromSpawnTypeTable). The module dissolves the
  * rst-0x20 lookup (fetchByteFromTableIndex) and the fall-through (seedFirstFreeActorBlockFromSpawnTypeTable) to direct calls; the oracle drives the
- * frozen versions. spawnFormationEnemyOnInterval is void — no register survives — so equivalence is RAM (−STACK_SCRATCH).
+ * frozen versions. spawnFormationEnemyOnInterval is void — no register survives — so equivalence is RAM (− stack scratch below the entry SP).
  *
  * Jobs:
  *   1. EQUAL — round<2 veto, round∈{2,3} veto, countdown running (dec + ret), and the full
@@ -24,7 +24,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_54c5 as oracle } from "../../translated/loc_54c5.js";
 import { spawnFormationEnemyOnInterval } from "../spawnFormationEnemyOnInterval.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   ROUND_COUNTER,
@@ -43,7 +43,7 @@ const test = ROM_PRESENT
 
 const SP0 = 0x8fe0; // inside STACK_SCRATCH
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

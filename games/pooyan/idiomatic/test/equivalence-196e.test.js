@@ -3,7 +3,7 @@
  * Memory-equivalence test for armSirenAndTickWaveEventCountdown (ROM 0x196e, Pooyan) — the gated periodic siren/event driver.
  *
  * The cycle-free / memory-equivalence gate (docs/decompiler-pipeline): a fresh clone per side, the
- * oracle on one and armSirenAndTickWaveEventCountdown on the other, compared on RAM (dumpState, minus STACK_SCRATCH).
+ * oracle on one and armSirenAndTickWaveEventCountdown on the other, compared on RAM (dumpState, minus stack scratch below the entry SP).
  * pc/SP/cycles are NOT compared, and there is no register live-out: the caller (runActiveGameplayFrame) runs this
  * as one of fourteen sequential sub-handlers and reads no register back, so the contract is memory.
  *
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_196e as oracle } from "../../translated/loc_196e.js";
 import { armSirenAndTickWaveEventCountdown } from "../armSirenAndTickWaveEventCountdown.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -51,7 +51,7 @@ const EVENT_TIMER = 0x8d22;
 const SCRATCH_PAIR = 0x8d90; // isolated work-RAM cell used as the grab-active HL pair
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

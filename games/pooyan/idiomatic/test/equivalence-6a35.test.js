@@ -12,7 +12,7 @@
  *
  * The oracle drives the TRANSLATED setActorAnimation (0x381e) through the routines map; the
  * module imports the IDIOMATIC sibling directly. The two must land byte-identical in RAM
- * (dumpState) minus STACK_SCRATCH. No register is a live-out — the caller parks its loop
+ * (dumpState) minus stack scratch below the entry SP. No register is a live-out — the caller parks its loop
  * bookkeeping across the call and the skip's `pop af` loads stack scratch — so registers are
  * NOT compared. The boolean return is, and the oracle's SP delta confirms which path ran.
  *
@@ -36,7 +36,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6a35 as oracle } from "../../translated/loc_6a35.js";
 import { spawnEnemyIntoFreeSlotCyclingAnim } from "../spawnEnemyIntoFreeSlotCyclingAnim.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -57,7 +57,7 @@ const PTR_EARLY = 0x76d4; // phase 0 or 1
 const PTR_MID = 0x68ef; // phase 2
 const PTR_LATE = 0x6b0a; // phase > 2
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

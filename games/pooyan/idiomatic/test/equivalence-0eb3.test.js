@@ -7,7 +7,7 @@
  *
  * This is the CYCLE-FREE / memory-equivalence gate. The routine WRITES work RAM, so every
  * case runs the oracle on one fresh clone and enqueueSoundCommandRing on another, compared on the go-forward
- * contract: RAM (dumpState, minus STACK_SCRATCH). There is NO register live-out — every
+ * contract: RAM (dumpState, minus stack scratch below the entry SP). There is NO register live-out — every
  * enqueue site reloads A before its next use, and BC/DE/HL are round-tripped — so no register
  * is part of the contract. As a documented extra, the round-tripped BC/DE/HL are seeded to
  * sentinels and confirmed identical on both sides (the caller's preservation guarantee).
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0eb3 as oracle } from "../../translated/loc_0eb3.js";
 import { enqueueSoundCommandRing } from "../enqueueSoundCommandRing.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, SOUND_RING_WRITE_PTR, HIGH_SCORE_TABLE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -43,7 +43,7 @@ const test = ROM_PRESENT
 
 const DIRT = 0x77; // pre-loaded into the target slot so the store is always a change
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

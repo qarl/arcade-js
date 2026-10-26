@@ -9,7 +9,7 @@
  * CYCLE-FREE / memory-equivalence gate. The routine WRITES RAM, so each case runs on a FRESH
  * clone per side. The go-forward contract is:
  *
- *     RAM (dumpState, minus STACK_SCRATCH), AND the HL live-out.
+ *     RAM (dumpState, minus stack scratch below the entry SP), AND the HL live-out.
  *
  * The caller (rebuildSpriteDisplayList) chains its next copy from the advanced HL without reloading it, so the
  * module's return (the advanced list pointer) is compared against the oracle clone's final HL.
@@ -34,7 +34,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_032a as oracle } from "../../translated/loc_032a.js";
 import { copyObjectRecordsToDisplayList } from "../copyObjectRecordsToDisplayList.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ACTOR_TABLE, SPRITE_DISPLAY_LIST } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -47,11 +47,11 @@ const test = ROM_PRESENT
 const TARGET = 0x032a;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0); // crafted entries keep the reset SP 0, so no scratch cell lies below it
 
-/** First RAM difference on the go-forward contract: whole dump minus STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
-  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+/** First RAM difference on the go-forward contract: whole dump minus stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
+  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /**
@@ -104,7 +104,7 @@ test("CAPTURE: real 0x032a dispatches — module == oracle in RAM (−stack) and
     const c = cap.clone();
     oracle(o);
     const ret = copyObjectRecordsToDisplayList(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
     assert.equal(ret, o.regs.hl, `HL live-out: module ${hx(ret)} != oracle ${hx(o.regs.hl)}`);
     assert.equal(c.regs.hl, o.regs.hl, `module must SET HL for the translated chain: ${hx(c.regs.hl)} != ${hx(o.regs.hl)}`);

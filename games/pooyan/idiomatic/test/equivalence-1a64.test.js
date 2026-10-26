@@ -3,7 +3,7 @@
  * Memory-equivalence test for advancePhaseGaugeCountdown (ROM 0x1a64, Pooyan) — gameplay-state entry.
  *
  * SEATING: BALANCED (plain ret / tail-branches) -> WIRE. Void handler: no caller reads a register
- * back, so LIVE-OUT is memory only and the comparison is RAM (dumpState) minus STACK_SCRATCH;
+ * back, so LIVE-OUT is memory only and the comparison is RAM (dumpState) minus stack scratch below the entry SP;
  * nested sub-routine pushes park in the dead stack (SP in STACK_SCRATCH).
  *
  * Paths crafted: latch-set (tail to reseedSpawnCountersAndArmPlayMode); credit-gate teardown; gauge already-zero and
@@ -21,7 +21,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1a64 as oracle } from "../../translated/loc_1a64.js";
 import { advancePhaseGaugeCountdown } from "../advancePhaseGaugeCountdown.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   PLAY_MODE_LATCH,
@@ -44,7 +44,7 @@ const test = ROM_PRESENT
 const SP0 = 0x8ff0;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

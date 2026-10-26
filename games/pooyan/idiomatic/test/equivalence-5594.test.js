@@ -7,7 +7,7 @@
  * byte (blk+0x17) from SPAWN_KIND_TABLE_5627 via rst 0x20 and hands the record to initSpawnedActorRecordAndDeriveSpeed, which
  * caller-skips (pop af; ret) past seedFirstFreeSlotForTimedSpawnWithTamperCheck. No free block -> the scan falls out.
  *
- * Compared on RAM (dumpState) minus STACK_SCRATCH; register file not compared (LIVE-OUT: none). The
+ * Compared on RAM (dumpState) minus stack scratch below the entry SP; register file not compared (LIVE-OUT: none). The
  * guard region + signature live in ROM, so the guard-sum arm is whatever the built ROM produces —
  * oracle and module read the same ROM and must agree; TAMPER_FREEZE_FLAG is pre-seeded so any bump is
  * visible in the diff. The test requires the built ROM.
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5594 as oracle } from "../../translated/loc_5594.js";
 import { seedFirstFreeSlotForTimedSpawnWithTamperCheck } from "../seedFirstFreeSlotForTimedSpawnWithTamperCheck.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, SPAWN_SEQUENCE_INDEX_8D14, SPAWN_KIND_TABLE_5627, TAMPER_FREEZE_FLAG } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -46,7 +46,7 @@ const TALLY_SEED = 0x07; //    baseline for TAMPER_FREEZE_FLAG so any bump shows
 const SP0 = 0x8fe0; //         inside STACK_SCRATCH so the oracle's push/pop churn is excluded
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

@@ -7,7 +7,7 @@
  *
  * CYCLE-FREE / memory-equivalence gate (docs/decompiler-pipeline). The routine WRITES tile RAM, so
  * every case uses a FRESH clone per side; the oracle runs on one clone, paintTileBlock2x2 on
- * another, compared on the go-forward contract: RAM (dumpState, minus STACK_SCRATCH).
+ * another, compared on the go-forward contract: RAM (dumpState, minus stack scratch below the entry SP).
  *
  * pc/registers are NOT compared: it is memory-only. The walk ends DE at src+3 and HL at dst+0x20,
  * but the caller (advanceAttractAnimationAndRepaint) pops DE and reloads HL, so neither survives for a reader.
@@ -33,7 +33,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0a40 as oracle } from "../../translated/loc_0a40.js";
 import { paintTileBlock2x2 } from "../paintTileBlock2x2.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -47,9 +47,9 @@ const SRC = 0x8b00; // work RAM: readable, disjoint from every dst write
 const SRC_BYTES = [0x11, 0x22, 0x33, 0x44]; // distinct so a wrong TL/TR/BR/BL mapping is caught
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
-/** First RAM difference minus the STACK_SCRATCH region. */
+/** First RAM difference minus the stack scratch below the entry SP. */
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();
   const b = mb.dumpState();

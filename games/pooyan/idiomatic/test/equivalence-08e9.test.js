@@ -10,7 +10,7 @@
  * sets the attract sub-state 0x8e51 := 7.
  *
  * CYCLE-FREE / memory-equivalence gate. The routine WRITES RAM (and delegates to several already-gated
- * leaves), so every case uses a FRESH clone per side. Contract: RAM (dumpState minus STACK_SCRATCH)
+ * leaves), so every case uses a FRESH clone per side. Contract: RAM (dumpState minus stack scratch below the entry SP)
  * ONLY — blankRowThenFloodColorsAndAdvanceAttract is an attract dispatch handler and no caller consumes a result register, so there is
  * NO declared register live-out. pc/SP/cycles are NOT compared.
  *
@@ -36,7 +36,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_08e9 as oracle } from "../../translated/loc_08e9.js";
 import { blankRowThenFloodColorsAndAdvanceAttract } from "../blankRowThenFloodColorsAndAdvanceAttract.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -52,7 +52,7 @@ const ATTRACT_SUBSTATE = 0x8e51; // the cell the full path advances to 7
 const PLAYFIELD_TILE_BASE = 0x8402;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, STACK_SCRATCH.hi - 0x20);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

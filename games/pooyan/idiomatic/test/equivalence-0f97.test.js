@@ -6,7 +6,7 @@
  * the command base 0x1e), and tail-delegates to the shared command-ring appender appendSoundCommandRun, which
  * lays down that byte plus its fixed three-tile tail. It is a pure tail hand-off, so the contract is:
  *
- *     RAM (dumpState, minus STACK_SCRATCH)  +  regs.a (the advanced ring cursor).
+ *     RAM (dumpState, minus stack scratch below the entry SP)  +  regs.a (the advanced ring cursor).
  *
  * regs.a is a DEFENSIVE arm: the frozen caller (spawnPairedEnemyRecordAndAnnounceWave) discards A via pop af, so memory carries
  * the real teeth — but A matches the oracle and asserting it can never false-fail.
@@ -35,7 +35,7 @@ import { loc_0f97 as oracle } from "../../translated/loc_0f97.js";
 import { queueRoundSoundCommandRun } from "../queueRoundSoundCommandRun.js";
 import { appendSoundCommandRun } from "../appendSoundCommandRun.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   ROUND_COUNTER,
@@ -55,7 +55,7 @@ const RING_PAGE = SOUND_RING_WRITE_PTR & 0xff00; // 0x8a00 — the ring page bas
 const COMMAND_SLOT = RING_PAGE + RING_FIRST; // where the derived command byte lands
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

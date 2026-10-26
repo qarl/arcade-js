@@ -5,7 +5,7 @@
  * cursor (TILE_FILL_PTR, little-endian) and the row counter (FILL_ROW_COUNTER) to 0x20, delegating
  * to the shared arming routine.
  *
- * Cycle-free / memory-equivalence gate. Compared on RAM (dumpState) MINUS STACK_SCRATCH, PLUS the A
+ * Cycle-free / memory-equivalence gate. Compared on RAM (dumpState) MINUS stack scratch below the entry SP, PLUS the A
  * live-out. pc/SP/cycles are NOT compared. A := 0x20 (the row count) is a genuine live-out — the
  * arming routine leaves it for the caller's watchdog kick — so the module's return is checked against
  * the oracle's A, and the module must also SET A on its own clone. HL (the oracle leaves it at 0x8402)
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_02e3 as oracle } from "../../translated/loc_02e3.js";
 import { armTileFillFromPlayfieldBase } from "../armTileFillFromPlayfieldBase.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, TILE_FILL_PTR, FILL_ROW_COUNTER, PLAYFIELD_TILE_BASE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -47,10 +47,10 @@ const PTR_HI = TILE_FILL_PTR + 1; // 0x880c
 const ROW_COUNT = 0x20;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
-function ramDiffMinusStack(ma, mb) {
-  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
+  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
@@ -89,7 +89,7 @@ test("CAPTURE: real 0x02e3 dispatches — armTileFillFromPlayfieldBase == oracle
     const c = cap.clone();
     oracle(o);
     const ret = armTileFillFromPlayfieldBase(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
     assert.equal(ret, o.regs.a, `A live-out module ${hx(ret)} != oracle ${hx(o.regs.a)}`);
     assert.equal(c.regs.a, o.regs.a, "module must SET A on its own clone");

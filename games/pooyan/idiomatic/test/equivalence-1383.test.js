@@ -9,7 +9,7 @@
  *
  * CYCLE-FREE / memory-equivalence gate. The in-range path can WRITE work RAM (through spawnChildActorIntoFreeSpriteSlot /
  * initChildActorRecordFromParent), so each case uses a FRESH clone per side, compared on RAM (dumpState, minus
- * STACK_SCRATCH) PLUS the register live-out A. pc/SP/cycles are NOT compared. A is derived from
+ * stack scratch below the entry SP) PLUS the register live-out A. pc/SP/cycles are NOT compared. A is derived from
  * the oracle: it is B on the guard path and spawnChildActorIntoFreeSpriteSlot's spawn/no-free result on the tail path.
  *
  * NOTE ON THE JS RETURN: the translated guard path does a bare `return;` (JS undefined) while the
@@ -35,7 +35,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1383 as oracle } from "../../translated/loc_1383.js";
 import { spawnChildActorIfInRange } from "../spawnChildActorIfInRange.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, SPRITE_OBJECT_TABLE, ANIM_FRAME_COUNTER } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -49,7 +49,7 @@ const SLOT_STRIDE = 0x18;
 const SLOT_COUNT = 5;
 const IX_PARENT = 0x8ac0; // a scratch parent record, disjoint from the slot table
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ff8);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

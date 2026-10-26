@@ -8,7 +8,7 @@
  * play-mode latch is held).
  *
  * Cycle-free memory-equivalence gate: a fresh clone per side, compared on RAM (dumpState, minus
- * STACK_SCRATCH). pc/SP/cycles are NOT compared, and there is NO register/flag live-out — this is
+ * stack scratch below the entry SP). pc/SP/cycles are NOT compared, and there is NO register/flag live-out — this is
  * a jumped-into tail that ends by rendering; its whole result is in memory. The oracle's
  * call/push/ret for the band-blank all land inside STACK_SCRATCH.
  *
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_34b0 as oracle } from "../../translated/loc_34b0.js";
 import { despawnActorAndRenderStageCountdown } from "../despawnActorAndRenderStageCountdown.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   ACTIVE_ENEMY_COUNT,
@@ -55,7 +55,7 @@ const HUD_TENS = (HUD_STAGE_DIGIT_LO + 0x20) & 0xffff; // tens digit tile, one r
 const DIRT = 0xaa; //      sentinel pre-loaded so every real write is observable
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

@@ -3,7 +3,7 @@
  * Memory-equivalence test for dispatchBonusStagePhase (ROM 0x71b9) — the bonus/eagle-stage phase dispatcher. Selects
  * a handler by the outer wave phase (0x8f38) via the inline table 0x71c1, then runs the shared epilogue
  * 0x02ef. Oracle reaches the handler through rst 0x28 with 0x02ef seated as the return; the module calls
- * the handler directly then runs rebuildSpriteDisplayList. Compared: RAM (dumpState −STACK_SCRATCH).
+ * the handler directly then runs rebuildSpriteDisplayList. Compared: RAM (dumpState − stack scratch below the entry SP).
  *
  * 71b9 seats NO return via m.push16 and does no m.call to a translated routine — it switches to
  * idiomatic handlers then runs the idiomatic epilogue directly, so the missing-push16 class (R36) cannot
@@ -22,7 +22,7 @@ import { runEagleApproachPhaseFrame } from "../runEagleApproachPhaseFrame.js";
 import { clearWaveStateAndArenaOnHoldExpiry } from "../clearWaveStateAndArenaOnHoldExpiry.js";
 import { rebuildSpriteDisplayList } from "../rebuildSpriteDisplayList.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, WAVE_OUTER_PHASE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -32,8 +32,8 @@ const test = ROM_PRESENT ? nodeTest : (n, f) => nodeTest(n, { skip: "skipped: RO
 const TARGET = 0x71b9;
 const SP0 = 0x8fe0;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiffMinusStack = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(), (o) => ma.stateOffsetToAddr(o), inDeadStack);
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
+const ramDiffMinusStack = (ma, mb, dead = inDeadStack) => firstStateDiff(ma.dumpState(), mb.dumpState(), (o) => ma.stateOffsetToAddr(o), dead);
 const runGuarded = (fn, m) => { try { fn(m); return { threw: false }; } catch (e) { return { threw: true, msg: String(e && e.message) }; } };
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
@@ -57,7 +57,7 @@ test("CAPTURE: real 0x71b9 dispatches replay identically", () => {
     const o = cap.clone(), c = cap.clone();
     const ro = runGuarded(oracle, o), rc = runGuarded(dispatchBonusStagePhase, c);
     assert.equal(ro.threw, rc.threw, `divergent control flow (oracle=${ro.threw} module=${rc.threw})`);
-    if (!ro.threw) { const d = ramDiffMinusStack(o, c); assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}`); }
+    if (!ro.threw) { const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp)); assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}`); }
   }
   console.log(`  CAPTURE: ${caps.length} real 0x71b9 dispatch(es) replayed identically`);
 });

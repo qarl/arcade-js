@@ -11,7 +11,7 @@
  * CYCLE-FREE / memory-equivalence gate (docs/decompiler-pipeline). Each case runs the oracle on
  * one FRESH clone and advanceFourObjectAnimsAndRebuildList on another and compares:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * No register live-out is declared or compared (the caller reads none). pc/SP/cycles are NOT
  * compared — the oracle drives them through the dropped call/stack ABI, so SP is seated in the
@@ -38,7 +38,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_09f8 as oracle } from "../../translated/loc_09f8.js";
 import { advanceFourObjectAnimsAndRebuildList } from "../advanceFourObjectAnimsAndRebuildList.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, SPRITE_OBJECT_TABLE, SPRITE_DISPLAY_LIST } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -52,7 +52,7 @@ const RECORD_STRIDE = 0x18;
 const RECORD_COUNT = 4;
 const HOLD_OFF = 0x0e; // advanceObjectAnimationFrame's frame-hold field within a record
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, STACK_SCRATCH.hi);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

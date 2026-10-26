@@ -11,7 +11,7 @@
  * sweepTargetSlotsForGrab (which early-returns on a hit) and then returns normally. This gate runs the WHOLE
  * routine both ways and requires RAM-equivalence: the oracle gateAndRunProjectileTargetSweep (which internally runs the
  * translated sweep chain) versus gateAndRunProjectileTargetSweep (which runs the idiomatic chain), compared on dumpState
- * minus STACK_SCRATCH. pc/SP/cycles are not compared — the oracle's pushes/pops land in
+ * minus stack scratch below the entry SP. pc/SP/cycles are not compared — the oracle's pushes/pops land in
  * STACK_SCRATCH and the idiomatic side keeps no stack.
  *
  * LIVE-OUT: none — the sweep is a tail delegate with no live-out and the per-frame caller reads
@@ -37,7 +37,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5df7 as oracle } from "../../translated/loc_5df7.js";
 import { gateAndRunProjectileTargetSweep } from "../gateAndRunProjectileTargetSweep.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   FLIP_SCREEN_FLAG,
@@ -64,7 +64,7 @@ const REC_STRIDE = 0x18;
 const SP_ENTRY = 0x8ffe; // top of STACK_SCRATCH; the oracle's pushes/pops stay inside the dead region
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP_ENTRY);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

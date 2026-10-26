@@ -8,7 +8,7 @@
  * nonzero tails to the tamper re-scan, else it returns.
  *
  * SEATING: BALANCED / TAIL-CALL. Reached by a plain call from the boot-frontier sub-dispatch, which
- * reads no register back, so live-out is void; equivalence is RAM (dumpState) minus STACK_SCRATCH.
+ * reads no register back, so live-out is void; equivalence is RAM (dumpState) minus stack scratch below the entry SP.
  * The init tail (0x22b1) and the fill helper (0x0010) are decompiled and imported; the tamper
  * re-scan (0x2157) is not lifted this batch, so the module keeps m.call(0x2157) and the oracle
  * drives the same frozen re-scan — both walk identical downstream code. The animation stepper is
@@ -35,7 +35,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_210b as oracle } from "../../translated/loc_210b.js";
 import { spawnTargetActorOnLaunchTrigger } from "../spawnTargetActorOnLaunchTrigger.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -64,7 +64,7 @@ const SP0 = 0x8ff0;
 const D = 0xee; // pre-dirty marker
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

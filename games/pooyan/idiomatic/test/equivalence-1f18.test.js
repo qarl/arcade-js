@@ -8,7 +8,7 @@
  * The module dissolves the three sub-renderers (fetchWordFromTableIndex, fillByteRun, blitGlyphBlock4x3 at 0x1f8c) to
  * direct calls; the oracle drives the frozen originals. refreshRoundStageHud is void — its caller reloads every
  * register before reading one — so no register is compared; equivalence is RAM (dumpState) minus
- * STACK_SCRATCH, SP parked in dead stack so the oracle's transient return-slot pushes drop out.
+ * stack scratch below the entry SP, SP parked in dead stack so the oracle's transient return-slot pushes drop out.
  *
  * Jobs:
  *   1. EQUAL — three arms (integrity armed / first stage / later stage): oracle == refreshRoundStageHud (RAM −stack).
@@ -25,7 +25,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1f18 as oracle } from "../../translated/loc_1f18.js";
 import { refreshRoundStageHud } from "../refreshRoundStageHud.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -42,7 +42,7 @@ const HUD_DIGIT = 0x8743; //    HUD stage digit; written (= countdown) only on t
 const SP0 = 0x8ff0; //          inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

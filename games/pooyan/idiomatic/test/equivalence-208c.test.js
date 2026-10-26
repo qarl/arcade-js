@@ -9,7 +9,7 @@
  * CYCLE-FREE / memory-equivalence gate. The routine's only output is memory (the flag), so each
  * case runs on a FRESH clone per side and the contract is:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * No register/flag survives for the caller (repaintScrollColumnsElseVerifySignature immediately returns after the call), so the
  * flag write is the whole contract. Because both tables live in ROM (read-only), the mismatch and
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_208c as oracle } from "../../translated/loc_208c.js";
 import { verifyRomSignature } from "../verifyRomSignature.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   SIGNATURE_SAMPLE_BASE,
@@ -50,10 +50,10 @@ const test = ROM_PRESENT
 const TARGET = 0x208c;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0); // crafted entries keep the reset SP 0, so no scratch cell lies below it
 
-function ramDiffMinusStack(ma, mb) {
-  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
+  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** A machine built from a (possibly mutated) ROM, with the flag pre-dirtied to 0xAA. */
@@ -99,7 +99,7 @@ test("CAPTURE: real 0x208c dispatches â€” verifyRomSignature == oracle in RAM (â
     const c = cap.clone();
     oracle(o);
     verifyRomSignature(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
   }
   console.log(`  CAPTURE: ${CAPS.length} real dispatch(es) checked`);

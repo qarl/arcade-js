@@ -10,7 +10,7 @@
  * uses a FRESH clone per side; the oracle runs on one clone, queueSoundCommand07 on another, and they are
  * compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) + the declared register live-out (A).
+ *     RAM (dumpState, minus stack scratch below the entry SP) + the declared register live-out (A).
  *
  * pc, SP and cycles are deliberately NOT compared. A IS a genuine live-out: the appender leaves
  * the advanced cursor in A (the AF pair is not saved across the call), and this tail hands that
@@ -39,7 +39,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0ef9 as oracle } from "../../translated/loc_0ef9.js";
 import { queueSoundCommand07 } from "../queueSoundCommand07.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   GAME_ACTIVE_FLAG,
   PLAY_MODE_LATCH,
@@ -59,9 +59,9 @@ const APPEND_TILE = 0x07;
 const RING_PAGE = 0x8a00; // the cursor's page base; a slot is RING_PAGE + cursor
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
-/** First RAM difference minus the STACK_SCRATCH region (neither side writes it here). */
+/** First RAM difference minus the stack scratch below the entry SP (neither side writes it here). */
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

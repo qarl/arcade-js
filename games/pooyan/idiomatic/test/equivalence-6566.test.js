@@ -13,7 +13,7 @@
  * which writes actor records), so every case runs the oracle on one fresh clone and the
  * module on another and compares on the go-forward contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * There is NO register live-out: the only caller tail-dispatches this handler and reloads
  * its own pointers afterward, so no register survives as an input to a successor. pc / sp
@@ -48,7 +48,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6566 as oracle } from "../../translated/loc_6566.js";
 import { animateActorGroupGrowShrink } from "../animateActorGroupGrowShrink.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -70,10 +70,10 @@ const DIVERT_A = 0x8df9;       // TAMPER_STRIKES_TERMINATOR — must be 0 for a 
 const DIVERT_B = 0x89e5;       // BOARD_CLEAR_FLAG — must be 0 for a shallow render
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
-/** First RAM difference minus the STACK_SCRATCH region. */
+/** First RAM difference minus the stack scratch below the entry SP. */
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

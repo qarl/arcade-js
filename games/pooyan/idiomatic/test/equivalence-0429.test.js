@@ -9,7 +9,7 @@
  * WRITES RAM, so every case runs the oracle on one FRESH clone and splitBcdByte on another,
  * compared on the go-forward contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH)  +  the declared return value.
+ *     RAM (dumpState, minus stack scratch below the entry SP)  +  the declared return value.
  *
  * pc/SP are deliberately NOT compared: the oracle drives pc through the ROM with m.step and
  * pops a return address with m.ret (SP+2), the modelled call/stack ABI the direct-call
@@ -42,7 +42,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0429 as oracle } from "../../translated/loc_0429.js";
 import { splitBcdByte } from "../splitBcdByte.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -54,7 +54,7 @@ const test = ROM_PRESENT
 
 const TARGET = 0x0429;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 // Crafted pointers: a work-RAM source byte (the score table lives at 0x8a00), a video-RAM
 // tile cell as the cursor, and the fixed 0x20 inter-digit stride the score renderer uses.
@@ -62,11 +62,11 @@ const SRC = 0x8a00;
 const DST = 0x8500;
 const ADVANCE = 0x0020;
 
-/** First RAM difference on the go-forward contract: dumpState minus the dead STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
+/** First RAM difference on the go-forward contract: dumpState minus the dead stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** A crafted entry machine: ix->source byte, hl->cursor, de->stride, sp parked in dead scratch. */
@@ -75,7 +75,7 @@ function craft(byte) {
   base.regs.ix = SRC;
   base.regs.hl = DST;
   base.regs.de = ADVANCE;
-  base.regs.sp = 0x8fe0; // inside STACK_SCRATCH: the ret's pop reads dead, diff-excluded RAM
+  base.regs.sp = 0x8fe0; // inside STACK_SCRATCH: the ret only pops (reads) the word at SP
   base.mem.write8(SRC, byte & 0xff);
   return base;
 }
@@ -133,7 +133,7 @@ test("CAPTURED: real 0x0429 dispatches in an attract boot replay identically (if
     const c = cap.clone();
     oracle(o);
     const [high, next] = splitBcdByte(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} mine=${d.b}`);
     assert.equal(high, o.regs.a, "captured high digit mismatch");
     assert.equal(next, o.regs.hl, "captured advanced cursor mismatch");

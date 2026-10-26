@@ -9,7 +9,7 @@
  * has no live sub-timer (ACTOR_TABLE+0x1e == 0).
  *
  * The routine takes NO register inputs (the oracle seats ix/iy/a from constants), so every case is
- * a memory poke. Compared on RAM (dumpState) minus STACK_SCRATCH; SP is parked in STACK_SCRATCH so
+ * a memory poke. Compared on RAM (dumpState) minus stack scratch below the entry SP; SP is parked in STACK_SCRATCH so
  * the oracle's ret drop falls out of the diff. Input-port values are read from the shared clone, so
  * both sides read the same byte regardless of whether the port cell is writable.
  *
@@ -26,7 +26,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1042 as oracle } from "../../translated/loc_1042.js";
 import { generatePlayerControlInput } from "../generatePlayerControlInput.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   LAUNCH_ARMED_FLAG,
@@ -52,7 +52,7 @@ const SP0 = 0x8ff0; // inside STACK_SCRATCH
 const CONTROL_BIT4 = 0x10;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

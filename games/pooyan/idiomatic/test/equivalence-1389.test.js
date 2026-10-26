@@ -8,7 +8,7 @@
  * CYCLE-FREE / memory-equivalence gate (docs/decompiler-pipeline). The routine WRITES RAM (via the
  * helper), so each case runs the oracle on one FRESH clone and restartActorAnimIfFlagBit0Set on another, compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * The live-out is MEMORY ONLY. pc/SP are not compared. No register is a consumed result: the guard
  * only tests a bit and the helper writes record fields; the arm path ends in the shared animation
@@ -36,7 +36,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1389 as oracle } from "../../translated/loc_1389.js";
 import { restartActorAnimIfFlagBit0Set } from "../restartActorAnimIfFlagBit0Set.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ACTOR_TABLE, ANIM_TABLE_3829 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -51,7 +51,7 @@ const ANIM_LO = ANIM_TABLE_3829 & 0xff;
 const ANIM_HI = (ANIM_TABLE_3829 >> 8) & 0xff;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

@@ -8,7 +8,7 @@
  * data, so the oracle traps (a tail-jump the frozen layer models as a throw), and the module throws.
  *
  * The leaf is NOT reached in a normal boot/attract (the board-clear flag stays 0, so its caller never
- * tail-jumps here), so every case is CRAFTED. Contract: RAM only (dumpState minus STACK_SCRATCH).
+ * tail-jumps here), so every case is CRAFTED. Contract: RAM only (dumpState minus stack scratch below the entry SP).
  * The routine's ONLY write is the gate increment; the exit register/flags differ by path and no
  * caller consumes them (the caller's slot loop ignores the result), so no register is a live-out.
  *
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3278 as oracle } from "../../translated/loc_3278.js";
 import { verifyPlayfieldTileChecksum } from "../verifyPlayfieldTileChecksum.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -47,7 +47,7 @@ const TABLE = 0x68eb;     // four-entry expected-sum table in ROM
 const END_PAGE = 0x88;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, STACK_SCRATCH.hi - 0x10);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

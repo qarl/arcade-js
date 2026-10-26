@@ -7,7 +7,7 @@
  * (hl),0 + ldir), then paint 0x1d rows of 0x1d tiles of 0x10 from 0x8442 (+0x20 per row).
  *
  * Cycle-free memory-equivalence gate (docs/decompiler-pipeline): a FRESH clone per side, compared
- * on RAM (dumpState, minus STACK_SCRATCH). pc/SP/cycles are NOT compared. reinitRoundArenaAndPlayfieldIfImageIntact is reached by
+ * on RAM (dumpState, minus stack scratch below the entry SP). pc/SP/cycles are NOT compared. reinitRoundArenaAndPlayfieldIfImageIntact is reached by
  * tail transfer from the ROM integrity guards and its exit registers are init scratch no caller
  * consumes — the contract is RAM only. The oracle's rst-0x10 `push16`s land in STACK_SCRATCH, which
  * the idiomatic direct calls skip — excluded by contract.
@@ -34,7 +34,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_67df as oracle } from "../../translated/loc_67df.js";
 import { reinitRoundArenaAndPlayfieldIfImageIntact } from "../reinitRoundArenaAndPlayfieldIfImageIntact.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ROUND_IN_PROGRESS, PHASE_TIMER, PLAY_STATE_INDEX, ACTOR_TABLE, SHARED_FRAME_DELAY_TIMER } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -57,7 +57,7 @@ const PAINT_TILE = 0x10; //       the blank tile painted
 const PAINT_SPAN = 0x1d; //       tiles per row and rows
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

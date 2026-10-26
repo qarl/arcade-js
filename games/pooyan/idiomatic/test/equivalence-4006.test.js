@@ -7,7 +7,7 @@
  * byte2 -> +0x0e new hold), after which the advanced pointer is stored back.
  *
  * CYCLE-FREE / memory-equivalence gate: the routine WRITES RAM, so every case uses a FRESH clone per
- * side. The go-forward contract is RAM only (dumpState minus STACK_SCRATCH): the routine keeps all
+ * side. The go-forward contract is RAM only (dumpState minus stack scratch below the entry SP): the routine keeps all
  * its state in the record (the advanced stream pointer is written back to +0x0c:+0x0d), and neither
  * of the oracle's two ret paths leaves a consistent register a caller consumes — the sole caller
  * site loops on IX and never reads a result register — so no register is a live-out.
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_4006 as oracle } from "../../translated/loc_4006.js";
 import { advanceObjectAnimationFrame } from "../advanceObjectAnimationFrame.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, SPRITE_OBJECT_TABLE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -48,13 +48,13 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const lo = (a) => a & 0xff;
 const hi = (a) => (a >> 8) & 0xff;
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, STACK_SCRATCH.hi - 0x10);
 
-/** First RAM difference on the go-forward contract: whole dump minus STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
+/** First RAM difference on the go-forward contract: whole dump minus stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 // -- crafted scenarios --------------------------------------------------------
@@ -117,7 +117,7 @@ test("CAPTURE: real 0x4006 dispatches — module == oracle in RAM (−stack)", (
     const c = cap.clone();
     oracle(o);
     advanceObjectAnimationFrame(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
   }
   console.log(`  CAPTURE: ${CAPS.length} real dispatch(es) checked`);

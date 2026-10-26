@@ -9,7 +9,7 @@
  * land in STACK_SCRATCH and drop from the diff.
  *
  * LIVE-OUT: none — a void delegator. The next thing its caller runs re-initialises its registers, so
- * nothing the walk leaves behind is read back. Fidelity = RAM (dumpState) minus STACK_SCRATCH.
+ * nothing the walk leaves behind is read back. Fidelity = RAM (dumpState) minus stack scratch below the entry SP.
  *
  * The per-record probe is the +0x0e frame-hold byte (a ticked live record decrements it). Records are
  * tick state 2 with the drawn-flag open, so each merely steps and continues; a plain boot does not
@@ -31,7 +31,7 @@ import { loc_7625 as oracle } from "../../translated/loc_7625.js";
 import { advanceFirstGroupEnemyActorStates } from "../advanceFirstGroupEnemyActorStates.js";
 import { advanceEnemyActorStateWalk } from "../advanceEnemyActorStateWalk.js"; // for the wrong-count teeth twins
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ENEMY_ACTOR_TABLE, OBJECT_DRAWN_FLAG } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -52,7 +52,7 @@ const SP0 = 0x8ff8;
 const CALLER_RET = 0xabcd;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0 - 2); // entry SP: the seat pushes the caller's return word below SP0
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

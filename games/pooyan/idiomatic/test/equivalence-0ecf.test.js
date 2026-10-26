@@ -6,7 +6,7 @@
  * (0x8a40, an index onto the page-0x8a00 ring) and advances that pointer, wrapping 0x5e->0x43.
  *
  * Cycle-free memory-equivalence gate: a fresh clone per side, compared on RAM (dumpState,
- * minus STACK_SCRATCH). The routine's live-out is MEMORY ONLY — the filled slot plus the
+ * minus stack scratch below the entry SP). The routine's live-out is MEMORY ONLY — the filled slot plus the
  * advanced write pointer. The oracle also leaves A==0 and its xor-a flags, but none of the
  * four callers (stampSecondScrollColumn/705f/0b32/7fd6) reads A or the flags back after the call (each
  * overwrites A or jumps away), so A/flags are not part of the contract and are not compared.
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0ecf as oracle } from "../../translated/loc_0ecf.js";
 import { queueSoundCommand00 } from "../queueSoundCommand00.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -44,7 +44,7 @@ const TAIL_LAST = 0x5e;
 const COMMAND = 0x00; // silence
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

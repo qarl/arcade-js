@@ -6,7 +6,7 @@
  * SEATING: BALANCED (plain ret, net SP 0). The module calls its two idiomatic siblings directly;
  * the oracle drives the two translated siblings through the routines map. runPhase1LauncherThenDriver is a void
  * sequencer — no register survives (both callers overwrite/ignore the register file), so the
- * register file is not compared; equivalence is RAM (dumpState) minus STACK_SCRATCH, with SP parked
+ * register file is not compared; equivalence is RAM (dumpState) minus stack scratch below the entry SP, with SP parked
  * in STACK_SCRATCH so each sub-pass's nested pushes drop out of the diff.
  *
  * The crafted state keeps both sub-passes in a bounded branch: the launcher's countdown is left
@@ -34,7 +34,7 @@ import { runPhase1LauncherThenDriver } from "../runPhase1LauncherThenDriver.js";
 import { launchNextScriptedObjectOnDelay } from "../launchNextScriptedObjectOnDelay.js";
 import { drivePhase1RecordsThenCheckCompletion } from "../drivePhase1RecordsThenCheckCompletion.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -57,7 +57,7 @@ const ACTORS = 0x0e; //     records swept (14)
 const SP0 = 0x8ff0; //      inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

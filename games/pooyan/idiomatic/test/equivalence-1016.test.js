@@ -5,7 +5,7 @@
  *
  * The module dissolves all ten m.call sites to direct idiomatic calls; the oracle drives the same
  * ten frozen handlers through the routines map. This gate COMPOSES the real idiomatic subtree and
- * checks oracle == module in RAM (dumpState, minus STACK_SCRATCH). runActivePlayFrame has no register
+ * checks oracle == module in RAM (dumpState, minus stack scratch below the entry SP). runActivePlayFrame has no register
  * live-out (it consumes none of the handlers' results), so only RAM is compared; SP sits in dead stack.
  *
  * Two arms are seated: an idle boot state (the composition is exercised with a near-empty footprint)
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1016 as oracle } from "../../translated/loc_1016.js";
 import { runActivePlayFrame } from "../runActivePlayFrame.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   SOUND_RING_READ_PTR,
@@ -51,7 +51,7 @@ const QUEUED_ENTRY = 0x12; //   a non-empty queued sound byte
 const SLOT_EMPTY = 0xff; //     empty-slot marker after a drain
 const SP0 = 0x8ff8; //          inside STACK_SCRATCH
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

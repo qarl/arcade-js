@@ -10,7 +10,7 @@
  * its epilogue through a pushed 0x7fd6 the handler ret pops; the module calls the idiomatic handler and
  * the idiomatic epilogue directly. Both leave identical game RAM (the trampoline touches only the
  * stack + the ROM table, and the idiomatic handlers/epilogue are memory-equivalent to their oracles by
- * their own gates). This test proves that on RAM (dumpState, minus STACK_SCRATCH). The epilogue is kept
+ * their own gates). This test proves that on RAM (dumpState, minus stack scratch below the entry SP). The epilogue is kept
  * shallow by parking CREDIT_COUNT (0x8802)=0 so startGameOnStartButtonPress bails at its first gate.
  *
  * Jobs:
@@ -32,7 +32,7 @@ import { dispatchWriteAnimStateAndPollStart } from "../dispatchWriteAnimStateAnd
 import { loc_7eb2 as oracle7eb2 } from "../../translated/loc_7eb2.js";
 import { loc_7f5d as oracle7f5d } from "../../translated/loc_7f5d.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, RESET_SCAN_LATCH, HIGH_SCORE_INSERT_RANK, WRITE_ANIM_HANDLER_SELECT } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -43,10 +43,10 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "skip
 const TARGET = 0x7e94;
 const CREDIT_COUNT = 0x8802; // startGameOnStartButtonPress bails while this is 0 -> shallow epilogue
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
-function ramDiffMinusStack(ma, mb) {
-  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
+  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** A machine at a chosen gate/selector, with the epilogue parked shallow (credits 0) and a small pass
@@ -72,7 +72,7 @@ test("CAPTURE: real 0x7e94 passes replay identically (if reached)", () => {
   for (const cap of caps) {
     const o = cap.clone(); const c = cap.clone();
     oracle(o); dispatchWriteAnimStateAndPollStart(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
   }
   console.log(`  CAPTURE: ${caps.length} real 0x7e94 pass(es) replayed identically`);

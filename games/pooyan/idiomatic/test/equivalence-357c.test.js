@@ -9,7 +9,7 @@
  * SEATING: BALANCED — one plain ret (below-threshold) and three tail-jps (exact-hit guard, the two
  * animation scripts) reusing the caller's frame; no net SP move, so the routine WIREs. LIVE-OUT is
  * none: it is a dispatched state handler whose caller reloads A, so no register survives;
- * equivalence is RAM (dumpState) minus STACK_SCRATCH, SP parked in STACK_SCRATCH.
+ * equivalence is RAM (dumpState) minus stack scratch below the entry SP, SP parked in STACK_SCRATCH.
  *
  * Cases are CRAFTED: a plain boot does not seat the lane/round/record geometry. The alternate-lane
  * cases seat their own RAM table so hit/no-hit is deterministic; the exact-hit case seats B >= 0x20
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_357c as oracle } from "../../translated/loc_357c.js";
 import { resolveTargetColumnAndArmApproach } from "../resolveTargetColumnAndArmApproach.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -58,7 +58,7 @@ const SCRIPT_B_LO = 0x56; // ANIM_TABLE_3856 low byte
 const SP0 = 0x8ff0; // inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

@@ -10,7 +10,7 @@
  * form; a returned generator in the idiomatic form).
  *
  * This is the CYCLE-FREE / memory-equivalence gate. The contract is RAM (dumpState, minus
- * STACK_SCRATCH) with NO register live-out (the routine transfers into the main loop and no register
+ * stack scratch below the entry SP) with NO register live-out (the routine transfers into the main loop and no register
  * survives as a consumed value), PLUS one dedicated cell:
  *
  *   THE SELF-TEST TALLY (0x8FFF) IS LOAD-BEARING BUT LIVES INSIDE STACK_SCRATCH. The frozen boot sets
@@ -42,7 +42,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0092 as oracle } from "../../translated/loc_0092.js";
 import { runSelfTestAndInitMachineState } from "../runSelfTestAndInitMachineState.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -60,9 +60,9 @@ const TALLY_ADDR = 0x8fff;
 const FULL_PASS = 0x10; // bank count + eight matches on an intact image
 const MAIN_LOOP_ADDR = 0x020f;
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x9000);
 
-/** First RAM difference minus the STACK_SCRATCH region (the frozen boot's transient stack). */
+/** First RAM difference minus the stack scratch below the entry SP (the frozen boot's transient stack). */
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

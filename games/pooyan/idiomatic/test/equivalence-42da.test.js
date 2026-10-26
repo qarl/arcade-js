@@ -10,7 +10,7 @@
  * The frozen oracle does NOT (yet) carry the boolean protocol, so its skip is read from the STACK
  * DELTA: a plain `ret` moves SP +2, the `pop af; ret` moves it +4. The module composes the real
  * idiomatic callees (fetchWordFromTableIndex + storeActorAnimationPointer + setActorAnimation); equivalence is RAM
- * (dumpState) minus STACK_SCRATCH. initDescendingObjectSlot has no register live-out — moveFormationAndSpawnObject reloads its own.
+ * (dumpState) minus stack scratch below the entry SP. initDescendingObjectSlot has no register live-out — moveFormationAndSpawnObject reloads its own.
  *
  * Jobs:
  *   1. EQUAL — busy (no writes, true) and free (full init, false): oracle == module in RAM (−stack),
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_42da as oracle } from "../../translated/loc_42da.js";
 import { initDescendingObjectSlot } from "../initDescendingObjectSlot.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ROUND_COUNTER, SPAWN_OBJECT_TABLE, ENEMY_ACTOR_TABLE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -46,7 +46,7 @@ const RET_LO = 0xfffc; //             word at SP0 (own return, discarded on the 
 const RET_HI = 0xfffa; //             word at SP0+2 (the caller's caller, ret'd to on the skip path)
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

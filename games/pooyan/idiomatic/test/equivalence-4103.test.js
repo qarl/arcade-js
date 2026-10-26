@@ -8,7 +8,7 @@
  * (0x8a38) unless the running total hits the intact sentinel (low 0x67, one carry).
  *
  * Cycle-free memory-equivalence gate: a fresh clone per side, compared on RAM (dumpState,
- * minus STACK_SCRATCH). No register/flag live-out is declared: advanceObjectPhaseThenAuditChecksum has no direct m.call
+ * minus stack scratch below the entry SP). No register/flag live-out is declared: advanceObjectPhaseThenAuditChecksum has no direct m.call
  * caller (it is reached by table dispatch on the object state), so no consuming site can be
  * read off the frozen layer; its exit A/flags/HL are treated as scratch. See the batch notes.
  *
@@ -36,7 +36,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_4103 as oracle } from "../../translated/loc_4103.js";
 import { advanceObjectPhaseThenAuditChecksum } from "../advanceObjectPhaseThenAuditChecksum.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -55,7 +55,7 @@ const FRAME_COUNTER = 0x8a5f;
 const TAMPER_STRIKES_SIG = 0x8a38;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

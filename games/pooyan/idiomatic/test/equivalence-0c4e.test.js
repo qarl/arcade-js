@@ -5,7 +5,7 @@
  * Runs the handler for the play-state index (three states) via an idiomatic switch, then runs the
  * post-dispatch continuation (startSelectedPlayerGameConsumingCredits) which returns to the caller. The
  * oracle drives the frozen rst-0x28 trampoline + the same handlers, so equivalence is RAM (dumpState)
- * minus STACK_SCRATCH.
+ * minus stack scratch below the entry SP.
  *
  * The crafted state seats sub-state 0 (primeTileFillCursorAndAdvanceBoardBuild: clear scratch, seat the fill cursor, bump the
  * sub-state, clear the board-init RAM) — a self-contained handler whose memory footprint is stable.
@@ -26,7 +26,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0c4e as oracle } from "../../translated/loc_0c45.js";
 import { dispatchBoardBuildSubstate } from "../dispatchBoardBuildSubstate.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, PLAY_STATE_INDEX } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -41,7 +41,7 @@ const CALLER_RET = 0xfffc; // the continuation's ret lands pc here (moved +2 / o
 const STATE_0 = 0x00; //      dispatch -> primeTileFillCursorAndAdvanceBoardBuild
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

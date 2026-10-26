@@ -4,7 +4,7 @@
  * actor, reached by `jp z,0x3b87` from advanceEnemyActorMotion's mover.
  *
  * SEATING: BALANCED — record base in IX (param default m.regs.ix). A void handler: no caller reads a
- * register back, so LIVE-OUT is memory only and the comparison is RAM (dumpState) minus STACK_SCRATCH.
+ * register back, so LIVE-OUT is memory only and the comparison is RAM (dumpState) minus stack scratch below the entry SP.
  * SP parked in STACK_SCRATCH. Not a dispatcher, no register bridge.
  *
  * Crafted paths: (+8) bit0 set -> the vertical mover (advanceEnemyVerticalAndDispatchByAltitude, kept inert via statenz); (+8) bit0
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3b87 as oracle } from "../../translated/loc_3b87.js";
 import { advanceTravelingEnemyToArrival } from "../advanceTravelingEnemyToArrival.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -44,7 +44,7 @@ const WAVE_PROGRESS = 0x8d7d;
 const LANE_SPAWN = 0x8d75;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

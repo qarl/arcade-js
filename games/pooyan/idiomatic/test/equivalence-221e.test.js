@@ -6,7 +6,7 @@
  * CYCLE-FREE / memory-equivalence gate (docs/decompiler-pipeline). The routine writes work RAM, so
  * every case uses a FRESH clone per side, compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) + the declared register live-out (HL, B, A).
+ *     RAM (dumpState, minus stack scratch below the entry SP) + the declared register live-out (HL, B, A).
  *
  * The live-out is derived FROM THE ORACLE's exit state: the fill helper leaves HL = base + 0x18
  * (advanced pointer) and drains B to 0 (its djnz), and `xor a` leaves A = 0 (the cleared fill value);
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_221e as oracle } from "../../translated/loc_221e.js";
 import { clearTargetActorRecord } from "../clearTargetActorRecord.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -42,7 +42,7 @@ const test = ROM_PRESENT
 
 const RECORD_LEN = 0x18;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

@@ -8,7 +8,7 @@
  * siblings.
  *
  * resetToAttractScreenStart is a void attract handler — no register survives — so equivalence is RAM (dumpState)
- * minus STACK_SCRATCH, SP parked in dead stack. The checksum path is fixed by the ROM (an intact ROM
+ * minus stack scratch below the entry SP, SP parked in dead stack. The checksum path is fixed by the ROM (an intact ROM
  * leaves the tamper flag clear), so a single capture-clone-replay exercises the whole body.
  *
  * Jobs:
@@ -26,7 +26,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_08b3 as oracle } from "../../translated/loc_08b3.js";
 import { resetToAttractScreenStart } from "../resetToAttractScreenStart.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ATTRACT_SUBSTATE, GAME_ACTIVE_FLAG } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -41,7 +41,7 @@ const CALLER_RET = 0xfffc; // the final ret pops this dead-stack word
 const SUB0 = 0x03; //         a known sub-state to watch advance to 0x04
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

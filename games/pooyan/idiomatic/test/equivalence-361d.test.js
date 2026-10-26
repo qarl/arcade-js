@@ -3,7 +3,7 @@
  * Memory-equivalence test for dispatchEndOfMoveIfFlagged (ROM 0x361d, Pooyan) — the actor end-of-move guard.
  *
  * The cycle-free / memory-equivalence gate (docs/decompiler-pipeline): a fresh clone per side, the
- * oracle on one and dispatchEndOfMoveIfFlagged on the other, compared on RAM (dumpState, minus STACK_SCRATCH) PLUS the
+ * oracle on one and dispatchEndOfMoveIfFlagged on the other, compared on RAM (dumpState, minus stack scratch below the entry SP) PLUS the
  * declared register live-out A. pc/SP/cycles are deliberately not compared.
  *
  * INPUT: IX (the actor record base). The guard tests bit 0 of the flag byte (rec+8): clear returns
@@ -36,7 +36,7 @@ import { loc_361d as oracle } from "../../translated/loc_361d.js";
 import { dispatchEndOfMoveIfFlagged } from "../dispatchEndOfMoveIfFlagged.js";
 import { finishActorOrArmTurnaround } from "../finishActorOrArmTurnaround.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, PLAY_STATE_INDEX } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -51,7 +51,7 @@ const SENTINEL_A = 0x99; // seated in A so a stray write to the A live-out would
 const REC_ANIM_LO = 0x0c; // finishActorOrArmTurnaround's turn-around arm writes rec+0x0c..0x0e
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

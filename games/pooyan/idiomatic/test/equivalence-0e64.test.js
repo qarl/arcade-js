@@ -8,7 +8,7 @@
  *
  * This is the CYCLE-FREE / memory-equivalence gate. The routine WRITES work RAM (the ring),
  * so every case runs the oracle on one fresh clone and drainSoundCommandRing on another, compared on the
- * go-forward contract: RAM (dumpState, minus STACK_SCRATCH). There is NO register live-out —
+ * go-forward contract: RAM (dumpState, minus stack scratch below the entry SP). There is NO register live-out —
  * both callers drop the registers (runVblankNmiService reloads, runLevelIntroPhase1Frame returns) — so no register is
  * compared. The dispatch DECISION, however, is invisible in dumpState (a sound command goes
  * to the 0xa100 latch, outside dumpState's RAM window), so it is checked separately through
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0e64 as oracle } from "../../translated/loc_0e64.js";
 import { drainSoundCommandRing } from "../drainSoundCommandRing.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   SOUND_RING_READ_PTR,
@@ -51,7 +51,7 @@ const test = ROM_PRESENT
 const SLOT_EMPTY = 0xff;
 const SND_SENTINEL = 0xab; // pre-seeded io.soundData; survives iff the entry is NOT dispatched
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

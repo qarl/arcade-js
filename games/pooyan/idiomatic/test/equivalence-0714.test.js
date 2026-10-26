@@ -11,7 +11,7 @@
  *
  * LIVE-OUT is three registers — A (last byte copied), DE (advanced position cursor), IX
  * (advanced attribute cursor) — read straight back by the register-dispatched caller, so a
- * standing register arm compares each alongside RAM (dumpState) minus STACK_SCRATCH. HL/B are
+ * standing register arm compares each alongside RAM (dumpState) minus stack scratch below the entry SP. HL/B are
  * not live-out (the caller reloads HL, B drains unread) and are not compared.
  *
  * Cases are CRAFTED: a plain boot does not seat this source/cursor/count geometry.
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0714 as oracle } from "../../translated/loc_0714.js";
 import { copySpriteAttrAndPositionRun } from "../copySpriteAttrAndPositionRun.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -48,7 +48,7 @@ const POS = 0x9010; // position cursor
 const SP0 = 0x8ff0; // inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

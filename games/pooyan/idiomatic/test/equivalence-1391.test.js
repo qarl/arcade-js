@@ -14,7 +14,7 @@
  * through the registry.
  *
  * Cycle-free / memory-equivalence gate: fresh clone per side, compared on RAM (dumpState, minus
- * STACK_SCRATCH) PLUS the register live-out A. pc/SP/cycles are NOT compared. A is derived from the
+ * stack scratch below the entry SP) PLUS the register live-out A. pc/SP/cycles are NOT compared. A is derived from the
  * behaviour: entry A on the guard path, matchActorScheduleThenSpawnOrAnimate's result on the dispatch path.
  *
  * NOTE: the dispatch cases compose the sibling idiomatic matchActorScheduleThenSpawnOrAnimate; they turn green once that module
@@ -34,7 +34,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1391 as oracle } from "../../translated/loc_1391.js";
 import { dispatchSpawnScheduleUnlessActorFlagged } from "../dispatchSpawnScheduleUnlessActorFlagged.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { u16 } from "../../../../core/int.js";
 import { STACK_SCRATCH, ROUND_COUNTER } from "../names.js";
 
@@ -50,7 +50,7 @@ const FLAG_FIELD = 0x08; // spawned-flag byte
 const STATE_FIELD = 0x06; // field the dispatch compares
 const SUBSTATE = 0x8d41; // low-nibble table key the dispatch reads
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ff0);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

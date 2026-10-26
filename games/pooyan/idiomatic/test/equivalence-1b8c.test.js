@@ -6,7 +6,7 @@
  * (enqueueDisplayCommand), run the shared integrity/timer handler (renderPlayTimerNibblesAndGuardChecksum), then latch the play sub-state index
  * (0x880a) to 0x0c and the phase timer (0x8808) to 0x60.
  *
- * The go-forward contract is RAM (dumpState, minus STACK_SCRATCH). pc/SP/cycles are NOT compared, and
+ * The go-forward contract is RAM (dumpState, minus stack scratch below the entry SP). pc/SP/cycles are NOT compared, and
  * there is no register live-out — the caller (dispatchInPlaySubState) tail-dispatches via jp (hl), so the handler's
  * ret returns upstream and no register/flag result is read back. The oracle uses the stack via m.call;
  * the idiomatic form spends none, so its STACK_SCRATCH stays clean — hence the exclusion.
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1b8c as oracle } from "../../translated/loc_1b8c.js";
 import { floodFieldAndLatchPlayStatePhaseTimer } from "../floodFieldAndLatchPlayStatePhaseTimer.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -45,7 +45,7 @@ const PHASE_TIMER = 0x8808;
 const FILL_VRAM = 0x8420; // a tile-region base for the deterministic row blank
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

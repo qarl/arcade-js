@@ -25,7 +25,7 @@ import { dispatchObjectStateHandler } from "../dispatchObjectStateHandler.js";
 import { advanceObjectPhaseThenAuditChecksum } from "../advanceObjectPhaseThenAuditChecksum.js";
 import { noopHighStateHandler } from "../noopHighStateHandler.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -39,10 +39,10 @@ const TARGET = 0x40d0;
 const REC = 0x8c30; // record base loc_40bd sweeps (IX for 0x40d0)
 const SP0 = 0x8fe0; // inside STACK_SCRATCH
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 
-function ramDiffMinusStack(ma, mb) {
-  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
+  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), dead);
 }
 function runGuarded(fn, m) {
   try { fn(m); return { threw: false }; } catch (e) { return { threw: true, msg: String(e && e.message) }; }
@@ -79,7 +79,7 @@ test("CAPTURE: real 0x40d0 dispatches replay identically (oracle vs module)", ()
     const rc = runGuarded(dispatchObjectStateHandler, c);
     assert.equal(ro.threw, rc.threw, `divergent control flow (oracle threw=${ro.threw} module threw=${rc.threw})`);
     if (!ro.threw) {
-      const d = ramDiffMinusStack(o, c);
+      const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
       assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
     }
   }

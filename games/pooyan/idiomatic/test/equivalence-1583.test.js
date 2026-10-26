@@ -6,7 +6,7 @@
  * state-3 dispatcher runPlayStateFrame.
  *
  * The module dissolves enqueueDisplayCommand and the runPlayStateFrame fall-through to direct calls; the oracle inlines
- * that same tail. tickHudRefresh is a void routine, so equivalence is RAM (dumpState) minus STACK_SCRATCH.
+ * that same tail. tickHudRefresh is a void routine, so equivalence is RAM (dumpState) minus stack scratch below the entry SP.
  *
  * Jobs:
  *   1. EQUAL — three reachable arms (no boundary, boundary/gate-off, boundary/dispatch) are
@@ -26,7 +26,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1583 as oracle } from "../../translated/loc_1583.js";
 import { tickHudRefresh } from "../tickHudRefresh.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -47,7 +47,7 @@ const SP0 = 0x8ff0; //          inside STACK_SCRATCH
 const CALLER_RET = 0xfffc; //   caller-return word the tail-delegate consumes
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

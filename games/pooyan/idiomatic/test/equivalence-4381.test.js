@@ -8,7 +8,7 @@
  * the advanced pointers are stored back to whichever pair was chosen. Fully self-contained (no calls).
  *
  * This is the cycle-free / memory-equivalence gate. The routine WRITES video RAM + pointer cells, so
- * every case uses a FRESH clone per side. Contract: RAM (dumpState, minus STACK_SCRATCH). paintDisplayListRunToVram
+ * every case uses a FRESH clone per side. Contract: RAM (dumpState, minus stack scratch below the entry SP). paintDisplayListRunToVram
  * takes no register inputs and leaves nothing live in a register for a reader (all results go to
  * memory), so pc/SP/cycles/registers are NOT compared. All inputs live in memory, so cases are
  * CRAFTED: identical pointer cells + source streams poked on both sides.
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_4381 as oracle } from "../../translated/loc_4381.js";
 import { paintDisplayListRunToVram } from "../paintDisplayListRunToVram.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -51,7 +51,7 @@ const ADST = 0x8600, ASRC = 0x8b40; // alternate work regions
 const FILL = 0xee; // pre-clear sentinel so each literal copy is a visible change
 const LIT = 0x42; // a literal that is neither 0x10 nor 0xff
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

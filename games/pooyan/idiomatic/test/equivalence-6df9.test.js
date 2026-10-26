@@ -8,7 +8,7 @@
  * ATTRACT_SUBSTATE, and rolls a 14-row (stride 0x20) checksum verified against the two bytes at the
  * INTRO_DELAY_CKSUM_WORD pointer. The module dissolves advanceAttractAnimationAndRepaint/advanceFourObjectAnimsAndRebuildList/runObjectAndEnemyActorUpdate to direct calls and
  * keeps the frozen 0x7442 tamper dispatcher; the oracle drives the frozen subtree. Both are compared in
- * RAM (dumpState, minus STACK_SCRATCH). paintAttractColumnWithTamperChecksum is void — no register survives — so only RAM is compared.
+ * RAM (dumpState, minus stack scratch below the entry SP). paintAttractColumnWithTamperChecksum is void — no register survives — so only RAM is compared.
  *
  * Reachable arms are seated: timer-counting (advanceAttractAnimationAndRepaint wrap + advanceFourObjectAnimsAndRebuildList + tick), byte-copy (timer expires,
  * step still counting), and the full checksum on a CLEAN-PASS (source byte 0 into a zeroed 14-row region,
@@ -33,7 +33,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6df9 as oracle } from "../../translated/loc_6df9.js";
 import { paintAttractColumnWithTamperChecksum } from "../paintAttractColumnWithTamperChecksum.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -57,7 +57,7 @@ const DST = 0x8c20; //          byte-copy destination = write cursor before the 
 const SP0 = 0x8ff0; //          inside STACK_SCRATCH
 const CALLER_RET = 0xfffc; //   caller's return word the seam completes on the moved-0 arm
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

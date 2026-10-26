@@ -9,7 +9,7 @@
  * The module calls the idiomatic enqueueDisplayCommand directly and keeps the tamper tail m.call(0x6df9) (an
  * unlifted anti-tamper clone, not in this batch); the oracle drives the same through the frozen
  * registry. advanceLevelIntroFromPhase3 is memory-only on every reachable exit (an intro-phase handler), so the register
- * file is not compared; equivalence is RAM (dumpState) minus STACK_SCRATCH.
+ * file is not compared; equivalence is RAM (dumpState) minus stack scratch below the entry SP.
  *
  * SP-TOOTH (R36): the tamper arm is a `return m.call(0x6df9)` tail. It is UNREACHABLE in a crafted
  * test — ROM is write-protected (a write throws), so a compare mismatch cannot be forced, and the
@@ -33,7 +33,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6f5e as oracle } from "../../translated/loc_6f5e.js";
 import { advanceLevelIntroFromPhase3 } from "../advanceLevelIntroFromPhase3.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -54,7 +54,7 @@ const SP0 = 0x8fe0; //        inside STACK_SCRATCH
 const CALLER_RET = 0xfffc; // a caller-return word for the seam
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

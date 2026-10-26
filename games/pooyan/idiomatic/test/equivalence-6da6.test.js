@@ -7,7 +7,7 @@
  *
  * The module runs the dispatch through an idiomatic switch; the oracle drives the same frozen
  * rst-0x28 trampoline + handler. dispatchLevelIntroPhase is a void dispatcher — no register survives — so
- * equivalence is RAM (dumpState) minus STACK_SCRATCH, SP parked in dead stack.
+ * equivalence is RAM (dumpState) minus stack scratch below the entry SP, SP parked in dead stack.
  *
  * The craft seats phase 3 -> handler loc_6f5e with the delay timer (0x8f48) mid-count and off world
  * 3, so the handler just decrements that timer and returns — a single observable footprint that
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6da6 as oracle } from "../../translated/loc_6da6.js";
 import { dispatchLevelIntroPhase } from "../dispatchLevelIntroPhase.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, INTRO_PHASE_INDEX } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -47,7 +47,7 @@ const SP0 = 0x8fe0; //         inside STACK_SCRATCH
 const CALLER_RET = 0xfffc; //  the handler's ret lands pc here (moved +2 -> placeable)
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

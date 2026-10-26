@@ -8,7 +8,7 @@
  * WRITES video RAM, so every case uses a FRESH clone per side. The oracle runs on one clone,
  * paintColumnBodyTilesUp on another, and they are compared on the go-forward contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * pc is deliberately NOT compared. HL is the routine's only input; the stride (-0x20) is baked
  * in, not passed. HL advances to start-0x40 but NO caller consumes it (the callers stampCappedTileColumnUp /
@@ -36,7 +36,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1cec as oracle } from "../../translated/loc_1cec.js";
 import { paintColumnBodyTilesUp } from "../paintColumnBodyTilesUp.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -51,9 +51,9 @@ const TILE_BASE = 0x20;
 const ROW = 0x20; // one tilemap row
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
-/** First RAM difference minus the STACK_SCRATCH region (neither side writes it here). */
+/** First RAM difference minus the stack scratch below the entry SP (neither side writes it here). */
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();
   const b = mb.dumpState();

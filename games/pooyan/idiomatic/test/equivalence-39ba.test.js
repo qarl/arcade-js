@@ -5,7 +5,7 @@
  *
  * SEATING: BALANCED. LIVE-OUT is memory only — the routine rets or tail-delegates (armActorDropAnimationNearTop,
  * resetActorSubstateAndReloadStateTimer, fireEnemyShotWhenAlignedWithPlayer, all decompiled this batch / verified); the comparison is RAM (dumpState)
- * minus STACK_SCRATCH. The register file is not compared.
+ * minus stack scratch below the entry SP. The register file is not compared.
  *
  * INPUT: IX (the actor record). The low position (+3) advances by the signed velocity (+0x0a),
  * borrowing one from the high byte (+4) on underflow. Crafted paths: no-borrow ret and borrow ret
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_39ba as oracle } from "../../translated/loc_39af.js";
 import { advanceEnemyVerticalAndDispatchByAltitude } from "../advanceEnemyVerticalAndDispatchByAltitude.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, WAVE_PROGRESS_COUNTER, LANE_SPAWN_COUNTDOWN } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -44,7 +44,7 @@ const REC_POSHIGH = 0x04;
 const REC_STATE = 0x07;
 const REC_VEL = 0x0a;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ff0);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

@@ -7,7 +7,7 @@
  * advanceActorTowardTargetColumn is reached by register dispatch (IX = the record). Its one register live-out is A on
  * the near bail (the actor column), written as a return-assignment for the frozen bridge; a tail
  * exit forwards its handler's own registers. So the register arm compares A on the near-bail arm;
- * equivalence otherwise is RAM (dumpState) minus STACK_SCRATCH, SP parked in dead stack.
+ * equivalence otherwise is RAM (dumpState) minus stack scratch below the entry SP, SP parked in dead stack.
  *
  * Crafted arms (record at REC, not latched, stage >= 3):
  *   - near-bail: extra-lane set + the skip-lookup flag clear -> range gate with a near column.
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_355b as oracle } from "../../translated/loc_355b.js";
 import { advanceActorTowardTargetColumn } from "../advanceActorTowardTargetColumn.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -54,7 +54,7 @@ const NEAR_COL = 0x0a; //        below the 0x14 range limit -> near bail
 const FAR_COL = 0x20; //         at/above 0x14 -> latch path
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

@@ -7,7 +7,7 @@
  * formation object-state dispatcher, then rebuild the sprite display list. It reads no
  * registers and returns none; LIVE-OUT is memory only (whatever the four passes write).
  *
- * Compared on RAM (dumpState) minus STACK_SCRATCH; SP is parked in STACK_SCRATCH so the
+ * Compared on RAM (dumpState) minus stack scratch below the entry SP; SP is parked in STACK_SCRATCH so the
  * oracle's push/ret traffic falls out of the diff. EQUAL is checked on a boot clone and on a
  * clone with a target record armed (bit0), which drives the first pass's per-object stepper.
  *
@@ -32,7 +32,7 @@ import { stepEnemyActorStates } from "../stepEnemyActorStates.js";
 import { dispatchFormationObjectStates } from "../dispatchFormationObjectStates.js";
 import { rebuildSpriteDisplayList } from "../rebuildSpriteDisplayList.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, TARGET_SCAN_COUNTER, SPRITE_DISPLAY_LIST, ENEMY_TARGET_REC0 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -46,7 +46,7 @@ const SP0 = 0x8ff0; // inside STACK_SCRATCH
 const LIST_PROBE = SPRITE_DISPLAY_LIST + 0x58; // a display-list byte the last pass always rewrites
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

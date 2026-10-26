@@ -24,7 +24,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_18af as oracle } from "../../translated/loc_18af.js";
 import { runActiveGameplayFrame } from "../runActiveGameplayFrame.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, PHASE_TIMER } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -37,7 +37,7 @@ const test = ROM_PRESENT
 const SP0 = 0x8fe0; // inside STACK_SCRATCH: the oracle's per-call push/pop lands in dead scratch
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

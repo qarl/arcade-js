@@ -7,7 +7,7 @@
  * CYCLE-FREE / memory-equivalence gate (docs/decompiler-pipeline). The routine WRITES RAM, so
  * each case runs the oracle on one FRESH clone and fillByteRun on another, compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH)  +  the declared register live-out (HL).
+ *     RAM (dumpState, minus stack scratch below the entry SP)  +  the declared register live-out (HL).
  *
  * pc/SP are NOT compared (the oracle drives them through the dropped call/stack ABI; neither is
  * in dumpState). HL — the advanced pointer start+count — IS a genuine live-out: a caller issues
@@ -37,7 +37,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0010 as oracle } from "../../translated/loc_0010.js";
 import { fillByteRun } from "../fillByteRun.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -48,7 +48,7 @@ const test = ROM_PRESENT
   : (name, fn) => nodeTest(name, { skip: "skipped: ROM not built — run 'make -C games/pooyan rom'" }, fn);
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

@@ -3,8 +3,8 @@
  * Memory-equivalence test for paintReadySpriteFromStackAdjustEntry (ROM 0x2bd2) — "stack-adjust entry into the ready-sprite painter".
  *
  * paintReadySpriteFromStackAdjustEntry's only machine act is an `inc sp` that discards a byte of the pushed return before
- * falling into paintReadySpriteSquareIfAbsent; that is a stack/return effect the memory model drops, so the memory
- * behaviour is exactly the painter's. The gate compares RAM (dumpState, minus STACK_SCRATCH);
+ * falling into paintReadySpriteSquareIfAbsent, whose call then pushes its return over that freed byte on the paint path.
+ * The gate compares RAM (dumpState) minus stack scratch below the oracle's exit SP, which drops the consumed bytes;
  * pc/SP/cycles are not compared, which is precisely why the stack adjust is invisible here.
  *
  * LIVE-OUT: none — memory only (the painter's four video cells, painted only when the anchor
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2bd2 as oracle } from "../../translated/loc_2bd2.js";
 import { paintReadySpriteFromStackAdjustEntry } from "../paintReadySpriteFromStackAdjustEntry.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, READY_SPRITE_TILE_VRAM } from "../names.js";
 
 const PAINTED_MARKER = 0xba; // anchor value that means "already present" -> no repaint
@@ -43,16 +43,18 @@ const test = ROM_PRESENT
   : (name, fn) => nodeTest(name, { skip: "skipped: ROM not built — run 'make -C games/pooyan rom'" }, fn);
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+// The oracle (ma, after its run) consumes its own return bytes (inc sp, then ret): cells below its exit SP are
+// dead to the caller, so the live frame starts at the higher of the entry SP and the oracle's exit SP.
 function ramDiffMinusStack(ma, mb) {
-  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  const dead = deadStackBelow(STACK_SCRATCH, Math.max(0x8fe0, ma.regs.sp));
+  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function craft(anchor) {
   const m = BASE.clone();
-  m.regs.sp = 0x8ffe; // the oracle's inc sp + nested calls stay within STACK_SCRATCH
+  m.regs.sp = 0x8fe0; // below the window top: the three bytes the oracle consumes (0x8fe0-0x8fe2) are dead, 0x8fe3 up is the compared caller frame
   m.mem8[READY_SPRITE_TILE_VRAM] = anchor;
   return m;
 }

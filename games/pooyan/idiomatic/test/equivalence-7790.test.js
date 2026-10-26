@@ -9,7 +9,7 @@
  * IX is an input (param default rec = m.regs.ix). The module dissolves advanceObjectAnimationFrame, fetchWordFromTableIndex,
  * paintTileBlock2x2Above and the clearAndReseedObjectSlot tail to direct calls;
  * the oracle drives the same helpers. drawObjectStackedTiles outputs no register — equivalence is RAM
- * (dumpState) minus STACK_SCRATCH, SP parked in dead stack.
+ * (dumpState) minus stack scratch below the entry SP, SP parked in dead stack.
  *
  * The record is seated with the animation on its hold-decrement arm and the sprite index < 5 so
  * clearAndReseedObjectSlot returns after its clear (no colour-RAM integrity chain). The screen pointer points into
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_7790 as oracle } from "../../translated/loc_7790.js";
 import { drawObjectStackedTiles } from "../drawObjectStackedTiles.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -53,7 +53,7 @@ const SP0 = 0x8ff0; //      inside STACK_SCRATCH
 const CALLER_RET = 0xfffc; // caller-return word at SP0; the seam completes the omitted ret (moved 0)
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

@@ -3,7 +3,7 @@
  * Memory-equivalence test for selectRoundDisplayListAndAdvancePhase (ROM 0x16b7, Pooyan) — the idx1 phase-timer state handler.
  *
  * SEATING: BALANCED (plain ret / call+ret) -> WIRE. Void handler: no caller reads a register back,
- * so LIVE-OUT is memory only and the comparison is RAM (dumpState) minus STACK_SCRATCH; nested
+ * so LIVE-OUT is memory only and the comparison is RAM (dumpState) minus stack scratch below the entry SP; nested
  * sub-routine pushes park in the dead stack (SP in STACK_SCRATCH) and drop out of the diff.
  *
  * Paths crafted: timer-not-expired early ret; attract branch (latch bit0 -> force sub-state 0x10);
@@ -21,7 +21,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_16b7 as oracle } from "../../translated/loc_16b7.js";
 import { selectRoundDisplayListAndAdvancePhase } from "../selectRoundDisplayListAndAdvancePhase.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   DISPLAY_MSG_BUF,
@@ -46,7 +46,7 @@ const PATTERN_ROM = 0x16ae;
 const SP0 = 0x8ff0;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

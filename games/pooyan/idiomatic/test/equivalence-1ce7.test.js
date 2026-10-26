@@ -26,7 +26,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1ce7 as oracle } from "../../translated/loc_1ce7.js";
 import { stampCappedTileColumnUp } from "../stampCappedTileColumnUp.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -44,7 +44,7 @@ const BASE_CELL = 0x84a0;
 const EXPECT = { [CAP_CELL]: 0x02, [MID_CELL]: 0x25, [BASE_CELL]: 0x20 };
 const CELLS = [CAP_CELL, MID_CELL, BASE_CELL];
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

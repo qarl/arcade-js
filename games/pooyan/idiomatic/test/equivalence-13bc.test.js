@@ -4,7 +4,7 @@
  * spawn a child there".
  *
  * The cycle-free / memory-equivalence gate (docs/decompiler-pipeline): a fresh clone per side, the
- * oracle on one and spawnChildActorIntoFreeSpriteSlot on the other, compared on RAM (dumpState, minus STACK_SCRATCH) PLUS
+ * oracle on one and spawnChildActorIntoFreeSpriteSlot on the other, compared on RAM (dumpState, minus stack scratch below the entry SP) PLUS
  * the declared register live-out A. pc/SP/cycles are deliberately not compared.
  *
  * INPUTS: IX (the parent record). The routine sets IY/DE/B itself as it scans the five 0x18-byte
@@ -36,7 +36,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_13bc as oracle } from "../../translated/loc_13bc.js";
 import { spawnChildActorIntoFreeSpriteSlot } from "../spawnChildActorIntoFreeSpriteSlot.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -59,7 +59,7 @@ const OCC = [0x01, 0x00]; //  an occupied slot (bit0 set)
 const FREE = [0x00, 0x00]; // a free slot (bit0 clear)
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

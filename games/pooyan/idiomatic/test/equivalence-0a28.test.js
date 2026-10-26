@@ -9,7 +9,7 @@
  * paint helper to a direct idiomatic call and the pure ROM frame-word lookup to an inline
  * little-endian read (no RAM effect, registers not read back), so it makes no marshalled call.
  * The oracle drives both through the routines map. LIVE-OUT is memory only, so the register file
- * is not compared; equivalence is RAM (dumpState) minus STACK_SCRATCH (SP parked there so the
+ * is not compared; equivalence is RAM (dumpState) minus stack scratch below the entry SP (SP parked there so the
  * oracle's pushes drop out of the diff).
  *
  * Jobs:
@@ -28,7 +28,7 @@ import { loc_0a28 as oracle } from "../../translated/loc_0a28.js";
 import { advanceAttractAnimationAndRepaint } from "../advanceAttractAnimationAndRepaint.js";
 import { paintTileBlock2x2 } from "../paintTileBlock2x2.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -46,7 +46,7 @@ const BOTTOM = 0x86aa; // ANIM_TILE_BLOCK_BOTTOM
 const SP0 = 0x8fe0; // inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 const blockCells = (dst) => new Set([dst, dst + 1, dst + 0x20, dst + 0x21]);
 

@@ -5,7 +5,7 @@
  * The module dispatches the formation phase through an idiomatic switch to the three phase handlers
  * and direct-calls the idiomatic epilogue (advanceWaveTeardownByState); the oracle drives the same handlers and
  * epilogue through the frozen rst-28 spine that new Machine(ROM) builds. dispatchFormationPhaseOrQueueLaunchSlots is a void manager — no register survives —
- * so the register file is not compared; equivalence is RAM (dumpState) minus STACK_SCRATCH, SP
+ * so the register file is not compared; equivalence is RAM (dumpState) minus stack scratch below the entry SP, SP
  * parked in dead stack so nested pushes drop out.
  *
  * Cases are CRAFTED: a plain boot does not seat these formation states. The dispatch case selects
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_308b as oracle } from "../../translated/loc_308b.js";
 import { dispatchFormationPhaseOrQueueLaunchSlots } from "../dispatchFormationPhaseOrQueueLaunchSlots.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -51,7 +51,7 @@ const COUNT = 0x11;
 const SP0 = 0x8ff0; // inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

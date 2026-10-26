@@ -7,7 +7,7 @@
  * oracle runs the translated driveAimIndicatorHitTimerElseRescan through m.call. Both must land byte-identical.
  *
  * The oracle's call/ret/rst-0x10 trampolines touch only STACK_SCRATCH (sp seated there),
- * excluded from the diff; the contract is RAM (dumpState, minus STACK_SCRATCH). No register
+ * excluded from the diff; the contract is RAM (dumpState, minus stack scratch below the entry SP). No register
  * is a live-out — runActiveGameplayFrame runs the next per-frame handler with its own registers — so RAM
  * is the whole contract. pc/sp/cycles are not compared.
  *
@@ -37,7 +37,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6cab as oracle } from "../../translated/loc_6cab.js";
 import { acquireTargetLockAndSetAimIndicator } from "../acquireTargetLockAndSetAimIndicator.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -68,7 +68,7 @@ const PTR_BLK = 0x8b42; //  scratch cell a lock's block pointer aims at
 const SP_SEAT = 0x8fe0; //  inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP_SEAT);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

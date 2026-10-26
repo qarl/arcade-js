@@ -23,7 +23,7 @@
  *   - captures the caller-oracle over-spawn as a defect tripwire that flips when the oracle is
  *     fixed, at which point the abort case can move into the raw-oracle diff loop.
  *
- * Fidelity contract: RAM (dumpState) minus STACK_SCRATCH. spawnEnemyOnBlinkCountdownSweep returns void; registers are
+ * Fidelity contract: RAM (dumpState) minus stack scratch below the entry SP. spawnEnemyOnBlinkCountdownSweep returns void; registers are
  * loop bookkeeping and are NOT compared. Cases are CRAFTED.
  *
  * Run: node --test games/pooyan/idiomatic/test/equivalence-6a0f.test.js
@@ -37,7 +37,7 @@ import { loc_6a0f as oracle } from "../../translated/loc_6a0f.js";
 import { spawnEnemyOnBlinkCountdownSweep } from "../spawnEnemyOnBlinkCountdownSweep.js";
 import { loc_6a35 as oracle35 } from "../../translated/loc_6a35.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -58,7 +58,7 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
 const rec = (n) => (TABLE + n * STRIDE) & 0xffff;
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

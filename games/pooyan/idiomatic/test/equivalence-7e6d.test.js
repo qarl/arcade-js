@@ -6,7 +6,7 @@
  * TAMPER_STRIKES_ROM. On an intact ROM the signature is clean, so the bump is unreachable — the only
  * observable effects are the two gates (which suppress everything) and the tamper write itself.
  *
- * Contract compared: RAM (dumpState, minus STACK_SCRATCH). No register live-out — every exit is a
+ * Contract compared: RAM (dumpState, minus stack scratch below the entry SP). No register live-out — every exit is a
  * plain ret with nothing read back — so the register file is not compared. The bump cannot fire with
  * a valid ROM (ROM is not writable in a clone), so the teeth prove the (carries + sum) & 0xb0 guard is
  * load-bearing: a twin that drops it spuriously bumps the counter where the oracle does not.
@@ -26,7 +26,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_7e6d as oracle } from "../../translated/loc_7e6d.js";
 import { bumpTamperStrikeOnRomChecksumMiss } from "../bumpTamperStrikeOnRomChecksumMiss.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, PLAYER1_LIVES, FRAME_COUNTER, TAMPER_STRIKES_ROM } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -37,7 +37,7 @@ const test = ROM_PRESENT
   : (name, fn) => nodeTest(name, { skip: "skipped: ROM not built — run 'make -C games/pooyan rom'" }, fn);
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

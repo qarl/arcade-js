@@ -9,7 +9,7 @@
  * Cycle-free memory-equivalence gate (docs/decompiler-pipeline). Each case runs the oracle on one
  * FRESH clone and the module on another, compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * There is NO register live-out: the enqueue helper round-trips BC/DE/HL and every use site reloads
  * A, so A is not a consumed live-out (the sound-ring modules established this). The write pointer is
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5f02 as oracle } from "../../translated/loc_5f02.js";
 import { queueHitSound } from "../queueHitSound.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, SOUND_RING_WRITE_PTR, HIGH_SCORE_TABLE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -45,7 +45,7 @@ const RING_FIRST = 0x43;
 const RING_LAST = 0x5e;
 const SOUND_CMD = 0x05; // the fixed command this entry enqueues
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ff0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

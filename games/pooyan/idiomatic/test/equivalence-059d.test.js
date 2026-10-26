@@ -9,7 +9,7 @@
  * case runs the oracle on one FRESH clone and the module on another, compared on the go-forward
  * contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH)  +  the two live-outs { next, blankBudget }.
+ *     RAM (dumpState, minus stack scratch below the entry SP)  +  the two live-outs { next, blankBudget }.
  *
  * The caller (resetBcdCounterAndRepaintColumn) threads BOTH the advanced cursor (IX) and the blank budget (C) across
  * the digits of a field without reloading them, so the module's { next, blankBudget } is compared
@@ -33,7 +33,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_059d as oracle } from "../../translated/loc_059d.js";
 import { renderDigitWithBlanking } from "../renderDigitWithBlanking.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -47,13 +47,13 @@ const TARGET = 0x059d;
 const DST = 0x8500; //     a video-RAM tile cell as the cursor
 const STRIDE = 0xffe0; //  the score renderer's -0x20 row stride
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
-/** First RAM difference on the go-forward contract: dumpState minus the dead STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
+/** First RAM difference on the go-forward contract: dumpState minus the dead stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** A crafted entry machine: ix->cursor, de->stride, A=digit source, C=blank budget. */
@@ -63,7 +63,7 @@ function craft(digit, budget) {
   base.regs.de = STRIDE;
   base.regs.a = digit & 0xff;
   base.regs.c = budget & 0xff;
-  base.regs.sp = 0x8fe0; // dead scratch: the oracle's ret pops from diff-excluded RAM
+  base.regs.sp = 0x8fe0; // dead scratch: the oracle's ret only pops (reads) the word at SP
   return base;
 }
 
@@ -118,7 +118,7 @@ test("CAPTURED: real 0x059d dispatches in a boot replay identically (if reached)
     const c = cap.clone();
     oracle(o);
     const ret = renderDigitWithBlanking(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} mine=${d.b}`);
     assert.equal(ret[0], o.regs.ix, "captured advanced cursor mismatch");
     assert.equal(ret[1], o.regs.c, "captured blank budget mismatch");

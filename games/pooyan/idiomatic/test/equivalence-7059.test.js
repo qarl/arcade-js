@@ -4,7 +4,7 @@
  * DE := 0x0315 and rst 0x38 enqueues that word into the page-0x88 display-command ring, then ret.
  *
  * Cycle-free memory-equivalence gate: fresh clone per side, compared on RAM (dumpState, minus
- * STACK_SCRATCH) PLUS the register live-out. HL is preserved across the enqueue (a caller can reuse
+ * stack scratch below the entry SP) PLUS the register live-out. HL is preserved across the enqueue (a caller can reuse
  * the counter pointer); DE is left holding the command word. Both are checked against the oracle
  * clone; DE is seated to a sentinel first so a module that never sets it fails. (A is scratched by
  * the enqueue to the ring pointer and is NOT part of the contract — see notes.)
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_7059 as oracle } from "../../translated/loc_7059.js";
 import { tickTargetGroupCounterAndQueueDisplay } from "../tickTargetGroupCounterAndQueueDisplay.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, TARGET_GROUP_COUNT, DISPLAY_CMD_RING_WRITE_PTR } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -40,7 +40,7 @@ const test = ROM_PRESENT
 const CMD = 0x0315; // the fixed command word tickTargetGroupCounterAndQueueDisplay queues
 const RING_PAGE = DISPLAY_CMD_RING_WRITE_PTR & 0xff00; // page-0x88 ring base
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

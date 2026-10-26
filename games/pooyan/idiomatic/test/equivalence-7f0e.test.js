@@ -12,7 +12,7 @@
  * counting (seam completes) or tail-delegates via the routines map into floodWriteAnimCellsAndLatchPhase / appendWriteAnimBlockRowOnPhase (their ret
  * is advanceWriteAnimTileIndexOnCountdown's seating, net SP 0). The module dissolves those tails to direct idiomatic calls; the
  * oracle drives them through the routines map. LIVE-OUT is memory only, so equivalence is RAM
- * (dumpState) minus STACK_SCRATCH (SP parked there so the oracle's pushes/pops drop out of the diff).
+ * (dumpState) minus stack scratch below the entry SP (SP parked there so the oracle's pushes/pops drop out of the diff).
  *
  * Jobs:
  *   1. EQUAL — every load-bearing arm (counter-expired tail, DOWN no-wrap/wrap/hold, bit-2-clear tail,
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_7f0e as oracle } from "../../translated/loc_7f0e.js";
 import { advanceWriteAnimTileIndexOnCountdown } from "../advanceWriteAnimTileIndexOnCountdown.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -57,7 +57,7 @@ const SP0 = 0x8ff0; //          inside STACK_SCRATCH
 const CALLER_RET = 0xfffc; //   caller-return word at SP0; the seam/oracle-ret pops it
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

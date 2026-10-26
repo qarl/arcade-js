@@ -5,7 +5,7 @@
  * 0x18-byte strides (0x8a80, 0x8a98, 0x8ab0, 0x8ac8), invoking advanceActorAnimationFrame on each.
  *
  * Cycle-free memory-equivalence gate: fresh clone per side, compared on RAM (dumpState, minus
- * STACK_SCRATCH) PLUS the register live-out. On the run path the loop leaves IX at the fourth record
+ * stack scratch below the entry SP) PLUS the register live-out. On the run path the loop leaves IX at the fourth record
  * and DE at the stride (advanceActorAnimationFrame leaves both untouched, verified by its own gate); both are the
  * routine's own deterministic output, checked against the oracle clone. On the skip path IX/DE are
  * untouched. (A/HL are advanceActorAnimationFrame's internal residue and are NOT part of the contract — see notes.)
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_22b1 as oracle } from "../../translated/loc_22b1.js";
 import { advanceActorAnimationsUnlessGrabbing } from "../advanceActorAnimationsUnlessGrabbing.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ACTOR_TABLE, GRAB_ACTIVE_FLAG, ANIM_SCRIPT_CURSOR } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -45,7 +45,7 @@ const FINAL_IX = RECS[3]; // 0x8ac8
 const DECOY_IX = 0x1234;
 const DECOY_DE = 0x5678;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

@@ -7,7 +7,7 @@
  * column re-based two cells right per row), then repaints the digit panel and the status panel.
  *
  * Cycle-free memory-equivalence gate: writes video RAM, so a FRESH clone per side, compared on RAM
- * (dumpState minus STACK_SCRATCH). LIVE-OUT is memory only — this is a table-dispatched screen
+ * (dumpState minus stack scratch below the entry SP). LIVE-OUT is memory only — this is a table-dispatched screen
  * handler and no caller consumes a register — so no register is compared. The delegated field /
  * panel renders read only their own (boot) sources, identical on both clones; only the high-score
  * table is poked, so the two sides diverge only if the routines themselves disagree.
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_03e9 as oracle } from "../../translated/loc_03e9.js";
 import { paintAttractHudAndHighScores } from "../paintAttractHudAndHighScores.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, HIGH_SCORE_TABLE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -46,7 +46,7 @@ const ROW_COUNT = 10;
 const TABLE_BYTES = ROW_COUNT * 3;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

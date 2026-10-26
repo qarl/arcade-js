@@ -6,7 +6,7 @@
  * (the two-entry word table at 0x6f3e indexed by state-0x0b).
  *
  * CYCLE-FREE / memory-equivalence gate. The routine WRITES RAM (through its callees), so every case
- * uses a FRESH clone per side. Contract: RAM (dumpState minus STACK_SCRATCH) ONLY — every callee is
+ * uses a FRESH clone per side. Contract: RAM (dumpState minus stack scratch below the entry SP) ONLY — every callee is
  * memory-only and the scan loop (which exx-parks its own loop registers around the call) reads no
  * result register back, so there is NO register live-out. pc/SP/cycles are NOT compared.
  *
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6f2d as oracle } from "../../translated/loc_6f2d.js";
 import { dispatchEnemyActorRecordState } from "../dispatchEnemyActorRecordState.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -50,7 +50,7 @@ const STATE = 0x02;   // state byte the routine dispatches on
 const MODE = 0x01;    // advanceInFlightEnemyAndLand mode byte (bit0)
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

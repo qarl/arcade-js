@@ -12,7 +12,7 @@
  * the oracle drives their frozen twins, so each side walks equivalent downstream code. The epilogue
  * case seats the lead-actor state below quorum so the epilogue is a shallow return.
  *
- * LIVE-OUT: none — memory only; equivalence is RAM (dumpState) minus STACK_SCRATCH.
+ * LIVE-OUT: none — memory only; equivalence is RAM (dumpState) minus stack scratch below SP0 (below the oracle's exit SP on the painter arm, which consumes and rewrites its SP0 byte).
  *
  * Cases are CRAFTED: a plain boot does not seat the strip checksum or the hand-off flags.
  *
@@ -34,7 +34,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2b59 as oracle } from "../../translated/loc_2b59.js";
 import { checksumIntegrityStripAndDispatchSpawn } from "../checksumIntegrityStripAndDispatchSpawn.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -57,13 +57,15 @@ const SP0 = 0x8ff0;
 const SEED = 0xee; // pre-dirty the column so the blank is observable
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 const colCells = () => Array.from({ length: 8 }, (_, k) => (ATTR_TOP - k * ROW) & 0xffff);
 const stripCells = () => Array.from({ length: 10 }, (_, k) => (STRIP - k * ROW) & 0xffff);
 
-function ramDiffMinusStack(ma, mb) {
-  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+// Only the painter arm hands to 0x2bd2 (inc sp, call 0x3325, misaligned ret): it rewrites the SP0 byte it consumed and
+// pops past it, so there the live frame starts at the oracle's exit SP. Every other arm compares from SP0.
+function ramDiffMinusStack(ma, mb, floor = SP0) {
+  const dead = deadStackBelow(STACK_SCRATCH, floor);
+  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** Seat SP, the latch, the column, and a strip that sums to `checksum`. */
@@ -88,7 +90,7 @@ const craftEpilogue = () => seat(BASE.clone(), { checksum: MAGIC, twoPlayer: 1, 
 
 const CASES = [
   { name: "checksum mismatch -> blank + return", craft: craftMismatch },
-  { name: "magic sum, single player -> painter", craft: craftSingle },
+  { name: "magic sum, single player -> painter", craft: craftSingle, consumesEntryByte: true },
   { name: "magic sum, player-2 idle -> formation scan", craft: craftPlayer2 },
   { name: "magic sum, below quorum -> epilogue return", craft: craftEpilogue },
 ];
@@ -101,7 +103,7 @@ test("EQUAL: checksumIntegrityStripAndDispatchSpawn == oracle in RAM (−stack)"
     const c = cfg.craft();
     oracle(o);
     checksumIntegrityStripAndDispatchSpawn(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, cfg.consumesEntryByte ? Math.max(SP0, o.regs.sp) : SP0);
     assert.equal(d, null, d && `${cfg.name}: RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
   }
   console.log(`  EQUAL: ${CASES.length} outcomes identical (RAM −stack)`);

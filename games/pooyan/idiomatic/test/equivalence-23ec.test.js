@@ -6,7 +6,7 @@
  * (past the high byte), any other value is decremented in place; the pointer is stored back to 0x88be.
  * Memory-only (plain-ret): no register or flag survives, so the whole contract is:
  *
- *     RAM (dumpState minus STACK_SCRATCH).
+ *     RAM (dumpState minus stack scratch below the entry SP).
  *
  * retreatTileAnimScript WRITES RAM, so each case uses a FRESH clone per side. Compared on un-booted
  * Machines (LS259 NMI latch clear at power-on -> the oracle's few T-states fire no NMI).
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_23ec as oracle } from "../../translated/loc_23ec.js";
 import { retreatTileAnimScript } from "../retreatTileAnimScript.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, TILE_ANIM_PARITY, TILE_ANIM_CURSOR } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -39,7 +39,7 @@ const test = ROM_PRESENT
 
 const PTR = 0x8500; // a video-RAM cursor target (the live cursor rides the 0x84xx tilemap)
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0); // crafted entries keep the reset SP 0, so no scratch cell lies below it
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

@@ -2,7 +2,7 @@
 /**
  * Memory-equivalence test for idleLaunchStateNoop (ROM 0x28c5, Pooyan) — a PHANTOM NO-OP: the frozen routine
  * is a lone `ret` with no memory effect (a launch-state-machine idle state, and the landing of a
- * neighbour's rst 0x10). The idiomatic rewrite must leave RAM (dumpState, minus STACK_SCRATCH)
+ * neighbour's rst 0x10). The idiomatic rewrite must leave RAM (dumpState, minus stack scratch below the entry SP)
  * byte-identical to the oracle, which also just returns. pc/SP are NOT compared; no register live-out.
  *
  * This is a dissolve candidate: the routine should ultimately vanish into its caller. Until then a
@@ -23,7 +23,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_28c5 as oracle } from "../../translated/loc_28c5.js";
 import { idleLaunchStateNoop } from "../idleLaunchStateNoop.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -35,7 +35,7 @@ const test = ROM_PRESENT
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const TEETH_CELL = 0x8880; // arbitrary work-RAM cell inside dumpState
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

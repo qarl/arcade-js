@@ -4,7 +4,7 @@
  * colour-RAM integrity check.
  *
  * An actor-slot (re)initialiser read from IX; it writes only record RAM, so the contract is memory
- * (dumpState minus STACK_SCRATCH) with NO register live-out. The only non-dissolved call is the
+ * (dumpState minus stack scratch below the entry SP) with NO register live-out. The only non-dissolved call is the
  * sum-mismatch tail to the tamper handler 0x2334 (unlifted), a dead arm on an intact colour map.
  *
  * The integrity walk sums ten cells from HUD_INTEGRITY_STRIP_A (0x82bc) up the 0x20 row stride and
@@ -34,7 +34,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_77c8 as oracle } from "../../translated/loc_77c8.js";
 import { clearAndReseedObjectSlot } from "../clearAndReseedObjectSlot.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -53,7 +53,7 @@ const SP0 = 0x8ff0; //     inside STACK_SCRATCH
 const CALLER_RET = 0xfffc; // sentinel caller-return word the seam consumes
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

@@ -10,7 +10,7 @@
  *
  * This is the CYCLE-FREE / memory-equivalence gate (docs/decompiler-pipeline). The routine WRITES
  * work + video RAM, so each case uses a FRESH clone per side, compared on RAM (dumpState) minus
- * STACK_SCRATCH. pc/SP/cycles are NOT compared. spawnEnemyTargetOrAnimateLaunchFlipTile is a dispatched handler (dispatchLaunchState state 1)
+ * stack scratch below the entry SP. pc/SP/cycles are NOT compared. spawnEnemyTargetOrAnimateLaunchFlipTile is a dispatched handler (dispatchLaunchState state 1)
  * with NO consumed register live-out, so only RAM is compared. The oracle's `ex af,af'; add a,l` on
  * the HUD-off path touches only the shadow accumulator (no memory, unconsumed) and is dropped in the
  * rewrite, matching in RAM. The tail m.call(0x3325) / mid m.call(0x0f05) equal the idiomatic
@@ -38,7 +38,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_27f3 as oracle } from "../../translated/loc_27f3.js";
 import { spawnEnemyTargetOrAnimateLaunchFlipTile } from "../spawnEnemyTargetOrAnimateLaunchFlipTile.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -74,7 +74,7 @@ const DISPLAY_CMD_0A = 0x0a; // queueSoundCommand0A's command byte
 const SEED_86 = 0x20; // crafted source coordinate at 0x8a86
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

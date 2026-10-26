@@ -7,7 +7,7 @@
  *
  * The routine WRITES NO RAM, so its go-forward contract is the values it leaves in registers:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) — trivially, since neither writes — AND the
+ *     RAM (dumpState, minus stack scratch below the entry SP) — trivially, since neither writes — AND the
  *     [e, a, carry] tuple the bridge returns, PLUS the E/A/C SIDE EFFECT it sets on m.regs
  *     (both compared to the ORACLE clone's regs.e, regs.a, regs.fC — the frozen translated
  *     callers read those registers/flag straight out, so a return-only rewrite must be caught).
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5f53 as oracle } from "../../translated/loc_5f53.js";
 import { precheckCollisionBounds } from "../precheckCollisionBounds.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, FLIP_SCREEN_FLAG, ACTOR_TABLE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -43,13 +43,13 @@ const TARGET = 0x5f53;
 const REC = ACTOR_TABLE; // 0x8a80: a sane record base inside work RAM for the IX pointer
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0); // crafted entries keep the reset SP 0, so no scratch cell lies below it
 
-/** First RAM difference on the go-forward contract: whole dump minus STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
+/** First RAM difference on the go-forward contract: whole dump minus stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** Seed the flip flag and the record's +0x00 / +0x02 fields; pre-dirty the record. */
@@ -98,7 +98,7 @@ test("CAPTURE: real 0x5f53 dispatches — precheckCollisionBounds == oracle in R
     const c = cap.clone();
     oracle(o);
     const [re, ra, rcarry] = precheckCollisionBounds(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
     assert.equal(re, o.regs.e, `E: module ${hx(re)} != oracle ${hx(o.regs.e)}`);
     assert.equal(ra, o.regs.a, `A: module ${hx(ra)} != oracle ${hx(o.regs.a)}`);

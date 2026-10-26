@@ -7,7 +7,7 @@
  * bump (ix+0), then blit the segment's 2x2 tile square (computeRopeCellVramColumn column base, source 0x2e1e).
  *
  * Cycle-free memory-equivalence gate: a FRESH clone per side, compared on RAM (dumpState, minus
- * STACK_SCRATCH — the oracle's call trampolines push there). pc/SP/cycles are NOT compared.
+ * stack scratch below the entry SP — the oracle's call trampolines push there). pc/SP/cycles are NOT compared.
  *
  * Two paths, two contracts. The NOT-ZERO path returns straight after the tick: live-out HL (= the
  * timer cell) and the Z flag (not zero) are bridged and checked. The ZERO path runs the whole body
@@ -35,7 +35,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2ecb as oracle } from "../../translated/loc_2ecb.js";
 import { advanceHangingRopeObject } from "../advanceHangingRopeObject.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   ROPE_CELL_TIMERS,
@@ -61,7 +61,7 @@ const REC_POS = 0x05;
 const REC_DROP = 0x06;
 const VIDEO_PAGE = 0x8400;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

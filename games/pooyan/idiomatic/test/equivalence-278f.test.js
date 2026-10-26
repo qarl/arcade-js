@@ -8,7 +8,7 @@
  * This is the CYCLE-FREE / memory-equivalence gate (docs/decompiler-pipeline). The routine
  * WRITES work + video RAM, so each case uses a FRESH clone per side: the oracle runs on one
  * clone, armLaunchAndAdvanceToHunterSpawn on another, and they are compared on the go-forward contract — RAM
- * (dumpState) minus STACK_SCRATCH. pc/SP/cycles are NOT compared. armLaunchAndAdvanceToHunterSpawn is a dispatched
+ * (dumpState) minus stack scratch below the entry SP. pc/SP/cycles are NOT compared. armLaunchAndAdvanceToHunterSpawn is a dispatched
  * handler with NO consumed register live-out (the tail blit sets HL, but the dispatcher does
  * not read it), so only RAM is compared. The oracle's tail m.call(0x3325) and the idiomatic
  * blit2x2TileBlock produce identical VRAM effects; the oracle's ret pops read STACK_SCRATCH.
@@ -36,7 +36,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_278f as oracle } from "../../translated/loc_278f.js";
 import { armLaunchAndAdvanceToHunterSpawn } from "../armLaunchAndAdvanceToHunterSpawn.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -69,7 +69,7 @@ const ARROW_Y_GATE = 0x3c;
 const HIT_BIT = 0x02;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

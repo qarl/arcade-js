@@ -9,7 +9,7 @@
  * The module calls the idiomatic launchProjectileIfRecordInFireWindow directly (the oracle's exx only parks the loop counter, a
  * JS local here, so it dissolves); the oracle drives launchProjectileIfRecordInFireWindow through the frozen registry. fireArmedEnemyProjectilesAndDisarm
  * declares no register live-out (the caller rets straight after), so the register file is not
- * compared; equivalence is RAM (dumpState) minus STACK_SCRATCH. The swept records are left inert
+ * compared; equivalence is RAM (dumpState) minus stack scratch below the entry SP. The swept records are left inert
  * (rec+2 != 5) so launchProjectileIfRecordInFireWindow no-ops, isolating fireArmedEnemyProjectilesAndDisarm's own scan/gate/clear behaviour.
  *
  * Jobs:
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5b2c as oracle } from "../../translated/loc_5b2c.js";
 import { fireArmedEnemyProjectilesAndDisarm } from "../fireArmedEnemyProjectilesAndDisarm.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -48,7 +48,7 @@ const LATCH = 0x8f20; //    launch latch (cleared on sweep)
 const SP0 = 0x8fe0; //      inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

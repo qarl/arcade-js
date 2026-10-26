@@ -5,7 +5,7 @@
  *
  * SEATING: TAIL-CALL. Every exit is a tail hand-off (to the stepper when active, to the checksum
  * walk after a spawn), so the effective seating is the delegatee's and the module returns nothing
- * a caller reads. Equivalence is RAM (dumpState) minus STACK_SCRATCH; the register file is not
+ * a caller reads. Equivalence is RAM (dumpState) minus stack scratch below the entry SP; the register file is not
  * compared. Entry register IX (the record pointer) is the param-default bridge.
  *
  * Cases are CRAFTED. The active case routes the stepper into its decrement-and-return branch
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5835 as oracle } from "../../translated/loc_5835.js";
 import { spawnSpecialActorElseStep } from "../spawnSpecialActorElseStep.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -45,7 +45,7 @@ const SUBSTATE_0 = 0x8d47; // first sub-state byte
 const SP0 = 0x8ff0; // inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

@@ -6,7 +6,7 @@
  * shift latch, which in turn decides whether the state byte's bit 4 is cleared.
  *
  * This is the cycle-free / memory-equivalence gate. sampleJoystickIntoPlayerAimState takes NO register inputs and returns via
- * a plain ret, so the contract is RAM only (dumpState minus STACK_SCRATCH) — no register live-out
+ * a plain ret, so the contract is RAM only (dumpState minus stack scratch below the entry SP) — no register live-out
  * (A/IX/IY are scratch, unconsumed). pc/SP/cycles are not compared. The joystick is read from the
  * hardware input ports (IN1 0xa0a0 upright, IN2 0xa0c0 flipped); the test drives them through io.in1
  * / io.in2, seeded identically on both clones.
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1e55 as oracle } from "../../translated/loc_1e55.js";
 import { sampleJoystickIntoPlayerAimState } from "../sampleJoystickIntoPlayerAimState.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -51,7 +51,7 @@ const AIM = 0x8a87;
 const AIM_DIRTY = 0x33; // pre-dirty marker so a "clear to 0" is observable
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ff8);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

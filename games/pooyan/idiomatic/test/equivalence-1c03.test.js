@@ -2,7 +2,7 @@
 /**
  * Memory-equivalence test for advancePlayStateAndStageHighScoreEntryOnTimer (ROM 0x1c03) — the phase-timer-gated play-state dispatch
  * handler. Void handler (no register read back by its dispatcher), so LIVE-OUT is memory only and
- * the comparison is RAM (dumpState) minus STACK_SCRATCH. Cases exercise: timer running (early ret),
+ * the comparison is RAM (dumpState) minus stack scratch below the entry SP. Cases exercise: timer running (early ret),
  * timer expired with rank 0 (sounds/paint/enqueue + sub-state advance), and rank nonzero (the wipe
  * pointer build, the dissolved four-tile enqueue, and the rotate-left table copy).
  *
@@ -16,7 +16,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1c03 as oracle } from "../../translated/loc_1c03.js";
 import { advancePlayStateAndStageHighScoreEntryOnTimer } from "../advancePlayStateAndStageHighScoreEntryOnTimer.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -32,7 +32,7 @@ const RANK = 0x89fc;
 const SP0 = 0x8ff0;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

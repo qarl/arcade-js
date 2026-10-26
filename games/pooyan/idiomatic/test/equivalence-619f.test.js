@@ -9,7 +9,7 @@
  * case uses a FRESH clone per side. The oracle runs on one clone, initActorRecord on
  * another, and they are compared on the go-forward contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH), AND the HL live-out.
+ *     RAM (dumpState, minus stack scratch below the entry SP), AND the HL live-out.
  *
  * The register inputs are HL (record base) and DE (datum); both sides read them from
  * regs.hl / regs.de (the module's sanctioned defaults). The oracle advances HL to rec+0x17,
@@ -34,7 +34,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_619f as oracle } from "../../translated/loc_619f.js";
 import { initActorRecord } from "../initActorRecord.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ACTOR_TABLE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -51,13 +51,13 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 // The exact byte offsets the oracle stamps (used by WRITE-SET).
 const WRITTEN_OFFSETS = [0x00, 0x01, 0x02, 0x12, 0x16, 0x17];
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0); // crafted entries keep the reset SP 0, so no scratch cell lies below it
 
-/** First RAM difference on the go-forward contract: whole dump minus STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
+/** First RAM difference on the go-forward contract: whole dump minus stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /**
@@ -96,7 +96,7 @@ test("CAPTURE: real 0x619f dispatches — initActorRecord == oracle in RAM (−s
     const c = cap.clone();
     oracle(o);
     const ret = initActorRecord(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
     assert.equal(ret, o.regs.hl, `HL live-out: module ${hx(ret)} != oracle ${hx(o.regs.hl)}`);
     assert.equal(c.regs.hl, o.regs.hl, `module must SET HL for the translated dispatch: ${hx(c.regs.hl)} != ${hx(o.regs.hl)}`);

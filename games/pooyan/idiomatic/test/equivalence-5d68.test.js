@@ -8,7 +8,7 @@
  *   true  = the no-hit / plain-ret path (the caller keeps scanning),
  *   false = the hit / pop-af-ret path   (the caller aborts its scan).
  *
- * The contract compared each case is RAM (dumpState, minus STACK_SCRATCH) PLUS the
+ * The contract compared each case is RAM (dumpState, minus stack scratch below the entry SP) PLUS the
  * boolean return. There is no register live-out (a caller reloads DE and reads only
  * the preserved pointers), so registers are not compared. Which oracle path ran is
  * derived independently from the oracle's SP movement: a plain `ret` pops once
@@ -34,7 +34,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5d68 as oracle } from "../../translated/loc_5d68.js";
 import { testTargetPairOverlapAndClaimRecord } from "../testTargetPairOverlapAndClaimRecord.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   PROXIMITY_SOURCE_OBJECT,
@@ -53,7 +53,6 @@ const test = ROM_PRESENT
   : (name, fn) => nodeTest(name, { skip: "skipped: ROM not built — run 'make -C games/pooyan rom'" }, fn);
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();
@@ -67,6 +66,7 @@ const SOURCE = PROXIMITY_SOURCE_OBJECT; // IX: fixed source object (X @+0, Y @+2
 const TARGET = SPRITE_TARGET_SLOTS; // IY: one target slot (X @+0, Y @+2)
 const RECORD = PROJECTILE_TABLE; // HL: one object record (state @+0)
 const SP0 = 0x8fe0; // inside STACK_SCRATCH, with head/foot room for the hit path's pushes/pops
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 
 /** Seat the routine's three pointer registers + the memory cells it reads, on a fresh clone. */
 function craft({ srcX = 0, srcY = 0, tgtX = 0, tgtY = 0, recState = 1, flip = 1, gameActive = 0 }) {

@@ -8,7 +8,7 @@
  * stride 0x18) launching each through launchWolfIntoSlot. In the frozen oracle a launch's `pop af; ret` unwinds
  * to spawnNextEnemyOnDelay's caller, aborting the walk; the idiomatic driver reproduces that with
  * `if (!launchWolfIntoSlot(...)) return`. This gate COMPOSES the real idiomatic launchWolfIntoSlot (imported by the module)
- * and checks oracle == module in RAM (dumpState, minus STACK_SCRATCH). spawnNextEnemyOnDelay has no register
+ * and checks oracle == module in RAM (dumpState, minus stack scratch below the entry SP). spawnNextEnemyOnDelay has no register
  * live-out (loop bookkeeping only), so only RAM is compared; SP sits in dead stack so the oracle's
  * caller-skip frames drop out of the diff.
  *
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_756d as oracle } from "../../translated/loc_756d.js";
 import { spawnNextEnemyOnDelay } from "../spawnNextEnemyOnDelay.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ENEMY_ACTOR_TABLE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -45,7 +45,7 @@ const STRIDE = 0x18;
 const SP0 = 0x8ff0; //    inside STACK_SCRATCH; the oracle's caller-skip pops land here
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const ix = (k) => (ENEMY_ACTOR_TABLE + k * STRIDE) & 0xffff;
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

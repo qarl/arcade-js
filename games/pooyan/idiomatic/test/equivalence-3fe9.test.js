@@ -7,7 +7,7 @@
  *
  * This is the CYCLE-FREE / memory-equivalence gate. The only RAM effect is the conditional
  * tamper-counter increment, so the oracle runs on one FRESH clone and the module on another,
- * compared on:  RAM (dumpState, minus STACK_SCRATCH).  No register live-out — this is a
+ * compared on:  RAM (dumpState, minus stack scratch below the entry SP).  No register live-out — this is a
  * dispatch handler that rets to the dispatcher; memory is the whole contract.
  *
  * The intact ROM image sums to 0xA0 (bit0=0, bit5=1, bit7=1) = HEALTHY, so on the real ROM the
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3fe9 as oracle } from "../../translated/loc_3fe9.js";
 import { verifyRomChecksum } from "../verifyRomChecksum.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -45,9 +45,9 @@ const test = ROM_PRESENT
 const CHK_TOP = 0x7780; //   top of the 16-byte checksum block (summed descending)
 const TAMPER = 0x8a39; //    the tamper counter this guard bumps
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
-/** First RAM difference on the go-forward contract: dumpState minus the dead STACK_SCRATCH. */
+/** First RAM difference on the go-forward contract: dumpState minus the dead stack scratch below the entry SP. */
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();
   const b = mb.dumpState();
@@ -58,7 +58,7 @@ function ramDiffMinusStack(ma, mb) {
 function craftHealthy(seed = 0x00) {
   const m = new Machine(ROM);
   m.mem.write8(TAMPER, seed);
-  m.regs.sp = 0x8fe0; // dead scratch: the oracle's ret pops from diff-excluded RAM
+  m.regs.sp = 0x8fe0; // dead scratch: the oracle's ret only pops (reads) the word at SP
   return m;
 }
 

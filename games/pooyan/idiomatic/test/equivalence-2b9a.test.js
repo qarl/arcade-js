@@ -10,7 +10,7 @@
  * TRANSLATED tickFormationSpawnAndScanSlots, which m.call()s the translated helpers through the registry.
  *
  * Cycle-free / memory-equivalence gate: fresh clone per side, compared on RAM (dumpState, minus
- * STACK_SCRATCH). pc/SP/cycles/registers are NOT compared; tickFormationSpawnAndScanSlots takes no register input
+ * stack scratch below the entry SP). pc/SP/cycles/registers are NOT compared; tickFormationSpawnAndScanSlots takes no register input
  * (it reads 0x8903/0x8d30 and seats IX/DE itself) and no caller reads a register back. A case
  * pokes the memory cells (wave counter 0x8903, indicator cells, spawn countdown 0x8d30, and the
  * record table at 0x8c60) identically on both sides.
@@ -34,7 +34,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2b9a as oracle } from "../../translated/loc_2b9a.js";
 import { tickFormationSpawnAndScanSlots } from "../tickFormationSpawnAndScanSlots.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { u16 } from "../../../../core/int.js";
 import {
   STACK_SCRATCH, WAVE_ARRIVAL_COUNTER, FORMATION_SPAWN_TIMER, FORMATION_SPAWN_TABLE,
@@ -52,7 +52,7 @@ const MARKER = 0xba;
 const STRIDE = 0xffe8;
 const SLOTS = 0x11;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

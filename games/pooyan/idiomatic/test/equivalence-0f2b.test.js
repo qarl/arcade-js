@@ -6,7 +6,7 @@
  * cursor and steps the cursor, wrapping the last slot (0x5e) back to the first (0x43).
  *
  * CYCLE-FREE / memory-equivalence gate. The routine WRITES RAM, so every case uses a FRESH clone
- * per side. Contract: RAM (dumpState minus STACK_SCRATCH) PLUS the register live-out A — the helper
+ * per side. Contract: RAM (dumpState minus stack scratch below the entry SP) PLUS the register live-out A — the helper
  * leaves the advanced cursor in A (0 when both gates are closed) and callers read it. pc/SP/cycles
  * are NOT compared.
  *
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0f2b as oracle } from "../../translated/loc_0f2b.js";
 import { queueSoundCommand11 } from "../queueSoundCommand11.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, GAME_ACTIVE_FLAG, PLAY_MODE_LATCH, SOUND_RING_WRITE_PTR, SOUND_RING_PENDING_BYTE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -46,7 +46,7 @@ const CMD = 0x11;           // the byte queueSoundCommand11 appends
 const RING_PAGE = 0x8a00;   // the cursor low byte indexes this page
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

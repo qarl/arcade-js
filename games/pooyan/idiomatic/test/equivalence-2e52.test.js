@@ -5,7 +5,7 @@
  * helper that writes no memory.
  *
  * Cycle-free memory-equivalence gate: fresh clone per side, compared on RAM (dumpState, minus
- * STACK_SCRATCH — always null here, the routine writes nothing) PLUS the register live-out. HL is
+ * stack scratch below the entry SP — always null here, the routine writes nothing) PLUS the register live-out. HL is
  * the load-bearing live-out (a video-RAM pointer the rope-cell handlers draw through); A is left
  * equal to HL's low byte (the fetched table byte). Both are checked against the oracle clone, and
  * the module's own clone must SET them.
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2e52 as oracle } from "../../translated/loc_2e52.js";
 import { computeRopeCellVramColumn } from "../computeRopeCellVramColumn.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -42,7 +42,7 @@ const test = ROM_PRESENT
 
 const VIDEO_PAGE = 0x8400; // tilemap page the column base lives in
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {
@@ -91,7 +91,7 @@ test("WRITE-SET: the routine writes zero cells", () => {
   const a1 = m.dumpState();
   let changed = 0;
   // The rst-0x20 table fetch pushes/pops the return address in STACK_SCRATCH; those are not
-  // game-state writes (the EQUAL job likewise compares RAM minus STACK_SCRATCH).
+  // game-state writes (the EQUAL job likewise compares RAM minus stack scratch below the entry SP).
   for (let off = 0; off < b0.length; off++) {
     if (b0[off] !== a1[off] && !inDeadStack(m.stateOffsetToAddr(off))) changed++;
   }

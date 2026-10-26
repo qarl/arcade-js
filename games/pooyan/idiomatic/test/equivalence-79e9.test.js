@@ -7,7 +7,7 @@
  * to 0x1a85; a clean match returns.
  *
  * Cycle-free memory-equivalence gate. With an intact ROM the check matches, so the routine writes
- * NO memory — the RAM (dumpState minus STACK_SCRATCH) arm is trivially satisfied, and the
+ * NO memory — the RAM (dumpState minus stack scratch below the entry SP) arm is trivially satisfied, and the
  * meaningful contract is the DE register LIVE-OUT: the computed 16-bit checksum, left in DE by the
  * oracle. DE is declared + set + compared (no caller is known to consume it, but without it the
  * gate over a write-free routine would pass any no-op). The checksum is also recomputed here,
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_79e9 as oracle } from "../../translated/loc_79e9.js";
 import { verifyRoutineChecksumOrDivert } from "../verifyRoutineChecksumOrDivert.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -44,7 +44,7 @@ const RET_OPCODE = 0xc9;
 const SCRATCH_CELL = 0x8850; // an arbitrary work-RAM cell for the injected-write teeth
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

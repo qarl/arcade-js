@@ -10,7 +10,7 @@
  * (setActorAnimation at 0x381e), and the state-handler fall-through (advanceObjectStateOnFrameTimerExpiry); the oracle drives the
  * frozen originals. IX (the record base) is the one input, bridged in via the param default. startEnemyFall
  * yields nothing the caller reads, so no register is compared; equivalence is RAM (dumpState) minus
- * STACK_SCRATCH, SP parked in dead stack so the oracle's transient return-slot pushes drop out.
+ * stack scratch below the entry SP, SP parked in dead stack so the oracle's transient return-slot pushes drop out.
  *
  * The frame timer is seeded > 1 so advanceObjectStateOnFrameTimerExpiry returns after the tick (the deeper handler stays out of
  * scope). Jobs:
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3f5c as oracle } from "../../translated/loc_3f5c.js";
 import { startEnemyFall } from "../startEnemyFall.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ACTOR_TABLE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -46,7 +46,7 @@ const TIMER = REC + 0x11; //  frame timer, decremented by the fall-through handl
 const SP0 = 0x8ff0; //        inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

@@ -13,7 +13,7 @@
  * compare on FRESH, UN-BOOTED Machine clones: at power-on the LS259 NMI latch is clear, so the
  * oracle's T-state spend fires no NMI (and stays far under one frame), keeping RAM untouched on
  * both sides — a capture from a booted run would let the cycle-spending oracle drift an NMI the
- * clock-free module never spends. RAM (dumpState minus STACK_SCRATCH) is asserted null as a guard
+ * clock-free module never spends. RAM (dumpState minus stack scratch below the entry SP) is asserted null as a guard
  * (neither side writes), and the return is asserted against the ORACLE clone's regs.
  *
  * Jobs:
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1131 as oracle } from "../../translated/loc_1131.js";
 import { binToPackedBcd } from "../binToPackedBcd.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -42,9 +42,9 @@ const test = ROM_PRESENT
   : (name, fn) => nodeTest(name, { skip: "skipped: ROM not built" }, fn);
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0); // crafted entries keep the reset SP 0, so no scratch cell lies below it
 
-/** First RAM difference on the go-forward contract: whole dump minus STACK_SCRATCH. */
+/** First RAM difference on the go-forward contract: whole dump minus stack scratch below the entry SP. */
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();
   const b = mb.dumpState();

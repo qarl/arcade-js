@@ -4,7 +4,7 @@
  * dec (0x8f48); ret nz; else call 0x0ecf (sound silence), (0x8f52)=0, (0x880a)=6, ret.
  *
  * Cycle-free memory-equivalence gate (docs/decompiler-pipeline): a FRESH clone per side, compared
- * on RAM (dumpState, minus STACK_SCRATCH). pc/SP/cycles are NOT compared. seatPlayReadyOnIntroDelayExpiry is a
+ * on RAM (dumpState, minus stack scratch below the entry SP). pc/SP/cycles are NOT compared. seatPlayReadyOnIntroDelayExpiry is a
  * tail-dispatched intro-phase handler (dispatchLevelIntroPhase's rst-0x28 table, selector 0x8f51) and leaves no
  * register a caller consumes, so the contract is RAM only — no register live-out.
  *
@@ -33,7 +33,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_705f as oracle } from "../../translated/loc_705f.js";
 import { seatPlayReadyOnIntroDelayExpiry } from "../seatPlayReadyOnIntroDelayExpiry.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, INTRO_DELAY_CKSUM_WORD, HIT_TALLY, PLAY_STATE_INDEX } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -45,7 +45,7 @@ const test = ROM_PRESENT
 
 const PLAY_READY = 0x06; // the play sub-state seated once the delay expires
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

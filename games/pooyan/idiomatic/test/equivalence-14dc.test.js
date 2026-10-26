@@ -12,7 +12,7 @@
  * the sprite band on its own expiry.
  *
  * SEATING: register-bridged on IX (the record); no register the caller reads, so equivalence is RAM
- * (dumpState) minus STACK_SCRATCH. SP is parked in STACK_SCRATCH so the oracle's nested call pushes
+ * (dumpState) minus stack scratch below the entry SP. SP is parked in STACK_SCRATCH so the oracle's nested call pushes
  * and its ret drop fall out of the diff. The oracle's m.call chain runs the frozen translated
  * callees; the module imports the idiomatic ones — both memory-equivalent, so RAM must match.
  *
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_14dc as oracle } from "../../translated/loc_14dc.js";
 import { armEnemyState8AnimationAndTallyHudField } from "../armEnemyState8AnimationAndTallyHudField.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   loc_8d45,
@@ -56,7 +56,7 @@ const INDEX = 0x17; //    default animation index
 const SP0 = 0x8ff0; //    inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

@@ -7,7 +7,7 @@
  * SEATING: BALANCED (plain ret). The module drives the idiomatic per-slot handler sibling and
  * aborts on its `false` (hit-claimed) return, mirroring the projectile-proximity driver's shape;
  * the oracle drives the translated handler through the routines map. sweepBothActorRecordSlotsForHit is a void sweep — no
- * register survives — so equivalence is RAM (dumpState) minus STACK_SCRATCH, SP parked in
+ * register survives — so equivalence is RAM (dumpState) minus stack scratch below the entry SP, SP parked in
  * STACK_SCRATCH so the handler's nested pushes drop out of the diff.
  *
  * ⚠ CROSS-AGENT: the idiomatic per-slot handler (latchObjectTypeAndScanEnemyRecords) is an in-batch sibling. This gate
@@ -36,7 +36,7 @@ import { loc_5f6a as oracle } from "../../translated/loc_5f6a.js";
 import { sweepBothActorRecordSlotsForHit } from "../sweepBothActorRecordSlotsForHit.js";
 import { latchObjectTypeAndScanEnemyRecords } from "../latchObjectTypeAndScanEnemyRecords.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, SPRITE_ACTOR_RECORD_SLOTS } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -64,7 +64,7 @@ const PARTNER = 0x06; //      the struck cell's partner offset
 const STALE_IY = 0x8820; //   a box overlapping nothing — what the never-published iy reads under the bug
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

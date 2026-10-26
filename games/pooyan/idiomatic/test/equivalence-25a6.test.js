@@ -5,7 +5,7 @@
  *
  * SEATING: BALANCED (plain ret) — a void per-frame driver dispatched from the frame coordinator;
  * no caller reads a register back, so the register file is NOT compared. Equivalence is RAM
- * (dumpState) minus STACK_SCRATCH, with SP parked in the scratch so the oracle's nested call pushes
+ * (dumpState) minus stack scratch below the entry SP, with SP parked in the scratch so the oracle's nested call pushes
  * drop out of the diff. The even-frame branch (round bit0 == 0 -> driveRopeExtendAndRenderCells) is a sibling's job and
  * is kept out of every crafted state (round bit0 forced to 1) so this gate isolates 0x25a6's own
  * three modes: retract, extend (begin a sweep + grow), and steady, plus the two entry gates.
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_25a6 as oracle } from "../../translated/loc_25a6.js";
 import { renderMarkerColumnExtendOrRetract } from "../renderMarkerColumnExtendOrRetract.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -55,7 +55,7 @@ const PTR_DEFAULT = 0x8680; // into video RAM; stamps + retract band stay in wri
 const SP0 = 0x8ff0; // inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

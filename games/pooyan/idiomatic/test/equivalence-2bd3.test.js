@@ -7,7 +7,7 @@
  * This is the CYCLE-FREE / memory-equivalence gate. The routine WRITES RAM, so every case
  * uses a FRESH clone per side, compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * pc/SP/cycles are NOT compared (the oracle drives them through m.step/m.push/m.ret). paintReadySpriteSquareIfAbsent
  * has NO register live-out — its callers (stageFormationReadyMarkersOrSkipTick / paintReadySpriteFromStackAdjustEntry) read no register result — and
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2bd3 as oracle } from "../../translated/loc_2bd3.js";
 import { paintReadySpriteSquareIfAbsent } from "../paintReadySpriteSquareIfAbsent.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -44,7 +44,7 @@ const ANCHOR = 0x87bb; // the ready-sprite video cell
 const PAINTED_MARKER = 0xba;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x9000);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

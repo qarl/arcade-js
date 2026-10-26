@@ -8,7 +8,7 @@
  * copies of the checked code, so on the built image both loops match and the routine returns after
  * the seed writes; a loop-2 divergence would tail into reinitRoundArenaAndPlayfieldIfImageIntact.
  *
- * CYCLE-FREE / memory-equivalence gate. Contract: RAM (dumpState minus STACK_SCRATCH) ONLY — a
+ * CYCLE-FREE / memory-equivalence gate. Contract: RAM (dumpState minus stack scratch below the entry SP) ONLY — a
  * tail-dispatched state handler with no register live-out. pc/SP/cycles are NOT compared. The
  * comparison loops only READ ROM (which the test cannot alter), so the tamper branches are dead on
  * the built image and every case exercises the clean path.
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_744e as oracle } from "../../translated/loc_744e.js";
 import { seedDisplayListPointersAndVerifyRomSignature } from "../seedDisplayListPointersAndVerifyRomSignature.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -61,7 +61,7 @@ const EXPECT = {
   [SELECTOR]: (SELECTOR_SEED + 1) & 0xff,
 };
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

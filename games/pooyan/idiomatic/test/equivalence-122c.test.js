@@ -8,7 +8,7 @@
  * module imports each handler and calls it directly. Both sides clone one Machine, so a handler's
  * reads of shared RAM match.
  *
- * Compared on RAM (dumpState) minus STACK_SCRATCH; SP is parked in STACK_SCRATCH so the handlers'
+ * Compared on RAM (dumpState) minus stack scratch below the entry SP; SP is parked in STACK_SCRATCH so the handlers'
  * ret drops fall out of the diff. stepEnemyActorState has no register live-out (the caller brackets it with
  * exx and reloads its own registers), so every case is a memory poke.
  *
@@ -26,7 +26,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_122c as oracle } from "../../translated/loc_122c.js";
 import { stepEnemyActorState } from "../stepEnemyActorState.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -43,7 +43,7 @@ const SP0 = 0x8ff0; //    inside STACK_SCRATCH
 const STATE_COUNT = 0x11; // valid sub-states 0..0x10
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

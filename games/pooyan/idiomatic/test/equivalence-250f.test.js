@@ -7,7 +7,7 @@
  * as that reset's display-command low byte).
  *
  * Cycle-free memory-equivalence gate: a FRESH clone per side (the routine writes RAM), compared on
- * RAM (dumpState, minus STACK_SCRATCH — the oracle's call trampolines push there) PLUS the register
+ * RAM (dumpState, minus stack scratch below the entry SP — the oracle's call trampolines push there) PLUS the register
  * live-out inherited from the copier: IX (record pointer advanced to base + 4*0x18), B (drained to
  * 0), and — on the plain-return path — HL (= the board-clear flag address) and A (= 0). pc/SP/cycles
  * are NOT compared. The routine's only inputs are HL (shape table) and IX (record base); B/DE/E are
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_250f as oracle } from "../../translated/loc_250f.js";
 import { seedFourRecordsAndCopyDisplayTiles } from "../seedFourRecordsAndCopyDisplayTiles.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, BOARD_CLEAR_FLAG, TAMPER_STRIKES_TERMINATOR, SPAWN_PHASE_COUNTER } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -47,7 +47,7 @@ const IXBASE = 0x8a80; // work-RAM record base
 const SHAPE_BYTES = [0x51, 0x52, 0x53, 0x54]; // distinct so every copy shows as a change
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

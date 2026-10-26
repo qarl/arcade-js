@@ -3,7 +3,7 @@
  * Memory-equivalence test for scanDisplaySlotsAndTickBoardClear (ROM 0x323e, Pooyan) — "scan 4 display-list slots".
  *
  * The cycle-free / memory-equivalence gate (docs/decompiler-pipeline): a fresh clone per side,
- * the oracle on one and scanDisplaySlotsAndTickBoardClear on the other, compared on RAM (dumpState, minus STACK_SCRATCH).
+ * the oracle on one and scanDisplaySlotsAndTickBoardClear on the other, compared on RAM (dumpState, minus stack scratch below the entry SP).
  * pc/SP/registers are deliberately not compared.
  *
  * INPUTS: IX (record base) and B (loop count; the real callers preset B=4). For each slot whose
@@ -37,7 +37,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_323e as oracle } from "../../translated/loc_323e.js";
 import { scanDisplaySlotsAndTickBoardClear } from "../scanDisplaySlotsAndTickBoardClear.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -56,7 +56,7 @@ const COUNT = 0x04; // the callers' preset loop count
 const counterAddr = (field0) => HUNTER_PAGE | ((field0 + 0x05) & 0xff);
 const pairedAddr = (field0) => (counterAddr(field0) + 1) & 0xffff;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

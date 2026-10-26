@@ -4,7 +4,7 @@
  * of six handlers by (MAINLOOP_SUBSTATE_SELECTOR & 7) through the inline word table at 0x0fe3. States
  * 0/1 tail-hand to their handler; states 2..5 run the handler then the post-handler tail advanceObjectsAndRebuildSprites.
  * The module expresses the seated tail as a plain sequential call. Compared: RAM (dumpState −
- * STACK_SCRATCH) against the frozen translated oracle.
+ * stack scratch below the entry SP) against the frozen translated oracle.
  *
  * Jobs: CRAFTED routing (0..5 × seatings) vs the oracle, SP-TOOTH (tail dispatch seats cleanly),
  * GUARD-SLACK (6/7 raise), TEETH (dropped tail + mis-route caught).
@@ -19,7 +19,7 @@ import { queueBonusStageTallyDisplayOnDelay } from "../queueBonusStageTallyDispl
 import { runActivePlayFrame } from "../runActivePlayFrame.js";
 import { advanceObjectsAndRebuildSprites } from "../advanceObjectsAndRebuildSprites.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   MAINLOOP_SUBSTATE_SELECTOR,
@@ -36,7 +36,7 @@ const test = ROM_PRESENT ? nodeTest : (n, f) => nodeTest(n, { skip: "skipped: RO
 const TARGET = 0x0fd5;
 const SP0 = 0x8fe0; // inside STACK_SCRATCH, so the dispatcher's stack traffic is excluded from the diff
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const ramDiffMinusStack = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(), (o) => ma.stateOffsetToAddr(o), inDeadStack);
 const runGuarded = (fn, m) => { try { fn(m); return { threw: false }; } catch (e) { return { threw: true, msg: String(e && e.message) }; } };
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;

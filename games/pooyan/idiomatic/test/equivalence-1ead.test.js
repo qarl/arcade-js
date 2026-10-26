@@ -8,7 +8,7 @@
  * The module dissolves binToPackedBcd + fetchWordFromTableIndex + blitTile3x3Block + blitGlyphBlock4x3 + stampSelectedGlyphBlock +
  * renderStageCountdownDigits + refreshRoundStageHud to direct calls; the oracle
  * drives the frozen versions of all of them. paintRoundNumberHud is void — no register survives — so equivalence
- * is RAM (dumpState) minus STACK_SCRATCH. The crafted state holds the integrity-flag scan nonzero so
+ * is RAM (dumpState) minus stack scratch below the entry SP. The crafted state holds the integrity-flag scan nonzero so
  * refreshRoundStageHud returns early (identically on both sides), isolating paintRoundNumberHud's own HUD work.
  *
  * Jobs:
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1ead as oracle } from "../../translated/loc_1ead.js";
 import { paintRoundNumberHud } from "../paintRoundNumberHud.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, TAMPER_FREEZE_FLAG, ROUND_COUNTER, HUD_ROUND_DIGIT_LO } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -46,7 +46,7 @@ const SP0 = 0x8fe0; //             inside STACK_SCRATCH
 const CALLER_RET = 0xfffc;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

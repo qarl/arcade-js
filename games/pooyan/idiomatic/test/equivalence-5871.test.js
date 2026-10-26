@@ -13,7 +13,7 @@
  * LIVE-OUT: none — a void spawn driver in a void-driver chain (its caller calls it then rets,
  * reading no register back). The register file is not compared. The entry value latched into the
  * speed index is the sole register INPUT (bridged from regs.a). Fidelity = RAM (dumpState) minus
- * STACK_SCRATCH.
+ * stack scratch below the entry SP.
  *
  * DEPENDS ON in-batch sibling seedFirstFreeSpriteBlockInRun (dissolved launch-path call) being written; see reconcile
  * notes (assumed signature seedFirstFreeSpriteBlockInRun(m, base, count)).
@@ -36,7 +36,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5871 as oracle } from "../../translated/loc_5871.js";
 import { gateEnemySpawnOnActiveCountAndInit } from "../gateEnemySpawnOnActiveCountAndInit.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, SPEED_INDEX, STAGE_COUNTDOWN, ACTIVE_ENEMY_COUNT } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -52,7 +52,7 @@ const SP0 = 0x8ff8; // inside STACK_SCRATCH
 const CALLER_RET = 0xabcd;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0 - 2); // entry SP: the seat pushes the caller's return word below SP0
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

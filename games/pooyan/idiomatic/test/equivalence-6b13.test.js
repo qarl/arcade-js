@@ -9,7 +9,7 @@
  * CYCLE-FREE / memory-equivalence gate. The oracle drives its two 2x2 blits through the still-frozen
  * 0x3325 (dispatched via the registry on a plain Machine) and trampolines the return through the
  * stack; the module calls the idiomatic 2x2 blitter directly. The contract is RAM only (dumpState
- * minus STACK_SCRATCH): no register is a live-out — the two caller sites reload their own registers
+ * minus stack scratch below the entry SP): no register is a live-out — the two caller sites reload their own registers
  * after the call.
  *
  * Jobs:
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6b13 as oracle } from "../../translated/loc_6b13.js";
 import { blitStackedTwoTileAnimFrameOnHoldTimer } from "../blitStackedTwoTileAnimFrameOnHoldTimer.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -49,12 +49,12 @@ const RELOAD = 0x0c;
 const WRITTEN = new Set([HOLD, PHASE, ...CELLS]);
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, STACK_SCRATCH.hi - 0x10);
 
-function ramDiffMinusStack(ma, mb) {
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
@@ -100,7 +100,7 @@ test("CAPTURE: real 0x6b13 dispatches — module == oracle in RAM (−stack)", (
     const c = cap.clone();
     oracle(o);
     blitStackedTwoTileAnimFrameOnHoldTimer(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
   }
   console.log(`  CAPTURE: ${CAPS.length} real dispatch(es) checked`);

@@ -9,7 +9,7 @@
  * on the gates-closed path it leaves the cursor alone and reloads A to 0. Crafted inputs: the two
  * gate cells and the ring cursor.
  *
- * Contract compared: RAM (dumpState, minus STACK_SCRATCH) PLUS the register live-out A — the
+ * Contract compared: RAM (dumpState, minus stack scratch below the entry SP) PLUS the register live-out A — the
  * advanced ring cursor the helper leaves in the accumulator (0 when gated off), which callers read
  * back. pc/SP/cycles are NOT compared. The EQUAL job also asserts the module SET A on its own clone
  * (not merely returned it), since the frozen caller reads A out of the register.
@@ -33,7 +33,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0f0d as oracle } from "../../translated/loc_0f0d.js";
 import { queueSoundCommand0B } from "../queueSoundCommand0B.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   GAME_ACTIVE_FLAG,
@@ -55,7 +55,7 @@ const RING_FIRST = 0x43;
 const RING_LAST = 0x5e;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

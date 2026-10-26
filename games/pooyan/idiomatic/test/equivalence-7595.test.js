@@ -11,7 +11,7 @@
  *
  * The oracle runs the TRANSLATED subtree through the routines map; the idiomatic module imports the
  * IDIOMATIC siblings directly. The two must land byte-identical in RAM (dumpState) minus
- * STACK_SCRATCH. No register is a live-out: the caller (still translated) protects its own loop
+ * stack scratch below the entry SP. No register is a live-out: the caller (still translated) protects its own loop
  * counter/stride and advances IX/IY itself, so registers are NOT compared. The boolean return IS,
  * and the oracle's SP delta (+2 normal / +4 skip) confirms which path it took.
  *
@@ -35,7 +35,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_7595 as oracle } from "../../translated/loc_7595.js";
 import { launchWolfIntoSlot } from "../launchWolfIntoSlot.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -53,7 +53,7 @@ const DELAY = 0x8929; //  SHARED_FRAME_DELAY_TIMER — reseeded on a launch
 const SP0 = 0x8fe0; //    inside STACK_SCRATCH; room for the nested dips + the pop-af/ret
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

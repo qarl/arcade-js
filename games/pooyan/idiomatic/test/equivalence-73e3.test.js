@@ -7,7 +7,7 @@
  *
  * This is the CYCLE-FREE / memory-equivalence gate (docs/decompiler-pipeline). Each case uses a FRESH
  * clone per side: oracle on one, tickEagleInterWaveHoldAndRearmLaunch on the other, compared on RAM (dumpState) minus
- * STACK_SCRATCH PLUS the declared register live-out A. pc/SP/cycles are NOT compared. A is a
+ * stack scratch below the entry SP PLUS the declared register live-out A. pc/SP/cycles are NOT compared. A is a
  * deterministic exit value on both paths (pre-decrement hold, or 0), matchable and consumed by
  * callers, so it is declared. The oracle's `push16 + call 0x0038` return address lands in
  * STACK_SCRATCH, excluded by contract.
@@ -33,7 +33,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_73e3 as oracle } from "../../translated/loc_73e3.js";
 import { tickEagleInterWaveHoldAndRearmLaunch } from "../tickEagleInterWaveHoldAndRearmLaunch.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, WAVE_HOLD_TIMER, WAVE_INDEX, WAVE_LAUNCH_FLAG, DISPLAY_CMD_RING_WRITE_PTR } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -48,7 +48,7 @@ const RING_START = 0xc0;
 const HOLD_RESEED = 0x18;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

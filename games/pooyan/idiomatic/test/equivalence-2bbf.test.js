@@ -11,7 +11,7 @@
  * COMPOSES the real idiomatic painters (paintReadySpriteSquareIfAbsent + blit2x2TileBlock).
  *
  * Cycle-free / memory-equivalence gate: fresh clone per side, compared on RAM (dumpState, minus
- * STACK_SCRATCH) plus the boolean. pc/SP/cycles/registers are NOT compared. stageFormationReadyMarkersOrSkipTick has NO
+ * stack scratch below the entry SP) plus the boolean. pc/SP/cycles/registers are NOT compared. stageFormationReadyMarkersOrSkipTick has NO
  * register live-out — tickFormationSpawnAndScanSlots reloads its own registers. The only input is A (the wave count),
  * bridged via the register default; a case also pokes the two indicator cells (0x877b checked/
  * painted here, 0x87bb painted by paintReadySpriteSquareIfAbsent) identically on both sides.
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2bbf as oracle } from "../../translated/loc_2bbf.js";
 import { stageFormationReadyMarkersOrSkipTick } from "../stageFormationReadyMarkersOrSkipTick.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, FORMATION_READY_TILE_VRAM, READY_SPRITE_TILE_VRAM } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -45,7 +45,7 @@ const test = ROM_PRESENT
 const MARKER = 0xba; // indicator value once a square is painted
 const STRIDE = 0x20; // video-RAM row stride
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

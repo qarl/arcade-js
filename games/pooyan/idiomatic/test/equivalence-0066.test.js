@@ -17,7 +17,7 @@ import { enterVblankService } from "../enterVblankService.js";
 import { buildRoutines } from "../../routines.js";
 import { Machine, resolveAllIdiomatic } from "../../machine.js";
 import { runIdiomaticGame } from "../../../../core/frame-stepped.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 import manifest from "../../manifest.js";
 
@@ -30,7 +30,7 @@ const nmiReturnPC = manifest.convergence.idiomatic.nmiReturnPC;
 const AT = [90, 400, 1200, 2400];
 const SP0 = 0x8fe0;
 const RET = 0xfffc;
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 
 // The boot machine runs the idiomatic map, so its clones would hand the oracle idiomatic callees.
 const ORACLE_ROUTINES = ROM_PRESENT ? buildRoutines() : null;

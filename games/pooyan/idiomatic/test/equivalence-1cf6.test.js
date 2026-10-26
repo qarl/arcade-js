@@ -2,7 +2,7 @@
 /**
  * Memory-equivalence test for reseedOtherPlayerForTurn (ROM 0x1cf6) — the reseed-the-other-player tail of the
  * play-state dispatch handler. Void handler; LIVE-OUT is memory only, comparison is RAM minus
- * STACK_SCRATCH. Cases: player-1 out of lives (delegate to the full-clear tail) and player-1 alive
+ * stack scratch below the entry SP. Cases: player-1 out of lives (delegate to the full-clear tail) and player-1 alive
  * (clear sub-state, zero player-0's bank via the frozen fill, mark player 0 active, reset the display
  * pointer, tail into the shared reseed body).
  *
@@ -16,7 +16,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1cf6 as oracle } from "../../translated/loc_1cf6.js";
 import { reseedOtherPlayerForTurn } from "../reseedOtherPlayerForTurn.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -32,7 +32,7 @@ const ACTIVE_PLAYER = 0x880d;
 const SP0 = 0x8ff0;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

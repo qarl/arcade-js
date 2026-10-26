@@ -9,7 +9,7 @@
  * This is the CYCLE-FREE / memory-equivalence gate. advanceRisingActorStep WRITES RAM, so
  * every case uses a FRESH clone per side and they are compared on the go-forward contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * The routine is memory-only — no register or flag survives for a caller — so there is no
  * return to compare; the actor record IS the contract. The record base is IX; both sides
@@ -33,7 +33,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2ab3 as oracle } from "../../translated/loc_2ab3.js";
 import { advanceRisingActorStep } from "../advanceRisingActorStep.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ACTOR_TABLE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -48,13 +48,13 @@ const REC = ACTOR_TABLE; // 0x8a80: a sane record base inside the actor arena (w
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const WRITTEN_OFFSETS = [0x02, 0x04, 0x06, 0x0b, 0x0f, 0x11];
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0); // crafted entries keep the reset SP 0, so no scratch cell lies below it
 
-/** First RAM difference on the go-forward contract: whole dump minus STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
+/** First RAM difference on the go-forward contract: whole dump minus stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /**
@@ -109,7 +109,7 @@ test("CAPTURE: real 0x2ab3 dispatches (if reached) — advanceRisingActorStep ==
     const c = cap.clone();
     oracle(o);
     advanceRisingActorStep(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
   }
   console.log(`  CAPTURE: ${caps.length} real dispatch(es) checked (best-effort — gameplay path)`);

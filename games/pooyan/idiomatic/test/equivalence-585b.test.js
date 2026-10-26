@@ -10,7 +10,7 @@
  * WRITES RAM (the tamper flag), so every case uses a FRESH clone per side, compared on the
  * go-forward contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * The routine is memory-only — its accumulator registers are scratch and no caller reads
  * them — so there is no return to compare; the tamper flag IS the contract. The register
@@ -35,7 +35,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_585b as oracle } from "../../translated/loc_585b.js";
 import { verifyTableChecksum } from "../verifyTableChecksum.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, SCORE_DRIP_ACCUM } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -47,9 +47,9 @@ const test = ROM_PRESENT
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const TABLE = 0x8b80; // scratch work-RAM to hold a crafted checksum table (away from the flag + stack)
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0); // crafted entries keep the reset SP 0, so no scratch cell lies below it
 
-/** First RAM difference on the go-forward contract: whole dump minus STACK_SCRATCH. */
+/** First RAM difference on the go-forward contract: whole dump minus stack scratch below the entry SP. */
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();
   const b = mb.dumpState();

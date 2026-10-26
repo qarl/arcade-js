@@ -12,7 +12,7 @@
  * hold state 0 (idle); the loop then runs advanceObjectAnimationFrame on them, which just decrements the frame-hold
  * (+0x0e) when it is nonzero. Records 0-10 hold state 0x0d, a dispatchEnemyActorRecordState no-op.
  *
- * Comparison is the go-forward contract: RAM (dumpState) minus STACK_SCRATCH. The caller (runPhase1LauncherThenDriver)
+ * Comparison is the go-forward contract: RAM (dumpState) minus stack scratch below the entry SP. The caller (runPhase1LauncherThenDriver)
  * returns straight after and reads no register back, so live-out is memory only (the closing fill
  * leaves A/HL/B, but nothing consumes them). The leaf is not reached in a plain boot, so every case
  * is CRAFTED.
@@ -37,7 +37,7 @@ import { enqueueDisplayCommand } from "../enqueueDisplayCommand.js";
 import { fillByteRun } from "../fillByteRun.js";
 import { u16 } from "../../../../core/int.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   ENEMY_ACTOR_TABLE,
@@ -62,7 +62,7 @@ const test = ROM_PRESENT
   : (name, fn) => nodeTest(name, { skip: "skipped: ROM not built" }, fn);
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 const STRIDE = 0x18;
 const NOOP_STATE = 0x00; // a registered dispatchEnemyActorRecordState path (state 0 -> advanceObjectAnimationFrame, which just decrements a set frame-hold)
 const SCRIPT_PTR_TARGET = 0x8d00; // where LAUNCH_SCRIPT_PTR is aimed (clear of every write)

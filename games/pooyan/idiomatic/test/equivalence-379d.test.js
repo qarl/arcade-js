@@ -4,7 +4,7 @@
  * template".
  *
  * The cycle-free / memory-equivalence gate (docs/decompiler-pipeline): a fresh clone per side, the
- * oracle on one and spawnActorSlotFromTemplate on the other, compared on RAM (dumpState, minus STACK_SCRATCH) PLUS
+ * oracle on one and spawnActorSlotFromTemplate on the other, compared on RAM (dumpState, minus stack scratch below the entry SP) PLUS
  * the declared register live-out A. pc/SP/cycles are deliberately not compared.
  *
  * INPUTS: IY (slot), IX (template), C (copied to slot+0x14). The routine also reads DIFFICULTY_DSW
@@ -36,7 +36,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_379d as oracle } from "../../translated/loc_379d.js";
 import { spawnActorSlotFromTemplate } from "../spawnActorSlotFromTemplate.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -53,7 +53,7 @@ const SPEED_INDEX_ADDR = 0x8900;
 const ROUND_COUNTER_ADDR = 0x8907;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

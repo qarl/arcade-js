@@ -5,7 +5,7 @@
  *
  * The module runs the dispatch through an idiomatic switch, passing the cell record to each handler;
  * the oracle does the same via `sub`/`rst 0x28`. dispatchRopeCellState is a void dispatcher (no register
- * survives), so equivalence is RAM (dumpState) minus STACK_SCRATCH, SP parked in dead stack.
+ * survives), so equivalence is RAM (dumpState) minus stack scratch below the entry SP, SP parked in dead stack.
  *
  * The dispatch arm seats the cell state at 1 (index 0 -> rope handler 0x2e5e) with the frame-parity
  * gate open and the per-cell timer running, so the handler's sole footprint is one timer decrement —
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2e36 as oracle } from "../../translated/loc_2e36.js";
 import { dispatchRopeCellState } from "../dispatchRopeCellState.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -44,7 +44,7 @@ const SP0 = 0x8ff0; //     inside STACK_SCRATCH
 const CALLER_RET = 0xfffc; // caller-return word seated at SP0 for the SP seam
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

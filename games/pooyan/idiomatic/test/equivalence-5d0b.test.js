@@ -7,7 +7,7 @@
  * its per-record callee), so each case runs the oracle on one FRESH clone and tickEnemyActorAnimHolds on another,
  * compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * pc/SP are NOT compared. tickEnemyActorAnimHolds returns NOTHING the caller reads — the next caller reloads its own
  * pointer/counter — so the contract is memory-only; no register live-out is declared. The oracle
@@ -32,7 +32,7 @@ import { loc_5d0b as oracle } from "../../translated/loc_5d0b.js";
 import { tickEnemyActorAnimHolds } from "../tickEnemyActorAnimHolds.js";
 import { tickActorAnimHold } from "../tickActorAnimHold.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ENEMY_ACTOR_TABLE, ROUND_COUNTER } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -46,12 +46,12 @@ const TARGET = 0x5d0b;
 const COUNT = 6;
 const STRIDE = 0x18;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
-function ramDiffMinusStack(ma, mb) {
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
@@ -116,7 +116,7 @@ test("CAPTURED: real dispatches replay identically (if reached)", () => {
     const c = cap.clone();
     oracle(o);
     tickEnemyActorAnimHolds(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `captured RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} mine=${d.b}`);
   }
   console.log(`  CAPTURED: ${caps.length} real dispatch(es) replayed identically`);

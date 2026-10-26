@@ -8,7 +8,7 @@
  * This is the CYCLE-FREE / memory-equivalence gate (docs/decompiler-pipeline). The routine
  * WRITES video RAM, so each case uses a FRESH clone per side: the oracle runs on one clone,
  * paintActorCountColumn on another, and they are compared on the go-forward contract — RAM (dumpState)
- * minus STACK_SCRATCH. pc/SP/cycles are deliberately NOT compared. paintActorCountColumn has NO register
+ * minus stack scratch below the entry SP. pc/SP/cycles are deliberately NOT compared. paintActorCountColumn has NO register
  * live-out (a memory-only paint routine reached off-attract via dynamic dispatch), so only
  * RAM is compared.
  *
@@ -38,7 +38,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_039b as oracle } from "../../translated/loc_039b.js";
 import { paintActorCountColumn } from "../paintActorCountColumn.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -57,7 +57,7 @@ const TILE_BLANK = 0x10;
 const COLUMN_HEIGHT = 8;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

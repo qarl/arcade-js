@@ -9,7 +9,7 @@
  * m.call for the frozen sub-state dispatcher dispatchInPlaySubState (continuation seated in HL); the oracle drives
  * all three through the routines map. runPlayStateFrame is a void handler returning into the NMI service — no
  * register survives — so the
- * register file is not compared; equivalence is RAM (dumpState) minus STACK_SCRATCH, SP parked in
+ * register file is not compared; equivalence is RAM (dumpState) minus stack scratch below the entry SP, SP parked in
  * dead stack so the nested dispatch pushes drop out of the diff.
  *
  * The crafted state seats the sub-state dispatch to index 1 (handler selectRoundDisplayListAndAdvancePhase) with the phase timer
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_159b as oracle } from "../../translated/loc_159b.js";
 import { runPlayStateFrame } from "../runPlayStateFrame.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -49,7 +49,7 @@ const SP0 = 0x8ff0; //        inside STACK_SCRATCH
 const CALLER_RET = 0xfffc; // caller-return word seated at SP0; the tail dispatch pops it (pc==this)
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

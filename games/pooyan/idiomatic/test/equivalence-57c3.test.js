@@ -8,7 +8,7 @@
  * delegate that returns without rewriting B leaves the oracle's value behind. The whole subtree runs
  * on both sides from an identical clone.
  *
- * SEATING: TAIL-CALL — the seating is the delegate's. Compared on RAM (dumpState) minus STACK_SCRATCH;
+ * SEATING: TAIL-CALL — the seating is the delegate's. Compared on RAM (dumpState) minus stack scratch below the entry SP;
  * B is additionally compared where the delegate leaves it untouched, since B is the routine's only
  * register effect. Cases are CRAFTED. Green once the batch cluster (spawnSpecialActorElseStep / advanceEagleStageTimersAndLatchMoveElseRearm /
  * verifyTableChecksum) is present.
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_57c3 as oracle } from "../../translated/loc_57c3.js";
 import { decrementPhaseCounterAndDispatchSpawnOrStep } from "../decrementPhaseCounterAndDispatchSpawnOrStep.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -47,7 +47,7 @@ const TAMPER = 0x882b; //       checksum tripwire (stays 0 on the genuine ROM)
 const SP0 = 0x8fe0;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

@@ -4,7 +4,7 @@
  * store the fixed command byte into the sound-command ring at the write pointer and advance
  * that pointer (wrapping the last slot to the first).
  *
- * Contract compared: RAM (dumpState, minus STACK_SCRATCH). pc/SP/cycles are NOT compared.
+ * Contract compared: RAM (dumpState, minus stack scratch below the entry SP). pc/SP/cycles are NOT compared.
  * There is NO register live-out: the frozen enqueue helper leaves an internal ring-pointer
  * value in A, but every enqueue site reloads A before use, so A is not part of the contract
  * and is deliberately excluded (the idiomatic form never writes A).
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0ef1 as oracle } from "../../translated/loc_0ef1.js";
 import { queueSoundCommand05 } from "../queueSoundCommand05.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, SOUND_RING_WRITE_PTR, HIGH_SCORE_TABLE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -43,7 +43,7 @@ const RING_LAST = 0x5e; // last ring slot; the write pointer wraps back to the f
 const RING_FIRST = 0x43;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ff0);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

@@ -8,7 +8,7 @@
  * ANIM_WORK_BLOCK_PTR (stride +1), and (3) latches PHASE_TIMER=0x80, 0x8e26=0, RESET_SCAN_LATCH=1.
  *
  * CYCLE-FREE / memory-equivalence gate: the handler WRITES RAM, so every case uses a FRESH clone per
- * side. The contract is RAM (dumpState minus STACK_SCRATCH); this is a void terminal handler, so there
+ * side. The contract is RAM (dumpState minus stack scratch below the entry SP); this is a void terminal handler, so there
  * is no register live-out to check.
  *
  * LOAD-BEARING BRANCH = count==0 vs count!=0 (the `and a; jr z` at 0x7fae). Both arms are driven:
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_7fa8 as oracle } from "../../translated/loc_7fa8.js";
 import { floodWriteAnimCellsAndLatchPhase } from "../floodWriteAnimCellsAndLatchPhase.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, PHASE_TIMER, ANIM_WORK_BLOCK_PTR, RESET_SCAN_LATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -50,13 +50,13 @@ const TILE_PTR_START = 0x83e0; // walks back: 0x83e0, 0x83c0, ... (color RAM)
 const REC_PTR_START = 0x8600; //  walks up:   0x8600, 0x8601, ... (video RAM)
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, STACK_SCRATCH.hi - 0x10);
 
-/** First RAM difference on the go-forward contract: whole dump minus STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
+/** First RAM difference on the go-forward contract: whole dump minus stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** A machine primed with the two fill pointers + a given count, dest cells pre-dirtied to 0xAA. */
@@ -95,7 +95,7 @@ test("CAPTURE: real 0x7fa8 dispatches — module == oracle in RAM (−stack)", (
     const c = cap.clone();
     oracle(o);
     floodWriteAnimCellsAndLatchPhase(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
   }
   console.log(`  CAPTURE: ${CAPS.length} real dispatch(es) checked`);

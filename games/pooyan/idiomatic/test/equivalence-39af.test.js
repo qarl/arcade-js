@@ -5,7 +5,7 @@
  *
  * SEATING: BALANCED — record base in IX (param default m.regs.ix). advanceEnemyActorMotion is a void state handler:
  * the dispatcher reads no register back, so LIVE-OUT is memory only and the comparison is RAM
- * (dumpState) minus STACK_SCRATCH; the register file is not compared. SP parked in STACK_SCRATCH so
+ * (dumpState) minus stack scratch below the entry SP; the register file is not compared. SP parked in STACK_SCRATCH so
  * nested pushes drop out. Not a dispatcher (no rst/tail m.call), no register bridge.
  *
  * The animation step (+0x0e held nonzero -> a plain decrement) is kept deterministic. Both top
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_39af as oracle } from "../../translated/loc_39af.js";
 import { advanceEnemyActorMotion } from "../advanceEnemyActorMotion.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -51,7 +51,7 @@ const WAVE_PROGRESS = 0x8d7d;
 const LANE_SPAWN = 0x8d75;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

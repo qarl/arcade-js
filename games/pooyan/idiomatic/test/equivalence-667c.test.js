@@ -6,7 +6,7 @@
  * (IX+6) reaches 0x1d retires the record: (IX+1)=2 with (IX+4)/(IX+6) cleared.
  *
  * Cycle-free memory-equivalence gate: fresh clone per side, compared on RAM (dumpState,
- * minus STACK_SCRATCH). The routine is memory-only — the caller (advanceActorGroupRiseAndCycleTiles) reads no
+ * minus stack scratch below the entry SP). The routine is memory-only — the caller (advanceActorGroupRiseAndCycleTiles) reads no
  * register or flag back (it exx/addIx/djnz on its own state) — so no register is compared.
  * IX is the incoming record pointer, seated via the module's register-default bridge.
  *
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_667c as oracle } from "../../translated/loc_667c.js";
 import { advanceActorToTopRowThenRetire } from "../advanceActorToTopRowThenRetire.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -46,7 +46,7 @@ const OFF_STEP = 0x09;
 const RETIRE_ROW = 0x1d;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

@@ -10,7 +10,7 @@
  * latch, and tails into despawnActorAndRenderStageCountdown.
  *
  * CYCLE-FREE / memory-equivalence gate. The routine WRITES RAM, so every case uses a FRESH clone
- * per side. Contract: RAM (dumpState minus STACK_SCRATCH) ONLY — every callee is memory-only and
+ * per side. Contract: RAM (dumpState minus stack scratch below the entry SP) ONLY — every callee is memory-only and
  * moveFormationAndSpawnObject reloads A from memory immediately after the call and reads no other register back, so
  * there is NO register live-out. pc/SP/cycles are NOT compared.
  *
@@ -37,7 +37,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_343e as oracle } from "../../translated/loc_343e.js";
 import { advanceActorColumnAndArmTurnOrBand } from "../advanceActorColumnAndArmTurnOrBand.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -57,7 +57,7 @@ const BAND = 0x86e3;        // SPRITE_BAND_86E3 base (writes at +0,+1,+0x20,+0x2
 const ANIM_38 = 0x3838;     // turn-around animation pointer
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

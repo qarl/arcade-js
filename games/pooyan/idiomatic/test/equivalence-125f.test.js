@@ -7,7 +7,7 @@
  * rec+0x0C..rec+0x0E.
  *
  * REGISTER BRIDGE: rec = m.regs.ix. Cases are CRAFTED (a boot does not seat this record geometry).
- * Compared on RAM (dumpState) minus STACK_SCRATCH; SP is parked in STACK_SCRATCH so the oracle's
+ * Compared on RAM (dumpState) minus stack scratch below the entry SP; SP is parked in STACK_SCRATCH so the oracle's
  * tail-call ret drops out of the diff.
  *
  * Jobs: 1. EQUAL (counting + expiry); 2. WRITE-SET (timer always; phase/latch/anim on expiry);
@@ -23,7 +23,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_125f as oracle } from "../../translated/loc_125f.js";
 import { advanceActorStateOnTimerAndRestartAnim } from "../advanceActorStateOnTimerAndRestartAnim.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ANIM_TABLE_3838 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -43,7 +43,7 @@ const ANIM_HI = REC + 0x0d;
 const ANIM_IDX = REC + 0x0e;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

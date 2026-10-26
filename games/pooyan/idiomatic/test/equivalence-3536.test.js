@@ -12,7 +12,7 @@
  * CYCLE-FREE / memory-equivalence gate (docs/decompiler-pipeline). Each case runs the oracle on one
  * FRESH clone and tickActorHoldThenBlankAndClearWaveLatches on another and compares:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * NO register live-out is declared: the dispatch caller parks and restores its own loop registers
  * (B/DE) around this tick with exx and reads none of ours, so hold-vs-blank is entirely a RAM effect.
@@ -35,7 +35,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3536 as oracle } from "../../translated/loc_3536.js";
 import { tickActorHoldThenBlankAndClearWaveLatches } from "../tickActorHoldThenBlankAndClearWaveLatches.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, LANE_SPAWN_COUNTDOWN, LAUNCH_ARM_LATCH, loc_8d76 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -52,7 +52,7 @@ const HOLD_3536 = 0x11; // tickActorHoldThenBlankAndClearWaveLatches's frame-hol
 const FLAG_FIELD = 0x07; // flag byte; high nibble gates the tally bump
 const DIRT = 0xaa;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, STACK_SCRATCH.hi);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

@@ -5,7 +5,7 @@
  * The idiomatic module calls the idiomatic activateLaneActorSlot directly (the exx register-bank dance dissolves
  * into JS locals); the oracle drives the frozen activateLaneActorSlot across the same 6-record sweep. spawnNextScriptedEnemy is
  * a dispatched void handler — no register survives — so equivalence is RAM (dumpState) minus
- * STACK_SCRATCH.
+ * stack scratch below the entry SP.
  *
  * Four arms cover the branch tree: NOTLATCHED (latch clear -> ret), DELAY (script byte a running
  * delay -> tick + ret), SWEEP (delay expired -> reseed + advance pointer + sweep 6 live slots), and
@@ -26,7 +26,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5334 as oracle } from "../../translated/loc_5334.js";
 import { spawnNextScriptedEnemy } from "../spawnNextScriptedEnemy.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   SLOT_SWEEP_LATCH,
@@ -49,7 +49,7 @@ const SCRIPT_CELL = 0x8d90; //  scratch RAM the script pointer aims at
 const SP0 = 0x8fe0; //          inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

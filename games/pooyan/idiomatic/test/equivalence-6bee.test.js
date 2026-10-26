@@ -10,7 +10,7 @@
  * the real idiomatic clearAimIndicatorUnlessProximityHit (the module imports it; the oracle runs the translated clearAimIndicatorUnlessProximityHit
  * through m.call), so the gate seats gates-inactive so that redraw takes its clean no-hit
  * path. The oracle's call/ret trampolines touch only STACK_SCRATCH (sp seated there), which
- * is excluded; the contract is RAM (dumpState, minus STACK_SCRATCH). No register is a
+ * is excluded; the contract is RAM (dumpState, minus stack scratch below the entry SP). No register is a
  * live-out (the sole caller acquireTargetLockAndSetAimIndicator re-reads memory), so RAM is the whole contract.
  *
  * The routine runs only during live aim gameplay, so every state is CRAFTED:
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6bee as oracle } from "../../translated/loc_6bee.js";
 import { driveAimIndicatorHitTimerElseRescan } from "../driveAimIndicatorHitTimerElseRescan.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -52,7 +52,7 @@ const GATE2 = 0x8c18;
 const SP_SEAT = 0x8fe0; // inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP_SEAT);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

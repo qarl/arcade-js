@@ -3,7 +3,7 @@
  * Memory-equivalence test for advanceActorStateOnTimerWithTamperCheck (ROM 0x3865) — "actor state handler with embedded tamper check".
  *
  * The cycle-free / memory-equivalence gate: oracle and module run on fresh clones and are
- * compared on RAM (dumpState, minus STACK_SCRATCH) — the input register IX is seated
+ * compared on RAM (dumpState, minus stack scratch below the entry SP) — the input register IX is seated
  * identically on both. pc/SP/cycles are not compared. The routine leaves no register a caller
  * reads (a dispatched handler), so the contract is memory only.
  *
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3865 as oracle } from "../../translated/loc_3865.js";
 import { advanceActorStateOnTimerWithTamperCheck } from "../advanceActorStateOnTimerWithTamperCheck.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, SPRITE_OBJECT_TABLE, FRAME_COUNTER, SIGNATURE_MISMATCH_FLAG } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -39,7 +39,7 @@ const test = ROM_PRESENT
   : (name, fn) => nodeTest(name, { skip: "skipped: ROM not built — run 'make -C games/pooyan rom'" }, fn);
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

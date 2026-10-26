@@ -6,7 +6,7 @@
  *
  * The module calls the three idiomatic siblings directly; the oracle drives the three translated
  * siblings through the routines map. runLaunchAndTargetActorPipeline is a void sequencer — no register survives, so the
- * register file is not compared (dumpState is memory-only); equivalence is RAM minus STACK_SCRATCH,
+ * register file is not compared (dumpState is memory-only); equivalence is RAM minus stack scratch below the entry SP,
  * with SP parked there so each sub-pass's nested pushes drop out of the diff.
  *
  * The crafted state pins each sub-pass to a small, DISJOINT footprint so ORDER + WIRING is isolated
@@ -34,7 +34,7 @@ import { dispatchLaunchState } from "../dispatchLaunchState.js";
 import { spawnTargetActorOnLaunchTrigger } from "../spawnTargetActorOnLaunchTrigger.js";
 import { stepActiveTargetActorRecords } from "../stepActiveTargetActorRecords.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -58,7 +58,7 @@ const LATCH_8f02 = 0x8f02; // 0x2157 writes 0 here; pre-seeded 0 so that write i
 const SP0 = 0x8ff0; // inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

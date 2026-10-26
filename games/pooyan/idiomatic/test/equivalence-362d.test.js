@@ -9,7 +9,7 @@
  *
  * SEATING: the three tail branches (dispatchEndOfMoveIfFlagged / resolveActorTargetUnlessCommitted / spawnObjectGatedByArmedActorCount) are TAIL-CALLs — the module
  * forwards each delegate's result; the early exits are plain BALANCED rets (LIVE-OUT none). Compared
- * on RAM (dumpState) minus STACK_SCRATCH; the register file is not compared. SP is parked in
+ * on RAM (dumpState) minus stack scratch below the entry SP; the register file is not compared. SP is parked in
  * STACK_SCRATCH so the oracle's nested calls drop out.
  *
  * The module calls the idiomatic siblings directly; the oracle drives the translated siblings via
@@ -33,7 +33,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_362d as oracle } from "../../translated/loc_362d.js";
 import { dispatchActorPhaseGatedByDelay } from "../dispatchActorPhaseGatedByDelay.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -51,7 +51,7 @@ const IX = 0x8c50; // actor record (clear of the scan region and the pre-spawn w
 const SP0 = 0x8ff0; // inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

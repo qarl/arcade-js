@@ -3,7 +3,7 @@
  * Memory-equivalence test for spawnObjectIntoFreeSlot (ROM 0x3680, Pooyan) — "find a free actor slot and spawn".
  *
  * The cycle-free / memory-equivalence gate (docs/decompiler-pipeline): a fresh clone per side, the
- * oracle on one and spawnObjectIntoFreeSlot on the other, compared on RAM (dumpState, minus STACK_SCRATCH). The
+ * oracle on one and spawnObjectIntoFreeSlot on the other, compared on RAM (dumpState, minus stack scratch below the entry SP). The
  * routine's effect is memory: the spawn counters, the seeded template fields, the attribute byte
  * built by mergeActorAttributeByte and the slot fields laid by the spawnActorSlotFromTemplate tail (which itself tails queueSoundCommand04IfNotBusy);
  * pc/SP/cycles are not compared. On the table-full path it writes nothing.
@@ -33,7 +33,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3680 as oracle } from "../../translated/loc_3680.js";
 import { spawnObjectIntoFreeSlot } from "../spawnObjectIntoFreeSlot.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -56,7 +56,7 @@ const LANE_COUNT = 0x8d79;
 const SLOT_INDEX = 0x8d7b;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

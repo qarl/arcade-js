@@ -11,7 +11,7 @@
  * Cycle-free memory-equivalence gate (docs/decompiler-pipeline). Each case runs the oracle on one
  * FRESH clone and the module on another, compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * The routine takes no input register and produces no consumed register live-out: the fire path
  * tails into the memory-only sprite-list rebuild, and the sole caller ignores the gate byte the
@@ -35,7 +35,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6b3b as oracle } from "../../translated/loc_6b3b.js";
 import { promoteEnemyRecordsOnCountdownFire } from "../promoteEnemyRecordsOnCountdownFire.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   GAME_ACTIVE_FLAG,
@@ -61,7 +61,7 @@ const REC_SAVED = 0x06;
 const FIRE_STATE = 0x11;
 const COUNTDOWN_RELOAD = 0xff;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x9000);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

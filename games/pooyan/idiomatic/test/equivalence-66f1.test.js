@@ -8,7 +8,7 @@
  * reads no register or return value back (it restores its own loop registers with exx), so the
  * contract is:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * pc/SP/cycles are NOT compared, and there is no register/return live-out (both sides return
  * undefined). The record is based at ENEMY_ACTOR_TABLE (0x8ae0); the craft seats the fields that
@@ -36,7 +36,7 @@ import { loc_66f1 as oracle } from "../../translated/loc_66f1.js";
 import { dispatchEnemyActorState } from "../dispatchEnemyActorState.js";
 import { ascendEnemyActorAndLinkedSlotOnTimer } from "../ascendEnemyActorAndLinkedSlotOnTimer.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   ENEMY_ACTOR_TABLE,
@@ -54,7 +54,7 @@ const test = ROM_PRESENT
 
 const IX = ENEMY_ACTOR_TABLE; // 0x8ae0 record base
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

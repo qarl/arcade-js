@@ -10,7 +10,7 @@
  * bonus DSW bit (0x8800 bit0), and two sound commands (loc_0f4e).
  *
  * Cycle-free memory-equivalence: a fresh clone per side, compared on RAM (dumpState, minus
- * STACK_SCRATCH). No register live-out — a frame-interrupt state handler, register file
+ * stack scratch below the entry SP). No register live-out — a frame-interrupt state handler, register file
  * saved/restored around it, so only memory survives. SP parked in dead stack scratch.
  *
  * Jobs:
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0c77 as oracle } from "../../translated/loc_0c45.js";
 import { fillIntroRowsThenBuildBoardIntro } from "../fillIntroRowsThenBuildBoardIntro.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -50,7 +50,7 @@ const RING_START = 0xc0;
 const SP0 = 0x8ff0;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

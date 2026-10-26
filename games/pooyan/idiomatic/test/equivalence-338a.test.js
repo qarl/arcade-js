@@ -7,7 +7,7 @@
  *
  * SEATING: net 0 per record — the module is a plain switch (no push, no ret) that seats the record
  * base in IX for the handlers' still-frozen callees; the oracle drives the frozen rst-0x28
- * trampoline into the same handlers, so both walk identical downstream code. Compared on RAM (dumpState) minus STACK_SCRATCH; the
+ * trampoline into the same handlers, so both walk identical downstream code. Compared on RAM (dumpState) minus stack scratch below the entry SP; the
  * register file is not compared (void dispatch).
  *
  * Cases are CRAFTED: one enemy-actor record is poked active with a chosen state byte. States
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_338a as oracle } from "../../translated/loc_338a.js";
 import { dispatchActiveEnemyActorState } from "../dispatchActiveEnemyActorState.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { ENEMY_ACTOR_TABLE, STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -47,7 +47,7 @@ const SP0 = 0x8ff0;
 const EQUAL_STATES = [0x02, 0x03, 0x04, 0x05, 0x06];
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0 - 2); // entry SP: the seat pushes the caller's return word below SP0
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

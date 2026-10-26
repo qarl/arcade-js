@@ -13,7 +13,7 @@
  * true = normal continuation).
  *
  * The idiomatic module composes the real idiomatic seed/finder/sound chain; the oracle drives the
- * translated subtree through the routines map. Compared on RAM (dumpState, minus STACK_SCRATCH).
+ * translated subtree through the routines map. Compared on RAM (dumpState, minus stack scratch below the entry SP).
  * No register survives the terminating skip, so the register file is not compared — the module's
  * forwarded boolean is the contract alongside RAM. SP is parked in STACK_SCRATCH so the finder's
  * pushes and the skip's pop-af+ret drop out of the diff. IY/DE/C are seated for the oracle's
@@ -39,7 +39,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_60bc as oracle } from "../../translated/loc_60bc.js";
 import { resolveShotHitEngageOrSeedRecord } from "../resolveShotHitEngageOrSeedRecord.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -64,7 +64,7 @@ const SEED_FIELDS = [0x00, 0x01, 0x02, 0x12, 0x16, 0x17]; // bytes the seed step
 const SP0 = 0x8ff0; // inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

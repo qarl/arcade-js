@@ -8,7 +8,7 @@
  * This is the CYCLE-FREE / memory-equivalence gate. The routine is a pure probe, so the
  * contract is:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) + the declared register live-out (DE).
+ *     RAM (dumpState, minus stack scratch below the entry SP) + the declared register live-out (DE).
  *
  * DE is the only live-out; it is derived from the ORACLE clone, never the module. pc is not
  * compared (the oracle drives it through m.step/m.ret, machinery the direct-call layer drops).
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_04f2 as oracle } from "../../translated/loc_04f2.js";
 import { selectActivePlayerScoreBuffer } from "../selectActivePlayerScoreBuffer.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ACTIVE_PLAYER, P1_SCORE_BCD, P2_SCORE_BCD } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -40,9 +40,9 @@ const test = ROM_PRESENT
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
-/** First RAM difference minus the STACK_SCRATCH region (the oracle's push/pop af writes it).
+/** First RAM difference minus the stack scratch below the entry SP (the oracle's push/pop af writes it).
  * firstStateDiff's own excludeAddr skips dead-stack cells in a single pass. */
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

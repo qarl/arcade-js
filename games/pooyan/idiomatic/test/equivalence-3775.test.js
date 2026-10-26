@@ -10,7 +10,7 @@
  * Cycle-free memory-equivalence gate (docs/decompiler-pipeline). Each case runs the oracle on one
  * FRESH clone and the module on another, compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) + the A, HL and B register live-outs.
+ *     RAM (dumpState, minus stack scratch below the entry SP) + the A, HL and B register live-outs.
  *
  * A = the move counter (ix+6) on every path — the register a dispatcher chain can read back — is set
  * by the module and asserted. On the finish-and-blank path the band helper also leaves HL = IX+0x17
@@ -34,7 +34,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3775 as oracle } from "../../translated/loc_3775.js";
 import { finishActorOrArmTurnaround } from "../finishActorOrArmTurnaround.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, PLAY_STATE_INDEX } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -53,7 +53,7 @@ const REC_ANIM_LO = 0x0c;
 const REC_ANIM_HI = 0x0d;
 const REC_ANIM_FRAME = 0x0e;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ff0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

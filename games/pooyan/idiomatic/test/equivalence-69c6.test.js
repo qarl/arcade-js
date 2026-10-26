@@ -8,7 +8,7 @@
  * descending.
  *
  * Cycle-free memory-equivalence gate: writes work RAM, so a FRESH clone per side, compared on RAM
- * (dumpState minus STACK_SCRATCH). LIVE-OUT is memory only — a caller sweep reloads ix/iy per pair
+ * (dumpState minus stack scratch below the entry SP). LIVE-OUT is memory only — a caller sweep reloads ix/iy per pair
  * and consumes no register result — so no register is compared. The sequencer / wipe helpers frame
  * their work on the stack, which is excluded. To keep the sequencer deterministic every scenario
  * seats a non-zero animation hold (+0x0e), so it only decrements that field.
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_69c6 as oracle } from "../../translated/loc_69c6.js";
 import { advancePairedDescendingObjectStep } from "../advancePairedDescendingObjectStep.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, BLINK_PHASE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -46,7 +46,7 @@ const FILL_IX = 0xa5; // pre-dirty pattern so a wipe is a real, observable chang
 const FILL_IY = 0x5a;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

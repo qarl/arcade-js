@@ -3,7 +3,7 @@
  * Memory-equivalence test for advanceAttractToBoardBuildIfImageIntact (ROM 0x7071, Pooyan) — anti-tamper clone of advanceAttractSequenceToPlay.
  *
  * SEATING: BALANCED (plain ret / tail-calls) -> WIRE. Void handler: no register survives, LIVE-OUT is
- * memory only, comparison is RAM (dumpState) minus STACK_SCRATCH. SP parked in STACK_SCRATCH so the
+ * memory only, comparison is RAM (dumpState) minus stack scratch below the entry SP. SP parked in STACK_SCRATCH so the
  * nested attract-step / word-lookup pushes drop out.
  *
  * Crafted paths (column integrity seeded intact so the row guard passes): the ANIM timer both ways
@@ -22,7 +22,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_7071 as oracle } from "../../translated/loc_7071.js";
 import { advanceAttractToBoardBuildIfImageIntact } from "../advanceAttractToBoardBuildIfImageIntact.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   HUD_INTEGRITY_STRIP_A,
@@ -42,7 +42,7 @@ const test = ROM_PRESENT
 
 const SP0 = 0x8ff0;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

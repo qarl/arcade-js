@@ -4,7 +4,7 @@
  * actor slot and enters the start-of-scan state machine.
  *
  * A fresh clone per side, the oracle on one and loc_5733 on the other, compared on RAM (dumpState)
- * minus STACK_SCRATCH. pc/SP/cycles are NOT compared; the routine is a caller-skip spawn with no
+ * minus stack scratch below the entry SP. pc/SP/cycles are NOT compared; the routine is a caller-skip spawn with no
  * register live-out (its whole output is the initialised record, the spawn timer, the enemy tally,
  * and whatever the start-of-scan machine writes). Both sides drive the same start-of-scan stepper
  * (frozen for the oracle, the idiomatic siblings for the module), so its writes cancel in the diff
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5733 as oracle } from "../../translated/loc_5733.js";
 import { loc_5733 } from "../loc_5733.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ENEMY_SPAWN_TIMER, ACTIVE_ENEMY_COUNT } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -52,7 +52,7 @@ const BLK = 0x8d47; //  first sub-state byte
 const SP0 = 0x8ff0; //  inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

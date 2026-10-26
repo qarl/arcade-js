@@ -6,7 +6,7 @@
  * BONUS_STAGE_TALLY_DISPLAY_CMD via the (already idiomatic) ring helper enqueueDisplayCommand.
  *
  * No register inputs. The expired case seats a FREE ring slot so the enqueue path actually writes, and
- * the enqueue bytes are part of the compared RAM. Compared on RAM (dumpState) minus STACK_SCRATCH; SP
+ * the enqueue bytes are part of the compared RAM. Compared on RAM (dumpState) minus stack scratch below the entry SP; SP
  * is parked in STACK_SCRATCH so the oracle's push/ret drop out of the diff.
  *
  * Jobs: 1. EQUAL (counting + expired); 2. WRITE-SET (counter tick vs selector+enqueue); 3. TEETH.
@@ -21,7 +21,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1090 as oracle } from "../../translated/loc_1090.js";
 import { queueBonusStageTallyDisplayOnDelay } from "../queueBonusStageTallyDisplayOnDelay.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   MAINLOOP_SUBSTATE_SELECTOR,
@@ -41,7 +41,7 @@ const RING_PAGE = 0x8800;
 const RING_SLOT_LOW = 0xc0; // point the write ptr at a free ring slot so the enqueue writes
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

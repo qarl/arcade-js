@@ -7,7 +7,7 @@
  * SEATING: BALANCED-WIRE. The oracle has a plain `ret c` (net SP 0) on the below-quorum branch,
  * then two pattern-A balanced calls and a plain `ret`; net SP 0. A void epilogue — no register
  * is read back — so the register file is not compared; equivalence is RAM (dumpState) minus
- * STACK_SCRATCH, SP parked in scratch so the sub-passes' nested pushes drop out of the diff.
+ * stack scratch below the entry SP, SP parked in scratch so the sub-passes' nested pushes drop out of the diff.
  *
  * The states are CRAFTED. The formation tick is gated to its decrement-and-return branch (wave
  * count high enough to skip the ready-sprite helper, spawn timer left running) so it just ticks
@@ -35,7 +35,7 @@ import { runSpawnTickAndHunterSweep } from "../runSpawnTickAndHunterSweep.js";
 import { tickFormationSpawnAndScanSlots } from "../tickFormationSpawnAndScanSlots.js";
 import { dispatchAllHunterRecordStates } from "../dispatchAllHunterRecordStates.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, LEAD_ACTOR_STATE, ENEMY_ACTOR_TABLE, WAVE_ARRIVAL_COUNTER, FORMATION_SPAWN_TIMER } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -53,7 +53,7 @@ const REC0_POS = EAT + 0x03; //   record 0 horizontal position (delta target)
 const SP0 = 0x8ff0; // inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

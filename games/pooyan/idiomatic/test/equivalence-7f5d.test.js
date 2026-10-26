@@ -7,7 +7,7 @@
  * 0x8e25 — draining it tail-delegates to floodWriteAnimCellsAndLatchPhase, otherwise it does the per-row write at *(0x8e27).
  *
  * appendWriteAnimBlockRowOnPhase is a void handler (no register live-out), so the register file is not compared; equivalence
- * is RAM (dumpState) minus STACK_SCRATCH. SP is parked in STACK_SCRATCH so the drained path's nested
+ * is RAM (dumpState) minus stack scratch below the entry SP. SP is parked in STACK_SCRATCH so the drained path's nested
  * pushes (the tail's m.call chain) drop out of the diff.
  *
  * Both load-bearing branches are driven on BOTH arms:
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_7f5d as oracle } from "../../translated/loc_7f5d.js";
 import { appendWriteAnimBlockRowOnPhase } from "../appendWriteAnimBlockRowOnPhase.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -41,10 +41,10 @@ const test = ROM_PRESENT
   : (name, fn) => nodeTest(name, { skip: "skipped: ROM not built — run 'make -C games/pooyan rom'" }, fn);
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 const SP0 = 0x8ff0; //          parked inside STACK_SCRATCH (0x8fc0-0x9000)
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const SRC_PTR = 0x8d00; //      *(0x8e21) points here; its byte's bit 4 feeds the ring
 const APPEND_TARGET = 0x8c00; // *(0x8e1f) points here (write RAM)
 const ROW_TARGET = 0x8c80; //   *(0x8e27) points here; backed up to 0x8c60

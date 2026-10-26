@@ -8,7 +8,7 @@
  * normal (no-grab) path, false = the grab path (the skip its caller early-returns on).
  *
  * Cycle-free memory-equivalence gate: a FRESH clone per side, compared on RAM (dumpState, minus
- * STACK_SCRATCH — the oracle's call trampolines and its pop-af/ret land there). pc/SP/cycles are
+ * stack scratch below the entry SP — the oracle's call trampolines and its pop-af/ret land there). pc/SP/cycles are
  * NOT compared, and no register is a live-out (the boolean is the whole result). The oracle path
  * is selected by seated input (player coordinate + busy flags) and confirmed by the grab-latch
  * footprint, so the boolean contract is checked against the path the oracle actually ran.
@@ -35,7 +35,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_305f as oracle } from "../../translated/loc_305f.js";
 import { testHangingRopeGrabConnect } from "../testHangingRopeGrabConnect.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   GRAB_WINDOW_TABLE,
@@ -54,7 +54,7 @@ const test = ROM_PRESENT
 
 const IXBASE = 0x8a80; // IXL&3 == 0 selects window slot 0
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

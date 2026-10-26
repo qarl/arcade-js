@@ -10,7 +10,7 @@
  * call — netting 0 across the dispatch. The cell writer driveActiveRopeCells seats each of its own dispatches
  * internally, so with the dispatchRopeExtendState seat the routine nets 0 overall and WIREs. It is a void per-frame
  * driver: no register survives that a caller reads back (its own caller tail-calls it and forwards),
- * so the register file is not compared; equivalence is RAM (dumpState) minus STACK_SCRATCH, with SP
+ * so the register file is not compared; equivalence is RAM (dumpState) minus stack scratch below the entry SP, with SP
  * parked in STACK_SCRATCH so the sub-calls' pushes drop out of the diff.
  *
  * Cases are CRAFTED: a plain boot does not seat the guard cells + the rope sub-state.
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2d66 as oracle } from "../../translated/loc_2d66.js";
 import { driveRopeExtendAndRenderCells } from "../driveRopeExtendAndRenderCells.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -50,7 +50,7 @@ const SEGMENT = 0x8931; // ROPE_SEGMENT_COUNT (addRopeSegmentAndAdvanceExtendSta
 const SP0 = 0x8ff0; // inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

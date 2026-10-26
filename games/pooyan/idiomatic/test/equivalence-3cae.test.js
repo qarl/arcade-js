@@ -11,7 +11,7 @@
  * (derived independently from the oracle's SP movement: +2 for a lone ret, +4 for pop-af + ret).
  *
  * CYCLE-FREE / memory-equivalence gate (docs/decompiler-pipeline). Each case runs the oracle on one
- * FRESH clone and seedFormationChildIntoFreeSlotAndLaunchParent on another and compares RAM (dumpState, minus STACK_SCRATCH). The seat
+ * FRESH clone and seedFormationChildIntoFreeSlotAndLaunchParent on another and compares RAM (dumpState, minus stack scratch below the entry SP). The seat
  * path composes the idiomatic setActorAnimation/advanceActorAnimFrame on the module side against the
  * translated loc_381e/loc_403c the oracle dispatches; the two must land byte-identical. IY (the
  * formation record) and IX (the parent) are the inputs; SP is seated in the dead stack. pc and the
@@ -39,7 +39,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3cae as oracle } from "../../translated/loc_3cae.js";
 import { seedFormationChildIntoFreeSlotAndLaunchParent } from "../seedFormationChildIntoFreeSlotAndLaunchParent.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, FORMATION_TABLE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -54,7 +54,7 @@ const PARENT = 0x8a80; // an actor record base, clear of the child record and th
 const SP_START = 0x8ff8; // inside STACK_SCRATCH; leaves room for the oracle's push/pop/ret
 const DIRT = 0xaa;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP_START);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

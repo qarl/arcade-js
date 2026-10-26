@@ -8,7 +8,7 @@
  * advances alone (Z80 `inc l`), so writes wrap within its 256-byte page.
  *
  * CYCLE-FREE / memory-equivalence gate. The routine WRITES RAM, so each case runs on a FRESH clone
- * per side. The go-forward contract is RAM (dumpState, minus STACK_SCRATCH) AND the HL live-out.
+ * per side. The go-forward contract is RAM (dumpState, minus stack scratch below the entry SP) AND the HL live-out.
  * rebuildSpriteDisplayList chains its next display-list copy (loc_032a) from the advanced HL without reloading it,
  * so HL is LOAD-BEARING: the module's return is compared against the oracle clone's final HL, and
  * the module must also SET HL on its own clone. IX/B/A/DE are plumbing (the caller resets IX/B per
@@ -33,7 +33,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0343 as oracle } from "../../translated/loc_0343.js";
 import { buildDisplayEntriesFromMovingObjects } from "../buildDisplayEntriesFromMovingObjects.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, SPRITE_DISPLAY_LIST, ENEMY_ACTOR_TABLE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -45,10 +45,10 @@ const test = ROM_PRESENT
 
 const TARGET = 0x0343;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
-function ramDiffMinusStack(ma, mb) {
-  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
+  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /**
@@ -119,7 +119,7 @@ test("CAPTURE: real 0x0343 dispatches — module == oracle in RAM (−stack) and
     const c = cap.clone();
     oracle(o);
     const ret = buildDisplayEntriesFromMovingObjects(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
     assert.equal(ret, o.regs.hl, `HL live-out: module ${hx(ret)} != oracle ${hx(o.regs.hl)}`);
     assert.equal(c.regs.hl, o.regs.hl, `module must SET HL for the translated chain: ${hx(c.regs.hl)} != ${hx(o.regs.hl)}`);

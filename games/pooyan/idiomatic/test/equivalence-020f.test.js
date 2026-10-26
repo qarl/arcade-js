@@ -18,7 +18,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { mainLoopStep as oracle } from "../../translated/mainLoopStep.js";
 import { mainLoopStep } from "../mainLoopStep.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, DISPLAY_CMD_RING_READ_PTR } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -31,7 +31,7 @@ const test = ROM_PRESENT
 const RING_PAGE = DISPLAY_CMD_RING_READ_PTR & ~0xff; // 0x8800
 const SP0 = 0x8fe0; //                                inside STACK_SCRATCH
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 const ramDiff = (a, b) => firstStateDiff(a.dumpState(), b.dumpState(), (o) => a.stateOffsetToAddr(o), inDeadStack);
 

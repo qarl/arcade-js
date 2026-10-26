@@ -6,7 +6,7 @@
  * (seatActorRecordAndQueueSpawnDisplay) and bumping its (IX+2) phase — then emits the tile-command run (queueSound82ThenRun1C).
  *
  * Cycle-free memory-equivalence gate: a FRESH clone per side (the routine writes RAM), compared on
- * RAM (dumpState, minus STACK_SCRATCH — the oracle's exx-guarded call trampolines push there) PLUS
+ * RAM (dumpState, minus stack scratch below the entry SP — the oracle's exx-guarded call trampolines push there) PLUS
  * the register live-out: A (the advanced command-ring cursor left by the final emit — 0 while its
  * game-active gate is closed) and IX (the record pointer advanced to base - 3*0x18). pc/SP/cycles
  * are NOT compared. IX is the routine's only register input; every other input is a work-RAM cell.
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6505 as oracle } from "../../translated/loc_6505.js";
 import { spawnActorGroupRecords } from "../spawnActorGroupRecords.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   SHARED_FRAME_DELAY_TIMER,
@@ -55,7 +55,7 @@ const REC_ACTIVE = 0x04; //    a seated record field (IX+4 := 0x15) to corrupt f
 const RING_START = 0xc0;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

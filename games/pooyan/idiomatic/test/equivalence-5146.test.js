@@ -5,7 +5,7 @@
  * to direct calls.
  *
  * runEnemySpawnScriptPasses is void — no register survives — so the register file is not compared; equivalence is
- * RAM (dumpState) minus STACK_SCRATCH via firstStateDiff, SP parked in dead stack. The craft arms
+ * RAM (dumpState) minus stack scratch below the entry SP via firstStateDiff, SP parked in dead stack. The craft arms
  * the slot-sweep (advance guard set, sweep latch clear, enemy slots empty) so latchFreeSlotCountAndTamperCheck does real
  * work — an observable write the trampoline is responsible for invoking.
  *
@@ -31,7 +31,7 @@ import { loc_5146 as oracle } from "../../translated/loc_5146.js";
 import { runEnemySpawnScriptPasses } from "../runEnemySpawnScriptPasses.js";
 import { latchFreeSlotCountAndTamperCheck } from "../latchFreeSlotCountAndTamperCheck.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -47,7 +47,7 @@ const SP0 = 0x8ff0; //                  inside STACK_SCRATCH
 const CALLER_RET = 0xabcd; //           the caller's return word the seam completes
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

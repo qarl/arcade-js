@@ -9,7 +9,7 @@
  * is set — writes 0x01 to HUNTER_SPAWN_FLIP_FLAG.
  *
  * The routine takes NO load-bearing register inputs (it seats HL from a constant), so every case is a
- * memory poke. Compared on RAM (dumpState) minus STACK_SCRATCH; SP is parked in STACK_SCRATCH so the
+ * memory poke. Compared on RAM (dumpState) minus stack scratch below the entry SP; SP is parked in STACK_SCRATCH so the
  * oracle's push/call/ret stack traffic falls out of the diff.
  *
  * Jobs: 1. EQUAL across the boundary / running / expiry(bit1 clear) / expiry(bit1 set) branches;
@@ -26,7 +26,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1d6e as oracle } from "../../translated/loc_1d6e.js";
 import { announceBonusStageAndStartPlay } from "../announceBonusStageAndStartPlay.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   LAUNCH_SCRIPT_PTR,
@@ -48,7 +48,7 @@ const SP0 = 0x8ff0; // inside STACK_SCRATCH
 const ROUND_BIT1 = 0x02;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

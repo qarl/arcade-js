@@ -9,7 +9,7 @@
  * sibling; the oracle drives the frozen ones.
  *
  * advanceAttractSequenceToPlay is a void attract handler — no register survives — so equivalence is RAM (dumpState) minus
- * STACK_SCRATCH, SP parked in dead stack. Each decision path is crafted: row mismatch, timer running
+ * stack scratch below the entry SP, SP parked in dead stack. Each decision path is crafted: row mismatch, timer running
  * (early return), a checksum-frame clean pass, and a checksum-frame high-byte miss.
  *
  * Jobs:
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0b32 as oracle } from "../../translated/loc_0b32.js";
 import { advanceAttractSequenceToPlay } from "../advanceAttractSequenceToPlay.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   HUD_INTEGRITY_STRIP_A,
@@ -53,7 +53,7 @@ const SP0 = 0x8fe0; //           inside STACK_SCRATCH
 const CALLER_RET = 0xfffc; //    the tail-exit ret pops this dead-stack word
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

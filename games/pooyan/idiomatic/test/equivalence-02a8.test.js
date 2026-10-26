@@ -7,7 +7,7 @@
  * This is the CYCLE-FREE / memory-equivalence gate. The routine WRITES video RAM, so every
  * case uses a FRESH clone per side, compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) + the advanced pointer.
+ *     RAM (dumpState, minus stack scratch below the entry SP) + the advanced pointer.
  *
  * pc/SP/cycles are NOT compared. The advanced pointer HL = start + 2*stride is checked as an
  * idiomatic-only return: the oracle leaves it in HL, but the sole caller reloads its own
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_02a8 as oracle } from "../../translated/loc_02a8.js";
 import { stampCappedTileColumn } from "../stampCappedTileColumn.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -45,7 +45,7 @@ const TILE_MID = 0x25;
 const TILE_BASE = 0x20;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

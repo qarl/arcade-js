@@ -3,7 +3,7 @@
  * Memory-equivalence test for loadPhaseMotionParamsAndAdvancePhase (ROM 0x2282, Pooyan) — "load the phase's motion params".
  *
  * The cycle-free / memory-equivalence gate (docs/decompiler-pipeline): a fresh clone per side, the
- * oracle on one and loadPhaseMotionParamsAndAdvancePhase on the other, compared on RAM (dumpState, minus STACK_SCRATCH).
+ * oracle on one and loadPhaseMotionParamsAndAdvancePhase on the other, compared on RAM (dumpState, minus stack scratch below the entry SP).
  * loadPhaseMotionParamsAndAdvancePhase has no register live-out — the caller reads the three loaded slots back out of memory —
  * so only RAM is compared; pc/SP/cycles are deliberately not compared.
  *
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2282 as oracle } from "../../translated/loc_2282.js";
 import { loadPhaseMotionParamsAndAdvancePhase } from "../loadPhaseMotionParamsAndAdvancePhase.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -47,7 +47,7 @@ const PARAM_WORD_X = 0x8f10;
 const PARAM_WORD_Y = 0x8f12;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

@@ -7,7 +7,7 @@
  * remains, or 0 at phase end.
  *
  * CYCLE-FREE / memory-equivalence gate: the routine WRITES RAM, so every case uses a FRESH clone
- * per side. The go-forward contract is RAM only (dumpState minus STACK_SCRATCH): the caller
+ * per side. The go-forward contract is RAM only (dumpState minus stack scratch below the entry SP): the caller
  * (tickEnemyActorAnimHolds) banks its loop state via exx and reads no register back, so there is no register
  * live-out.
  *
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5d1e as oracle } from "../../translated/loc_5d1e.js";
 import { tickActorAnimHold } from "../tickActorAnimHold.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ROUND_COUNTER } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -41,13 +41,13 @@ const TARGET = 0x5d1e;
 const REC = 0x8ae0; // a stride-0x18 object record in work RAM (the real base tickEnemyActorAnimHolds walks)
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, STACK_SCRATCH.hi - 0x10);
 
-/** First RAM difference on the go-forward contract: whole dump minus STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
+/** First RAM difference on the go-forward contract: whole dump minus stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** A fresh machine: ROUND_COUNTER seeded, plus the five record cells the routine reads/writes. */
@@ -110,7 +110,7 @@ test("CAPTURE: real 0x5d1e dispatches — module == oracle in RAM (−stack)", (
     const c = cap.clone();
     oracle(o);
     tickActorAnimHold(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
   }
   console.log(`  CAPTURE: ${CAPS.length} real dispatch(es) checked`);

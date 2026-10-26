@@ -8,7 +8,7 @@
  * The module calls the idiomatic sub-routines directly; the oracle drives the same routines through
  * the frozen registry. advanceEnemyAnimationPhase is memory-only on every reachable exit (the fall-through always hits
  * blankEnemyBandOnTimerExpiry's not-elapsed path, since this routine already spent the timer), so the register file is
- * not compared; equivalence is RAM (dumpState) minus STACK_SCRATCH (SP parked in dead stack so the
+ * not compared; equivalence is RAM (dumpState) minus stack scratch below the entry SP (SP parked in dead stack so the
  * oracle's push/pop churn drops out). advanceObjectAnimationFrame is held on its frame-hold branch (rec+0x0e != 0) so
  * it never walks the ROM stream.
  *
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3d5c as oracle } from "../../translated/loc_3d5c.js";
 import { advanceEnemyAnimationPhase } from "../advanceEnemyAnimationPhase.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -46,7 +46,7 @@ const HOLD = REC + 0x0e; //   advanceObjectAnimationFrame frame-hold (nonzero ->
 const SP0 = 0x8fe0; //        inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

@@ -34,7 +34,7 @@ import { loc_6a98 as oracle } from "../../translated/loc_6a98.js";
 import { dispatchDescendingObjectState } from "../dispatchDescendingObjectState.js";
 import { loc_67df as translatedReinit } from "../../translated/loc_67df.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -52,11 +52,11 @@ const HOLD = REC + 0x0e; // anim frame-hold counter (handler 0x6aa8 -> advanceOb
 const POS_LO = REC + 0x05; // position low byte (handler subtracts the speed at +0x09)
 const POS_HI = REC + 0x06; // position high byte (non-zero -> handler returns without advancing state)
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
-function ramDiffMinusStack(ma, mb) {
-  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
+  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** A fresh clone with IX at the record and its state byte set. sp in dead stack. */
@@ -115,7 +115,7 @@ test("CAPTURE: real 0x6a98 dispatches replay identically (if reached)", () => {
     try { dispatchDescendingObjectState(c); } catch { cThrew = true; }
     assert.equal(oThrew, cThrew, "oracle and module must take the same completion path");
     if (!oThrew) {
-      const d = ramDiffMinusStack(o, c);
+      const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
       assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
     }
   }

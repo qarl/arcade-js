@@ -9,7 +9,7 @@
  * The idiomatic module dissolves resetBoardRamAndReseedSpawnCounters/zeroSpriteListAndActorArena to direct calls and keeps the tail m.call(0x0bb5);
  * the oracle drives the same frozen callees and the same tail. resetToBoardBuildToContinuePlay is a void continuation — the
  * frame caller restores every register — so no register is compared; equivalence is RAM (dumpState)
- * minus STACK_SCRATCH, with SP parked in dead stack so the oracle's transient return-slot pushes drop
+ * minus stack scratch below the entry SP, with SP parked in dead stack so the oracle's transient return-slot pushes drop
  * out.
  *
  * Jobs:
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_15d1 as oracle } from "../../translated/loc_15d1.js";
 import { resetToBoardBuildToContinuePlay } from "../resetToBoardBuildToContinuePlay.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -51,7 +51,7 @@ const SP0 = 0x8ff0; //          inside STACK_SCRATCH
 const CALLER_RET = 0xfffc; //   caller-return word the free-play tail-dispatch consumes
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

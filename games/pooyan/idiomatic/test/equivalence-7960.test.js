@@ -10,7 +10,7 @@
  * This is the cycle-free / memory-equivalence gate. The routine writes work RAM and video RAM,
  * so every case uses a FRESH clone per side and the two are compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * There is NO register live-out: both dispatch callers reload every register before reading one,
  * so pc/SP/cycles and the register file are all excluded — only memory is the contract.
@@ -39,7 +39,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_7960 as oracle } from "../../translated/loc_7960.js";
 import { renderPlayTimerNibblesAndGuardChecksum } from "../renderPlayTimerNibblesAndGuardChecksum.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { ACTIVE_PLAYER, PLAY_TIMER_BCD_P1, PLAY_TIMER_BCD_P2, STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -65,9 +65,9 @@ const P1_MIN = PLAY_TIMER_BCD_P1 + 2;
 const P2_SEC = PLAY_TIMER_BCD_P2 + 1;
 const P2_MIN = PLAY_TIMER_BCD_P2 + 2;
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
-/** First RAM difference minus the STACK_SCRATCH region (neither side writes it here). */
+/** First RAM difference minus the stack scratch below the entry SP (neither side writes it here). */
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

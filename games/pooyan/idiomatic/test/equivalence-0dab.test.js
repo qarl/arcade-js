@@ -11,7 +11,7 @@
  * Both sides call the SAME frozen loc_0e54 / loc_0e00, and the dissolved enqueueDisplayCommand / fillByteRun carry
  * their own gates, so this gate proves startNewGamePlay's own writes and branch. The display-command ring is
  * freed so the enqueues land; SP is parked in STACK_SCRATCH so the KEPT calls' push/ret drop out of
- * the RAM diff. Compared on RAM (dumpState, minus STACK_SCRATCH). No register live-out — memory only.
+ * the RAM diff. Compared on RAM (dumpState, minus stack scratch below the entry SP). No register live-out — memory only.
  *
  * The active-player word drives the branch: high byte bit0 clear (1P) -> early return before the
  * panel clear; set (2P) -> the full path. Both are crafted.
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0dab as oracle } from "../../translated/loc_0cf8.js";
 import { startNewGamePlay } from "../startNewGamePlay.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -57,7 +57,7 @@ const RING_START = 0xc0;
 const SP0 = 0x8ff0; // inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

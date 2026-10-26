@@ -9,7 +9,7 @@
  * message table into the message buffer.
  *
  * Cycle-free memory-equivalence gate: a FRESH clone per side (the routine writes RAM), compared on
- * RAM (dumpState, minus STACK_SCRATCH — the oracle drives its callees through m.call/m.step, whose
+ * RAM (dumpState, minus stack scratch below the entry SP — the oracle drives its callees through m.call/m.step, whose
  * return-address pushes land in the dead stack). pc/SP/cycles are NOT compared, and there is NO
  * register/flag live-out: initRoundArenaAndRestorePlayerBank is a table-dispatched state handler whose caller does not read a
  * result register back. The oracle runs entirely in the translated layer (its m.call resolves the
@@ -39,7 +39,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1601 as oracle } from "../../translated/loc_1601.js";
 import { initRoundArenaAndRestorePlayerBank } from "../initRoundArenaAndRestorePlayerBank.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   FILL_ROW_COUNTER,
@@ -73,7 +73,7 @@ const BANK_SIZE = 0x3f;
 const VRAM_FILL = 0x8400; // where the seeded fill cursor points
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

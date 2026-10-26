@@ -8,7 +8,7 @@
  *
  * This is the CYCLE-FREE / memory-equivalence gate. The routine WRITES work RAM (reading its
  * per-record fields out of ROM), so every case runs the oracle on one fresh clone and seedNextEagleWave
- * on another, compared on the go-forward contract: RAM (dumpState, minus STACK_SCRATCH). There
+ * on another, compared on the go-forward contract: RAM (dumpState, minus stack scratch below the entry SP). There
  * is NO register live-out — the caller returns immediately after seeding — and the routine
  * reads no input register, so nothing else is compared.
  *
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_72e1 as oracle } from "../../translated/loc_72e1.js";
 import { seedNextEagleWave } from "../seedNextEagleWave.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   ENEMY_TARGET_REC0,
@@ -51,7 +51,7 @@ const test = ROM_PRESENT
 const RECORD_STRIDE = 0x18;
 const REC_OFFSETS = [0x00, 0x03, 0x04, 0x05, 0x06, 0x0f, 0x10]; // every field the seeder may touch
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

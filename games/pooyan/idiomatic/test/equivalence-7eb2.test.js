@@ -9,7 +9,7 @@
  * 256 djnz passes.
  *
  * Cycle-free memory-equivalence gate: a fresh clone per side, compared on RAM (dumpState, minus
- * STACK_SCRATCH). No register live-out — the shared epilogue this ret's into reloads A/HL from
+ * stack scratch below the entry SP). No register live-out — the shared epilogue this ret's into reloads A/HL from
  * memory, so only the work-block writes survive.
  *
  * Inputs poked identically on both sides: the pass seed (0x89fc), the cabinet flag (0x880f), the
@@ -33,7 +33,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_7eb2 as oracle } from "../../translated/loc_7eb2.js";
 import { seedWriteAnimWorkBlock } from "../seedWriteAnimWorkBlock.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -60,7 +60,7 @@ const RECORD_BASE = 0x8dfd;
 const WRITE_BASE = 0x8565;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ff0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 const passesFor = (seed) => ((seed & 0xff) === 0 ? 256 : seed & 0xff);

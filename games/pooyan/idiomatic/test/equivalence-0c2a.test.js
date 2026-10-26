@@ -5,7 +5,7 @@
  * While IN0 bit3 is set the routine is inert; on a press it seats attract sub-state 9 and wipes the
  * tile video RAM to the blank tile. The fill is one cell short of the full page (bc = 0x03ff), so the
  * final 0x87ff cell is deliberately left untouched — a quirk the teeth pin down. advanceAttractOnStartPress is a void
- * poll, so equivalence is RAM (dumpState) minus STACK_SCRATCH.
+ * poll, so equivalence is RAM (dumpState) minus stack scratch below the entry SP.
  *
  * Jobs:
  *   1. EQUAL — pressed and not-pressed crafts: oracle == module in RAM (−stack).
@@ -22,7 +22,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0c2a as oracle } from "../../translated/loc_0b32.js";
 import { advanceAttractOnStartPress } from "../advanceAttractOnStartPress.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, IN0_PORT, ATTRACT_SUBSTATE, VIDEO_RAM_BASE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -38,7 +38,7 @@ const LAST_FILLED = VIDEO_RAM_BASE + 0x03fe; // 0x87fe
 const NEVER_FILLED = VIDEO_RAM_BASE + 0x03ff; // 0x87ff — the off-by-one cell
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

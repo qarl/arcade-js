@@ -9,7 +9,7 @@
  *
  * CYCLE-FREE / memory-equivalence gate. The routine WRITES video + work RAM, so each case runs the
  * oracle on one FRESH clone and paintSpawnPhaseMarkerColumn on another, compared on RAM (dumpState, minus
- * STACK_SCRATCH). pc/SP are NOT compared; there is no register live-out (the blitter's advanced
+ * stack scratch below the entry SP). pc/SP are NOT compared; there is no register live-out (the blitter's advanced
  * HL/DE are dropped by 0x4a0b's ret and read by no caller). The oracle's `call 0x3307` resolves
  * through the translated registry `new Machine(ROM)` builds, so the gate cross-checks the idiomatic
  * blitTile3x3Block against translated loc_3307 on the crafted (0x8f0b=0) states.
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_4a0b as oracle } from "../../translated/loc_4a0b.js";
 import { paintSpawnPhaseMarkerColumn } from "../paintSpawnPhaseMarkerColumn.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -50,7 +50,7 @@ const VRAM_LO = 0x8400;
 const VRAM_HI = 0x8800;
 const CONTROL_CELLS = new Set([SPAWN_PHASE_SNAPSHOT, ROPE_DRAW_COUNT, MARKER_LAYOUT_PTR, MARKER_LAYOUT_PTR + 1]);
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

@@ -7,7 +7,7 @@
  * This is the CYCLE-FREE / memory-equivalence gate. The routine WRITES work RAM, so every case
  * uses a FRESH clone per side, compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * pc/SP/cycles are NOT compared. The contract is MEMORY ONLY: the enqueue helper round-trips
  * BC/DE/HL and its A leftover (the advanced tail) is not consumed — queueSoundCommands82And03's sole caller (advanceFallingEnemyAndTallyCatchOnLanding)
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0eda as oracle } from "../../translated/loc_0eda.js";
 import { queueSoundCommands82And03 } from "../queueSoundCommands82And03.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, SOUND_RING_WRITE_PTR, HIGH_SCORE_TABLE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -42,7 +42,7 @@ const CMD_B = 0x03;
 const RING_LAST = 0x5e;
 const RING_FIRST = 0x43;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

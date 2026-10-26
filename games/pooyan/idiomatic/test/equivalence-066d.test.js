@@ -32,7 +32,7 @@ import { runVblankNmiService } from "../runVblankNmiService.js";
 import { buildRoutines } from "../../routines.js";
 import { Machine, resolveAllIdiomatic, withOmittedRet } from "../../machine.js";
 import { runIdiomaticGame } from "../../../../core/frame-stepped.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 import manifest from "../../manifest.js";
 
@@ -45,7 +45,7 @@ const nmiReturnPC = manifest.convergence.idiomatic.nmiReturnPC;
 const AT = [90, 400, 1200, 2400]; // attract frames: at 90 the sprite pairs are still uniform, so a slot swap reads equal
 const SP0 = 0x8fe0; //         inside STACK_SCRATCH — the oracle's 12 register pushes land in dead scratch
 const RET = 0xfffc; //         a caller-return word seeded at SP0 for the oracle's final ret to pop
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 
 // Boot the generator engine (real overrides) once through several attract frames; each captured state is an entry.
 // The boot machine runs the idiomatic map, so its clones would hand the oracle idiomatic callees.

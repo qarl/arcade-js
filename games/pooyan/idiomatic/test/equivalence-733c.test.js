@@ -9,7 +9,7 @@
  * display command (0x0630 + arrived) via enqueueDisplayCommand.
  *
  * Cycle-free memory-equivalence gate: a fresh clone per side, compared on RAM (dumpState, minus
- * STACK_SCRATCH). No register/flag live-out is declared: advanceEagleToArrivalAndTallyWave has no direct m.call caller (it
+ * stack scratch below the entry SP). No register/flag live-out is declared: advanceEagleToArrivalAndTallyWave has no direct m.call caller (it
  * is reached by per-record state-table dispatch), so no consuming site is visible on the frozen
  * layer; its exit A/flags are treated as scratch. See the batch notes.
  *
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_733c as oracle } from "../../translated/loc_733c.js";
 import { advanceEagleToArrivalAndTallyWave } from "../advanceEagleToArrivalAndTallyWave.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -55,7 +55,7 @@ const REC_EVEN = 0x8b00; // IXL bit3 clear -> even record
 const REC_ODD = 0x8b28; //  IXL bit3 set   -> odd record
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

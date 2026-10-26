@@ -9,7 +9,7 @@
  * drawStageLabelOncePerLevel shares the render tail (0x1f4e..0x1f86) with refreshRoundStageHud. The module dissolves fetchWordFromTableIndex,
  * fillByteRun, and blitGlyphBlock4x3 (0x1f8c) to direct calls; the oracle drives the frozen originals.
  * drawStageLabelOncePerLevel is void — its caller reloads every register — so no register is compared; equivalence is
- * RAM (dumpState) minus STACK_SCRATCH, SP parked in dead stack so the oracle's return-slot pushes drop.
+ * RAM (dumpState) minus stack scratch below the entry SP, SP parked in dead stack so the oracle's return-slot pushes drop.
  *
  * Jobs:
  *   1. EQUAL — latched / below-ten / higher-index arms: oracle == drawStageLabelOncePerLevel (RAM −stack).
@@ -26,7 +26,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1f2f as oracle } from "../../translated/loc_1f2f.js";
 import { drawStageLabelOncePerLevel } from "../drawStageLabelOncePerLevel.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -43,7 +43,7 @@ const HUD_DIGIT = 0x8743; // HUD stage digit; written (= countdown) on the colum
 const SP0 = 0x8ff0; //       inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

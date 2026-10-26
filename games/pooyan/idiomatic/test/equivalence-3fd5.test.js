@@ -9,7 +9,7 @@
  * case uses a FRESH clone per side. The oracle runs on one clone, advanceFallStep on
  * another, and they are compared on the go-forward contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) + the declared live-out (the boolean).
+ *     RAM (dumpState, minus stack scratch below the entry SP) + the declared live-out (the boolean).
  *
  * The register input is the actor-record base in IX; both sides read it from regs.ix
  * (the module's sanctioned default). The boolean live-out is derived from the ORACLE
@@ -38,7 +38,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3fd5 as oracle } from "../../translated/loc_3fd5.js";
 import { advanceFallStep } from "../advanceFallStep.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ACTOR_TABLE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -52,13 +52,13 @@ const TARGET = 0x3fd5;
 const REC = ACTOR_TABLE; // 0x8a80: a sane record base inside the actor arena (work RAM)
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0); // crafted entries keep the reset SP 0, so no scratch cell lies below it
 
-/** First RAM difference on the go-forward contract: whole dump minus STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
+/** First RAM difference on the go-forward contract: whole dump minus stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /**
@@ -109,7 +109,7 @@ test("CAPTURE: real 0x3fd5 dispatches — advanceFallStep == oracle in RAM (−s
     const oc = oracle(o);
     const still = advanceFallStep(c);
 
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
     assert.equal(still, o.regs.fC, "boolean must equal the oracle's carry (still-falling)");
     // Live-out SIDE EFFECT: the bridge must SET carry, not merely return the boolean —

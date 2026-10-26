@@ -7,7 +7,7 @@
  * stack plumbing and returns a boolean instead: true = the normal `ret` (continue the sweep),
  * false = the `pop af; ret` (abort it). The two must land byte-identical in RAM (−stack).
  *
- * Contract compared: RAM (dumpState, minus STACK_SCRATCH) PLUS the module's boolean return, which
+ * Contract compared: RAM (dumpState, minus stack scratch below the entry SP) PLUS the module's boolean return, which
  * must match which path the oracle took. There is NO register live-out (the caller reloads DE
  * immediately and the abort path clobbers AF), so pc/SP/registers are not compared.
  *
@@ -34,7 +34,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5e1f as oracle } from "../../translated/loc_5e1f.js";
 import { testTargetSlotGrabAndCatchObject } from "../testTargetSlotGrabAndCatchObject.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   GRAB_ACTIVE_FLAG,
@@ -53,7 +53,7 @@ const test = ROM_PRESENT
   : (name, fn) => nodeTest(name, { skip: "skipped: ROM not built — run 'make -C games/pooyan rom'" }, fn);
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

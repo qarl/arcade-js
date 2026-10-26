@@ -11,7 +11,7 @@
  * imports the idiomatic resolveProjectileCollisionsBothActorSlots, which imports the idiomatic seedAndRunTargetProximityScan -> scanTargetSlotsAndSpawnOnProximityHit -> its idiomatic
  * leaves (setActorAnimation, queueSoundCommand07, enqueueDisplayCommand). The ORACLE resolveProjectileCollisionsBothActorSlots runs the FROZEN translated
  * subtree internally via m.call, whose skip path (pop af; ret) aborts pass 2. The two must land
- * byte-identical in RAM (dumpState) MINUS STACK_SCRATCH. There is no register live-out: runActorUpdatePipeline
+ * byte-identical in RAM (dumpState) MINUS stack scratch below the entry SP. There is no register live-out: runActorUpdatePipeline
  * (the per-frame updater) calls this and reads nothing back, so the contract is RAM−stack only.
  * pc / the full register file / cycles are deliberately NOT compared.
  *
@@ -44,7 +44,7 @@ import { resolveProjectileCollisionsBothActorSlots } from "../resolveProjectileC
 import { seedAndRunTargetProximityScan } from "../seedAndRunTargetProximityScan.js";
 import { u16 } from "../../../../core/int.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   SPRITE_ACTOR_RECORD_SLOTS,
@@ -81,9 +81,9 @@ const REC1 = PROJECTILE_TABLE + 0x18; // second record (stride 0x18)
 const REC2 = PROJECTILE_TABLE + 0x30;
 const X_BIAS = 0x05; // flip flag set -> slot X biased +5, so a box ON a slot uses coordX + 5
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
-/** First RAM difference minus the STACK_SCRATCH region (only the oracle touches the stack). */
+/** First RAM difference minus the stack scratch below the entry SP (only the oracle touches the stack). */
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

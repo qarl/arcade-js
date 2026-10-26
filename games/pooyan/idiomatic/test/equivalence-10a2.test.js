@@ -8,7 +8,7 @@
  * Field 3, only when nonzero, folds into the field-1 counter, draws doubled, and latches a
  * nonzero hundreds tally. The routine takes NO register inputs — every case is a memory poke.
  *
- * Compared on RAM (dumpState) minus STACK_SCRATCH; SP is parked in STACK_SCRATCH so the oracle's
+ * Compared on RAM (dumpState) minus stack scratch below the entry SP; SP is parked in STACK_SCRATCH so the oracle's
  * ret/call stack traffic falls out of the diff. No register live-out (the tail's ring cursor is
  * idiomatic-only), so no side-effect arms.
  *
@@ -25,7 +25,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_10a2 as oracle } from "../../translated/loc_10a2.js";
 import { paintSubstateHudDigitsAndAdvancePhase } from "../paintSubstateHudDigitsAndAdvancePhase.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   HUNTER_SPAWN_SUBCOUNTER,
@@ -51,7 +51,7 @@ const SP0 = 0x8ff0; // inside STACK_SCRATCH
 const ROW_UP = 0x20; // units digit drawn one tilemap row up (lower address)
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

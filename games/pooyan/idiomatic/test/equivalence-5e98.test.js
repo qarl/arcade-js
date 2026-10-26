@@ -7,7 +7,7 @@
  * coordinate(0x8888)/state(0x8c30) records with the caller's IY target box.
  *
  * SEATING: TAIL-CALL (both variants) + a BALANCED early ret; the caller ignores the result, so
- * dispatchTargetPairCollisionSweep is void — equivalence is RAM (dumpState) minus STACK_SCRATCH, SP parked there so the
+ * dispatchTargetPairCollisionSweep is void — equivalence is RAM (dumpState) minus stack scratch below the entry SP, SP parked there so the
  * variants' nested pushes drop out of the diff. The oracle drives the translated variants through
  * the routines map; the module calls the idiomatic variants directly.
  *
@@ -39,7 +39,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5e98 as oracle } from "../../translated/loc_5e98.js";
 import { dispatchTargetPairCollisionSweep } from "../dispatchTargetPairCollisionSweep.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -61,7 +61,7 @@ const STRIDE = 0x18;
 const STRUCK = 0x03;
 const SP0 = 0x8ff0; //     inside STACK_SCRATCH
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

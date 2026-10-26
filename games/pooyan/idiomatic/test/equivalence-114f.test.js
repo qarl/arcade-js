@@ -12,7 +12,7 @@
  * mapped RAM and throws in this harness — identically on both sides. So the two live branches (count,
  * expire) are compared byte-for-byte, and the tail is proven by CONTROL: sum != 0 transfers into the
  * sweep (throws) on both sides; sum == 0 returns on both. Compared on RAM (dumpState) minus
- * STACK_SCRATCH; SP is parked in STACK_SCRATCH so oracle push/ret churn drops out.
+ * stack scratch below the entry SP; SP is parked in STACK_SCRATCH so oracle push/ret churn drops out.
  *
  * Jobs: 1. EQUAL (count / expire); 2. WRITE-SET; 3. TEETH; 4. TAIL control-transfer parity.
  *
@@ -26,7 +26,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_114f as oracle } from "../../translated/loc_114f.js";
 import { advancePlayStateToPhase6OnDwellExpiry } from "../advancePlayStateToPhase6OnDwellExpiry.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   SUBSTATE_FIELD1_COUNTER,
@@ -51,7 +51,7 @@ const NEXT_PHASE = 0x06;
 const CLEAR_LEN = 0x09;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

@@ -8,7 +8,7 @@
  * writes NO RAM — so the memory contract is trivially satisfied (asserted by WRITE-SET as a
  * positive control) and the LOAD-BEARING contract is the register live-out:
  *
- *     RAM (dumpState, minus STACK_SCRATCH)  +  the returned column C.
+ *     RAM (dumpState, minus stack scratch below the entry SP)  +  the returned column C.
  *
  * The return is checked against the ORACLE clone's own exit register (o.regs.c) — the value the
  * caller consumes from C — never against the module. pc/SP are not compared (the modelled
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_57b4 as oracle } from "../../translated/loc_57b4.js";
 import { adjustSpawnColumn } from "../adjustSpawnColumn.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, STAGE_COUNTDOWN, WAVE_PROGRESS_COUNTER } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -43,13 +43,13 @@ const test = ROM_PRESENT
 
 const TARGET = 0x57b4;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
-/** First RAM difference on the go-forward contract: dumpState minus the dead STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
+/** First RAM difference on the go-forward contract: dumpState minus the dead stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** stage -> STAGE_COUNTDOWN, progress -> WAVE_PROGRESS_COUNTER, col -> C; SP parked in dead scratch. */
@@ -112,7 +112,7 @@ test("CAPTURED: real 0x57b4 dispatches replay identically (if reached in the boo
     const c = cap.clone();
     oracle(o);
     const ret = adjustSpawnColumn(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `captured RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} mine=${d.b}`);
     assert.equal(ret, o.regs.c, `captured C live-out ${hx(ret)} != oracle ${hx(o.regs.c)}`);
     // SIDE EFFECT: the bridge must SET C on the captured state too.

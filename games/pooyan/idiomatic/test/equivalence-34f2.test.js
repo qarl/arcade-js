@@ -4,7 +4,7 @@
  * masked column".
  *
  * The cycle-free / memory-equivalence gate (docs/decompiler-pipeline): a fresh clone per side, the
- * oracle on one and advanceObjectColumnByStepAndDispatch on the other, compared on RAM (dumpState, minus STACK_SCRATCH). pc/SP/
+ * oracle on one and advanceObjectColumnByStepAndDispatch on the other, compared on RAM (dumpState, minus stack scratch below the entry SP). pc/SP/
  * cycles are deliberately not compared, and there is NO register live-out: the dispatch caller
  * (moveFormationAndSpawnObject) reloads A from the record the instant advanceObjectColumnByStepAndDispatch returns and reads no other register back,
  * so the whole contract is memory.
@@ -34,7 +34,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_34f2 as oracle } from "../../translated/loc_34f2.js";
 import { advanceObjectColumnByStepAndDispatch } from "../advanceObjectColumnByStepAndDispatch.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -54,7 +54,7 @@ const OFF_AIM = 0x09;
 const OFF_STEP = 0x0a;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

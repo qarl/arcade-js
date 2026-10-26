@@ -4,7 +4,7 @@
  * into its countdown tail.
  *
  * A fresh clone per side, the oracle on one and armObjectAnimationAndSeedCountdown on the other, compared on RAM (dumpState,
- * minus STACK_SCRATCH). armObjectAnimationAndSeedCountdown's live-out is memory only, so the register file is not compared.
+ * minus stack scratch below the entry SP). armObjectAnimationAndSeedCountdown's live-out is memory only, so the register file is not compared.
  *
  * INPUT: IX (the object record). armObjectAnimationAndSeedCountdown looks up the arm-animation pointer for the arm index
  * (rec+0x17), points the record at it, seats the (rec+0x11) countdown to 0x30, bumps (rec+0x02), then
@@ -26,7 +26,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_417a as oracle } from "../../translated/loc_417a.js";
 import { armObjectAnimationAndSeedCountdown } from "../armObjectAnimationAndSeedCountdown.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -43,7 +43,7 @@ const REC_TILE = 0x10; // written by the anim-step from the looked-up sequence
 const REC_ARM_INDEX = 0x17;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fee);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

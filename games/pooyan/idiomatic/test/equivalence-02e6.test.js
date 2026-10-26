@@ -8,7 +8,7 @@
  * WRITES work RAM, so every case uses a FRESH clone per side. The oracle runs on one clone,
  * seedTileFillCursor on another, and they are compared on the go-forward contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) + the A live-out.
+ *     RAM (dumpState, minus stack scratch below the entry SP) + the A live-out.
  *
  * pc is deliberately NOT compared. HL (the pointer) is the only input. A GENUINE live-out is
  * A := 0x20, which the caller runSelfTestAndInitMachineState kicks the watchdog with (mem.write8(0xa000, A)) right
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_02e6 as oracle } from "../../translated/loc_02e6.js";
 import { seedTileFillCursor } from "../seedTileFillCursor.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, TILE_FILL_PTR, FILL_ROW_COUNTER } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -48,13 +48,13 @@ const PTR_LO = TILE_FILL_PTR;       // 0x880b
 const PTR_HI = TILE_FILL_PTR + 1;   // 0x880c
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
-/** First RAM difference on the go-forward contract: whole dump minus STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
+/** First RAM difference on the go-forward contract: whole dump minus stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
@@ -94,7 +94,7 @@ test("CAPTURE: real 0x02e6 dispatches â€” seedTileFillCursor == oracle in RAM (â
     const c = cap.clone();
     oracle(o);
     const ret = seedTileFillCursor(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
     assert.equal(ret, o.regs.a, `A live-out: module ${hx(ret)} != oracle ${hx(o.regs.a)}`);
     assert.equal(c.regs.a, o.regs.a, `module must SET A (side effect) for the watchdog kick: c ${hx(c.regs.a)} != o ${hx(o.regs.a)}`);

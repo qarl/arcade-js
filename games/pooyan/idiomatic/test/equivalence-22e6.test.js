@@ -7,7 +7,7 @@
  * it; a 0xff control marker replaces the cursor with the two bytes following it (a script jump) and
  * re-reads there.
  *
- * Cycle-free / memory-equivalence gate. Compared on RAM (dumpState) MINUS STACK_SCRATCH. pc/SP/cycles
+ * Cycle-free / memory-equivalence gate. Compared on RAM (dumpState) MINUS stack scratch below the entry SP. pc/SP/cycles
  * and the register file are NOT compared — this is a memory-only routine (its IX input is poked
  * identically on both sides; the caller reads nothing back). The script data lives in ROM in play, so
  * every case CRAFTS the cursor to point at a RAM buffer whose bytes are seated on both sides.
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_22e6 as oracle } from "../../translated/loc_22e6.js";
 import { advanceActorAnimationFrame } from "../advanceActorAnimationFrame.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ANIM_SCRIPT_CURSOR } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -51,7 +51,7 @@ const BUF_A = 0x8e80; // crafted script buffer (RAM, stands in for the ROM scrip
 const BUF_B = 0x8e90; // second buffer a marker jumps to
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

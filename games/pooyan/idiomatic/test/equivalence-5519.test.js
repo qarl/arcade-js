@@ -8,7 +8,7 @@
  * The module calls the idiomatic fetchByteFromTableIndex / seedFirstFreeSlotForScheduledSpawn directly; the oracle drives them through the
  * frozen registry. spawnShotTargetOnInterval declares no register live-out (seedFirstFreeSlotForScheduledSpawn is memory-only and the caller
  * reads only memory back), so the register file is not compared; equivalence is RAM (dumpState) minus
- * STACK_SCRATCH (SP parked in dead stack so the loop's push/pop and initSpawnedActorRecordAndDeriveSpeed's caller-skip drop out).
+ * stack scratch below the entry SP (SP parked in dead stack so the loop's push/pop and initSpawnedActorRecordAndDeriveSpeed's caller-skip drop out).
  * The SEED case (a free spawn block) exercises seedFirstFreeSlotForScheduledSpawn's caller-skip through initSpawnedActorRecordAndDeriveSpeed; the ALL-LIVE
  * case makes the block live so the scan falls out with no seed. Both read ROM tables -> ROM required.
  *
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5519 as oracle } from "../../translated/loc_5519.js";
 import { spawnShotTargetOnInterval } from "../spawnShotTargetOnInterval.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -46,7 +46,7 @@ const REC = 0x8c48; //        spawn object table base
 const SP0 = 0x8fe0; //        inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

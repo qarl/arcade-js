@@ -10,7 +10,7 @@
  * uses a FRESH clone per side. The oracle runs on one clone, the module on another, and they
  * are compared on the go-forward contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * The routine takes NO register inputs (it reads absolute cells) and returns nothing the
  * caller consumes — it is a dispatch-table handler that just mutates memory. So the contract
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1bab as oracle } from "../../translated/loc_1bab.js";
 import { saveLivePageToPlayer0Bank } from "../saveLivePageToPlayer0Bank.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   TWO_PLAYER_FLAG,
@@ -54,13 +54,13 @@ const TARGET = 0x1bab;
 const BANK_SIZE = 0x3f;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0); // crafted entries keep the reset SP 0, so no scratch cell lies below it
 
-/** First RAM difference on the go-forward contract: whole dump minus STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
+/** First RAM difference on the go-forward contract: whole dump minus stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /**
@@ -111,7 +111,7 @@ test("CAPTURE: real 0x1bab dispatches — module == oracle in RAM (−stack)", (
     const c = cap.clone();
     oracle(o);
     saveLivePageToPlayer0Bank(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
   }
   console.log(`  CAPTURE: ${CAPS.length} real dispatch(es) checked`);

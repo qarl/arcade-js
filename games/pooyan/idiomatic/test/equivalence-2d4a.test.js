@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
  * Memory-equivalence gate for clearWaveHoldTimerToArmNextWave (ROM 0x2d4a) — DISSOLVED caller-skip of hunter dispatch state 3.
- * Clears the wave-hold timer (0x8f36) and returns false. Compared: RAM (dumpState −STACK_SCRATCH) PLUS
+ * Clears the wave-hold timer (0x8f36) and returns false. Compared: RAM (dumpState − stack scratch below the entry SP) PLUS
  * the JS boolean. Run: node --test games/pooyan/idiomatic/test/equivalence-2d4a.test.js
  */
 import nodeTest from "node:test";
@@ -10,7 +10,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2d4a as oracle } from "../../translated/loc_2d4a.js";
 import { clearWaveHoldTimerToArmNextWave } from "../clearWaveHoldTimerToArmNextWave.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, WAVE_HOLD_TIMER } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -18,7 +18,7 @@ const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
 const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM_DIR))) : null;
 const test = ROM_PRESENT ? nodeTest : (n, f) => nodeTest(n, { skip: "skipped: ROM not built" }, f);
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ff8);
 const ramDiffMinusStack = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(), (o) => ma.stateOffsetToAddr(o), inDeadStack);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 

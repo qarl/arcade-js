@@ -10,7 +10,7 @@
  * (and its anim helper) through the registry.
  *
  * Cycle-free / memory-equivalence gate: fresh clone per side, compared on RAM (dumpState, minus
- * STACK_SCRATCH). pc/SP/cycles/registers are NOT compared. Inputs are the record-table pointer
+ * stack scratch below the entry SP). pc/SP/cycles/registers are NOT compared. Inputs are the record-table pointer
  * (IX) and the step (DE), bridged via the register defaults, plus the record bytes and the two
  * shared cells (0x8903 wave counter, 0x8d30 spawn countdown) poked identically on both sides.
  *
@@ -33,7 +33,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2bb3 as oracle } from "../../translated/loc_2bb3.js";
 import { scanFormationSlotsAndLaunchFree } from "../scanFormationSlotsAndLaunchFree.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { u16 } from "../../../../core/int.js";
 import { STACK_SCRATCH, WAVE_ARRIVAL_COUNTER, FORMATION_SPAWN_TIMER, FORMATION_SPAWN_TABLE } from "../names.js";
 
@@ -48,7 +48,7 @@ const BASE_REC = FORMATION_SPAWN_TABLE; // 0x8c60
 const STRIDE = 0xffe8; // -0x18, one record back per pass
 const SLOTS = 0x11;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

@@ -6,7 +6,7 @@
  * The module calls the per-frame update through its frozen sibling and the wave driver through its
  * idiomatic sibling; the oracle drives both translated siblings through the routines map. runWaveLaunchPhaseFrame
  * is a void sequencer — no register survives, so the register file is not compared; equivalence is
- * RAM (dumpState) minus STACK_SCRATCH. SP is parked in STACK_SCRATCH so each sub-pass's nested
+ * RAM (dumpState) minus stack scratch below the entry SP. SP is parked in STACK_SCRATCH so each sub-pass's nested
  * pushes drop out of the diff.
  *
  * A plain boot seats both passes to observable branches: the update runs its main path (marks
@@ -31,7 +31,7 @@ import { runWaveLaunchPhaseFrame } from "../runWaveLaunchPhaseFrame.js";
 import { loc_20d4 } from "../../translated/loc_20d4.js";
 import { driveEagleWavePerFrame } from "../driveEagleWavePerFrame.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -46,7 +46,7 @@ const WAVE_MARK = 0x8f3d; //   WAVE_INDEX, bumped by the wave driver's seed bran
 const SP0 = 0x8ff0; //         inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

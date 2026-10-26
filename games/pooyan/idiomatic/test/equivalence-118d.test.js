@@ -11,7 +11,7 @@
  * as the idiomatic form (which returns on the first false) and the hardware do. That is the input
  * domain where the oracle faithfully represents the machine, so every case seats C = 1.
  *
- * Compared on RAM (dumpState) minus STACK_SCRATCH — the oracle's push/pop trampolines live there and
+ * Compared on RAM (dumpState) minus stack scratch below the entry SP — the oracle's push/pop trampolines live there and
  * fall out of the diff; the idiomatic side never touches the machine stack. No register live-out.
  *
  * Jobs: 1. EQUAL across no-seed / first-slot / mid-run / last-slot sweeps; 2. WRITE-SET (the first
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_118d as oracle } from "../../translated/loc_118d.js";
 import { spawnHunterIntoFreeSlot } from "../spawnHunterIntoFreeSlot.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   ENEMY_ACTOR_TABLE,
@@ -52,7 +52,7 @@ const SP0 = 0x8fe0; // inside STACK_SCRATCH, with headroom for the oracle's nest
 const recAddr = (i) => (REC + i * STRIDE) & 0xffff;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

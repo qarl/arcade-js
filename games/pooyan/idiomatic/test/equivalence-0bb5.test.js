@@ -7,7 +7,7 @@
  * sub-state ROM lookup, arming the board-clear flag on any disagreement; (2) the coin/credit gate
  * that either advances the top-level state on a waiting credit, or on free play routes the IN0 start
  * bits into the 1P/2P screen builders. advanceGameStateOnCreditOrStartPress is a void epilogue -> equivalence is RAM (dumpState)
- * minus STACK_SCRATCH.
+ * minus stack scratch below the entry SP.
  *
  * Crafts cover: game-active skip + no-credit ret; credit-advances-state; integrity mismatch (arm);
  * integrity clean pass (no arm, exercises the rst-0x20 lookup dissolve); free-play 1P (0dab, HL=0
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0bb5 as oracle } from "../../translated/loc_0b32.js";
 import { advanceGameStateOnCreditOrStartPress } from "../advanceGameStateOnCreditOrStartPress.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { bridgeReseatEquivalent } from "../../../../core/bridge-reseat.js";
 import { u16 } from "../../../../core/int.js";
 import {
@@ -60,7 +60,7 @@ const ROW_STRIDE = 0x20;
 const SCAN_TO_CMP_OFFSET = 0xfbc0;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

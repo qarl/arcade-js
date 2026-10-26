@@ -6,7 +6,7 @@
  * dec phase, drop latch at phase 0x18, retire one pulse at phase 0.
  *
  * CYCLE-FREE / memory-equivalence gate. pc/SP are NOT compared. The contract has TWO parts:
- *   (a) RAM (dumpState, minus STACK_SCRATCH) — the pulse count + phase cells live in work RAM.
+ *   (a) RAM (dumpState, minus stack scratch below the entry SP) — the pulse count + phase cells live in work RAM.
  *   (b) The LS259 latch (m.io.latch) — the routine's real output is a WRITE-ONLY hardware latch
  *       bit that dumpState does NOT capture, so it is compared directly against the oracle clone.
  * There is no register live-out (a coin-counter side-effect routine; no caller reads A/flags).
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5a9c as oracle } from "../../translated/loc_5a9c.js";
 import { pulseCoinCounter1Latch } from "../pulseCoinCounter1Latch.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -42,7 +42,7 @@ const PULSE_COUNT = 0x8824;
 const PULSE_PHASE = 0x8825;
 const LATCH_BIT = 3; // coin-counter 1 = LS259 bit 3 (0xa183)
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

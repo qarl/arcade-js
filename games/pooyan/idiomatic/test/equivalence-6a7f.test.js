@@ -9,7 +9,7 @@
  * checksums the playfield tilemap and TRAPS (throws) on a mismatch. This gate composes the
  * idiomatic runObjectsElseVerifyTilemapChecksum (which imports the idiomatic dispatchDescendingObjectState subtree) against the translated oracle
  * (which runs the same subtree through m.call), on fresh clones, in RAM (dumpState) minus
- * STACK_SCRATCH — plus the throw decision for the integrity arm.
+ * stack scratch below the entry SP — plus the throw decision for the integrity arm.
  *
  * Loop-arm determinism: an inactive record ((rec+1)=0) makes dispatchDescendingObjectState return at once, so zeroing
  * every record's +1 byte makes the loop a pure no-op. Activating all 18 (state 1 -> descendObjectThenAdvanceStateAtBottom, with
@@ -44,7 +44,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6a7f as oracle } from "../../translated/loc_6a7f.js";
 import { runObjectsElseVerifyTilemapChecksum } from "../runObjectsElseVerifyTilemapChecksum.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -62,7 +62,7 @@ const TILE_LO = 0x8400;
 const TILE_HI = 0x87ff;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

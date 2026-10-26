@@ -8,7 +8,7 @@
  * This is the CYCLE-FREE / memory-equivalence gate. The routine WRITES RAM, so every case
  * uses a FRESH clone per side, compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * pc/SP/cycles are NOT compared. blinkTilePairOnCountdown has NO register live-out — its caller (updateGameplayFrame)
  * treats it as a plain-ret helper and reads no register result — and takes no register inputs
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_76af as oracle } from "../../translated/loc_76af.js";
 import { blinkTilePairOnCountdown } from "../blinkTilePairOnCountdown.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -45,7 +45,7 @@ const CELL_0 = 0x8471;
 const CELL_1 = 0x84b1; // 0x8471 + 0x40
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x9000);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

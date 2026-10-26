@@ -9,7 +9,7 @@
  * the idiomatic scanTargetSlotsAndSpawnOnProximityHit and forwards its boolean instead. This gate runs the WHOLE caller both
  * ways and requires RAM-equivalence: the oracle seedAndRunTargetProximityScan (which internally runs the translated
  * scanTargetSlotsAndSpawnOnProximityHit) versus seedAndRunTargetProximityScan (which runs the idiomatic scanTargetSlotsAndSpawnOnProximityHit), compared on dumpState minus
- * STACK_SCRATCH. pc/SP/cycles are not compared — the oracle's pushes/pops land in STACK_SCRATCH.
+ * stack scratch below the entry SP. pc/SP/cycles are not compared — the oracle's pushes/pops land in STACK_SCRATCH.
  *
  * Two skip states are seated per the CLUSTER contract: SKIP-TAKEN (a record close to the actor box
  * -> scanTargetSlotsAndSpawnOnProximityHit claims it and aborts) and SKIP-NOT-TAKEN (records present but all out of range ->
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6381 as oracle } from "../../translated/loc_6381.js";
 import { seedAndRunTargetProximityScan } from "../seedAndRunTargetProximityScan.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   FLIP_SCREEN_FLAG,
@@ -55,7 +55,7 @@ const COORD_STRIDE = 0x04;
 const REC_STRIDE = 0x18;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP_ENTRY);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

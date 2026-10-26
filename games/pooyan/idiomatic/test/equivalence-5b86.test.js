@@ -6,7 +6,7 @@
  * In the frozen oracle a hit's `pop af; ret` aborts the sweep and unwinds one frame up; the
  * idiomatic caller instead early-returns when the real idiomatic testEnemyRecordHitAndRegister returns false. This gate
  * COMPOSES the real idiomatic skip (the module under test imports it) and checks that oracle and
- * module land byte-identical in RAM (dumpState, minus STACK_SCRATCH). scanEnemyRecordsForCollision has no register
+ * module land byte-identical in RAM (dumpState, minus stack scratch below the entry SP). scanEnemyRecordsForCollision has no register
  * live-out (its registers are loop artifacts), so only RAM is compared; SP sits in STACK_SCRATCH so
  * the oracle's skip frames drop out of the diff.
  *
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5b86 as oracle } from "../../translated/loc_5b86.js";
 import { scanEnemyRecordsForCollision } from "../scanEnemyRecordsForCollision.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ENEMY_ACTOR_TABLE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -50,7 +50,7 @@ const SP0 = 0x8fe0; // inside STACK_SCRATCH; the oracle pushes/pops its skip fra
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const rec = (k) => (ENEMY_ACTOR_TABLE + k * STRIDE) & 0xffff;
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

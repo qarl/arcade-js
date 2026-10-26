@@ -8,7 +8,7 @@
  * paint a capped body column then the shared column), and the active-player select (picks which
  * column the final blank targets).
  *
- * Contract compared: RAM (dumpState, minus STACK_SCRATCH). pc/SP/cycles are NOT compared, and
+ * Contract compared: RAM (dumpState, minus stack scratch below the entry SP). pc/SP/cycles are NOT compared, and
  * there is NO register live-out — the main state driver reloads every register right after this
  * returns, so nothing it leaves is consumed.
  *
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0254 as oracle } from "../../translated/loc_0254.js";
 import { repaintScrollColumnsElseVerifySignature } from "../repaintScrollColumnsElseVerifySignature.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   WORKER_CONTROL_BYTE,
@@ -56,7 +56,7 @@ const TILE_BASE = 0x20;
 const ROW = 0x20; // one tilemap row
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

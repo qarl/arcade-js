@@ -11,7 +11,7 @@
  * SP+4). The module folds both into a boolean return — true = the slot completed normally (the
  * inert block, and a scan with no hit), false = a hit inside the scan skip-returns past the
  * caller's loop. Needs-caller-lifted: sweepBothActorRecordSlotsForHit's loop tests `m.pc !== 0x5f7a` and propagates.
- * Compared on RAM (dumpState) minus STACK_SCRATCH; the register file is not compared. The slot
+ * Compared on RAM (dumpState) minus stack scratch below the entry SP; the register file is not compared. The slot
  * selector and target box are the param-default register bridge.
  *
  * The oracle runs the TRANSLATED latchObjectTypeAndScanEnemyRecords, which m.call()s the scan subtree (testRecordOverlapRetireOrFlagHit -> advanceOverlapScanToNextSlot/
@@ -37,7 +37,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5f83 as oracle } from "../../translated/loc_5f83.js";
 import { latchObjectTypeAndScanEnemyRecords } from "../latchObjectTypeAndScanEnemyRecords.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -60,7 +60,7 @@ const STRIDE = 0x18;
 const SP0 = 0x8ff0;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

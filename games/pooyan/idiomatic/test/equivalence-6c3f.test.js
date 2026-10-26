@@ -9,7 +9,7 @@
  * Because the oracle returns nothing (its path lives in the stack), the path it took is read
  * from its SP movement: a plain `ret` pops once (SP += 2); the skip pops twice (pop af + ret,
  * SP += 4). SP is seated inside STACK_SCRATCH so those pops only read dead RAM and never touch
- * game state. The contract compared is therefore RAM (dumpState, minus STACK_SCRATCH) PLUS the
+ * game state. The contract compared is therefore RAM (dumpState, minus stack scratch below the entry SP) PLUS the
  * boolean, matched against the oracle's SP-derived path. pc/sp/cycles and the clobbered scratch
  * registers are not compared.
  *
@@ -38,7 +38,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6c3f as oracle } from "../../translated/loc_6c3f.js";
 import { testTargetProximityAndSetAimDirection } from "../testTargetProximityAndSetAimDirection.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -58,7 +58,7 @@ const TIMER = 0x8d53; // AIM_INDICATOR_TIMER
 const SP_SEAT = 0x8fc0; // in STACK_SCRATCH: oracle pops read dead RAM here
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP_SEAT);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

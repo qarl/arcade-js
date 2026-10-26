@@ -6,7 +6,7 @@
  * check it enqueues a display command and caps the wave-arrival counter; on a mismatch it
  * TAIL-JUMPS into climbHunterToLaunchRowThenPromoteGroup, propagating that routine's caller-skip boolean.
  *
- * Contract compared per case: RAM (dumpState, minus STACK_SCRATCH). advanceActorState2AndCapWaveArrival has no register
+ * Contract compared per case: RAM (dumpState, minus stack scratch below the entry SP). advanceActorState2AndCapWaveArrival has no register
  * live-out of its own; on the tamper branch it forwards climbHunterToLaunchRowThenPromoteGroup's boolean, which the EQUAL jobs
  * also confirm. pc/cycles/full register file are not compared.
  *
@@ -40,7 +40,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2a01 as oracle } from "../../translated/loc_2a01.js";
 import { advanceActorState2AndCapWaveArrival } from "../advanceActorState2AndCapWaveArrival.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   ENEMY_ACTOR_TABLE,
@@ -57,7 +57,7 @@ const test = ROM_PRESENT
   : (name, fn) => nodeTest(name, { skip: "skipped: ROM not built — run 'make -C games/pooyan rom'" }, fn);
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ff8);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

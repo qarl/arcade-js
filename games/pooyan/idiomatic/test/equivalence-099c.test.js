@@ -4,7 +4,7 @@
  *
  * Every callee is lifted and dissolved to a direct call, so the module holds no emulated stack op;
  * the oracle drives the same work through push16/call/ret in STACK_SCRATCH. Equivalence is RAM
- * (dumpState) minus STACK_SCRATCH. There is no register live-out — the handler is dispatched by
+ * (dumpState) minus stack scratch below the entry SP. There is no register live-out — the handler is dispatched by
  * jp (hl) and falls into the void advanceFourObjectAnimsAndRebuildList — so the register file is not compared.
  *
  * The full path reads two redundant ROM tables that MUST match on an intact ROM (the byte pairs at
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_099c as oracle } from "../../translated/loc_099c.js";
 import { buildAttractSpritesAndPrimeTextScript } from "../buildAttractSpritesAndPrimeTextScript.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -49,7 +49,7 @@ const SCRIPT_WRITE_PTR = 0x8e56; // 16-bit
 const SP0 = 0x8ff0; //             inside STACK_SCRATCH: the oracle's nested calls stay in dead scratch
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

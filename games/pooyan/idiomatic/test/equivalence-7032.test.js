@@ -8,7 +8,7 @@
  * chosen by the new bit0, via rst 0x38.
  *
  * Cycle-free memory-equivalence gate: fresh clone per side, compared on RAM (dumpState, minus
- * STACK_SCRATCH) only. The routine has NO register live-out — the intro dispatcher (dispatchLevelIntroPhase)
+ * stack scratch below the entry SP) only. The routine has NO register live-out — the intro dispatcher (dispatchLevelIntroPhase)
  * tail-dispatches here and its caller reads nothing back — so pc and the whole register file
  * are deliberately NOT compared. The page-0x88 display ring is seated so the enqueues land.
  *
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_7032 as oracle } from "../../translated/loc_7032.js";
 import { advanceLevelIntroFromPhase5 } from "../advanceLevelIntroFromPhase5.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   TARGET_GROUP_COUNT,
@@ -47,7 +47,7 @@ const test = ROM_PRESENT
 const INTRO_TOGGLE = 0x8f54; // the phase-5 toggle byte whose bit0 picks the display command
 const RING_PAGE = DISPLAY_CMD_RING_WRITE_PTR & 0xff00; // page-0x88 ring base
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

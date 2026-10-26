@@ -7,7 +7,7 @@
  * This is the capture / clone / replay memory-equivalence gate (docs/decompiler-pipeline). The
  * routine WRITES RAM, so every case uses a FRESH clone per side: the oracle runs on
  * one clone, setActorAnimation on another, and they are compared on the go-forward
- * contract — whole RAM (dumpState) minus STACK_SCRATCH. The routine has no push; its
+ * contract — whole RAM (dumpState) minus stack scratch below the entry SP. The routine has no push; its
  * only stack traffic is the terminal `ret` pop, which moves the oracle's SP/pc (a
  * register move, not memory) while the idiomatic routine models neither — so the
  * idiomatic side is separately asserted to leave SP and pc UNCHANGED, and the memory
@@ -36,7 +36,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_381e as oracle } from "../../translated/loc_381e.js";
 import { setActorAnimation } from "../setActorAnimation.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -48,13 +48,13 @@ const test = ROM_PRESENT
 
 const TARGET = 0x381e;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0); // crafted entries keep the reset SP 0, so no scratch cell lies below it
 
-/** First RAM difference outside STACK_SCRATCH, or null. */
-function ramDiffMinusStack(ma, mb) {
+/** First RAM difference outside the stack scratch below the entry SP, or null. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** Hook 0x381E in a real attract run and clone the machine at up to K true dispatches. */
@@ -82,7 +82,7 @@ test("EQUAL: real captured dispatches — setActorAnimation == oracle in RAM (�
     oracle(o);
     setActorAnimation(c);
 
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} idiomatic=${d.b}`);
 
     // The idiomatic routine models no stack/ret: SP and pc unchanged from entry.
@@ -172,7 +172,7 @@ test("TEETH: the endian-swapped twin is CAUGHT (crafted D!=E; plus captured swee
     const oo = cap.clone(), cc = cap.clone();
     oracle(oo);
     brokenSetActorAnimation(cc);
-    const dd = ramDiffMinusStack(oo, cc);
+    const dd = ramDiffMinusStack(oo, cc, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     if (dd) { caught = dd; break; }
   }
   assert.notEqual(caught, null, "the captured sweep FAILED to catch the endian swap — it is worthless");

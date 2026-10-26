@@ -7,7 +7,7 @@
  * cycle-free rewrite drops it; the two sides are compared on dumped RAM, which the delay never
  * touches.
  *
- * Cycle-free gate: a fresh clone per side, compared on RAM (dumpState) minus STACK_SCRATCH. A is
+ * Cycle-free gate: a fresh clone per side, compared on RAM (dumpState) minus stack scratch below the entry SP. A is
  * the sole input (the sprite-bank fill value); there is no register live-out (a boot init whose
  * caller reloads every register), so only RAM is compared. Every case is CRAFTED: A is poked
  * identically on both sides.
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_01ea as oracle } from "../../translated/loc_01ea.js";
 import { clearSpriteBanksAndBlankVideoRam } from "../clearSpriteBanksAndBlankVideoRam.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -47,7 +47,7 @@ const BLANK_LEN = 0x3c0;
 const BLANK_TILE = 0x1e;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

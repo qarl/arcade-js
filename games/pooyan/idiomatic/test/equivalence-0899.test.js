@@ -6,7 +6,7 @@
  *
  * The module runs the handlers through an idiomatic switch and calls the epilogue directly; the oracle
  * drives the frozen rst-0x28 dispatcher, handler, and epilogue. dispatchAttractSubstate is a void driver
- * — no register survives — so equivalence is RAM (dumpState) minus STACK_SCRATCH.
+ * — no register survives — so equivalence is RAM (dumpState) minus stack scratch below the entry SP.
  *
  * The crafted state seats sub-state 3 (tickAttractDelayThenReseedAndAdvance, a pure countdown gate) with its frame timer still
  * running, so the handler just decrements it and returns; the epilogue is held on its clean `ret z`
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0899 as oracle } from "../../translated/loc_0899.js";
 import { dispatchAttractSubstate } from "../dispatchAttractSubstate.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   ATTRACT_SUBSTATE,
@@ -52,7 +52,7 @@ const CALLER_RET = 0xfffc; // the epilogue's clean ret lands pc here (moved +2 -
 const SUBSTATE_3 = 0x03; //   dispatch -> tickAttractDelayThenReseedAndAdvance (pure countdown gate)
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

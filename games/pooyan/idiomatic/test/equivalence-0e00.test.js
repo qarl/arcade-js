@@ -6,7 +6,7 @@
  * the in-play gate 0x8806 is clear — clear the launch flags.
  *
  * Cycle-free memory-equivalence gate: fresh clone per side, compared on RAM (dumpState, minus
- * STACK_SCRATCH) PLUS the register live-out A, which both exits leave at 0. HL/B/DE are NOT compared:
+ * stack scratch below the entry SP) PLUS the register live-out A, which both exits leave at 0. HL/B/DE are NOT compared:
  * the frozen 0x02e3 leaves HL at 0x8402 while the idiomatic path leaves the memset's advanced pointer
  * — a divergence in a register no caller reads (see notes). A is checked against the oracle clone and
  * the module's own clone must SET it.
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0e00 as oracle } from "../../translated/loc_0e00.js";
 import { resetActorStateForBoard } from "../resetActorStateForBoard.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -53,7 +53,7 @@ const SEED_CELLS = new Set([P0_BANK, P0_BANK + 1, P0_LIVES, P1_BANK, P1_BANK + 1
 const LOOSE = new Set([FILL_CNT, FILL_PTR, FILL_PTR + 1, PLAY_STATE, ENEMY_X, GATE0, GATE1, GATE2, ...LAUNCH_FLAGS]);
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const inFootprint = (addr) => (addr >= MEMSET_LO && addr <= MEMSET_HI) || LOOSE.has(addr);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 

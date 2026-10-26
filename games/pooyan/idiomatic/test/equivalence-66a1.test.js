@@ -5,7 +5,7 @@
  * the select phase (0x892c), pick a 3-tile ROM source table by the phase's bit 0 (even 0x66bf / odd
  * 0x66c2), and copy those tiles into three actor records (IX, IX-0x18, IX-0x30) via copyDisplayTilesIntoActorRecords.
  *
- * The go-forward contract is RAM (dumpState, minus STACK_SCRATCH). pc/SP/cycles are NOT compared.
+ * The go-forward contract is RAM (dumpState, minus stack scratch below the entry SP). pc/SP/cycles are NOT compared.
  * There is no register live-out: the sole caller (advanceActorGroupRiseAndCycleTiles) issues this then ret's, reading nothing
  * back, so the oracle's early-exit A/HL/flags are dead. IX is the one live-in (advanceActorGroupRiseAndCycleTiles seeds 0x8c78).
  *
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_66a1 as oracle } from "../../translated/loc_66a1.js";
 import { cycleActorGroupSpriteFramesOnTimer } from "../cycleActorGroupSpriteFramesOnTimer.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -49,7 +49,7 @@ const BOARD_CLEAR_FLAG = 0x89e5;
 const DIRTY = 0xaa; //              pre-seed for record tile fields so an overwrite always shows
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

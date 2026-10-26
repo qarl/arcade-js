@@ -5,7 +5,7 @@
  * The module direct-calls the idiomatic phase reload (loadPhaseMotionParamsAndAdvancePhase) and the record-clear (clearTargetActorRecord);
  * the oracle drives the frozen siblings through the registry that new Machine(ROM) builds. advanceTargetActorAlongVelocityElseDespawn
  * is a void stepper — no register survives — so the register file is not compared; equivalence is
- * RAM (dumpState) minus STACK_SCRATCH, SP parked in dead stack so nested pushes drop out.
+ * RAM (dumpState) minus stack scratch below the entry SP, SP parked in dead stack so nested pushes drop out.
  *
  * The load-bearing subtlety: on a reload the phase-param routine's final `cp 0x09` leaves a Z80
  * carry the X `sbc hl,de` consumes, so a reload+subtract subtracts one extra. The idiomatic reload
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2226 as oracle } from "../../translated/loc_2226.js";
 import { advanceTargetActorAlongVelocityElseDespawn } from "../advanceTargetActorAlongVelocityElseDespawn.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -54,7 +54,7 @@ const SP0 = 0x8ff0; // inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const u16 = (v) => v & 0xffff;
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

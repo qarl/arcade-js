@@ -5,7 +5,7 @@
  * `true` on the `ret c` climbing path and `false` on the `pop af; ret` reached-top path), so the
  * idiomatic module reproduces that boolean while dropping the stack plumbing.
  *
- * Contract compared per case: RAM (dumpState, minus STACK_SCRATCH) PLUS the routine's ONLY
+ * Contract compared per case: RAM (dumpState, minus stack scratch below the entry SP) PLUS the routine's ONLY
  * live-out — the JS boolean return. No register survives as a consumed output: on the climbing
  * path IX/A are left untouched-or-clobbered but unread (dispatchOneHunterRecordState only propagates the boolean, and
  * dispatchAllHunterRecordStates parks its loop counter in the alt register set across the call); on the skip path the
@@ -38,7 +38,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2c58 as oracle } from "../../translated/loc_2c58.js";
 import { climbHunterToLaunchRowThenPromoteGroup } from "../climbHunterToLaunchRowThenPromoteGroup.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ENEMY_ACTOR_TABLE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -49,7 +49,7 @@ const test = ROM_PRESENT
   : (name, fn) => nodeTest(name, { skip: "skipped: ROM not built — run 'make -C games/pooyan rom'" }, fn);
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ff8);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

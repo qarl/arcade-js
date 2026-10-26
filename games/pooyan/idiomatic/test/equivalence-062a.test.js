@@ -9,7 +9,7 @@
  * transform — it touches NO memory — so RAM(−stack) is trivially identical and the
  * load-bearing contract is the RETURN value:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) == identical  AND  return == oracle's exit A.
+ *     RAM (dumpState, minus stack scratch below the entry SP) == identical  AND  return == oracle's exit A.
  *
  * The single register input is A; both sides read it (the module via its `= m.regs.a`
  * default). The return is checked against the ORACLE clone's exit A, never the module's.
@@ -34,7 +34,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_062a as oracle } from "../../translated/loc_062a.js";
 import { byteToPackedBcd } from "../byteToPackedBcd.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -46,20 +46,20 @@ const test = ROM_PRESENT
 
 const TARGET = 0x062a;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
-/** First RAM difference on the go-forward contract: dumpState minus the dead STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
+/** First RAM difference on the go-forward contract: dumpState minus the dead stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** A crafted entry machine: A = the input byte, sp parked in dead scratch for the ret pop. */
 function craft(byte) {
   const m = new Machine(ROM);
   m.regs.a = byte & 0xff;
-  m.regs.sp = 0x8fe0; // inside STACK_SCRATCH: the ret's pop reads dead, diff-excluded RAM
+  m.regs.sp = 0x8fe0; // inside STACK_SCRATCH: the ret only pops (reads) the word at SP
   return m;
 }
 
@@ -105,7 +105,7 @@ test("CAPTURED: real 0x062a dispatches in an attract boot replay identically (if
     const c = cap.clone();
     oracle(o);
     const ret = byteToPackedBcd(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} mine=${d.b}`);
     assert.equal(ret, o.regs.a, `captured return mismatch: mine ${hx(ret)} != oracle ${hx(o.regs.a)}`);
     // SIDE EFFECT: the bridge must SET A on the captured state too.

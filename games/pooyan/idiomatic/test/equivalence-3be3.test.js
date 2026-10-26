@@ -9,7 +9,7 @@
  * (latch + arrival-counter guarded), then the integrity check that bumps a tamper-strike slot.
  *
  * CYCLE-FREE / memory-equivalence gate. The routine WRITES RAM and calls memory-only helpers, so
- * every case uses a FRESH clone per side. Contract: RAM (dumpState minus STACK_SCRATCH) ONLY — the
+ * every case uses a FRESH clone per side. Contract: RAM (dumpState minus stack scratch below the entry SP) ONLY — the
  * state dispatcher reads no result register, so there is no register live-out. pc/SP/cycles are NOT
  * compared. The nested calls push/pop in the dead stack (SP in STACK_SCRATCH).
  *
@@ -37,7 +37,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3be3 as oracle } from "../../translated/loc_3be3.js";
 import { advanceEnemyToArrivalAndTallyWave } from "../advanceEnemyToArrivalAndTallyWave.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   WAVE_ARRIVAL_COUNTER,
@@ -72,7 +72,7 @@ const HOLD = 0x0e, MODE_FLAG = 0x08, POSITION = 0x05, ROW = 0x06;
 const FREE_STEP = 0x09, HOMING_VEL = 0x0a, BAND_KIND = 0x07, LINK_LO = 0x14, LINK_HI = 0x15;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ff0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

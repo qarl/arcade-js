@@ -7,7 +7,7 @@
  * records, stride 0x18) and the display-command enqueue enqueueDisplayCommand. This gate imports the idiomatic
  * updateEnemyActorsAndCycleLaunchFlipAnim (which imports the idiomatic dispatchEnemyActorState / enqueueDisplayCommand) and compares it against the translated
  * oracle (which runs the translated dispatchEnemyActorState / enqueueDisplayCommand through m.call) on fresh clones, in
- * RAM (dumpState) minus STACK_SCRATCH. The composed subtrees are separately gated, so a divergence
+ * RAM (dumpState) minus stack scratch below the entry SP. The composed subtrees are separately gated, so a divergence
  * here is a defect in updateEnemyActorsAndCycleLaunchFlipAnim's own control flow — the loop bound, the post-pass gate, the
  * countdown decrement/reload, the toggle bump, or the command selection.
  *
@@ -37,7 +37,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_66c5 as oracle } from "../../translated/loc_66c5.js";
 import { updateEnemyActorsAndCycleLaunchFlipAnim } from "../updateEnemyActorsAndCycleLaunchFlipAnim.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -57,14 +57,14 @@ const RING_PAGE = 0x8800;
 const RING_START = 0xc0;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }
 
-/** Sorted changed-RAM addresses (whole dump minus STACK_SCRATCH) for the WRITE-SET footprint. */
+/** Sorted changed-RAM addresses (whole dump minus stack scratch below the entry SP) for the WRITE-SET footprint. */
 function changedAddrs(m, run) {
   const before = m.dumpState();
   run(m);

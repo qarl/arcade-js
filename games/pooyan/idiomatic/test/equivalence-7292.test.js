@@ -5,7 +5,7 @@
  * (WAVE_RECORDS_ARRIVED - 1) one step, and clear WAVE_RECORDS_ARRIVED.
  *
  * The routine reads NO registers and returns nothing a caller consumes (memory-only), so the whole
- * contract is RAM: dumpState minus STACK_SCRATCH. Oracle runs on one clone, the module on another.
+ * contract is RAM: dumpState minus stack scratch below the entry SP. Oracle runs on one clone, the module on another.
  *
  * Jobs:
  *   1. CAPTURE (best-effort) — hook 0x7292 in a real run; any dispatch must agree in RAM.
@@ -24,7 +24,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_7292 as oracle } from "../../translated/loc_7292.js";
 import { advanceEaglePhaseAndClearAim } from "../advanceEaglePhaseAndClearAim.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, PLAYER_AIM_FLAGS, LATCHED_ENEMY_X, WAVE_RECORDS_ARRIVED } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -40,13 +40,13 @@ const NEIGHBOUR = WAVE_RECORDS_ARRIVED - 2; // a nearby cell the routine must NO
 const WRITTEN = [PLAYER_AIM_FLAGS, LATCHED_ENEMY_X, EAGLE_WAVE_PHASE, WAVE_RECORDS_ARRIVED];
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0); // crafted entries keep the reset SP 0, so no scratch cell lies below it
 
-/** First RAM difference on the go-forward contract: whole dump minus STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
+/** First RAM difference on the go-forward contract: whole dump minus stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** A machine with the four cells + a neighbour pre-dirtied; `phase` seeds the outer-phase cell. */
@@ -83,7 +83,7 @@ test("CAPTURE: real 0x7292 dispatches — module == oracle in RAM (−stack)", (
     const c = cap.clone();
     oracle(o);
     advanceEaglePhaseAndClearAim(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
   }
   console.log(`  CAPTURE: ${CAPS.length} real dispatch(es) checked`);

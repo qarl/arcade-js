@@ -8,7 +8,7 @@
  * under gameplay). It is a pure tail dispatch (no continuation stacked); its caller (driveEagleWavePerFrame)
  * reads no register or return value back, so the contract is:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * pc/SP/cycles are NOT compared; both sides return undefined. Both run on identical clones, so any
  * deterministic handler effect matches — the test verifies the SELECTION and the inactive guard.
@@ -33,7 +33,7 @@ import { loc_72cf as oracle } from "../../translated/loc_72cf.js";
 import { dispatchActiveEagleRecordState } from "../dispatchActiveEagleRecordState.js";
 import { advanceEagleDiveClimbToRetireAtLimit } from "../advanceEagleDiveClimbToRetireAtLimit.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ENEMY_ACTOR_TABLE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -55,7 +55,7 @@ const RECORD_LEN = 0x18;
 const DIRTY = 0xaa;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

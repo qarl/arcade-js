@@ -8,7 +8,7 @@
  * flag is clear it steps the entry's animation and returns. Either way it returns true.
  *
  * The oracle drives the TRANSLATED advanceObjectAnimationFrame through the routines map; the module imports the
- * IDIOMATIC sibling directly. The two must land byte-identical in RAM (dumpState) minus STACK_SCRATCH.
+ * IDIOMATIC sibling directly. The two must land byte-identical in RAM (dumpState) minus stack scratch below the entry SP.
  * No register is a live-out — the caller reads back only the (always-true) control-flow boolean — so
  * registers are NOT compared. Cases are CRAFTED: a plain boot does not seat this state.
  *
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_76a6 as oracle } from "../../translated/loc_7638.js";
 import { holdEnemyAnimGatedByDrawnFlag } from "../holdEnemyAnimGatedByDrawnFlag.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -45,7 +45,7 @@ const HOLD = REC + 0x0e; // animation frame-hold counter
 const SP0 = 0x8ff8; //   inside STACK_SCRATCH; room for the tick's nested call dip
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

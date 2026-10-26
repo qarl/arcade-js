@@ -6,7 +6,7 @@
  * MAINLOOP_SUBSTATE_SELECTOR.
  *
  * No register inputs. The counting case seats a FREE ring slot so the enqueue path writes and its
- * bytes join the compared RAM. Compared on RAM (dumpState) minus STACK_SCRATCH; SP is parked in
+ * bytes join the compared RAM. Compared on RAM (dumpState) minus stack scratch below the entry SP; SP is parked in
  * STACK_SCRATCH so the oracle's push/ret drop out of the diff.
  *
  * Jobs: 1. EQUAL (counting + expired); 2. WRITE-SET (timer/selector per branch); 3. TEETH.
@@ -21,7 +21,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_113c as oracle } from "../../translated/loc_113c.js";
 import { driveHunterSpawnDisplayAndAdvancePhase } from "../driveHunterSpawnDisplayAndAdvancePhase.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   SUBSTATE_FIELD1_COUNTER,
@@ -42,7 +42,7 @@ const RING_SLOT_LOW = 0xc0;
 const COUNTER_RELOAD = 0x80;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

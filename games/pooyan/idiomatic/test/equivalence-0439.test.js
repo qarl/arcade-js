@@ -10,7 +10,7 @@
  * CYCLE-FREE / memory-equivalence gate. The routine WRITES RAM, so each case runs on a FRESH clone
  * per side. The routine takes NO input registers (it loads its own source/destination pointers and
  * row count), and no register survives (the caller renders the next panel with fresh pointers), so
- * the contract is RAM (dumpState, minus STACK_SCRATCH) alone. pc/SP/registers are NOT compared.
+ * the contract is RAM (dumpState, minus stack scratch below the entry SP) alone. pc/SP/registers are NOT compared.
  *
  * Jobs:
  *   1. EQUAL — over several seeded source tables (incl. one exercising leading-zero suppression),
@@ -33,7 +33,7 @@ import { loc_0439 as oracle } from "../../translated/loc_0439.js";
 import { renderPanelBcdDigitRows } from "../renderPanelBcdDigitRows.js";
 import { splitBcdByte } from "../splitBcdByte.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, PANEL_DIGIT_SOURCE_TABLE, PANEL_DIGIT_VRAM_DEST } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -49,7 +49,7 @@ const ROW_COUNT = 0x0a;
 const TABLE_LEN = ROW_COUNT * 3; // ten 3-byte groups (byte 0 of each is skipped)
 const PANEL_PAGE = PANEL_DIGIT_VRAM_DEST & 0xff00;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

@@ -5,7 +5,7 @@
  * first free block is seeded ((blk+0x17) from SPAWN_KIND_TABLE_5647 via rst 0x20) and initialised by
  * initSpawnedActorRecordAndDeriveSpeed, which caller-skips (pop af; ret) past seedFirstFreeSlotForScheduledSpawn. No free block -> the scan falls out.
  *
- * Compared on RAM (dumpState) minus STACK_SCRATCH; the register file is not compared (LIVE-OUT: none).
+ * Compared on RAM (dumpState) minus stack scratch below the entry SP; the register file is not compared (LIVE-OUT: none).
  * The oracle drives its rst-0x20 + initSpawnedActorRecordAndDeriveSpeed via the translated registry; the module calls the idiomatic
  * fetchByteFromTableIndex/initSpawnedActorRecordAndDeriveSpeed directly. Both read ROM tables, so the test requires the built ROM.
  *
@@ -24,7 +24,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5544 as oracle } from "../../translated/loc_5544.js";
 import { seedFirstFreeSlotForScheduledSpawn } from "../seedFirstFreeSlotForScheduledSpawn.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, SPAWN_SEQUENCE_INDEX_8D13, SPAWN_KIND_TABLE_5647 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -42,7 +42,7 @@ const ROUND_COUNTER = 0x8907;
 const SP0 = 0x8fe0; //         inside STACK_SCRATCH so the oracle's push/pop churn is excluded
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

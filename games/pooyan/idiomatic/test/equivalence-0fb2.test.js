@@ -5,7 +5,7 @@
  * stores the byte at RING_BASE + tail (tail = the write pointer at 0x8a40) and advances the tail,
  * wrapping 0x5e -> 0x43.
  *
- * Cycle-free gate: a fresh clone per side, compared on RAM (dumpState) minus STACK_SCRATCH. The
+ * Cycle-free gate: a fresh clone per side, compared on RAM (dumpState) minus stack scratch below the entry SP. The
  * live-out is MEMORY ONLY — two filled ring slots plus the twice-advanced write pointer. The
  * helper leaves the ring pointer in A, which enqueue sites reload, so A is not part of the
  * contract and is not compared. Every case is CRAFTED: the ring tail is poked identically on both
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0fb2 as oracle } from "../../translated/loc_0fb2.js";
 import { queueSoundCommands27And15 } from "../queueSoundCommands27And15.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -46,7 +46,7 @@ const CMD_FIRST = 0x27;
 const CMD_SECOND = 0x15;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 const advanced = (tail) => (tail === TAIL_LAST ? TAIL_FIRST : tail + 1);
 

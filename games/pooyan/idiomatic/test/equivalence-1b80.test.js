@@ -7,7 +7,7 @@
  * CYCLE-FREE / memory-equivalence gate (docs/decompiler-pipeline). The routine WRITES RAM, so
  * each case runs the oracle on one FRESH clone and copyBiasedTileString on another, compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * The effect is memory-only: the oracle leaves the terminator in A and the advanced DE/HL in the
  * CPU, but its fall-through caller (rebuildFieldAndLatchPlayStateWithTamperCheck -> its dispatcher) reads none of them, so there is no
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1b80 as oracle } from "../../translated/loc_1b80.js";
 import { copyBiasedTileString } from "../copyBiasedTileString.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, DISPLAY_MSG_BUF } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -46,18 +46,18 @@ const TARGET = 0x1b80;
 const END_MARKER = 0xa0;
 const TILE_BIAS = 0x08;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 const DST = DISPLAY_MSG_BUF; // 0x89f0: the live destination (message tile buffer)
 const SRC = 0x8b00;          // a scratch RAM source region for the crafted arm
 const REAL_SRC = 0x1ff2;     // the exact ROM source the live caller (rebuildFieldAndLatchPlayStateWithTamperCheck) seeds
 const DIRT = 0xaa;
 
-/** First RAM difference on the go-forward contract: dumpState minus the dead STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
+/** First RAM difference on the go-forward contract: dumpState minus the dead stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** Number of bytes copied before the terminator (index of the first END_MARKER). */
@@ -115,7 +115,7 @@ test("CAPTURE: real 0x1b80 runs replay identically in RAM (−stack), if reached
     const c = cap.clone();
     oracle(o);
     copyBiasedTileString(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} mine=${d.b}`);
   }
   console.log(`  CAPTURE: ${caps.length} real 0x1b80 run(s) replayed identically`);

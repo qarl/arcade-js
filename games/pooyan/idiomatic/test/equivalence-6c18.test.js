@@ -10,7 +10,7 @@
  * idiomatic testTargetProximityAndSetAimDirection, and the oracle clearAimIndicatorUnlessProximityHit runs the TRANSLATED testTargetProximityAndSetAimDirection through m.call (the
  * default registry). The two must land byte-identical. The oracle's push16/call trampolines
  * write only STACK_SCRATCH (sp seated there), which is excluded; the module spends no stack. So
- * the contract compared is RAM (dumpState, minus STACK_SCRATCH). No register is a live-out (the
+ * the contract compared is RAM (dumpState, minus stack scratch below the entry SP). No register is a live-out (the
  * caller of clearAimIndicatorUnlessProximityHit reads nothing back), so RAM is the whole contract. pc/sp/cycles are not
  * compared.
  *
@@ -39,7 +39,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6c18 as oracle } from "../../translated/loc_6c18.js";
 import { clearAimIndicatorUnlessProximityHit } from "../clearAimIndicatorUnlessProximityHit.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -60,7 +60,7 @@ const TARGET2 = 0x8884; // pass-2 target (TARGET0 + 8)
 const SP_SEAT = 0x8fe0; // in STACK_SCRATCH: the oracle's push16/pop/ret only touch dead RAM
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP_SEAT);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

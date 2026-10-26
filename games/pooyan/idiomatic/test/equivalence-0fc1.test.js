@@ -7,7 +7,7 @@
  * Both sides call the SAME frozen loc_0ea2, so the gate proves the module seats A with the right
  * tiles in the right order. loc_0ea2 appends only when 0x8806 != 0 (or 0x8f50 != 0); the gate is
  * opened here (0x8806 = 1) with the cursor at the ring start so all four tiles actually land.
- * Compared on RAM (dumpState, minus STACK_SCRATCH). No register live-out — memory only.
+ * Compared on RAM (dumpState, minus stack scratch below the entry SP). No register live-out — memory only.
  *
  * Jobs:
  *   1. EQUAL — module == oracle in RAM (−stack).
@@ -24,7 +24,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0fc1 as oracle } from "../../translated/loc_0fc1.js";
 import { queueFixedSoundCommandRun } from "../queueFixedSoundCommandRun.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -42,7 +42,7 @@ const CUR0 = 0x43; //           cursor seeded at the ring start
 const SP0 = 0x8ff0; //          inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

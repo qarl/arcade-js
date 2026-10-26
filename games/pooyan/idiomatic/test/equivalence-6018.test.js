@@ -16,7 +16,7 @@
  *
  * Jobs:
  *   1. REGISTER — the exhausted path advances IX/HL, zeroes B, leaves DE = 0x18: module == oracle.
- *   2. RAM — the routine touches no RAM (dumpState minus STACK_SCRATCH identical); and the module
+ *   2. RAM — the routine touches no RAM (dumpState minus stack scratch below the entry SP identical); and the module
  *      forwards true on the exhausted sweep.
  *   3. TEETH — a wrong advance is caught by the register compare; a wrong boolean is caught.
  *
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6018 as oracle } from "../../translated/loc_6018.js";
 import { advanceOverlapScanToNextSlot } from "../advanceOverlapScanToNextSlot.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -47,7 +47,7 @@ const GEOM_STRIDE = 0x18;
 const SP_SCRATCH = 0x8ff0;   // parked in STACK_SCRATCH; the oracle's ret only pops (reads)
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP_SCRATCH);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

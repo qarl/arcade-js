@@ -9,7 +9,7 @@
  *
  * The oracle drives the TRANSLATED subtree (two rst-0x20 lookups, two word lookups, the anim tick)
  * through the routines map; the idiomatic module composes the IDIOMATIC siblings directly. The two
- * must land byte-identical in RAM (dumpState) minus STACK_SCRATCH. initEnemyFormationRecord is a void routine — its
+ * must land byte-identical in RAM (dumpState) minus stack scratch below the entry SP. initEnemyFormationRecord is a void routine — its
  * caller reads no register back — so the register file is NOT compared; the oracle's SP += 2 (its
  * final ret) lives in dead stack.
  *
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5433 as oracle } from "../../translated/loc_5433.js";
 import { initEnemyFormationRecord } from "../initEnemyFormationRecord.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -45,7 +45,7 @@ const INDEX = 0x8d01; //  FORMATION_SPAWN_INDEX — the shared table cursor init
 const SP0 = 0x8fe0; //    inside STACK_SCRATCH; room for the nested lookup/tick dips + the final ret
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

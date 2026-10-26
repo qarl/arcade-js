@@ -7,7 +7,7 @@
  * total through the shared accumulate tail (addCreditsAndQueueDisplay); off-phase it leaves only the advanced ring.
  * The module composes the real idiomatic siblings; the oracle drives their translated forms through
  * the routines map. accrueCreditFromDripRingA has no register live-out (the caller reloads A before reading it), so
- * only RAM (dumpState, minus STACK_SCRATCH) is compared. SP sits in STACK_SCRATCH so the accumulate
+ * only RAM (dumpState, minus stack scratch below the entry SP) is compared. SP sits in STACK_SCRATCH so the accumulate
  * tail's nested pushes drop out of the diff.
  *
  * Jobs:
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5a06 as oracle } from "../../translated/loc_5a06.js";
 import { accrueCreditFromDripRingA } from "../accrueCreditFromDripRingA.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, INPUT_PORT0, CREDIT_COUNT } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -42,7 +42,7 @@ const DRIP_RING_A = 0x8829; // proposed cell (see reconcile) — the variant-A c
 const SP0 = 0x8fe0; // inside STACK_SCRATCH; the accumulate tail pushes/pops its frames here
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

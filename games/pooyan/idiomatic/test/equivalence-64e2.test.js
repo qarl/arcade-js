@@ -9,7 +9,7 @@
  * keeps the enemy-record state dispatcher as a machine call (0x6822 — a spine dispatcher not lifted
  * this batch); the oracle drives all four through the routines map. runObjectAndSpawnUpdatePass is a void sequencer —
  * no register survives, so the register file is not compared; equivalence is RAM (dumpState) minus
- * STACK_SCRATCH. SP is parked in STACK_SCRATCH so each pass's nested pushes (and the module's
+ * stack scratch below the entry SP. SP is parked in STACK_SCRATCH so each pass's nested pushes (and the module's
  * scratch return frame for the fountain-dispatch tail-return) drop out of the diff.
  *
  * Jobs:
@@ -32,7 +32,7 @@ import { blitStackedTwoTileAnimFrameOnHoldTimer } from "../blitStackedTwoTileAni
 import { runActorGroupStateHandler } from "../runActorGroupStateHandler.js";
 import { updateEnemyActorsAndCycleLaunchFlipAnim } from "../updateEnemyActorsAndCycleLaunchFlipAnim.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ENEMY_ACTOR_TABLE, HUNTER_TABLE_BASE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -51,7 +51,7 @@ const STRIDE = 0x18;
 const SP0 = 0x8ff0;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

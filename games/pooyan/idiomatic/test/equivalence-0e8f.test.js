@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0e8f as oracle } from "../../translated/loc_0e8f.js";
 import { sendSoundCommand } from "../sendSoundCommand.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -43,12 +43,12 @@ const test = ROM_PRESENT
 const TARGET = 0x0e8f;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0); // crafted entries keep the reset SP 0, so no scratch cell lies below it
 
-function ramDiffMinusStack(ma, mb) {
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** Compare the two Io surfaces this routine can touch: the sound latch and the LS259. */
@@ -92,7 +92,7 @@ test("CAPTURE: real 0x0e8f dispatches — module == oracle in Io state", () => {
     oracle(o);
     sendSoundCommand(c);
     assert.equal(ioDiff(o, c), null, `Io diff: ${ioDiff(o, c)}`);
-    assert.equal(ramDiffMinusStack(o, c), null, "RAM should be identical (audio writes are Io, not RAM)");
+    assert.equal(ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp)), null, "RAM should be identical (audio writes are Io, not RAM)");
   }
   console.log(`  CAPTURE: ${CAPS.length} real dispatch(es) checked`);
 });

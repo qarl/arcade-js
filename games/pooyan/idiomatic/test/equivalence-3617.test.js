@@ -10,7 +10,7 @@
  * both walk identical downstream code.
  *
  * LIVE-OUT: A. On the bail path the oracle leaves A = B (ld a,b then ret nc), so the module sets it
- * through the return; the test compares A as well as RAM (dumpState) minus STACK_SCRATCH.
+ * through the return; the test compares A as well as RAM (dumpState) minus stack scratch below the entry SP.
  *
  * Cases are CRAFTED: B and the gate's scan bit (ix+0x0b) are poked. B>=0x20 bails; B<0x20 with the
  * scan bit clear tails through the gate into its scan-window seat (writes RAM).
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3617 as oracle } from "../../translated/loc_3617.js";
 import { enterPreSpawnGateIfBelowLimit } from "../enterPreSpawnGateIfBelowLimit.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { ENEMY_ACTOR_TABLE, STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -47,7 +47,7 @@ const SP0 = 0x8ff0;
 const ENTRY_A = 0x99; // a distinctive entry A so a dropped A live-out shows
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0 - 2); // entry SP: the seat pushes the caller's return word below SP0
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

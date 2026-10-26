@@ -5,7 +5,7 @@
  * return; once it hits zero, blank the sprite band (tail to blankActorSpriteBand).
  *
  * Cycle-free memory-equivalence gate: a FRESH clone per side, compared on RAM (dumpState, minus
- * STACK_SCRATCH — the oracle's call trampolines push there). pc/SP/cycles are NOT compared.
+ * stack scratch below the entry SP — the oracle's call trampolines push there). pc/SP/cycles are NOT compared.
  *
  * Two paths, two live-out contracts. The RETURN path (timer not yet zero) is memory-only — the
  * animation step leaves no register a caller consumes, so only RAM is compared. The BAND-BLANK path
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3d8f as oracle } from "../../translated/loc_3d8f.js";
 import { blankEnemyBandOnTimerExpiry } from "../blankEnemyBandOnTimerExpiry.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -47,7 +47,7 @@ const TIMER_FIELD = 0x11; // frame timer counted down here
 const BAND_LEN = 0x17; //    bytes the band blanker clears
 const HOLD_SEED = 0x05; //   non-zero so advanceObjectAnimationFrame takes the hold-decrement path
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

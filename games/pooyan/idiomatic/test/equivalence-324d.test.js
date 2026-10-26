@@ -7,7 +7,7 @@
  * the board tile-sum check verifyPlayfieldTileChecksum (returning its result).
  *
  * Cycle-free memory-equivalence gate: a fresh clone per side, compared on RAM (dumpState,
- * minus STACK_SCRATCH) PLUS register B. B is the loop counter of the sole caller scanDisplaySlotsAndTickBoardClear
+ * minus stack scratch below the entry SP) PLUS register B. B is the loop counter of the sole caller scanDisplaySlotsAndTickBoardClear
  * (`inc ix; inc ix; djnz` right after the call), so it must survive the call; tickHunterReturnCounterAndCheckBoardClear never
  * writes B, and on the board-clear tail path the check leaves it untouched too, so it is
  * checked equal to the oracle (a broken twin that clobbers B is caught). A/HL/flags are left
@@ -36,7 +36,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_324d as oracle } from "../../translated/loc_324d.js";
 import { tickHunterReturnCounterAndCheckBoardClear } from "../tickHunterReturnCounterAndCheckBoardClear.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -55,7 +55,7 @@ const B_SENTINEL = 0x07; // the caller's loop counter, which tickHunterReturnCou
 const counterAddr = (slot) => HUNTER_PAGE | ((slot + 0x05) & 0xff);
 const pairedAddr = (slot) => (counterAddr(slot) + 1) & 0xffff;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

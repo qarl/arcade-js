@@ -6,7 +6,7 @@
  * advanced pointer is consumed by the two-tile animators (blitStackedTwoTileAnimFrameOnHoldTimer / blitTwoTileAnimFrameOnHoldTimer / movePlayerVerticallyAndTickStatusRender all read it),
  * so it is part of the go-forward contract:
  *
- *     RAM (dumpState minus STACK_SCRATCH)  AND  the HL live-out (== dest + 0x20).
+ *     RAM (dumpState minus stack scratch below the entry SP)  AND  the HL live-out (== dest + 0x20).
  *
  * blit2x2TileBlock WRITES video RAM, so each case uses a FRESH clone per side. DE/A are left as plumbing
  * (callers restore DE via push/pop and never read A), so they are NOT part of the contract.
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3325 as oracle } from "../../translated/loc_3325.js";
 import { blit2x2TileBlock } from "../blit2x2TileBlock.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -42,7 +42,7 @@ const DEST = 0x8460; // a video-RAM anchor; the square spans 0x8460/0x8461/0x848
 const SRC = 0x8b00; //  a work-RAM source block (no overlap with the dest square)
 const CELLS = [DEST + 0x00, DEST + 0x01, DEST + 0x21, DEST + 0x20]; // TL, TR, BR, BL <- src+0..src+3
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0); // crafted entries keep the reset SP 0, so no scratch cell lies below it
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

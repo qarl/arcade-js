@@ -10,7 +10,7 @@
  *
  * CYCLE-FREE / memory-equivalence gate (docs/decompiler-pipeline). The routine writes work RAM and
  * video RAM (via the repaint), so every case uses a FRESH clone per side, compared on RAM (dumpState,
- * minus STACK_SCRATCH). The module and oracle repaint through the two forms of drawBcdCounterColumn (idiomatic vs
+ * minus stack scratch below the entry SP). The module and oracle repaint through the two forms of drawBcdCounterColumn (idiomatic vs
  * translated), which agree by drawBcdCounterColumn's own gate — so the compared RAM includes the painted columns.
  *
  * LIVE-OUT: none — memory-only. Reached only by table dispatch; no caller reads a result register.
@@ -36,7 +36,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0496 as oracle } from "../../translated/loc_0496.js";
 import { accrueScoreAndUpdateHighScore } from "../accrueScoreAndUpdateHighScore.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -54,7 +54,7 @@ const HIGH = 0x88a8; // HIGH_SCORE_BCD (LSB..MSB = 0x88a8..0x88aa)
 const PER_FRAME = 0x88ab; // PER_FRAME_SCORE_INCREMENT
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

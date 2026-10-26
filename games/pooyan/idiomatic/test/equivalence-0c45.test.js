@@ -4,7 +4,7 @@
  * A = index, HL = table base -> DE = table[index]; the doubled index is 8-bit so it wraps past 0x80.
  *
  * SEATING: BALANCED (plain ret). fetchWordFromTableIndex writes NO RAM, so equivalence is the DE register live-out
- * (the looked-up word) plus a RAM-untouched check (dumpState minus STACK_SCRATCH). DE is the only
+ * (the looked-up word) plus a RAM-untouched check (dumpState minus stack scratch below the entry SP). DE is the only
  * live-out: the oracle also leaves A = 2*index and HL = base+2*index+1, but every caller overwrites
  * or ex-de-hl-discards those before reading, so they are NOT compared (they legitimately diverge —
  * the module leaves them at their entry values). SP is parked in STACK_SCRATCH for the oracle's ret.
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0c45 as oracle } from "../../translated/loc_0c45.js";
 import { fetchWordFromTableIndex } from "../fetchWordFromTableIndex.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -43,7 +43,7 @@ const TABLE = 0x8e00; //     word-table base, 0x100 bytes of scratch work-RAM
 const SENTINEL_DE = 0x5555; // a bridge that fails to set DE is caught
 const SP0 = 0x8ff0; //       inside STACK_SCRATCH
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

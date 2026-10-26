@@ -6,7 +6,7 @@
  *
  * This is the cycle-free / memory-equivalence gate. B is the only input (bridged via the register
  * default). The successor (paintRoundNumberHud) reloads HL/DE/A after the call, so the contract is RAM only
- * (dumpState minus STACK_SCRATCH) — there is no consumed register live-out; pc/SP/cycles are not
+ * (dumpState minus stack scratch below the entry SP) — there is no consumed register live-out; pc/SP/cycles are not
  * compared. The oracle stamps through the translated loc_3307, which uses the 0x8f0b row counter and
  * resets it to 0; a fresh clone has it 0, so its net footprint is just the nine tiles.
  *
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1ffb as oracle } from "../../translated/loc_1ffb.js";
 import { stampSelectedGlyphBlock } from "../stampSelectedGlyphBlock.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -42,7 +42,7 @@ const TABLE_A = 0x203b; // bit5 clear
 const TABLE_B = 0x2050; // bit5 set
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

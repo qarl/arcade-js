@@ -5,7 +5,7 @@
  * display-list rebuild in order.
  *
  * updateGameplayFrame is a void driver — no register survives — so the register file is not compared;
- * equivalence is RAM (dumpState) minus STACK_SCRATCH, SP parked in dead stack. The spawner spawnNextEnemyOnDelay
+ * equivalence is RAM (dumpState) minus stack scratch below the entry SP, SP parked in dead stack. The spawner spawnNextEnemyOnDelay
  * is decompiled and called directly: the crafted state holds its frame-delay
  * counter running (the spawner just ticks it and returns), isolating the driver's ORDER + the other
  * sub-passes. updateGameplayFrame is a wired override, so it also carries an SP-tooth.
@@ -26,7 +26,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_755d as oracle } from "../../translated/loc_755d.js";
 import { updateGameplayFrame } from "../updateGameplayFrame.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -41,7 +41,7 @@ const SP0 = 0x8ff0; //          inside STACK_SCRATCH
 const CALLER_RET = 0xfffc; //   caller-return word seated at SP0 for the seam
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

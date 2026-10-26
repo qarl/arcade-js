@@ -8,7 +8,7 @@
  * CYCLE-FREE / memory-equivalence gate (docs/decompiler-pipeline). The routine writes work RAM, so
  * every case uses a FRESH clone per side, compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) + the A register live-out.
+ *     RAM (dumpState, minus stack scratch below the entry SP) + the A register live-out.
  *
  * A IS a live-out: the appender leaves A = the advanced ring cursor (append path) or 0 (gates
  * closed), the AF pair is not restored across the tail, and callers read it — so the EQUAL job
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0efd as oracle } from "../../translated/loc_0efd.js";
 import { queueSoundCommand08 } from "../queueSoundCommand08.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -52,7 +52,7 @@ const RING_LAST = 0x5e;
 const COMMAND_BYTE = 0x08; // the byte this command appends
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

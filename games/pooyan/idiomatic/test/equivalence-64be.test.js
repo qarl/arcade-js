@@ -10,7 +10,7 @@
  *   - MISMATCH (path B): the first differing byte bumps TAMPER_STRIKES_TERMINATOR (0x8df9).
  *   - SENTINEL (path A): a fetched table byte decrements to zero -> clean, writes nothing.
  *
- * Fidelity contract: RAM (dumpState) minus STACK_SCRATCH, plus the module's boolean return.
+ * Fidelity contract: RAM (dumpState) minus stack scratch below the entry SP, plus the module's boolean return.
  * No register is a live-out: the frozen skip's `pop af` loads stack scratch into AF and the
  * DE/HL scan cursors are not consumed after the unwind, so registers are NOT compared. The
  * oracle's `pop af; ret` moves SP by +4; we assert that to confirm the skip path ran.
@@ -36,7 +36,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_64be as oracle } from "../../translated/loc_64be.js";
 import { verifyTerminatorTableOrCountTamper } from "../verifyTerminatorTableOrCountTamper.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -52,7 +52,7 @@ const TABLE = 0x8ea0; // controllable expected-byte table (ascending)
 const SP0 = 0x8fe0; // inside STACK_SCRATCH; pop-af + ret only read
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

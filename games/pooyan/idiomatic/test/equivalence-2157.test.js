@@ -9,7 +9,7 @@
  * SEATING: BALANCED — the match exit is a plain `ret`; the mismatch exit tail-`jp`s the grab-record
  * walk, forwarded as `return advanceActorAnimationsUnlessGrabbing(m)`. LIVE-OUT: none on the match path (the caller reads memory);
  * the mismatch path forwards the walk's own live-out, which no caller of stepActiveTargetActorRecords reads back — so the
- * register file is not compared; equivalence is RAM (dumpState) minus STACK_SCRATCH.
+ * register file is not compared; equivalence is RAM (dumpState) minus stack scratch below the entry SP.
  *
  * Cases are CRAFTED: a plain boot does not seat these records or the cursor value.
  *
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2157 as oracle } from "../../translated/loc_2157.js";
 import { stepActiveTargetActorRecords } from "../stepActiveTargetActorRecords.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ENEMY_TARGET_REC0, ANIM_SCRIPT_CURSOR } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -48,7 +48,7 @@ const MATCH_CURSOR = 0xd5; // 0x0c + 0xc9 -> tamper match
 const SP0 = 0x8ff0; // inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

@@ -7,7 +7,7 @@
  *
  * SEATING: BALANCED — the oracle's only exit is a plain `ret z` on the 0xee marker, so the module is
  * WIRED as a void routine. LIVE-OUT: none — the caller (fetchWordFromTableIndex) overwrites DE and reads no
- * register back, so equivalence is RAM (dumpState) minus STACK_SCRATCH; the register file is not
+ * register back, so equivalence is RAM (dumpState) minus stack scratch below the entry SP; the register file is not
  * compared. A plain boot clone reaches it: the source tables live in ROM and terminate themselves.
  *
  * Jobs:
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0cf8 as oracle } from "../../translated/loc_0cf8.js";
 import { stampTwoPlaneColumnStrip } from "../stampTwoPlaneColumnStrip.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -44,7 +44,7 @@ const ATTR_DEST = 0x82a7; // COLUMN_BLIT_ATTR_DEST — attribute plane
 const SP0 = 0x8ff0; // inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

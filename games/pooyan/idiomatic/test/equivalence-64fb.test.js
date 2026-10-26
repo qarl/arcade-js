@@ -34,7 +34,7 @@ import { loc_64fb as oracle } from "../../translated/loc_64fb.js";
 import { runActorGroupStateHandler } from "../runActorGroupStateHandler.js";
 import { loc_6666 } from "../../translated/loc_6666.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -52,11 +52,11 @@ const PHASE_892F = 0x892f; // handler 6566 decrements this on its shallow path
 const HANDLERS = [0x6505, 0x6566, 0x6666];
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
-function ramDiffMinusStack(ma, mb) {
-  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
+  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** A fresh clone with IX at the fountain record and its state byte set. sp in dead stack. */
@@ -106,7 +106,7 @@ test("CAPTURE: real 0x64fb dispatches replay identically (if reached)", () => {
     try { runActorGroupStateHandler(c); } catch { cThrew = true; }
     assert.equal(oThrew, cThrew, "oracle and module must take the same completion path");
     if (!oThrew) {
-      const d = ramDiffMinusStack(o, c);
+      const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
       assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
     }
   }

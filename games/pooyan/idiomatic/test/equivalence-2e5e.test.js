@@ -7,7 +7,7 @@
  * segment tile (0x2dfe) and enqueues its display command.
  *
  * Cycle-free memory-equivalence gate: fresh clone per side, compared on RAM (dumpState, minus
- * STACK_SCRATCH) only. The routine has NO register live-out — its driver (driveActiveRopeCells) reads
+ * stack scratch below the entry SP) only. The routine has NO register live-out — its driver (driveActiveRopeCells) reads
  * nothing back after the dispatch and IX (the cell record) is only read — so pc and the whole
  * register file are deliberately NOT compared. IX is the one input register, seated on both sides.
  *
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2e5e as oracle } from "../../translated/loc_2e5e.js";
 import { spawnHangingRopeObject } from "../spawnHangingRopeObject.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   FRAME_COUNTER,
@@ -50,7 +50,7 @@ const test = ROM_PRESENT
 const SLOT_STRIDE = 0x18;
 const IY4_TABLE = 0x2ec7; // ROM table: IXL&3 -> the slot's +4 field
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

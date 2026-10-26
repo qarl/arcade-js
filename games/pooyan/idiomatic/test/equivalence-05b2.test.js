@@ -10,7 +10,7 @@
  * CYCLE-FREE / memory-equivalence gate. The routine WRITES RAM, so each case runs on a FRESH clone
  * per side. The single input is A (the selector), bridged as a param. No register survives — callers
  * save/restore or reload their registers around this — so the contract is RAM (dumpState, minus
- * STACK_SCRATCH) alone. pc/SP/registers are NOT compared.
+ * stack scratch below the entry SP) alone. pc/SP/registers are NOT compared.
  *
  * The routine reads only ROM (the pointer table and strings), so the selectors below are the ones the
  * game actually issues (paintAttractHudAndHighScores uses 0x1a..0x24, drawCreditCountAndTamperCheck uses 0x05); they terminate on a real '?'.
@@ -36,7 +36,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_05b2 as oracle } from "../../translated/loc_05b2.js";
 import { drawStackedCharField } from "../drawStackedCharField.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -51,7 +51,7 @@ const BLANK_TILE = 0x10;
 const TILEMAP_LO = 0x8400;
 const TILEMAP_HI = 0x8800;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

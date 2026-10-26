@@ -10,7 +10,7 @@
  * a false (hit) return aborts the loop. This gate seats BOTH a skip-taken state (pass 1
  * hits, pass 2 must NOT run) and a skip-not-taken state (both passes miss, loop completes),
  * plus the early-out guard, and compares oracle vs module in RAM (dumpState) minus
- * STACK_SCRATCH. scanActorCollisionsBothSlots returns void; registers are loop bookkeeping and are NOT compared.
+ * stack scratch below the entry SP. scanActorCollisionsBothSlots returns void; registers are loop bookkeeping and are NOT compared.
  *
  * The oracle drives the whole TRANSLATED subtree through the routines map; the module drives
  * the IDIOMATIC subtree by direct import. Byte-identical RAM (−stack) is the contract.
@@ -33,7 +33,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6404 as oracle } from "../../translated/loc_6404.js";
 import { scanActorCollisionsBothSlots } from "../scanActorCollisionsBothSlots.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -55,7 +55,7 @@ const SLOT2 = 0x8c78;
 const SP0 = 0x8ff8; // inside STACK_SCRATCH; room for the pushed frame + effect-call dips
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

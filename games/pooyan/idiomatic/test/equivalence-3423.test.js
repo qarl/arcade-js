@@ -8,7 +8,7 @@
  *     to armInteriorBandOrMarkActorActive.
  *
  * Cycle-free / memory-equivalence gate: a fresh clone per side, oracle on one and dispatchActorState1MovementByMode on the
- * other, compared on RAM (dumpState, minus STACK_SCRATCH). pc/SP/cycles are NOT compared, and there
+ * other, compared on RAM (dumpState, minus stack scratch below the entry SP). pc/SP/cycles are NOT compared, and there
  * is NO register live-out (the record-dispatch caller reloads A and reads no other register back).
  * The oracle's loc_4006 call (frozen return-slot push at 0x3426) and every tail land inside
  * STACK_SCRATCH; the idiomatic layer drops that push, so the SP-tooth proves the drop is SP-neutral.
@@ -34,7 +34,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3423 as oracle } from "../../translated/loc_3423.js";
 import { dispatchActorState1MovementByMode } from "../dispatchActorState1MovementByMode.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   ANIM_ARMED_LATCH,
@@ -62,7 +62,7 @@ const OFF_HOLD = 0x0e; // anim frame-hold counter
 const DIRT = 0xaa;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0); // the RAM diffs all enter at the craft seat
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

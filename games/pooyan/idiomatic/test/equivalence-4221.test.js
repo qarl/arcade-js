@@ -5,7 +5,7 @@
  * The idiomatic module direct-calls its lifted callees (advanceObjectAnimationFrame/advanceObjectColumnByStepAndDispatch/advanceActorColumnAndArmTurnOrBand/blankActorSpriteBand, the
  * interior-entry arms clearColumnLimitAndArmTurnAnimation/latchColumnLimitAndArmTurnAnimation, and blockC9's slot initializer initDescendingObjectSlot — a caller-skip
  * dissolved to a boolean the sweep early-returns on). moveFormationAndSpawnObject is a dispatched void handler — no
- * register survives — so equivalence is RAM (dumpState) minus STACK_SCRATCH.
+ * register survives — so equivalence is RAM (dumpState) minus stack scratch below the entry SP.
  *
  * Two branch-representative arms: TURN_CLEAR (bit0 clear, phase >= 0x14 -> clearColumnLimitAndArmTurnAnimation arms script 0x4212
  * and clears the turn-column limit) and TURN_LATCH (bit0 set, small phase, countdown high -> latchColumnLimitAndArmTurnAnimation
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_4221 as oracle } from "../../translated/loc_4221.js";
 import { moveFormationAndSpawnObject } from "../moveFormationAndSpawnObject.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   ENEMY_ACTOR_TABLE,
@@ -50,7 +50,7 @@ const SP0 = 0x8fe0; //             inside STACK_SCRATCH
 const CALLER_RET = 0xfffc; //      caller-return word the seam completes
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

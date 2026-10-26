@@ -3,7 +3,7 @@
  * Memory-equivalence test for advanceActorXAndDispatchMove (ROM 0x3757, Pooyan) — advance an actor's X, then dispatch.
  *
  * A fresh clone per side, the oracle on one and advanceActorXAndDispatchMove on the other, compared on RAM (dumpState,
- * minus STACK_SCRATCH) PLUS the declared register live-out A. pc/SP/cycles are not compared.
+ * minus stack scratch below the entry SP) PLUS the declared register live-out A. pc/SP/cycles are not compared.
  *
  * INPUT: IX (the actor record). advanceActorXAndDispatchMove adds the signed step (rec+0x0a) to X (rec+0x05); when X is
  * below the negated step the lap counter (rec+0x06) is decremented first. It then tails into the
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3757 as oracle } from "../../translated/loc_3757.js";
 import { advanceActorXAndDispatchMove } from "../advanceActorXAndDispatchMove.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, PLAY_STATE_INDEX, STAGE_COUNTDOWN } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -45,7 +45,7 @@ const REC_STEP = 0x0a;
 const GLOBAL_PHASE_TIMER = 0x8d7d; // read by the phase-state dispatch; seated so it early-returns
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fee);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

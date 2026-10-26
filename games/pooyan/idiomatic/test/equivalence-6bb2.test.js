@@ -9,7 +9,7 @@
  * commands 0x06ab..0x06af, the last of which tails into the sprite-display-list rebuild.
  *
  * The routine takes NO register inputs (the oracle seats iy/de/b/a from constants), so every case is
- * a memory poke. Compared on RAM (dumpState) minus STACK_SCRATCH; SP is parked in STACK_SCRATCH so
+ * a memory poke. Compared on RAM (dumpState) minus stack scratch below the entry SP; SP is parked in STACK_SCRATCH so
  * the oracle's push/ret drop out of the diff. Ring slots are seated free so the enqueues write.
  *
  * Jobs: 1. EQUAL across the early-return, active-store, and inactive-skip branches; 2. WRITE-SET
@@ -26,7 +26,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6bb2 as oracle } from "../../translated/loc_6bb2.js";
 import { commitPromotedObjectsAndClearHelpScreenOnCountdown } from "../commitPromotedObjectsAndClearHelpScreenOnCountdown.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   PENDING_OBJECT_COUNTDOWN,
@@ -55,7 +55,7 @@ const V1 = 0x11;
 const V2 = 0x22;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

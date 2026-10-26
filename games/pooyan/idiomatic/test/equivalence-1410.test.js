@@ -7,7 +7,7 @@
  * SEATING: TAIL-CALL. The frozen entry has no ret of its own — both exits tail-jp to a delegate;
  * its seating is the delegate's, and the module returns the delegate's result directly. latchActorStepThenDispatchByStageCountdown
  * WIREs as an override (the dispatcher reads the delegate's result back through it). Compared on
- * RAM (dumpState) minus STACK_SCRATCH; the delegates carry their own register live-out, checked by
+ * RAM (dumpState) minus stack scratch below the entry SP; the delegates carry their own register live-out, checked by
  * their own gates. SP is parked in STACK_SCRATCH so nested pushes drop out of the diff.
  *
  * Cases are CRAFTED: a plain boot does not seat this record/countdown geometry.
@@ -35,7 +35,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1410 as oracle } from "../../translated/loc_1410.js";
 import { latchActorStepThenDispatchByStageCountdown } from "../latchActorStepThenDispatchByStageCountdown.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, STAGE_COUNTDOWN } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -50,7 +50,7 @@ const SP0 = 0x8ff0; // inside STACK_SCRATCH
 const VALUE = 0x42; // the step value to stash + latch
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

@@ -5,7 +5,7 @@
  * up (0x8720), 0x20 two rows up (0x8700). Fixed addresses/values -> no input registers.
  *
  * Cycle-free memory-equivalence gate: a fresh clone per side, compared on RAM (dumpState, minus
- * STACK_SCRATCH). No register live-out — callers read only memory back (the `add hl,de` stride
+ * stack scratch below the entry SP). No register live-out — callers read only memory back (the `add hl,de` stride
  * preserves the Z flag the caller's own compare set).
  *
  * Jobs:
@@ -23,7 +23,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1d0d as oracle } from "../../translated/loc_1d0d.js";
 import { stampSecondScrollColumn } from "../stampSecondScrollColumn.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -39,7 +39,7 @@ const BOT = 0x8700; //  two rows up
 const SP0 = 0x8ff0; //  inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

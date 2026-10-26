@@ -5,7 +5,7 @@
  * the active-player selector (0x880d) is nonzero.
  *
  * Cycle-free / memory-equivalence gate. The routine writes only RAM (gauge tiles + the
- * sub-state index), so the contract is RAM (dumpState, minus STACK_SCRATCH). pc/SP/cycles
+ * sub-state index), so the contract is RAM (dumpState, minus stack scratch below the entry SP). pc/SP/cycles
  * are NOT compared, and no register survives for the caller, so there is no register
  * live-out. The oracle's call 0x03c2 pushes a return slot into STACK_SCRATCH (excluded); the
  * module calls renderPhaseGauge directly (no push), so the stack diverges only inside the
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1a85 as oracle } from "../../translated/loc_1a85.js";
 import { renderGaugeAndSetPlayStateForPlayer } from "../renderGaugeAndSetPlayStateForPlayer.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ACTIVE_PLAYER, PLAY_STATE_INDEX, GAUGE_PHASE_COUNTER, PHASE_GAUGE_BASE_TILE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -46,7 +46,7 @@ const hx = (v) => "0x" + u16(v).toString(16);
 const PLAY_STATE_BASE = 0x0a;
 const GAUGE_ROW_UP = -0x20; // gauge cells march one tilemap row up
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

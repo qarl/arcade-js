@@ -9,7 +9,7 @@
  * CYCLE-FREE / memory-equivalence gate (docs/decompiler-pipeline). The routine WRITES RAM, so each
  * case runs the oracle on one FRESH clone and advanceActorDropStateOnDelay on another, compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * Memory-only: the early-return path leaves the decrement's Z flag in the CPU, but the state
  * dispatcher that invokes this handler reads no register or flag, so there is no return to compare.
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_24db as oracle } from "../../translated/loc_24db.js";
 import { advanceActorDropStateOnDelay } from "../advanceActorDropStateOnDelay.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ACTOR_TABLE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -46,16 +46,16 @@ const TARGET = 0x24db;
 const REC = ACTOR_TABLE; // 0x8a80: a sane actor-record base in the actor arena (work RAM)
 const DIRT = 0xaa;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 // The offsets the full (delay-expired) path touches.
 const FULL_OFFSETS = [0x02, 0x04, 0x06, 0x0f, 0x11];
 
-/** First RAM difference on the go-forward contract: dumpState minus the dead STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
+/** First RAM difference on the go-forward contract: dumpState minus the dead stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** Pre-dirty the whole 0x18-byte record, then set the fields this handler reads; IX -> record. */
@@ -102,7 +102,7 @@ test("CAPTURE: real 0x24db dispatches replay identically in RAM (−stack), if r
     const c = cap.clone();
     oracle(o);
     advanceActorDropStateOnDelay(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} mine=${d.b}`);
   }
   console.log(`  CAPTURE: ${caps.length} real 0x24db dispatch(es) replayed identically`);

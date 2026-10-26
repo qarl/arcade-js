@@ -11,7 +11,7 @@
  *
  * Inputs bridged from registers: the entry carry flag (branch selector) and HL (the arm pointer).
  * The tile-fill cursor and row counter are RAM pokes. Compared on RAM (dumpState) minus
- * STACK_SCRATCH; SP is parked in STACK_SCRATCH so the oracle's call/ret pushes fall out of the diff.
+ * stack scratch below the entry SP; SP is parked in STACK_SCRATCH so the oracle's call/ret pushes fall out of the diff.
  *
  * Jobs: 1. EQUAL across the full / early-return / carry-arm branches; 2. WRITE-SET (attract bump +
  * attribute flood on the full path; pointer bump on the arm path; neither on the early return);
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0929 as oracle } from "../../translated/loc_0929.js";
 import { loc_0929 } from "../loc_0929.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   ATTRACT_SUBSTATE,
@@ -48,7 +48,7 @@ const VRAM = 0x8402; // a writable tile-code cell to seat the fill cursor at
 const ARM_PTR = 0x8e60; // a work-RAM cell outside the zeroed arena, so the arm bump is observable
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

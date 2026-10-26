@@ -8,7 +8,7 @@
  * saveLiveStateToPlayerBank WRITES RAM, so every case uses a FRESH clone per side. The oracle
  * runs on one clone, the module on another, compared on the go-forward contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).  (No register live-out: the routine is memory-only.)
+ *     RAM (dumpState, minus stack scratch below the entry SP).  (No register live-out: the routine is memory-only.)
  *
  * The register input is the caller's H page; the oracle reads regs.hl (forcing L=0x04) and the
  * module its sanctioned default regs.h, so both address the same status byte.
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1a47 as oracle } from "../../translated/loc_1a47.js";
 import { saveLiveStateToPlayerBank } from "../saveLiveStateToPlayerBank.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   ACTIVE_PLAYER,
@@ -53,13 +53,13 @@ const LIVE_PAGE = SPEED_INDEX; // 0x8900, base of the live page copied out
 const BANK_SIZE = 0x3f;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0); // crafted entries keep the reset SP 0, so no scratch cell lies below it
 
-/** First RAM difference on the go-forward contract: whole dump minus STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
+/** First RAM difference on the go-forward contract: whole dump minus stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 const statusAddr = (page) => ((page << 8) | 0x04) & 0xffff;
@@ -115,7 +115,7 @@ test("CAPTURE: real 0x1a47 dispatches — saveLiveStateToPlayerBank == oracle in
     const c = cap.clone();
     oracle(o);
     saveLiveStateToPlayerBank(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
   }
   console.log(`  CAPTURE: ${CAPS.length} real dispatch(es) checked`);

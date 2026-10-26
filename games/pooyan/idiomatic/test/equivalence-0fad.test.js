@@ -11,7 +11,7 @@
  * CYCLE-FREE / memory-equivalence gate (docs/decompiler-pipeline). Each case runs the oracle on
  * one FRESH clone and queueSoundRun26 on another and compares:
  *
- *     RAM (dumpState, minus STACK_SCRATCH)  +  the declared register live-out (A).
+ *     RAM (dumpState, minus stack scratch below the entry SP)  +  the declared register live-out (A).
  *
  * A — the advanced ring cursor — IS a genuine live-out: the flag/accumulator pair is not restored
  * across the tail, and a caller reads it out of the register, so it is asserted AND the module must
@@ -37,7 +37,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0fad as oracle } from "../../translated/loc_0fad.js";
 import { queueSoundRun26 } from "../queueSoundRun26.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   GAME_ACTIVE_FLAG,
@@ -57,7 +57,7 @@ const RUN_TILES = [0x26, 0x15, 0x16, 0x17]; // the leading tile then the three f
 const RING_START = 0x43; // first ring slot (cursor low byte)
 const RING_PAGE = SOUND_RING_WRITE_PTR & 0xff00; // the ring shares the pointer cell's page
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, STACK_SCRATCH.hi);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

@@ -7,7 +7,7 @@
  * The module dispatches the lead record's state through an idiomatic switch to the six handlers; the
  * oracle drives the same frozen sub-passes and rst-28 spine into the same handlers. advanceLeadActorPrimaryState is a
  * void driver — no register survives — so the register file is not compared; equivalence is RAM
- * (dumpState) minus STACK_SCRATCH, SP parked in dead stack so nested pushes drop out.
+ * (dumpState) minus stack scratch below the entry SP, SP parked in dead stack so nested pushes drop out.
  *
  * The crafted states hold the sub-passes on benign arms (hunter pass gated off, rope pass on its
  * plain timer decrement) so the driver's own job — ORDER + freeze abort + dispatch — is isolated.
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_241e as oracle } from "../../translated/loc_241e.js";
 import { advanceLeadActorPrimaryState } from "../advanceLeadActorPrimaryState.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -52,7 +52,7 @@ const LAUNCH_STATE = 0x8f30; //  launch state machine (0 -> its state-0 handler)
 const SP0 = 0x8ff0; //  inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

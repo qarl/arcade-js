@@ -7,7 +7,7 @@
  * animation (setActorAnimation), reloads ENEMY_SPAWN_TIMER (0x8d07), and bumps 0x8f5f and
  * ACTIVE_ENEMY_COUNT (0x8d40).
  *
- * The contract is RAM (dumpState, minus STACK_SCRATCH) only. The routine ends with a `pop af`/`ret`
+ * The contract is RAM (dumpState, minus stack scratch below the entry SP) only. The routine ends with a `pop af`/`ret`
  * skip-return, so its exit A/flags are stack artifacts; B/DE/HL are advanced but the per-frame
  * drivers it skip-returns through read no register back — the whole live-out is memory. pc/SP are
  * not compared. Every case is CRAFTED: IX at a record slot, E and ROUND_COUNTER poked identically.
@@ -34,7 +34,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_119a as oracle } from "../../translated/loc_119a.js";
 import { seedFreeEnemyRecordFromRoundTables } from "../seedFreeEnemyRecordFromRoundTables.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   ROUND_COUNTER,
@@ -58,7 +58,7 @@ const ANIM_LO = 0x29; // low byte of ANIM_TABLE_3829
 const ANIM_HI = 0x38; // high byte of ANIM_TABLE_3829
 const POS_SEED = 0x1d; // the value the caller passes in E
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 const idxOf = (round) => (round & 0x3f) >> 2;
 

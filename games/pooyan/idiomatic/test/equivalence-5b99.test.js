@@ -6,7 +6,7 @@
  * SEATING: CALLER-SKIP. The ROM hit exits do `pop af; ret`, unwinding past the caller; the module
  * DISSOLVES that into a boolean — true = normal completion (guard fail or no hit; the caller keeps
  * sweeping), false = a hit fired and the caller must abort its frame. Compared on RAM (dumpState)
- * minus STACK_SCRATCH plus the forwarded boolean; the register file is not compared.
+ * minus stack scratch below the entry SP plus the forwarded boolean; the register file is not compared.
  *
  * RECONCILE DEPENDENCY: the module imports the idiomatic fetchWordFromTableIndex (the animation-pointer lookup)
  * and the proposed names ANIM_SEQ_5C80/5C89/5CF9 and ANIM_SEQ_TABLE_5C92; the slot-found case runs
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5b99 as oracle } from "../../translated/loc_5b99.js";
 import { testEnemyRecordHitAndRegister } from "../testEnemyRecordHitAndRegister.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { FLIP_SCREEN_FLAG, ROUND_COUNTER, ENEMY_TARGET_REC0, SPRITE_OBJECT_TABLE, STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -48,7 +48,7 @@ const TAG = 0x42; // record/slot match tag
 const SP0 = 0x8ff0;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0 - 4); // entry SP: the seat pushes two return words below SP0
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

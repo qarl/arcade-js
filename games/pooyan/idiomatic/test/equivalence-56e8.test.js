@@ -6,7 +6,7 @@
  * gateEnemySpawnOnActiveCountAndInit (its seating), and the per-slot spawnEnemyIntoFreeActorSlot is a +4 SP caller-skip dissolved to a boolean
  * (true = spawned -> abort the sweep). The register file is NOT compared: tickEnemySpawnTimerAndGateSpawn has no register
  * live-out — its caller (serviceEnemySpawns tail, dispatched from the runActiveGameplayFrame straight-line sequence) rets
- * straight after and reads nothing back. Compared on RAM (dumpState) minus STACK_SCRATCH only.
+ * straight after and reads nothing back. Compared on RAM (dumpState) minus stack scratch below the entry SP only.
  *
  * Cases are CRAFTED (a plain attract boot does not sit at this gate). They exercise every arm:
  *   DEC        — timer nonzero: decrement and return.
@@ -35,7 +35,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_56e8 as oracle } from "../../translated/loc_56e8.js";
 import { tickEnemySpawnTimerAndGateSpawn } from "../tickEnemySpawnTimerAndGateSpawn.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -60,7 +60,7 @@ const SUBSTATE_0 = 0x8d47; //  first sub-state byte
 const SP0 = 0x8ff0; //         inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

@@ -7,7 +7,7 @@
  * The module dissolves its block-fill, flip/tamper, and slot-reseed callees to direct idiomatic
  * calls; the oracle drives the frozen ones through the registry new Machine(ROM) builds. advanceAttractStateIfImageIntact is
  * a void routine — no register survives — so the register file is not compared; equivalence is RAM
- * (dumpState) minus STACK_SCRATCH, SP parked in dead stack.
+ * (dumpState) minus stack scratch below the entry SP, SP parked in dead stack.
  *
  * The record base sits outside the cleared arena so its fields survive the fills, and its spawn
  * index is held below 5 so the slot-reseed returns before its own integrity walk. The success arm
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_7881 as oracle } from "../../translated/loc_7881.js";
 import { advanceAttractStateIfImageIntact } from "../advanceAttractStateIfImageIntact.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -49,7 +49,7 @@ const ARENA = 0x8ae0; //        enemy-actor arena the clean path clears
 const SP0 = 0x8ff0; //          inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

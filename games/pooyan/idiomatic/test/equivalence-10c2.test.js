@@ -9,7 +9,7 @@
  * nonzero. Finally the main-loop sub-state selector 0x8f5c is bumped and queueSoundCommand13 queues a sound.
  *
  * Cycle-free memory-equivalence gate: a fresh clone per side, compared on RAM (dumpState, minus
- * STACK_SCRATCH) PLUS the declared register live-out A — the ring cursor the closing queueSoundCommand13 append
+ * stack scratch below the entry SP) PLUS the declared register live-out A — the ring cursor the closing queueSoundCommand13 append
  * leaves, which flows through the tail call so a register-dispatched caller reads it back. Both sides'
  * m.call push/ret land in STACK_SCRATCH (SP seated there) and are diff-excluded.
  *
@@ -34,7 +34,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_10c2 as oracle } from "../../translated/loc_10c2.js";
 import { adjustCounterAndPaintBcdHudFields } from "../adjustCounterAndPaintBcdHudFields.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, GAME_ACTIVE_FLAG, SOUND_RING_WRITE_PTR, SOUND_RING_PENDING_BYTE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -58,7 +58,7 @@ const RING_PTR = 0x50;
 const RING_PAGE = 0x8a00;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

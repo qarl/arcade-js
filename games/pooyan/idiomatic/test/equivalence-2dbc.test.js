@@ -8,7 +8,7 @@
  * The module dissolves the tile lookup (fetchWordFromTableIndex) and the 2x2 blit (blit2x2TileBlock) to direct
  * calls; the oracle drives the same frozen helpers via the registry new Machine(ROM) builds.
  * advanceRopeExtendAnimation is a void handler — no register survives — so equivalence is RAM (dumpState) minus
- * STACK_SCRATCH, SP parked in dead stack.
+ * stack scratch below the entry SP, SP parked in dead stack.
  *
  * Jobs:
  *   1. EQUAL — timer-running, blit, and reset arms: oracle == advanceRopeExtendAnimation in RAM (−stack).
@@ -24,7 +24,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2dbc as oracle } from "../../translated/loc_2dbc.js";
 import { advanceRopeExtendAnimation } from "../advanceRopeExtendAnimation.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -44,7 +44,7 @@ const VRAM = 0x8500; //   a writable tile-RAM blit target
 const SP0 = 0x8ff0; //    inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

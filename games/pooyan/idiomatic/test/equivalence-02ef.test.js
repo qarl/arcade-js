@@ -7,7 +7,7 @@
  * Cycle-free memory-equivalence gate. The routine WRITES video RAM and calls the copy/coordinate
  * builders plus the shared flip tail, so each case runs on a FRESH clone per side, compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * pc/SP/registers are deliberately NOT compared: there is no register live-out (every caller rets
  * straight after). The routine seeds all its own inputs, so a case is a seeded record region plus the
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_02ef as oracle } from "../../translated/loc_02ef.js";
 import { rebuildSpriteDisplayList } from "../rebuildSpriteDisplayList.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, SPRITE_DISPLAY_LIST, FLIP_SCREEN_FLAG } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -45,7 +45,7 @@ const SRC_LO = 0x8a80; // first source record bank
 const SRC_HI = 0x8cc0; // one past the last source record
 const Y_A = SPRITE_DISPLAY_LIST + 0x58; // the first ticked sprite-Y byte
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

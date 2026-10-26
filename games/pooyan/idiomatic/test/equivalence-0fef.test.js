@@ -26,7 +26,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0fef as oracle } from "../../translated/loc_0fef.js";
 import { rearmMainLoopFrame } from "../rearmMainLoopFrame.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   STAGE_COUNTDOWN,
@@ -49,7 +49,7 @@ const ROUND_BIT2 = 0x04;
 const SP0 = 0x8ff0; // inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

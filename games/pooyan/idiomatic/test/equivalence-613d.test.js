@@ -13,7 +13,7 @@
  * scan/engage/reset/sound/skip chain.
  *
  * Cycle-free memory-equivalence gate: the oracle drives the translated chain, the module the
- * idiomatic chain; compared on RAM (dumpState, minus STACK_SCRATCH). No register survives the
+ * idiomatic chain; compared on RAM (dumpState, minus stack scratch below the entry SP). No register survives the
  * terminating skip, so the register file is not compared, and retireResetOrEngageObjectRecord's own JS return is not a
  * live-out (the frozen caller unwinds through the stack, which the dissolution drops) — RAM is
  * the contract. SP is parked in STACK_SCRATCH so the chain's pushes and the pop-af+ret drop out
@@ -37,7 +37,7 @@ import { loc_613d as oracle } from "../../translated/loc_613d.js";
 import { retireResetOrEngageObjectRecord } from "../retireResetOrEngageObjectRecord.js";
 import { resetActorRecordQueueSoundAndAbortFrame } from "../resetActorRecordQueueSoundAndAbortFrame.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -60,7 +60,7 @@ const A_TAG = 0x42;
 const SP_SCRATCH = 0x8ff0;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP_SCRATCH);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

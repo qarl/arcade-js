@@ -6,7 +6,7 @@
  * the ring start (0xc0) once it drops below; an occupied slot (bit 7 clear) drops the command.
  *
  * This is the cycle-free / memory-equivalence gate. The routine WRITES work RAM, so every case uses a
- * FRESH clone per side, compared on the go-forward contract: RAM (dumpState) MINUS STACK_SCRATCH. pc,
+ * FRESH clone per side, compared on the go-forward contract: RAM (dumpState) MINUS stack scratch below the entry SP. pc,
  * SP and cycles are NOT compared. There is no register live-out: HL is push/pop-preserved and A (left
  * holding the pointer/slot byte) is discarded by every rst-0x38 call site, so the contract is RAM only.
  *
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0038 as oracle } from "../../translated/loc_0038.js";
 import { enqueueDisplayCommand } from "../enqueueDisplayCommand.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, DISPLAY_CMD_RING_WRITE_PTR } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -45,7 +45,7 @@ const RING_START = 0xc0;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const slotAddr = (low) => PAGE + (low & 0xff);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

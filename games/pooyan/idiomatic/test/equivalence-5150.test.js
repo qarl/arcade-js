@@ -6,7 +6,7 @@
  *
  * The module dissolves all three fetchWordFromTableIndex word lookups to direct calls; the oracle drives the frozen
  * fetchWordFromTableIndex through the register seam. armEnemySpawnScript is a void routine, so equivalence is RAM (dumpState)
- * minus STACK_SCRATCH, SP parked in dead stack.
+ * minus stack scratch below the entry SP, SP parked in dead stack.
  *
  * The match arm uses round 0 / stage 0x20 — the first record of that ROM row has threshold 0x20, so
  * the scan matches on entry and drives the full write path.
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5150 as oracle } from "../../translated/loc_5150.js";
 import { armEnemySpawnScript } from "../armEnemySpawnScript.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -44,7 +44,7 @@ const SP0 = 0x8ff0; //    inside STACK_SCRATCH
 const CALLER_RET = 0xfffc; // return word the frozen fetchWordFromTableIndex calls consume
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

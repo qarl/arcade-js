@@ -6,7 +6,7 @@
  * At any other round it touches nothing.
  *
  * CYCLE-FREE / memory-equivalence gate. The only observable effect is the possible increment of
- * TAMPER_FREEZE_FLAG, so the go-forward contract is RAM only (dumpState minus STACK_SCRATCH); the
+ * TAMPER_FREEZE_FLAG, so the go-forward contract is RAM only (dumpState minus stack scratch below the entry SP); the
  * caller (runActorUpdatePipeline) ignores A and the flags.
  *
  * Jobs:
@@ -25,7 +25,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5b06 as oracle } from "../../translated/loc_5b06.js";
 import { flagTamperOnRound5ChecksumMiss } from "../flagTamperOnRound5ChecksumMiss.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ROUND_COUNTER, TAMPER_FREEZE_FLAG } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -39,13 +39,13 @@ const TARGET = 0x5b06;
 const GUARDED_ROUND = 0x05;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, STACK_SCRATCH.hi - 0x10);
 
-/** First RAM difference on the go-forward contract: whole dump minus STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
+/** First RAM difference on the go-forward contract: whole dump minus stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** A fresh machine with ROUND_COUNTER and TAMPER_FREEZE_FLAG seeded; SP parked in dead-stack. */
@@ -88,7 +88,7 @@ test("CAPTURE: real 0x5b06 dispatches — module == oracle in RAM (−stack)", (
     const c = cap.clone();
     oracle(o);
     flagTamperOnRound5ChecksumMiss(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
   }
   console.log(`  CAPTURE: ${CAPS.length} real dispatch(es) checked`);

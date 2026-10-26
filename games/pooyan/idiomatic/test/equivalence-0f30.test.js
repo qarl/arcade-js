@@ -7,7 +7,7 @@
  * 0x8a40), stepping the cursor 0x43..0x5e and wrapping 0x5e -> 0x43.
  *
  * Cycle-free memory-equivalence gate: writes work RAM, so a FRESH clone per side, compared on
- * RAM (dumpState minus STACK_SCRATCH) + the A register live-out. A IS a live-out: the third
+ * RAM (dumpState minus stack scratch below the entry SP) + the A register live-out. A IS a live-out: the third
  * (tail) append leaves A = the advanced cursor (or 0 when the gates are closed) and callers read
  * it. The helper's transient push/pop framing lands in STACK_SCRATCH and is excluded.
  *
@@ -26,7 +26,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0f30 as oracle } from "../../translated/loc_0f30.js";
 import { queueSoundCommands95And03And11 } from "../queueSoundCommands95And03And11.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   GAME_ACTIVE_FLAG,
@@ -49,7 +49,7 @@ const RING_LAST = 0x5e;
 const CMDS = [0x95, 0x03, 0x11]; // the three fixed bytes, in append order
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const nextCursor = (c) => (c === RING_LAST ? RING_FIRST : c + 1);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 

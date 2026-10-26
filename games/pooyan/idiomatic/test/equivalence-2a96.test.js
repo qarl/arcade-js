@@ -7,7 +7,7 @@
  * bit 7 of the flag cell (ix+0x10), and increments the state cell (ix+0x02); a mismatch tail-jumps
  * the state-2 handler.
  *
- * CYCLE-FREE / memory-equivalence gate. Contract: RAM (dumpState minus STACK_SCRATCH) ONLY — a
+ * CYCLE-FREE / memory-equivalence gate. Contract: RAM (dumpState minus stack scratch below the entry SP) ONLY — a
  * tail-dispatched state handler with NO register live-out (the shared epilogue reloads every register
  * it consumes). pc/SP/cycles are NOT compared. The signature comparison only READS fixed program
  * bytes the test cannot alter, so the tamper branch is dead on the built image and every case
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2a96 as oracle } from "../../translated/loc_2a96.js";
 import { verifySignatureThenSetFlipAndAdvance } from "../verifySignatureThenSetFlipAndAdvance.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -58,7 +58,7 @@ const EXPECT = {
 };
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

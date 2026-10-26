@@ -12,7 +12,7 @@
  * translated spawnEnemyIntoFreeActorSlot through the registry.
  *
  * Cycle-free / memory-equivalence gate: fresh clone per side, compared on RAM (dumpState, minus
- * STACK_SCRATCH). pc/SP/cycles/registers are NOT compared (seedFirstFreeSpriteBlockInRun has no register live-out).
+ * stack scratch below the entry SP). pc/SP/cycles/registers are NOT compared (seedFirstFreeSpriteBlockInRun has no register live-out).
  * Inputs are the block pointer (IX) and the count (B), bridged via the register defaults, plus the
  * block bytes and the three shared cells the initialiser reads (0x8907 / 0x8820 / 0x8908) poked
  * identically on both sides.
@@ -34,7 +34,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_588e as oracle } from "../../translated/loc_588e.js";
 import { seedFirstFreeSpriteBlockInRun } from "../seedFirstFreeSpriteBlockInRun.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { u16 } from "../../../../core/int.js";
 import { STACK_SCRATCH, ENEMY_ACTOR_TABLE, ROUND_COUNTER } from "../names.js";
 
@@ -50,7 +50,7 @@ const STRIDE = 0x18;
 const STAGE_A = 0x8820; // stage cell clamped into the column index
 const STAGE_B = 0x8908; // secondary stage cell gating the column bias
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

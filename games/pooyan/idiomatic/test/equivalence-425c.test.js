@@ -7,7 +7,7 @@
  *
  * This is the CYCLE-FREE / memory-equivalence gate. The routine WRITES work RAM, so every
  * case runs the oracle on one fresh clone and latchColumnLimitAndArmTurnAnimation on another, compared on the go-forward
- * contract: RAM (dumpState, minus STACK_SCRATCH). There is NO register live-out — the
+ * contract: RAM (dumpState, minus stack scratch below the entry SP). There is NO register live-out — the
  * animation-arm callers discard the registers — so no register is compared. IX (the record
  * base) is the ONLY input, passed via the m.regs.ix param-default bridge.
  *
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_425c as oracle } from "../../translated/loc_425c.js";
 import { latchColumnLimitAndArmTurnAnimation } from "../latchColumnLimitAndArmTurnAnimation.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, TURN_COLUMN_LIMIT } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -43,7 +43,7 @@ const ANIM_LO = 0x03; // low byte of the 0x4203 script pointer
 const ANIM_HI = 0x42; // high byte of the 0x4203 script pointer
 const DIRT = 0x77; //   pre-loaded into every target cell so each write is a change
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

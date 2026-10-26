@@ -6,7 +6,7 @@
  * into rec+0x05 and tails into the countdown-gated dispatch; advanceActorPositionByVelocity forwards that result.
  *
  * REGISTER BRIDGE: rec = m.regs.ix, threaded to latchActorStepThenDispatchByStageCountdown. Cases are CRAFTED. Compared on RAM
- * (dumpState) minus STACK_SCRATCH; SP is parked in STACK_SCRATCH so the delegate's push/ret drop
+ * (dumpState) minus stack scratch below the entry SP; SP is parked in STACK_SCRATCH so the delegate's push/ret drop
  * out of the diff. STAGE_COUNTDOWN selects latchActorStepThenDispatchByStageCountdown's own delegate (both already idiomatic); it is
  * held at the spawn/queue gate here so the outcome is deterministic — latchActorStepThenDispatchByStageCountdown's own gate covers the
  * below-three path.
@@ -24,7 +24,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_13fe as oracle } from "../../translated/loc_13fe.js";
 import { advanceActorPositionByVelocity } from "../advanceActorPositionByVelocity.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, STAGE_COUNTDOWN } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -42,7 +42,7 @@ const VEL = REC + 0x0a;
 const GATE_COUNTDOWN = 0x05; // >= 3: latchActorStepThenDispatchByStageCountdown takes the spawn/queue gate (deterministic here)
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

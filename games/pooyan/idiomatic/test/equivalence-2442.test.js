@@ -8,7 +8,7 @@
  * loads the shape table via seedFourRecordsAndCopyDisplayTiles, and — unless WAVE_TEARDOWN_STATE (0x8f24) is set — queues
  * the tile-run sound via queueSoundRun26.
  *
- * The contract is RAM (dumpState, minus STACK_SCRATCH) only; this is reached by tail dispatch and
+ * The contract is RAM (dumpState, minus stack scratch below the entry SP) only; this is reached by tail dispatch and
  * the per-frame driver reads no register back. pc/SP/cycles are not compared. seedFourRecordsAndCopyDisplayTiles and queueSoundRun26
  * are deep leaves, so EQUAL runs both sides under try/catch and requires the same completion path,
  * comparing RAM whenever both complete. The direct field footprint is asserted on the teardown
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2442 as oracle } from "../../translated/loc_2442.js";
 import { beginLeadActorLiftOnClear } from "../beginLeadActorLiftOnClear.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   ACTOR_TABLE,
@@ -56,7 +56,7 @@ const POS = REC + 0x04;
 const ORIG_STATE = 0x00;
 const ORIG_POS = 0x50;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

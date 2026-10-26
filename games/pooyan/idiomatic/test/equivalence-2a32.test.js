@@ -7,7 +7,7 @@
  * into the high byte. On high byte 0x52 or 0x64 it enqueues a display command and returns; below
  * 0xac it returns; otherwise it steps the record's dispatch state (rec+0x02).
  *
- * Cycle-free gate: a fresh clone per side, compared on RAM (dumpState) minus STACK_SCRATCH. There
+ * Cycle-free gate: a fresh clone per side, compared on RAM (dumpState) minus stack scratch below the entry SP. There
  * is NO register live-out — a dispatch handler whose shared epilogue reads the record, not a
  * register — so only RAM is compared. IX and the record are poked identically on both sides
  * (CRAFTED); the display ring is seated with a free slot so the two enqueue milestones are
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2a32 as oracle } from "../../translated/loc_2a32.js";
 import { advanceActorPositionAndEnqueueMilestone } from "../advanceActorPositionAndEnqueueMilestone.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -48,7 +48,7 @@ const CMD_A_HI = 0x06; // command word at milestone 0x52 is 0x0694
 const CMD_A_LO = 0x94;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

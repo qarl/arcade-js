@@ -3,7 +3,7 @@
  * Memory-equivalence test for advanceLeadHunterSwoopAndArmDive (ROM 0x316e, Pooyan) — the lead-hunter swoop step.
  *
  * The cycle-free / memory-equivalence gate (docs/decompiler-pipeline): a fresh clone per side, the
- * oracle on one and advanceLeadHunterSwoopAndArmDive on the other, compared on RAM (dumpState, minus STACK_SCRATCH).
+ * oracle on one and advanceLeadHunterSwoopAndArmDive on the other, compared on RAM (dumpState, minus stack scratch below the entry SP).
  * pc/SP/registers are deliberately not compared.
  *
  * The routine takes no register inputs; it reads everything from work RAM. A wave timer gates it: while
@@ -40,7 +40,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_316e as oracle } from "../../translated/loc_316e.js";
 import { advanceLeadHunterSwoopAndArmDive } from "../advanceLeadHunterSwoopAndArmDive.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -64,7 +64,7 @@ const REC2 = 0x8b20; //        display record 2 pointer target
 const REC3 = 0x8b40; //        display record 3 pointer target
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

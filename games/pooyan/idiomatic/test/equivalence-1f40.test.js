@@ -4,7 +4,7 @@
  * header.
  *
  * SEATING: BALANCED. Both exits are a plain `ret`; the module returns nothing and equivalence is
- * RAM (dumpState) minus STACK_SCRATCH. Entry registers A/HL/B/C are the param-default bridge
+ * RAM (dumpState) minus stack scratch below the entry SP. Entry registers A/HL/B/C are the param-default bridge
  * (target, table pointer, count, slot). It is a render routine: no register survives to a caller.
  *
  * Cases are CRAFTED: the scan table is seeded into work RAM so the three outcomes are reachable
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1f40 as oracle } from "../../translated/loc_1f40.js";
 import { findTableSlotAndPaintStageHeader } from "../findTableSlotAndPaintStageHeader.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -48,7 +48,7 @@ const LABEL_TILE = 0x8322; // HUD_STAGE_LABEL_TILE
 const SP0 = 0x8ff0; // inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

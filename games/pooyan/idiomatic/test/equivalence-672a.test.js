@@ -10,7 +10,7 @@
  * bumps rec+2, reloads rec+9=0x18, and re-arms the record's animation to table 0x3838.
  *
  * CYCLE-FREE / memory-equivalence gate. The routine WRITES RAM, so every case uses a FRESH clone per
- * side. Contract: RAM (dumpState minus STACK_SCRATCH) ONLY — advanceObjectAnimationFrame/setActorAnimation are
+ * side. Contract: RAM (dumpState minus stack scratch below the entry SP) ONLY — advanceObjectAnimationFrame/setActorAnimation are
  * memory-only and the per-frame dispatcher reads no result register. pc/SP/cycles are NOT compared.
  *
  * The record is based at IX; every case is CRAFTED. rec+0x0e is seated non-zero so advanceObjectAnimationFrame just
@@ -36,7 +36,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_672a as oracle } from "../../translated/loc_672a.js";
 import { descendEnemyActorAndSeatSpawnSlot } from "../descendEnemyActorAndSeatSpawnSlot.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, SPAWN_OBJECT_TABLE, WAVE_ARRIVAL_COUNTER, SHARED_FRAME_DELAY_TIMER } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -54,7 +54,7 @@ const WAVE_SEED = 0x02;    // pre-seat arrival counter
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const slotBase = (i) => SPAWN_OBJECT_TABLE + i * SLOT_STRIDE;
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

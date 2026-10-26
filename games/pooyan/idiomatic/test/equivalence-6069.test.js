@@ -8,7 +8,7 @@
  * SEATING: TAIL-CALL. The oracle has no ret of its own — every branch tail-`jp`s or falls through
  * to a sibling; its effective seating is the delegatee's. The module returns the delegatee's
  * boolean: true = the scan continues to normal completion, false = a caller-skip must unwind the
- * caller's frame. Compared on RAM (dumpState) minus STACK_SCRATCH; the register file is not
+ * caller's frame. Compared on RAM (dumpState) minus stack scratch below the entry SP; the register file is not
  * compared. Entry registers HL/IX/B are the param-default bridge (the loop threads them).
  *
  * Cases are CRAFTED: a plain boot does not seat this record/actor/target geometry.
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6069 as oracle } from "../../translated/loc_6069.js";
 import { classifyAndRouteObjectRecordByRound } from "../classifyAndRouteObjectRecordByRound.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -57,7 +57,7 @@ const SEED_FIELDS = [0x00, 0x01, 0x02, 0x12, 0x16, 0x17];
 const SP0 = 0x8ff0;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

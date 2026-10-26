@@ -7,7 +7,7 @@
  * (net SP 0). The state machine is dissolved to a direct idiomatic call; the object update is a
  * larger routine not lifted this batch, so its call is kept marshalled. The state machine reads
  * no register the update needs (the update loads its own), so no bridging is required. LIVE-OUT
- * is memory only; equivalence is RAM (dumpState) minus STACK_SCRATCH (SP parked there).
+ * is memory only; equivalence is RAM (dumpState) minus stack scratch below the entry SP (SP parked there).
  *
  * The craft holds the approach hold-timer nonzero, so the state machine merely ticks that one
  * timer down — an isolated footprint the object update never touches — while the update takes its
@@ -29,7 +29,7 @@ import { loc_71c7 as oracle } from "../../translated/loc_71c7.js";
 import { runEagleApproachPhaseFrame } from "../runEagleApproachPhaseFrame.js";
 import { advanceEagleApproachAndPaintGridMarker } from "../advanceEagleApproachAndPaintGridMarker.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -46,7 +46,7 @@ const OBJECT_UPDATE = 0x20d4;
 const SP0 = 0x8fe0; // inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

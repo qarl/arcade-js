@@ -8,7 +8,7 @@
  * a FRESH clone per side. The oracle runs on one clone, the module on another, and they are
  * compared on the go-forward contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH), AND the advanced HL and DE live-outs.
+ *     RAM (dumpState, minus stack scratch below the entry SP), AND the advanced HL and DE live-outs.
  *
  * Register inputs are HL (destination) and DE (source); both sides read them from regs.hl /
  * regs.de. TWO pointers are live-out: the caller renderMarkerColumnExtendOrRetract stamps `ld (hl),0x10` right after the
@@ -37,7 +37,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3307 as oracle } from "../../translated/loc_3307.js";
 import { blitTile3x3Block } from "../blitTile3x3Block.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -57,13 +57,13 @@ const DST_CELLS = [0x00, 0x01, 0x02, 0x20, 0x21, 0x22, 0x40, 0x41, 0x42].map((o)
 const HL_OUT = (DST + 0x60) & 0xffff;
 const DE_OUT = (SRC + 9) & 0xffff; // advanced source: a chained blitter (paintRoundNumberHud) reads it next
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, STACK_SCRATCH.hi - 0x10);
 
-/** First RAM difference on the go-forward contract: whole dump minus STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
+/** First RAM difference on the go-forward contract: whole dump minus stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /**
@@ -104,7 +104,7 @@ test("CAPTURE: real 0x3307 dispatches — module == oracle in RAM (−stack) and
     const c = cap.clone();
     oracle(o);
     const [retHl, retDe] = blitTile3x3Block(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
     assert.equal(retHl, o.regs.hl, `HL live-out: module ${hx(retHl)} != oracle ${hx(o.regs.hl)}`);
     assert.equal(retDe, o.regs.de, `DE live-out: module ${hx(retDe)} != oracle ${hx(o.regs.de)}`);

@@ -9,7 +9,7 @@
  *
  * The record is seated at ACTOR_TABLE with +0x0e (the animation frame-hold) non-zero, so the animation
  * step just decrements that hold — deterministic, no stream walk. Compared on RAM (dumpState) minus
- * STACK_SCRATCH; SP is parked in STACK_SCRATCH so the oracle's push/ret traffic falls out of the diff.
+ * stack scratch below the entry SP; SP is parked in STACK_SCRATCH so the oracle's push/ret traffic falls out of the diff.
  *
  * Jobs: 1. EQUAL across the running / elapsed branches; 2. WRITE-SET (hold decremented; timer
  * decremented; band zeroed on expiry) + live-out (HL/B on the tail); 3. TEETH (a corrupted timer byte
@@ -25,7 +25,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_154d as oracle } from "../../translated/loc_154d.js";
 import { retireEnemyOnFrameTimerExpiry } from "../retireEnemyOnFrameTimerExpiry.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ACTOR_TABLE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -42,7 +42,7 @@ const BAND_LEN = 0x17; //   bytes zeroed by the band blanker
 const SP0 = 0x8ff0; //      inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

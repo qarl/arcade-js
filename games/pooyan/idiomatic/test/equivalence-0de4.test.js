@@ -9,7 +9,7 @@
  * Both sides ultimately reach the SAME frozen loc_0e54 / loc_0e00 through startNewGamePlay, so the gate
  * proves startOnePlayerGameOnCredit's branch and the delegated restart. The display-command ring is freed so the
  * restart's enqueues land; SP is parked in STACK_SCRATCH. Compared on RAM (dumpState, minus
- * STACK_SCRATCH). No register live-out — memory only.
+ * stack scratch below the entry SP). No register live-out — memory only.
  *
  * Jobs:
  *   1. EQUAL — restart (credits>0), inert (state 0x0e), and nudge (state != 0x0e): module == oracle.
@@ -26,7 +26,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0de4 as oracle } from "../../translated/loc_0cf8.js";
 import { startOnePlayerGameOnCredit } from "../startOnePlayerGameOnCredit.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -46,7 +46,7 @@ const RING_START = 0xc0;
 const SP0 = 0x8ff0; // inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

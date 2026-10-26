@@ -10,7 +10,7 @@
  * clean sum it advances the selector 0x8921 to state 2 and enqueues two sound commands (queueSoundCommands27And15).
  *
  * CYCLE-FREE / memory-equivalence gate. The routine WRITES RAM (and delegates to already-gated
- * leaves), so every case uses a FRESH clone per side. Contract: RAM (dumpState minus STACK_SCRATCH)
+ * leaves), so every case uses a FRESH clone per side. Contract: RAM (dumpState minus stack scratch below the entry SP)
  * ONLY — runDisplayListAndAdvanceToGameplay is a table-dispatched state handler and no caller consumes a result register, so
  * there is NO declared register live-out. pc/SP/cycles are NOT compared.
  *
@@ -41,7 +41,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_7517 as oracle } from "../../translated/loc_7517.js";
 import { runDisplayListAndAdvanceToGameplay } from "../runDisplayListAndAdvanceToGameplay.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -64,7 +64,7 @@ const SKIP_PROG = 0x8b00; // where the harmless {skip, 0x1d} program lives
 const SAFE_DST = 0x8400;  // dst the harmless skip advances over (no writes land)
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, STACK_SCRATCH.hi - 0x20);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

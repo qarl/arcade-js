@@ -3,7 +3,7 @@
  * Memory-equivalence test for queueSoundCommand04IfNotBusy (ROM 0x0ee3) — "conditionally enqueue command 0x04".
  *
  * The cycle-free / memory-equivalence gate (docs/decompiler-pipeline): oracle and module run
- * on fresh clones and are compared on RAM (dumpState, minus STACK_SCRATCH) PLUS the declared
+ * on fresh clones and are compared on RAM (dumpState, minus stack scratch below the entry SP) PLUS the declared
  * register live-out A. pc/SP/cycles are deliberately not compared.
  *
  * LIVE-OUT A: on a busy gate the oracle leaves A holding the gate byte it tested; on the
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0ee3 as oracle } from "../../translated/loc_0ee3.js";
 import { queueSoundCommand04IfNotBusy } from "../queueSoundCommand04IfNotBusy.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   WAVE_TEARDOWN_STATE,
@@ -52,7 +52,7 @@ const test = ROM_PRESENT
   : (name, fn) => nodeTest(name, { skip: "skipped: ROM not built — run 'make -C games/pooyan rom'" }, fn);
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

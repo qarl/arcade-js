@@ -9,7 +9,7 @@
  * record passed as a param); the oracle drives all four through the routines
  * map. armEnemyState8Animation is a void handler — it delegates its return to the state-9 chain, no register
  * survives to a caller — so the register file is not compared; equivalence is RAM (dumpState) minus
- * STACK_SCRATCH, SP parked in dead stack so the nested pushes drop out of the diff.
+ * stack scratch below the entry SP, SP parked in dead stack so the nested pushes drop out of the diff.
  *
  * Two crafted records exercise both control paths: the difficulty-active path (queues a display
  * command, reseeds the timer to 0x38) and the idle path (difficulty 0, reseed 0x20). Both seat the
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3d18 as oracle } from "../../translated/loc_3d18.js";
 import { armEnemyState8Animation } from "../armEnemyState8Animation.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -49,7 +49,7 @@ const SP0 = 0x8ff0; //   inside STACK_SCRATCH
 const CALLER_RET = 0xfffc; // caller-return word seated at SP0; the tail dispatch pops it (pc==this)
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

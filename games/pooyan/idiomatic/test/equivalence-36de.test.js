@@ -9,7 +9,7 @@
  * This is the CYCLE-FREE / memory-equivalence gate. The routine WRITES work RAM, so every case uses
  * a FRESH clone per side, compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * The contract is MEMORY ONLY (the +0x08 byte). The register leftovers (A = merged, HL = the merge
  * lookup pointer, B = the pre-bias value) are NOT declared live-out: the sole reach is spawnObjectIntoFreeSlot,
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_36de as oracle } from "../../translated/loc_36de.js";
 import { mergeActorAttributeByte } from "../mergeActorAttributeByte.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ROUND_COUNTER, DIFFICULTY_DSW, STAGE_COUNTDOWN } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -43,7 +43,7 @@ const test = ROM_PRESENT
 const RECORD = 0x8a80;
 const ATTR = RECORD + 0x08; // the attribute byte the routine writes
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

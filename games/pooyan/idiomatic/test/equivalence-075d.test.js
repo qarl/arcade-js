@@ -5,7 +5,7 @@
  * with one source byte (BC) down all 30 rows at the 0x20 row stride, BC advancing per column.
  *
  * CYCLE-FREE / memory-equivalence gate: the routine WRITES RAM, so every case uses a FRESH
- * clone per side. The contract is RAM (dumpState minus STACK_SCRATCH) PLUS the A live-out: the
+ * clone per side. The contract is RAM (dumpState minus stack scratch below the entry SP) PLUS the A live-out: the
  * loop exits at (L & 0x1f) == 0x1f leaving A = 0x1f, and fillIntroRowsThenBuildBoardIntro stores that to ACTIVE_PLAYER
  * (0x880d), so a memory-only rewrite that drops A diverges on the credit screen.
  *
@@ -26,7 +26,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_075d as oracle } from "../../translated/loc_075d.js";
 import { fillAttributeColumns } from "../fillAttributeColumns.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ATTRIB_MAP_BASE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -44,13 +44,13 @@ const SRC = 0x8800; // 31 per-column source bytes in work RAM, disjoint from des
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
 const destCell = (col, row) => (ATTRIB_MAP_BASE + col + row * ROW_STRIDE) & 0xffff;
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, STACK_SCRATCH.hi - 0x10);
 
-/** First RAM difference on the go-forward contract: whole dump minus STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
+/** First RAM difference on the go-forward contract: whole dump minus stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** Fill region pre-dirtied to 0xAA, distinct per-column source bytes, BC=SRC. */
@@ -87,7 +87,7 @@ test("CAPTURE: real 0x075d dispatches — module == oracle in RAM (−stack)", (
     const c = cap.clone();
     oracle(o);
     fillAttributeColumns(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
   }
   console.log(`  CAPTURE: ${CAPS.length} real dispatch(es) checked`);

@@ -7,7 +7,7 @@
  * it seeds the inter-wave hold countdown (WAVE_HOLD_TIMER) to 0x30. Crafted inputs: IX (a record
  * pre-filled so the clear is observable) and the record count.
  *
- * Contract compared: RAM (dumpState, minus STACK_SCRATCH). pc/SP/cycles are NOT compared, and
+ * Contract compared: RAM (dumpState, minus stack scratch below the entry SP). pc/SP/cycles are NOT compared, and
  * there is NO register live-out — this is a dispatch target; its exit registers are not consumed.
  *
  * All cases are CRAFTED: the record bytes, the count, and the hold cell are poked identically on
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_73ce as oracle } from "../../translated/loc_73ce.js";
 import { despawnEagleAndSeedHoldOnWaveEmpty } from "../despawnEagleAndSeedHoldOnWaveEmpty.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, WAVE_RECORD_COUNT, WAVE_HOLD_TIMER } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -45,7 +45,7 @@ const INTER_WAVE_HOLD = 0x30;
 const DIRTY = 0xaa; // pre-fill so the clear is observable
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

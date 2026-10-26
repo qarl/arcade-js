@@ -4,7 +4,7 @@
  *
  * SEATING: BALANCED (plain ret / tail-calls) -> WIRE. advanceObjectStateOnFrameTimerExpiry (its fall-through caller) documents the
  * delegate yields nothing the caller reads, so LIVE-OUT is memory only; comparison is RAM (dumpState)
- * minus STACK_SCRATCH, register file not compared. SP parked in STACK_SCRATCH.
+ * minus stack scratch below the entry SP, register file not compared. SP parked in STACK_SCRATCH.
  *
  * The module drives idiomatic siblings directly; the oracle drives the translated siblings through the
  * routines map (each pair covered by its own gate). Crafted paths: still-airborne early return; landing
@@ -26,7 +26,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3f7c as oracle } from "../../translated/loc_3f7c.js";
 import { advanceFallingEnemyAndTallyCatchOnLanding } from "../advanceFallingEnemyAndTallyCatchOnLanding.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -44,7 +44,7 @@ const PLAY_LATCH = 0x8f50;
 const SP0 = 0x8ff0;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

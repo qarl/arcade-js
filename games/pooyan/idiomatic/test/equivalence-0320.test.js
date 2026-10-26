@@ -5,7 +5,7 @@
  * (0x881f) is zero, mirror the 24-entry sprite display list vertically (loc_0378).
  *
  * CYCLE-FREE / memory-equivalence gate. The routine WRITES RAM, so each case runs on a FRESH clone
- * per side. The go-forward contract is RAM (dumpState, minus STACK_SCRATCH). No register live-out:
+ * per side. The go-forward contract is RAM (dumpState, minus stack scratch below the entry SP). No register live-out:
  * the tamper caller tail-jumps here and rebuildSpriteDisplayList inlines the same tail then rets, so nothing reads a
  * register back — pc/SP/registers are deliberately NOT compared. HL (the counter pointer) is the one
  * input, bridged as a param; the flag and the counter cell are poked identically on both sides.
@@ -30,7 +30,7 @@ import { loc_0320 as oracle } from "../../translated/loc_0320.js";
 import { tickCounterAndMirrorIfFlipped } from "../tickCounterAndMirrorIfFlipped.js";
 import { mirrorSpriteListVertically } from "../mirrorSpriteListVertically.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, FLIP_SCREEN_FLAG, SPRITE_DISPLAY_LIST } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -42,7 +42,7 @@ const test = ROM_PRESENT
 
 const LIST_LEN = 0x18 * 4; // 24 stride-4 entries
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

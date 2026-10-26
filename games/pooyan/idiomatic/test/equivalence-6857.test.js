@@ -3,7 +3,7 @@
  * Memory-equivalence test for advanceObjectAscentStep (ROM 0x6857, Pooyan) — object ascent step on the IX record.
  *
  * SEATING: BALANCED (plain ret / tail-calls) -> WIRE. Void handler on the record at IX: no register
- * survives, LIVE-OUT is memory only, comparison is RAM (dumpState) minus STACK_SCRATCH. SP parked in
+ * survives, LIVE-OUT is memory only, comparison is RAM (dumpState) minus stack scratch below the entry SP. SP parked in
  * STACK_SCRATCH so the animation-sequencer / append pushes drop out. The animation frame-hold is
  * seeded non-zero so the sequencer just decrements (no ROM walk).
  *
@@ -21,7 +21,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6857 as oracle } from "../../translated/loc_6857.js";
 import { advanceObjectAscentStep } from "../advanceObjectAscentStep.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, HUD_INTEGRITY_STRIP_B } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -36,7 +36,7 @@ const REC = 0x8b00;
 const REF = 0x68a3; // ROM reference-checksum bytes
 const u8 = (v) => v & 0xff;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 // pass-1 block cells (0x86bc, -0x20 stride, 8 deep) and the pass-2 cell (h-=4 -> 0x81bc)

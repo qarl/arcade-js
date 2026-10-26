@@ -7,7 +7,7 @@
  * 0x43..0x5e, wrapping 0x5e -> 0x43.
  *
  * Cycle-free memory-equivalence gate: the routine writes work RAM, so every case uses a FRESH
- * clone per side, compared on RAM (dumpState minus STACK_SCRATCH) + the A register live-out.
+ * clone per side, compared on RAM (dumpState minus stack scratch below the entry SP) + the A register live-out.
  * A IS a live-out: the tail call leaves A = the advanced cursor (append) or 0 (gates closed),
  * and the helper's callers read it — so EQUAL compares A and asserts the module SET it.
  *
@@ -26,7 +26,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0f49 as oracle } from "../../translated/loc_0f49.js";
 import { queueSoundCommand14 } from "../queueSoundCommand14.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   GAME_ACTIVE_FLAG,
@@ -49,7 +49,7 @@ const RING_LAST = 0x5e;
 const APPEND_BYTE = 0x14; // the fixed byte queueSoundCommand14 enqueues
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

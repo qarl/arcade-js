@@ -4,7 +4,7 @@
  *
  * SEATING: BALANCED (plain ret / tail-calls) -> WIRE. Void handler: stepActiveTargetActorRecords reads no register back
  * after its `call nz,0x21cf`, so LIVE-OUT is memory only and the comparison is RAM (dumpState) minus
- * STACK_SCRATCH; the register file is not compared. SP parked in STACK_SCRATCH so nested pushes drop out.
+ * stack scratch below the entry SP; the register file is not compared. SP parked in STACK_SCRATCH so nested pushes drop out.
  *
  * The two-axis-mover branch (bit1 of rec+0 -> advanceTargetActorAlongVelocityElseDespawn) is left to advanceTargetActorAlongVelocityElseDespawn's own gate: it is a pure
  * delegation whose carry-flag ABI would couple this gate to a sibling. All other decision paths are
@@ -26,7 +26,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_21cf as oracle } from "../../translated/loc_21cf.js";
 import { advanceTargetActorState } from "../advanceTargetActorState.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -46,7 +46,7 @@ const PENDING = 0x8d20; // display-ring pending byte written by the prime
 const SP0 = 0x8ff0;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

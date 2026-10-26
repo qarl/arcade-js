@@ -5,7 +5,7 @@
  * The module direct-calls the six idiomatic siblings (the lead-actor driver on the tail, the five
  * sub-passes on the chain); the oracle drives the same frozen siblings through the registry that
  * new Machine(ROM) builds. dispatchPerFrameActorUpdatePasses is a void driver — no register survives — so the register file
- * is not compared; equivalence is RAM (dumpState) minus STACK_SCRATCH, SP parked in dead stack.
+ * is not compared; equivalence is RAM (dumpState) minus stack scratch below the entry SP, SP parked in dead stack.
  *
  * Both crafted states hold every sub-pass on a benign arm (formation off, rope pass on its timer
  * decrement, launch state 0, actor record on its descent arm, integrity flags clear) so the gate
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_20d4 as oracle } from "../../translated/loc_20d4.js";
 import { dispatchPerFrameActorUpdatePasses } from "../dispatchPerFrameActorUpdatePasses.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -55,7 +55,7 @@ const FLAG_BASE = 0x89e7; // integrity flag block
 const SP0 = 0x8ff0; // inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

@@ -7,7 +7,7 @@
  * regardless of B, stores it back, and decrements FILL_ROW_COUNTER (0x8809).
  *
  * Cycle-free memory-equivalence gate: a fresh clone per side, compared on RAM (dumpState,
- * minus STACK_SCRATCH) PLUS the declared register live-out. The genuine live-out is the Z
+ * minus stack scratch below the entry SP) PLUS the declared register live-out. The genuine live-out is the Z
  * flag from the final `dec (0x8809)`: EVERY caller (blankFillRowThenFinishAttractSetup/099c/08e9/092c) does `ret nz`
  * right after the call, looping until the counter drains. So Z is checked against the oracle
  * clone AND the module clone must SET it (a return-only rewrite would pass the return check
@@ -35,7 +35,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_02ce as oracle } from "../../translated/loc_02ce.js";
 import { blankFillRowAndStepCounter } from "../blankFillRowAndStepCounter.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -51,7 +51,7 @@ const TILE_BLANK = 0x10;
 const ROW_WIDTH = 0x20;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

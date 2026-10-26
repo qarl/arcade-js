@@ -7,7 +7,7 @@
  * mirrors it into five actor/HUD cells. The fill value is 0 unless the reseed branch ran.
  *
  * CYCLE-FREE / memory-equivalence gate. The routine WRITES RAM, so every case uses a FRESH clone
- * per side. Contract: RAM (dumpState minus STACK_SCRATCH) PLUS the register live-out — A (the fill
+ * per side. Contract: RAM (dumpState minus stack scratch below the entry SP) PLUS the register live-out — A (the fill
  * value), HL (0x8d33, the last rst-0x10 fill's advanced pointer) and B (0, the drained djnz). E is
  * an INPUT (the display command's low byte) and is seated identically on both sides. pc/SP/cycles
  * are NOT compared.
@@ -35,7 +35,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2527 as oracle } from "../../translated/loc_2527.js";
 import { resetBoardRamAndReseedSpawnCounters } from "../resetBoardRamAndReseedSpawnCounters.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   SPAWN_PHASE_COUNTER,
@@ -71,7 +71,7 @@ const FILL_BLOCKS = [
 ];
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

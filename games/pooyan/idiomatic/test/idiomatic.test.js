@@ -5,7 +5,7 @@
 // map web/worker.js ships) and compares it, frame for frame, against the pure-translated oracle run
 // under runCycleFree at the SAME frame boundary (the worker/ring-idle point 0x021c, manifest.convergence).
 // Both engines drain the display command ring within a frame and fire the vblank NMI once per worker
-// iteration (as MAME does), so they agree on every LIVE cell — only the dead stack scratch is excluded.
+// iteration (as MAME does), so they agree on every LIVE cell — only stack scratch below the frame-boundary SP is excluded.
 // ROM-guarded (skips without the BYO ROM).
 //
 // SCOPE: resolveAllIdiomatic wires the spine (mainLoop) AND the memory-only bare-dispatch leaves, so
@@ -25,6 +25,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { runIdiomaticGame, runCycleFree } from "../../../../core/frame-stepped.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 import { Machine, resolveAllIdiomatic } from "../../machine.js";
 import manifest from "../../manifest.js";
 
@@ -36,17 +37,15 @@ const ROM = HAVE_ROM ? new Uint8Array(readFileSync(ROM_PATH)) : null;
 const FRAMES = 900;
 const { pollPCs, stateExclude, idiomatic } = manifest.convergence;
 const { nmiReturnPC } = idiomatic;
-const [STACK_LO, STACK_HI] = stateExclude.stack; // dead stack scratch, excluded (memory-equivalence)
+const [STACK_LO, STACK_HI] = stateExclude.stack; // stack scratch; only the part below the live SP is excluded
 const hex = (v) => `0x${(v & 0xffff).toString(16).padStart(4, "0")}`;
 const brief = (xs) => (xs.length <= 6 ? xs.join("; ") : `${xs.slice(0, 6).join("; ")} … (${xs.length} in all)`);
 
-/** Byte offsets of the LIVE state cells — everything outside the dead stack scratch. */
-function liveOffsets(bytesPerFrame, probe) {
+/** Byte offsets of the LIVE state cells — everything but stack scratch below the frame-boundary SP. */
+function liveOffsets(bytesPerFrame, probe, liveFloor) {
+  const dead = deadStackBelow({ lo: STACK_LO, hi: STACK_HI }, liveFloor);
   const keep = [];
-  for (let o = 0; o < bytesPerFrame; o++) {
-    const a = probe.stateOffsetToAddr(o);
-    if (!(a >= STACK_LO && a < STACK_HI)) keep.push(o);
-  }
+  for (let o = 0; o < bytesPerFrame; o++) if (!dead(probe.stateOffsetToAddr(o))) keep.push(o);
   return keep;
 }
 
@@ -101,18 +100,23 @@ test("the generator layer reproduces the oracle and keeps the guest stack balanc
   // The pure-translated oracle under runCycleFree, sampled at the same main-loop top.
   const mt = new Machine(ROM, {});
   const tr = [];
+  const trSp = [];
   const rt = runCycleFree(mt, {
     pollPCs, maxFrames: FRAMES, stepBudget: FRAMES * 200000,
-    onFrame: (m, f) => { if (f !== 0) tr.push(Buffer.from(m.dumpState())); },
+    onFrame: (m, f) => { if (f !== 0) { tr.push(Buffer.from(m.dumpState())); trSp.push(m.regs.sp); } },
   });
   assert.equal(rt.stopError, null, `translated oracle run errored: ${rt.stop}`);
   assert.equal(idi.length, tr.length, "frame counts differ between the wired layer and the oracle");
 
   // Every LIVE cell must match byte-for-byte (both engines run the identical collapsed sequence, so
-  // no entropy pin is needed), excluding only the dead stack scratch.
-  const keep = liveOffsets(tr[0].length, mt);
-  assert.ok(keep.length > 0, "no live-state bytes selected to compare");
+  // no entropy pin is needed), excluding only stack scratch below the oracle's frame-boundary SP (the
+  // idiomatic engine never models the guest stack, so its SP stays 0 and is no floor).
+  const keeps = new Map();
   for (let i = 0; i < idi.length; i++) {
+    const floor = trSp[i];
+    if (!keeps.has(floor)) keeps.set(floor, liveOffsets(tr[0].length, mt, floor));
+    const keep = keeps.get(floor);
+    assert.ok(keep.length > 0, "no live-state bytes selected to compare");
     for (const o of keep) {
       if (idi[i][o] !== tr[i][o]) {
         assert.fail(

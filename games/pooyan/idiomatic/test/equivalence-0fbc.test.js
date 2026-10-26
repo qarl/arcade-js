@@ -6,7 +6,7 @@
  * play-mode latch (0x8f50) is set — writes it at RING_BASE + cursor (cursor = 0x8a40) and steps
  * the cursor, wrapping 0x5e -> 0x43. The final append is a tail call; its result is queueSoundRun28's.
  *
- * Cycle-free gate: a fresh clone per side, compared on RAM (dumpState) minus STACK_SCRATCH PLUS
+ * Cycle-free gate: a fresh clone per side, compared on RAM (dumpState) minus stack scratch below the entry SP PLUS
  * the register live-out A. A is a GENUINE live-out here: the tail append leaves the advanced
  * cursor in A (or 0 when both gates are shut), and the frozen dispatch reads it out of the
  * register — so the module must SET A, not merely return it. Two entry conditions matter:
@@ -33,7 +33,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0fbc as oracle } from "../../translated/loc_0fbc.js";
 import { queueSoundRun28 } from "../queueSoundRun28.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -52,7 +52,7 @@ const CURSOR_LAST = 0x5e;
 const TILES = [0x28, 0x15, 0x16, 0x17];
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 const step = (c) => (c === CURSOR_LAST ? CURSOR_FIRST : (c + 1) & 0xff);
 const cursorAfter = (c) => { let x = c; for (let i = 0; i < TILES.length; i++) x = step(x); return x; };

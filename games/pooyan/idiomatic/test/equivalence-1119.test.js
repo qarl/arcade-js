@@ -7,7 +7,7 @@
  * CYCLE-FREE / memory-equivalence gate (docs/decompiler-pipeline). The routine WRITES RAM, so
  * each case runs the oracle on one FRESH clone and drawStackedBcdDigits on another, compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH)  +  the declared return value  +  the live-out registers.
+ *     RAM (dumpState, minus stack scratch below the entry SP)  +  the declared return value  +  the live-out registers.
  *
  * pc/SP are NOT compared (oracle m.step/m.ret drive the dropped call/stack ABI; neither is in
  * dumpState). The return { next, byte } is checked against the oracle's exit HL and E; the
@@ -39,7 +39,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1119 as oracle } from "../../translated/loc_1119.js";
 import { drawStackedBcdDigits } from "../drawStackedBcdDigits.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -51,18 +51,18 @@ const test = ROM_PRESENT
 
 const TARGET = 0x1119;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 // Crafted pointer: the round/stage counter base advanceIntroPhaseAndDrawHitTally draws through (video RAM). One row up
 // is dst - 0x20, also video RAM. Both are inside dumpState so the writes are observed.
 const DST = 0x8634;
 const ROW_UP = (DST + 0xffe0) & 0xffff; // 0x8614
 
-/** First RAM difference on the go-forward contract: dumpState minus the dead STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
+/** First RAM difference on the go-forward contract: dumpState minus the dead stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** A crafted entry machine: hl->cursor, a=byte, sp parked in dead scratch. */
@@ -70,7 +70,7 @@ function craft(byte) {
   const base = new Machine(ROM);
   base.regs.hl = DST;
   base.regs.a = byte & 0xff;
-  base.regs.sp = 0x8fe0; // inside STACK_SCRATCH: the ret's pop reads dead, diff-excluded RAM
+  base.regs.sp = 0x8fe0; // inside STACK_SCRATCH: the ret only pops (reads) the word at SP
   return base;
 }
 
@@ -130,7 +130,7 @@ test("CAPTURED: real 0x1119 dispatches replay identically (if reached)", () => {
     const c = cap.clone();
     oracle(o);
     const ret = drawStackedBcdDigits(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} mine=${d.b}`);
     assert.equal(ret.next, o.regs.hl, "captured advanced cursor mismatch");
     assert.equal(ret.byte, o.regs.e, "captured echoed byte mismatch");

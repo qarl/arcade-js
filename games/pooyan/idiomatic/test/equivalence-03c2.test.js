@@ -8,7 +8,7 @@
  *
  * This is the CYCLE-FREE / memory-equivalence gate. The routine WRITES VRAM, so every case
  * runs the oracle on one FRESH clone and the module on another, compared on the go-forward
- * contract: RAM (dumpState, minus STACK_SCRATCH). There is NO register live-out — every
+ * contract: RAM (dumpState, minus stack scratch below the entry SP). There is NO register live-out — every
  * caller discards it — so nothing else is compared.
  *
  * Jobs:
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_03c2 as oracle } from "../../translated/loc_03c2.js";
 import { renderPhaseGauge } from "../renderPhaseGauge.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, GAUGE_PHASE_COUNTER, PHASE_GAUGE_BASE_TILE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -40,18 +40,18 @@ const test = ROM_PRESENT
 
 const TARGET = 0x03c2;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 // The five gauge cells, base then one tilemap row up each (stride -0x20).
 const CELLS = [0, 1, 2, 3, 4].map((i) => (PHASE_GAUGE_BASE_TILE - i * 0x20) & 0xffff);
 const WRITTEN = new Set(CELLS);
 const DIRT = 0xee; // sentinel pre-loaded into every gauge cell (differs from 0xb0 / 0x10)
 
-/** First RAM difference on the go-forward contract: dumpState minus the dead STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
+/** First RAM difference on the go-forward contract: dumpState minus the dead stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** Fresh machine: count seeded, all five gauge cells pre-dirtied, SP parked in dead scratch. */
@@ -105,7 +105,7 @@ test("CAPTURED: real 0x03c2 dispatches replay identically (if reached in the boo
     const c = cap.clone();
     oracle(o);
     renderPhaseGauge(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `captured RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} mine=${d.b}`);
   }
   console.log(`  CAPTURED: ${caps.length} real 0x03c2 dispatch(es) replayed identically`);

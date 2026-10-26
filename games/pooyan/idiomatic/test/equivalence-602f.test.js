@@ -8,7 +8,7 @@
  * skipped return address, then early-returns; its caller runs it as a plain call. The module
  * reproduces both paths — continue the loop on a normal pass, early-return on a hit — by branching
  * on the scan's boolean, so the seam places it with its own ret. Compared on RAM (dumpState) minus
- * STACK_SCRATCH; pc/SP/registers are not compared. No register is read back by the caller.
+ * stack scratch below the entry SP; pc/SP/registers are not compared. No register is read back by the caller.
  *
  * The oracle runs the TRANSLATED resolveObjectProximityHitsBothSlots, which m.call()s the scan through the registry; the
  * module composes the idiomatic scan by direct import. Cases are CRAFTED — a plain boot does not
@@ -33,7 +33,7 @@ import { loc_602f as oracle } from "../../translated/loc_602f.js";
 import { resolveObjectProximityHitsBothSlots } from "../resolveObjectProximityHitsBothSlots.js";
 import { latchObjectTypeAndEnterProximityScan } from "../latchObjectTypeAndEnterProximityScan.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -60,7 +60,7 @@ const SLOT1_KIND = 0x05;
 const SP0 = 0x8fe0;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

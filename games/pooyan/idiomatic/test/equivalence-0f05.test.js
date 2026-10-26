@@ -6,7 +6,7 @@
  * Cycle-free memory-equivalence gate. The routine writes work RAM and tail-calls the append helper,
  * so each case runs on a FRESH clone per side, compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) + the A register live-out.
+ *     RAM (dumpState, minus stack scratch below the entry SP) + the A register live-out.
  *
  * A IS a live-out: the append helper leaves A = the advanced ring cursor on the append path and A = 0
  * on the gates-closed early return (AF is not restored while BC/DE/HL are), and callers read it. The
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0f05 as oracle } from "../../translated/loc_0f05.js";
 import { queueSoundCommand0A } from "../queueSoundCommand0A.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, GAME_ACTIVE_FLAG, PLAY_MODE_LATCH, SOUND_RING_WRITE_PTR, SOUND_RING_PENDING_BYTE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -44,7 +44,7 @@ const RING_PAGE = SOUND_RING_WRITE_PTR & 0xff00; // ring cells live on this page
 const RING_FIRST = 0x43;
 const RING_LAST = 0x5e;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

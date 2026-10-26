@@ -7,7 +7,7 @@
  * turn-column limit at 0x8d4b, an armed animation via rec+0x0c..0x0e), then derives a speed index
  * (round counter 0x8907 halved, +1, clamped to 6) into 0x8d5c and a second-table value into 0x8d5d.
  *
- * Cycle-free gate: a fresh clone per side, compared on RAM (dumpState) minus STACK_SCRATCH. There
+ * Cycle-free gate: a fresh clone per side, compared on RAM (dumpState) minus stack scratch below the entry SP. There
  * is NO register live-out — every exit register is dead, the caller reloads A — so only RAM is
  * compared. All inputs (A, the two gate cells, the round counter) are poked identically on both
  * sides (CRAFTED). The two byte-table lookups read ROM tables, so the test requires the ROM.
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_53b0 as oracle } from "../../translated/loc_53b0.js";
 import { initFormationRecordAndDeriveSpawnSpeed } from "../initFormationRecordAndDeriveSpawnSpeed.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -53,7 +53,7 @@ const ANIM_HI = 0x42;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const u8 = (v) => v & 0xff;
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 const speedIndex = (round) => { const i = (round >> 1) + 1; return i >= 0x07 ? 0x06 : i; };
 

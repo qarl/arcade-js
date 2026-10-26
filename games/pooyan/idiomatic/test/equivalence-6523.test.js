@@ -7,7 +7,7 @@
  * ring (rst 0x38 / enqueueDisplayCommand) — a second variant when the round counter (0x8907) is zero.
  *
  * CYCLE-FREE / memory-equivalence gate (docs/decompiler-pipeline). The routine writes work RAM, so
- * every case uses a FRESH clone per side, compared on RAM (dumpState, minus STACK_SCRATCH).
+ * every case uses a FRESH clone per side, compared on RAM (dumpState, minus stack scratch below the entry SP).
  *
  * LIVE-OUT: none — memory-only. The sole caller (spawnActorGroupRecords) wraps the call in exx, preserving its own
  * registers, and reads no result register; so no register is part of the contract.
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6523 as oracle } from "../../translated/loc_6523.js";
 import { seatActorRecordAndQueueSpawnDisplay } from "../seatActorRecordAndQueueSpawnDisplay.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -48,14 +48,14 @@ const RING_PAGE = 0x8800;
 const RING_START = 0xc0;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }
 
-/** Sorted list of changed RAM addresses (whole dump minus STACK_SCRATCH), for the WRITE-SET footprint.
+/** Sorted list of changed RAM addresses (whole dump minus stack scratch below the entry SP), for the WRITE-SET footprint.
  *  The dead stack is excluded because the oracle's rst/ret framing pushes return addresses there
  *  while the cycle-free module never touches the stack. */
 function changedAddrs(m, run) {

@@ -3,7 +3,7 @@
  * Memory-equivalence test for armObjectFromSpawnRing (ROM 0x771d, Pooyan) — object-state 0: arm a new object.
  *
  * A per-object state handler dispatched by jp (hl) from loc_7707; it reads its record from IX and
- * writes only record + spawn-ring RAM, so the contract is memory (dumpState minus STACK_SCRATCH) with
+ * writes only record + spawn-ring RAM, so the contract is memory (dumpState minus stack scratch below the entry SP) with
  * NO register live-out. fetchByteFromTableIndex (the table fetch) is dissolved; the fall-through into state 1
  * (moveObject) is a direct tail call.
  *
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_771d as oracle } from "../../translated/loc_771d.js";
 import { armObjectFromSpawnRing } from "../armObjectFromSpawnRing.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, SPAWN_RING_COUNTER } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -52,7 +52,7 @@ const CALLER_RET = 0xfffc; // sentinel caller-return word the tail-dispatch / se
 const RING_SEED = 0x03; // SPAWN_RING_COUNTER seed -> spawn index 3, ring steps to 4
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

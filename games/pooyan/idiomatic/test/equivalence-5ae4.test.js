@@ -5,7 +5,7 @@
  *
  * The module dissolves all eleven m.call sites to direct idiomatic calls; the oracle drives the same
  * eleven frozen handlers through the routines map. This gate COMPOSES the real idiomatic subtree and
- * checks oracle == module in RAM (dumpState, minus STACK_SCRATCH). runActorUpdatePipeline has no register live-out
+ * checks oracle == module in RAM (dumpState, minus stack scratch below the entry SP). runActorUpdatePipeline has no register live-out
  * (it consumes none of the handlers' results), so only RAM is compared; SP sits in dead stack.
  *
  * Two arms are seated: an idle boot state (every handler gates off — the composition is exercised
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5ae4 as oracle } from "../../translated/loc_5ae4.js";
 import { runActorUpdatePipeline } from "../runActorUpdatePipeline.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -45,7 +45,7 @@ const ACTIVE_LANE_COUNT = 0x8d79; //   fireArmedEnemyProjectilesAndDisarm return
 const LAUNCH_ARM_LATCH = 0x8f20; //    cleared to 0 alongside LANE_SPAWN_COUNTDOWN on the sweep
 const SP0 = 0x8ff8; //                 inside STACK_SCRATCH
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

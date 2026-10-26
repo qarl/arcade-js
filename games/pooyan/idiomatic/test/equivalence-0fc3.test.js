@@ -6,7 +6,7 @@
  * Cycle-free memory-equivalence gate. The routine writes work RAM and calls the append helper four
  * times, so each case runs on a FRESH clone per side, compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) + the A register live-out.
+ *     RAM (dumpState, minus stack scratch below the entry SP) + the A register live-out.
  *
  * A IS a live-out: after the fourth append A = the advanced ring cursor (A = 0 when the gates are
  * closed); AF is not restored across the calls and the caller reads it. The caller's byte is the one
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0fc3 as oracle } from "../../translated/loc_0fc3.js";
 import { appendSoundCommandRun } from "../appendSoundCommandRun.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, GAME_ACTIVE_FLAG, PLAY_MODE_LATCH, SOUND_RING_WRITE_PTR, SOUND_RING_PENDING_BYTE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -45,7 +45,7 @@ const RING_FIRST = 0x43;
 const RING_LAST = 0x5e;
 const RUN_TAIL = [0x15, 0x16, 0x17]; // the three fixed tile codes after the caller's byte
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ff0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

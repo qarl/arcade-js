@@ -8,7 +8,7 @@
  * then 3x the low round-counter bits (0x8907) index into that row, and the byte is negated.
  *
  * SEATING: caller-skip (pop af; ret) dissolved to a boolean; it always skips, so it always returns
- * false. LIVE-OUT: none (memory only). Compared on RAM (dumpState) minus STACK_SCRATCH; the register
+ * false. LIVE-OUT: none (memory only). Compared on RAM (dumpState) minus stack scratch below the entry SP; the register
  * file is not compared. The kind byte, round counter, and rec+0x06 seed are all crafted identically on
  * both sides. The lookups read ROM tables, so the test requires the ROM; it is green once the batch
  * sibling fetchWordFromTableIndex and the 0x5657/0x55d7 table cells land.
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5489 as oracle } from "../../translated/loc_5489.js";
 import { initSpawnedActorRecordAndDeriveSpeed } from "../initSpawnedActorRecordAndDeriveSpeed.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -49,7 +49,7 @@ const SP0 = 0x8fe0;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const u8 = (v) => v & 0xff;
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

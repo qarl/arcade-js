@@ -6,7 +6,7 @@
  * SEATING: BALANCED. LIVE-OUT is memory only — every branch rets or tail-jumps into the KEPT
  * m.call(0x3a6c) shot spawner (unlifted), which BOTH sides invoke as the same frozen routine, so
  * they agree on the spawn path by construction. The comparison is RAM (dumpState) minus
- * STACK_SCRATCH (the spawn path's frozen calls push there); the register file is not compared.
+ * stack scratch below the entry SP (the spawn path's frozen calls push there); the register file is not compared.
  *
  * Every decision path is CRAFTED on an isolated IX record with the global counters poked
  * identically on both sides: the two firing-tail entries (direct high-wave, and via the difficulty
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_39e0 as oracle } from "../../translated/loc_39af.js";
 import { fireEnemyShotWhenAlignedWithPlayer } from "../fireEnemyShotWhenAlignedWithPlayer.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   WAVE_PROGRESS_COUNTER,
@@ -50,7 +50,7 @@ const PLAYER_X_COORD = 0x8842; // launcher X (proposed name; raw here so the tes
 const REC = 0x8b80; // isolated actor record base
 const REC_COOLDOWN = 0x15;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ff0);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

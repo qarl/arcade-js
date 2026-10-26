@@ -6,7 +6,7 @@
  * frozen oracle the skip's `pop af; ret` aborts the scan two frames up; the idiomatic
  * caller instead early-returns when the real idiomatic testTargetPairOverlapAndClaimRecord returns false. This
  * gate COMPOSES the real idiomatic skip (the module under test imports it) and checks
- * that oracle and module land byte-identical in RAM (dumpState, minus STACK_SCRATCH).
+ * that oracle and module land byte-identical in RAM (dumpState, minus stack scratch below the entry SP).
  * scanProximityTargetPairsAgainstSource has no register live-out (its caller ignores its registers), so only RAM
  * is compared.
  *
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5d4d as oracle } from "../../translated/loc_5d4d.js";
 import { scanProximityTargetPairsAgainstSource } from "../scanProximityTargetPairsAgainstSource.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   PROXIMITY_SOURCE_OBJECT,
@@ -49,7 +49,6 @@ const test = ROM_PRESENT
   : (name, fn) => nodeTest(name, { skip: "skipped: ROM not built — run 'make -C games/pooyan rom'" }, fn);
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();
@@ -63,6 +62,7 @@ const SOURCE = PROXIMITY_SOURCE_OBJECT;
 const TARGET_STRIDE = 0x04;
 const RECORD_STRIDE = 0x18;
 const SP0 = 0x8fe0; // inside STACK_SCRATCH; the oracle pushes/pops its skip frames here
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 
 const targetSlot = (i) => (SPRITE_TARGET_SLOTS + i * TARGET_STRIDE) & 0xffff;
 const recordSlot = (i) => (PROJECTILE_TABLE + i * RECORD_STRIDE) & 0xffff;

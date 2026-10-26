@@ -10,7 +10,7 @@
  * the timer, bumps the state byte (IX+0x02), re-steps, and tail-delegates to the sprite-band blank.
  *
  * The only input is IX (seated identically on both sides). Compared on RAM (dumpState) minus
- * STACK_SCRATCH — the oracle drives SP/stack through the dropped call/rst ABI, so its framing lands
+ * stack scratch below the entry SP — the oracle drives SP/stack through the dropped call/rst ABI, so its framing lands
  * in the dead stack and falls out of the diff. LIVE-OUT is memory only.
  *
  * Jobs: 1. EQUAL across timer-running / selector-zero / hundreds-zero / hundreds-nonzero /
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1518 as oracle } from "../../translated/loc_1518.js";
 import { tickEnemyHoldThenTurnOrBlank } from "../tickEnemyHoldThenTurnOrBlank.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   SUBSTATE_FIELD3_VALUE,
@@ -54,7 +54,7 @@ const HUNDREDS_CELL = SUBSTATE_FIELD3_HUNDREDS_VRAM_ALT;
 const DIRT = 0xaa;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, STACK_SCRATCH.hi - 0x10);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

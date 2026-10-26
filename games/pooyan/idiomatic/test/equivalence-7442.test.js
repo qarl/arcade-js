@@ -5,7 +5,7 @@
  * The oracle reads the self-test state (0x8921 & 3) and reaches one of three handlers via rst 0x28
  * (inline table 0x7448 {0->744e, 1->7517, 2->755d}) with no return pushed — a tail dispatch. The
  * module replaces the trampoline with a direct switch to the same handler. Both drive the SAME
- * handler, so equivalence is RAM (dumpState) minus STACK_SCRATCH; the dispatcher itself writes no game
+ * handler, so equivalence is RAM (dumpState) minus stack scratch below the entry SP; the dispatcher itself writes no game
  * RAM, so any diff is a mis-route or a missed register bridge.
  *
  * Jobs:
@@ -27,7 +27,7 @@ import { seedDisplayListPointersAndVerifyRomSignature } from "../seedDisplayList
 import { runDisplayListAndAdvanceToGameplay } from "../runDisplayListAndAdvanceToGameplay.js";
 import { updateGameplayFrame } from "../updateGameplayFrame.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, SELFTEST_DISPATCH_STATE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -41,11 +41,11 @@ const TARGET = 0x7442;
 const SP0 = 0x8fe0; // inside STACK_SCRATCH
 const CALLER_RET = 0xfffc;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
-function ramDiffMinusStack(ma, mb) {
-  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
+  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** Run fn(m) capturing a thrown error; the handler may dive into deep code from a fresh state. */
@@ -80,7 +80,7 @@ test("CAPTURE: real 0x7442 dispatches replay identically (oracle vs module)", ()
     const rc = runGuarded(dispatchSelfTestState, c);
     assert.equal(ro.threw, rc.threw, `divergent control flow: oracle threw=${ro.threw} module threw=${rc.threw}`);
     if (!ro.threw) {
-      const d = ramDiffMinusStack(o, c);
+      const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
       assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
     }
   }

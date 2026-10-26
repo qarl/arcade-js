@@ -8,7 +8,7 @@
  * checksum (bumping the tamper-freeze tally 0x881e on a result != 0x7c), then copy a biased ROM
  * string into the message buffer (copyBiasedTileString into 0x89f0).
  *
- * The go-forward contract is RAM (dumpState, minus STACK_SCRATCH). pc/SP/cycles are NOT compared, and
+ * The go-forward contract is RAM (dumpState, minus stack scratch below the entry SP). pc/SP/cycles are NOT compared, and
  * there is no register live-out — dispatchInPlaySubState tail-dispatches via jp (hl), so the ret returns upstream
  * with nothing read back. With the intact ROM the checksum is 0x7c, so the tamper tally is NOT bumped
  * (both sides agree either way; EQUAL is robust to the branch).
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1b43 as oracle } from "../../translated/loc_1b43.js";
 import { rebuildFieldAndLatchPlayStateWithTamperCheck } from "../rebuildFieldAndLatchPlayStateWithTamperCheck.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -46,7 +46,7 @@ const PHASE_TIMER = 0x8808;
 const FILL_VRAM = 0x8420;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

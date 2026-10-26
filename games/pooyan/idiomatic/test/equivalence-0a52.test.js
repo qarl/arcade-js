@@ -7,7 +7,7 @@
  *
  * This is the cycle-free / memory-equivalence gate. The routine WRITES video RAM and reads a ROM
  * table, so every case uses a FRESH clone per side. The oracle runs on one clone, paintTwo2x2TileBlocks on
- * another, compared on RAM (dumpState, minus STACK_SCRATCH). paintTwo2x2TileBlocks takes no register inputs (it
+ * another, compared on RAM (dumpState, minus stack scratch below the entry SP). paintTwo2x2TileBlocks takes no register inputs (it
  * loads its own HL/DE), and leaves nothing live in a register for its caller — so the contract is
  * RAM only; pc/SP/cycles are deliberately NOT compared.
  *
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0a52 as oracle } from "../../translated/loc_0a52.js";
 import { paintTwo2x2TileBlocks } from "../paintTwo2x2TileBlocks.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -44,7 +44,7 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const DEST_A = 0x82aa;
 const DEST_B = 0x826a;
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

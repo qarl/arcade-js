@@ -8,7 +8,7 @@
  * WRITES work RAM, so every case uses a FRESH clone per side. The oracle runs on one clone,
  * clearActorArena on another, and they are compared on the go-forward contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * pc is deliberately NOT compared. The routine takes NO register inputs (it sets HL/DE/BC
  * internally) and leaves nothing a caller reads — memory only — so RAM (−stack) is the whole
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_19bc as oracle } from "../../translated/loc_19bc.js";
 import { clearActorArena } from "../clearActorArena.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ACTOR_TABLE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -47,13 +47,13 @@ const LO = ACTOR_TABLE;                 // 0x8a80
 const HI = ACTOR_TABLE + ARENA_BYTES;   // 0x8c80 (exclusive)
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
-/** First RAM difference on the go-forward contract: whole dump minus STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
+/** First RAM difference on the go-forward contract: whole dump minus stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 // A booted machine's frame machinery is neutralised by clone() (nextNmi/nextBoundary =
@@ -91,7 +91,7 @@ test("CAPTURE: real 0x19bc dispatches — clearActorArena == oracle in RAM (−s
     const c = cap.clone();
     oracle(o);
     clearActorArena(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
   }
   console.log(`  CAPTURE: ${CAPS.length} real dispatch(es) checked`);

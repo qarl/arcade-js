@@ -9,7 +9,7 @@
  * CYCLE-FREE / memory-equivalence gate (docs/decompiler-pipeline). The routine WRITES RAM, so each
  * case runs the oracle on one FRESH clone and insertScoreIntoHighScoreTable on another, compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * The live-out is MEMORY ONLY — the table, both side tables, the rank cell, the gate. pc/SP are not
  * compared. No register is a consumed result: the table-exhausted path leaves the scan pointer's
@@ -39,7 +39,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1ab2 as oracle } from "../../translated/loc_1ab2.js";
 import { insertScoreIntoHighScoreTable } from "../insertScoreIntoHighScoreTable.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   ACTIVE_PLAYER,
@@ -67,7 +67,7 @@ const STRIDE = 3;
 const TILE_BLANK = 0x10;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

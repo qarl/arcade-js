@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_76f4 as oracle } from "../../translated/loc_76f4.js";
 import { dispatchAllObjectStates } from "../dispatchAllObjectStates.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, OBJECT_STATE_RECORD_BASE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -38,7 +38,7 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "skip
 const EXPECTED = [0, 1, 2, 3, 4, 5].map((i) => (OBJECT_STATE_RECORD_BASE + i * 0x18) & 0xffff);
 const SP0 = 0x8fe0; // inside STACK_SCRATCH
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

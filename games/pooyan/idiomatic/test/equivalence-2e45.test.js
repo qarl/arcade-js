@@ -5,7 +5,7 @@
  * the routine decrements it in place.
  *
  * Cycle-free memory-equivalence gate: fresh clone per side, compared on RAM (dumpState,
- * minus STACK_SCRATCH) PLUS the declared register live-out. Two live-outs are genuine and
+ * minus stack scratch below the entry SP) PLUS the declared register live-out. Two live-outs are genuine and
  * consumed by the frozen rope-cell handlers (spawnHangingRopeObject/2ecb/2f01/2f2f):
  *   - HL = the timer's address — spawnHangingRopeObject/advanceHangingRopeObjectWithGrabCheck store through it after the call;
  *   - the Z flag = decremented-to-zero — every caller `ret nz` on it.
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2e45 as oracle } from "../../translated/loc_2e45.js";
 import { tickRopeCellFrameTimer } from "../tickRopeCellFrameTimer.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -44,7 +44,7 @@ const test = ROM_PRESENT
 const TIMER_BASE = 0x8f28;
 const timerAddr = (ixl) => TIMER_BASE + 2 * (ixl & 0x03);
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

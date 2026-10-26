@@ -3,7 +3,7 @@
  * Memory-equivalence test for accrueCreditsFromCoinSlot2 (ROM 0x5a1f, Pooyan) — per-frame score-drip step, variant B.
  *
  * SEATING: BALANCED — no register inputs; a void step (no caller reads a register back), so LIVE-OUT
- * is memory only and the comparison is RAM (dumpState) minus STACK_SCRATCH. SP parked in STACK_SCRATCH.
+ * is memory only and the comparison is RAM (dumpState) minus stack scratch below the entry SP. SP parked in STACK_SCRATCH.
  * Not a dispatcher, no register bridge — the accumulate amount is handed to the shared tail (addCreditsAndQueueDisplay)
  * as an explicit JS param, not through a CPU register.
  *
@@ -26,7 +26,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5a1f as oracle } from "../../translated/loc_5a1f.js";
 import { accrueCreditsFromCoinSlot2 } from "../accrueCreditsFromCoinSlot2.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -44,7 +44,7 @@ const DRIP_COORD_B = 0x882e;
 const COORD2 = 0x882f; // second coord of the pair (shares COINAGE_CONFIG_SLOT2)
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

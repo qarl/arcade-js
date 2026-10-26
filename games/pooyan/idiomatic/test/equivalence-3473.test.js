@@ -8,7 +8,7 @@
  * or above the cap it skips straight to that tail.
  *
  * Cycle-free memory-equivalence gate: a fresh clone per side, compared on RAM (dumpState, minus
- * STACK_SCRATCH). pc/SP/cycles are NOT compared, and there is NO register/flag live-out — every exit
+ * stack scratch below the entry SP). pc/SP/cycles are NOT compared, and there is NO register/flag live-out — every exit
  * is either the render-only tail or a bare return of a record-dispatch handler. The oracle's
  * rst-0x20 lookup and tail call/push/ret land inside STACK_SCRATCH.
  *
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3473 as oracle } from "../../translated/loc_3473.js";
 import { armInteriorBandOrMarkActorActive } from "../armInteriorBandOrMarkActorActive.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   ANIM_ARMED_LATCH,
@@ -56,7 +56,7 @@ const ROW_STRIDE = 0x20; //  band row pitch
 const DIRT = 0xaa; //        sentinel so every real write is observable
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

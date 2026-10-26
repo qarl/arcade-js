@@ -7,7 +7,7 @@
  * when that flag is already clear, then — if the HUD-guard tally (0x8a3c) is set — falls
  * through into the shape loader seedFourRecordsAndCopyDisplayTiles keyed by that pointer.
  *
- * Cycle-free / memory-equivalence gate: contract = RAM (dumpState, minus STACK_SCRATCH). The
+ * Cycle-free / memory-equivalence gate: contract = RAM (dumpState, minus stack scratch below the entry SP). The
  * oracle's fall-through m.call(0x250f) and the copier's inner calls push return addresses into
  * STACK_SCRATCH (sp seated there), which are excluded. The early-return and guard-clear paths
  * make no call and give exact RAM assertions; the deep fall-through is run under the
@@ -35,7 +35,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_24fb as oracle } from "../../translated/loc_24fb.js";
 import { advancePlayStateToPhase7OnActorDelay } from "../advancePlayStateToPhase7OnActorDelay.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, SCORE_DRIP_ACCUM, PLAY_STATE_INDEX, TAMPER_STRIKES_HUD_GUARD, BOARD_CLEAR_FLAG, TAMPER_STRIKES_TERMINATOR } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -48,7 +48,7 @@ const test = ROM_PRESENT
 const REC = 0x8a80; // record base (work RAM, clear of STACK_SCRATCH)
 const HOLD = 0x11; //  frame-delay field
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

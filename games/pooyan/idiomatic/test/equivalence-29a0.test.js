@@ -8,7 +8,7 @@
  * against a reference table (miss -> advanceLeadActorDescentToLanding); a clean pair enqueues the descent display command.
  *
  * SEATING: BALANCED — advanceActorDescentStepAndLand's own rets WIRE; the diversions are tail-jumps that forward the
- * delegatee's result. Compared per case on RAM (dumpState, minus STACK_SCRATCH); advanceActorDescentStepAndLand has no
+ * delegatee's result. Compared per case on RAM (dumpState, minus stack scratch below the entry SP); advanceActorDescentStepAndLand has no
  * register live-out of its own. pc/SP/full register file are not compared.
  *
  * The self-check branches gate on ROM sums/tables that PASS for the intact image (verified: the
@@ -42,7 +42,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_29a0 as oracle } from "../../translated/loc_29a0.js";
 import { advanceActorDescentStepAndLand } from "../advanceActorDescentStepAndLand.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   FORMATION_SPAWN_TIMER,
@@ -59,7 +59,7 @@ const test = ROM_PRESENT
   : (name, fn) => nodeTest(name, { skip: "skipped: ROM not built — run 'make -C games/pooyan rom'" }, fn);
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ff8);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

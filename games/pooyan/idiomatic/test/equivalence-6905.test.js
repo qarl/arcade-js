@@ -42,7 +42,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6905 as oracle } from "../../translated/loc_6905.js";
 import { spawnPairedEnemyOnDelaySweep } from "../spawnPairedEnemyOnDelaySweep.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -62,7 +62,7 @@ const SP0 = 0x8fe0; // inside STACK_SCRATCH; room for the sweep's nested-call di
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 const ixOf = (n) => IX_BASE + n * STRIDE;
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

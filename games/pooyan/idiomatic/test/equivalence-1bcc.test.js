@@ -7,7 +7,7 @@
  *
  * This is the cycle-free / memory-equivalence gate. The routine takes NO register inputs (it seeds
  * every pointer from constants and memory) and returns via a plain ret, so the contract is RAM only
- * (dumpState minus STACK_SCRATCH); there is no register live-out (A is left as scratch, unconsumed).
+ * (dumpState minus stack scratch below the entry SP); there is no register live-out (A is left as scratch, unconsumed).
  * pc/SP/cycles are deliberately not compared.
  *
  * The checksum reads intact program ROM, so both sides compute the identical fold and agree on
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1bcc as oracle } from "../../translated/loc_1bcc.js";
 import { snapshotPlayer1BankWithSignatureCheck } from "../snapshotPlayer1BankWithSignatureCheck.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -50,7 +50,7 @@ const TAMPER_SIG = 0x8a38;
 const BANK_SIZE = 0x3f;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ff8);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

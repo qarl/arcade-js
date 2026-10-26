@@ -4,7 +4,7 @@
  * (DISSOLVED boolean caller-skip: dispatchAllHunterRecordStates early-returns on false). Returns true for an inactive slot
  * or a state below 0x11; otherwise ((IX+2)&0x1f)-0x11 selects one of four handlers via table 0x2c50
  * and propagates their boolean. The oracle reaches handlers through rst 0x28; the module switches to the
- * same handler directly. Compared per case: RAM (dumpState −STACK_SCRATCH) PLUS the JS boolean.
+ * same handler directly. Compared per case: RAM (dumpState − stack scratch below the entry SP) PLUS the JS boolean.
  *
  * Jobs: CAPTURE (real dispatches), guard cases (inactive/below-range -> true), each dispatch state
  * 0x11..0x14 routes + propagates, TEETH (RAM + mis-route).
@@ -18,7 +18,7 @@ import { dispatchOneHunterRecordState } from "../dispatchOneHunterRecordState.js
 import { climbHunterToLaunchRowThenPromoteGroup } from "../climbHunterToLaunchRowThenPromoteGroup.js";
 import { clearWaveHoldTimerToArmNextWave } from "../clearWaveHoldTimerToArmNextWave.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -27,8 +27,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (n, f) => nodeTest(n, { skip: "skipped: ROM not built" }, f);
 const TARGET = 0x2c3f;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiffMinusStack = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(), (o) => ma.stateOffsetToAddr(o), inDeadStack);
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ff8);
+const ramDiffMinusStack = (ma, mb, dead = inDeadStack) => firstStateDiff(ma.dumpState(), mb.dumpState(), (o) => ma.stateOffsetToAddr(o), dead);
 const runGuarded = (fn, m) => { try { return { threw: false, ret: fn(m) }; } catch (e) { return { threw: true, msg: String(e && e.message) }; } };
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
@@ -61,7 +61,7 @@ test("CAPTURE: real 0x2c3f dispatches replay identically (RAM −stack + boolean
     assert.equal(ro.threw, rc.threw, `divergent control flow (oracle=${ro.threw} module=${rc.threw})`);
     if (!ro.threw) {
       assert.equal(rc.ret, ro.ret, `boolean mismatch: oracle=${ro.ret} module=${rc.ret}`);
-      const d = ramDiffMinusStack(o, c);
+      const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
       assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
     }
   }

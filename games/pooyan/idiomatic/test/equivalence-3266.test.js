@@ -6,7 +6,7 @@
  * thrown integrity trap). The routine reads ROM only — it writes no game RAM and has no register
  * live-out — so its observable contract is throw-vs-return parity, not a written cell.
  *
- * (Contract compared: RAM via dumpState, minus STACK_SCRATCH — trivially equal, both write nothing —
+ * (Contract compared: RAM via dumpState, minus stack scratch below the entry SP — trivially equal, both write nothing —
  * PLUS the throw/return behaviour, the load-bearing property. ROM is not writable in a clone, so a
  * corrupt-block arm is impossible; the teeth instead prove the sentinel comparison is real: a twin
  * that expects the WRONG sum throws on the same valid ROM the module accepts.)
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_3266 as oracle } from "../../translated/loc_3266.js";
 import { verifyFormationGuardChecksum } from "../verifyFormationGuardChecksum.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, FORMATION_GUARD_BASE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -38,7 +38,7 @@ const test = ROM_PRESENT
   : (name, fn) => nodeTest(name, { skip: "skipped: ROM not built — run 'make -C games/pooyan rom'" }, fn);
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 const GUARD_BLOCK_LEN = 0x20;
 const GUARD_SENTINEL = 0xdc;
 

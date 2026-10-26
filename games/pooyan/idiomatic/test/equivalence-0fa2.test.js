@@ -8,7 +8,7 @@
  * write to the run-append helper (four nested appends), so each case runs on a FRESH clone per side,
  * compared on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) + the A register live-out.
+ *     RAM (dumpState, minus stack scratch below the entry SP) + the A register live-out.
  *
  * A IS a live-out: the append tail leaves the advanced ring cursor in A (0 when the append gates are
  * shut) and the caller reads it back; the routine's tail return carries it through. pc/SP/cycles are
@@ -36,7 +36,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0fa2 as oracle } from "../../translated/loc_0fa2.js";
 import { queueRoundVariantSoundRun } from "../queueRoundVariantSoundRun.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   ROUND_COUNTER,
@@ -59,7 +59,7 @@ const RING_LAST = 0x5e;
 const TILE_CODE_BASE = 0x22; // first of the four round-select codes 0x22..0x25
 const RUN_TAIL = [0x15, 0x16, 0x17]; // the three fixed run bytes after the selected code
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ff0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

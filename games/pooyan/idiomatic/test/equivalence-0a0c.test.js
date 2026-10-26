@@ -9,7 +9,7 @@
  * runs the oracle on one FRESH clone and the module on another, compared on the go-forward
  * contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH)  +  the two advanced pointers.
+ *     RAM (dumpState, minus stack scratch below the entry SP)  +  the two advanced pointers.
  *
  * The caller (buildAttractSpritesAndPrimeTextScript) reads the descriptor sentinel from the advanced DE and keeps walking
  * HL into the next record, consuming BOTH advanced pointers without reloading them, so the
@@ -34,7 +34,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0a0c as oracle } from "../../translated/loc_0a0c.js";
 import { seedObjectRecord } from "../seedObjectRecord.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, SPRITE_OBJECT_TABLE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -53,13 +53,13 @@ const hx = (v) => "0x" + (v & 0xffff).toString(16);
 // The exact byte offsets the oracle stamps (used by WRITE-SET).
 const WRITTEN_OFFSETS = [0x04, 0x06, 0x0c, 0x0d, 0x0e];
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
-/** First RAM difference on the go-forward contract: whole dump minus STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
+/** First RAM difference on the go-forward contract: whole dump minus stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** A crafted entry machine: the record pre-dirtied to 0xAA, IX/DE/HL set, sources seeded. */
@@ -73,7 +73,7 @@ function craft(desc, coord) {
   m.regs.ix = REC;
   m.regs.de = DESC_SRC;
   m.regs.hl = COORD_SRC;
-  m.regs.sp = 0x8fe0; // dead scratch: the oracle's ret pops from diff-excluded RAM
+  m.regs.sp = 0x8fe0; // dead scratch: the oracle's ret only pops (reads) the word at SP
   return m;
 }
 
@@ -109,7 +109,7 @@ test("CAPTURE: real 0x0a0c dispatches — seedObjectRecord == oracle in RAM (−
     const c = cap.clone();
     oracle(o);
     const ret = seedObjectRecord(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} mine=${d.b}`);
     assert.equal(ret[0], o.regs.de, "captured descPtr live-out mismatch");
     assert.equal(ret[1], o.regs.hl, "captured coordPtr live-out mismatch");

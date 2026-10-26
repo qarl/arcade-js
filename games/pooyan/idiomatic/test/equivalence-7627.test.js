@@ -14,7 +14,7 @@
  * LIVE-OUT: none in registers. Both downstream consumers re-initialise their registers at entry
  * (the sprite-list builder loads HL/IX/DE/B and reads A from memory; the eagle blitter loads HL and
  * reads A from memory), so IX/B/A/flags the walk leaves behind are all dead. Fidelity = RAM
- * (dumpState) minus STACK_SCRATCH. `count` is the entry-register bridge (m.regs.b).
+ * (dumpState) minus stack scratch below the entry SP. `count` is the entry-register bridge (m.regs.b).
  *
  * The per-record probe is the +0x0e frame-hold byte: a ticked live record decrements it by one, so
  * exactly which records at which stride were ticked is observable. Continue-records use tick state 2
@@ -40,7 +40,7 @@ import { loc_7627 as oracle } from "../../translated/loc_7625.js";
 import { advanceEnemyActorStateWalk } from "../advanceEnemyActorStateWalk.js";
 import { dispatchEnemyActorAnimTickState } from "../dispatchEnemyActorAnimTickState.js"; // for the teeth twins
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { u16 } from "../../../../core/int.js";
 import { STACK_SCRATCH, ENEMY_ACTOR_TABLE, OBJECT_DRAWN_FLAG, SHARED_PHASE_COUNTDOWN } from "../names.js";
 
@@ -62,7 +62,7 @@ const SP0 = 0x8ff8; //        inside STACK_SCRATCH
 const CALLER_RET = 0xabcd;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0 - 2); // entry SP: the seat pushes the caller's return word below SP0
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

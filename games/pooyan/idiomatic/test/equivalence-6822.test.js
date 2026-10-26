@@ -16,7 +16,7 @@ import { dispatchSpecialObjectRecordState } from "../dispatchSpecialObjectRecord
 import { advanceObjectToNextStateAndArmAnim } from "../advanceObjectToNextStateAndArmAnim.js";
 import { verifyPlayfieldTileChecksumOnce } from "../verifyPlayfieldTileChecksumOnce.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ENEMY_REC_DISPATCH_GATE, ENEMY_ACTOR_TABLE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -27,8 +27,8 @@ const TARGET = 0x6822;
 const REC = ENEMY_ACTOR_TABLE + 0x48; // 0x8b28
 const SP0 = 0x8fe0;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
-const ramDiffMinusStack = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(), (o) => ma.stateOffsetToAddr(o), inDeadStack);
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
+const ramDiffMinusStack = (ma, mb, dead = inDeadStack) => firstStateDiff(ma.dumpState(), mb.dumpState(), (o) => ma.stateOffsetToAddr(o), dead);
 const runGuarded = (fn, m) => { try { fn(m); return { threw: false }; } catch (e) { return { threw: true, msg: String(e && e.message) }; } };
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
@@ -53,7 +53,7 @@ test("CAPTURE: real 0x6822 dispatches replay identically", () => {
     const o = cap.clone(), c = cap.clone();
     const ro = runGuarded(oracle, o), rc = runGuarded(dispatchSpecialObjectRecordState, c);
     assert.equal(ro.threw, rc.threw, `divergent control flow (oracle=${ro.threw} module=${rc.threw})`);
-    if (!ro.threw) { const d = ramDiffMinusStack(o, c); assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}`); }
+    if (!ro.threw) { const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp)); assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}`); }
   }
   console.log(`  CAPTURE: ${caps.length} real 0x6822 dispatch(es) replayed identically`);
 });

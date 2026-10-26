@@ -4,7 +4,7 @@
  * loop: step the record pointer and continue.
  *
  * A fresh clone per side, the oracle on one and loc_0728 on the other, compared on RAM (dumpState,
- * minus STACK_SCRATCH) PLUS the declared register live-out IX and DE. pc/SP/B/HL/A are not compared
+ * minus stack scratch below the entry SP) PLUS the declared register live-out IX and DE. pc/SP/B/HL/A are not compared
  * (B/HL are reloaded by the caller each iteration; A is scratch; SP/pc are excluded by definition).
  *
  * loc_0728 and the copy body form one loop across a routine boundary; the taken branch re-enters the
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0728 as oracle } from "../../translated/loc_0728.js";
 import { loc_0728 } from "../loc_0728.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -43,7 +43,7 @@ const DST_IX = 0x9410; // sprite bank 1
 const DST_DE = 0x9010; // sprite bank 0
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fee);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

@@ -9,7 +9,7 @@
  * (the skip/abort path).
  *
  * Cycle-free memory-equivalence gate: a fresh clone per side, compared on RAM (dumpState,
- * minus STACK_SCRATCH). No register is a live-out — the oracle's dropped pop-af overwrites A
+ * minus stack scratch below the entry SP). No register is a live-out — the oracle's dropped pop-af overwrites A
  * and the flags with the discarded return address (garbage), which nothing downstream reads —
  * so the register file is deliberately NOT compared; the BOOLEAN return is the extra contract.
  *
@@ -34,7 +34,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_618a as oracle } from "../../translated/loc_618a.js";
 import { clearActiveObjectTypeAndAbortHandler } from "../clearActiveObjectTypeAndAbortHandler.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -48,7 +48,7 @@ const ACTIVE_OBJECT_TYPE = 0x8d44;
 const SP_SCRATCH = 0x8ff0; // inside STACK_SCRATCH; the oracle's pop-af + ret read here only
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP_SCRATCH);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

@@ -3,7 +3,7 @@
  * Memory-equivalence test for clearDisplayMsgBufOnRoundInitMatch (ROM 0x1694, Pooyan) — pattern compare of the display buffer.
  *
  * SEATING: BALANCED (plain ret / tail-branch) -> WIRE. Void handler: no caller reads a register back,
- * so LIVE-OUT is memory only and the comparison is RAM (dumpState) minus STACK_SCRATCH.
+ * so LIVE-OUT is memory only and the comparison is RAM (dumpState) minus stack scratch below the entry SP.
  *
  * Paths crafted here: the first-byte mismatch (tail into selectRoundDisplayListAndAdvancePhase, held to its timer-not-expired
  * early return so the diff stays local) and the full-match clear of the seven-cell buffer.
@@ -18,7 +18,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1694 as oracle } from "../../translated/loc_1694.js";
 import { clearDisplayMsgBufOnRoundInitMatch } from "../clearDisplayMsgBufOnRoundInitMatch.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, DISPLAY_MSG_BUF } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -33,7 +33,7 @@ const PHASE_TIMER = 0x8808;
 const SP0 = 0x8ff0;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

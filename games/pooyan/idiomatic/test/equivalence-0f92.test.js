@@ -8,7 +8,7 @@
  * last slot (0x5e) back to the first (0x43).
  *
  * Cycle-free memory-equivalence gate: a fresh clone per side, compared on RAM (dumpState, minus
- * STACK_SCRATCH) PLUS the A register. A is left as the advanced ring cursor by the tail-call (0
+ * stack scratch below the entry SP) PLUS the A register. A is left as the advanced ring cursor by the tail-call (0
  * when the gates are closed); the immediate caller reloads A before reading it, so it is set but
  * not consumed — compared here defensively (it always matches, so it cannot false-fail) to pin
  * the tail-call's result to the four-append value.
@@ -34,7 +34,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0f92 as oracle } from "../../translated/loc_0f92.js";
 import { queueSoundRun1D } from "../queueSoundRun1D.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -54,7 +54,7 @@ const RING_LAST = 0x5e;
 const APPENDED = [0x1d, 0x15, 0x16, 0x17]; // the lead tile then the three fixed run codes
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ff0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

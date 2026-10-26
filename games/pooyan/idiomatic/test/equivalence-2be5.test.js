@@ -10,7 +10,7 @@
  * The translated oracle ALSO returns that boolean, so the two are compared directly.
  *
  * Cycle-free / memory-equivalence gate: the routine WRITES RAM, so every case uses a FRESH
- * clone per side, compared on RAM (dumpState, minus STACK_SCRATCH) plus the boolean return.
+ * clone per side, compared on RAM (dumpState, minus stack scratch below the entry SP) plus the boolean return.
  * pc/SP/cycles are NOT compared (the oracle drives them through m.step/m.push/m.pop/m.ret).
  * launchFormationObjectIntoFreeSlot has NO register live-out: scanFormationSlotsAndLaunchFree protects its loop counter and stride across the
  * call (exx) and reads back only its own record pointer, which launchFormationObjectIntoFreeSlot never modifies.
@@ -37,7 +37,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2be5 as oracle } from "../../translated/loc_2be5.js";
 import { launchFormationObjectIntoFreeSlot } from "../launchFormationObjectIntoFreeSlot.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, WAVE_ARRIVAL_COUNTER, FORMATION_SPAWN_TIMER } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -49,7 +49,7 @@ const test = ROM_PRESENT
 
 const REC = 0x8c60; // a formation record base in work RAM
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

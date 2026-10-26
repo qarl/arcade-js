@@ -4,7 +4,7 @@
  *
  * SEATING: BALANCED (plain ret / tail-calls) -> WIRE. Reached via latchActorStepThenDispatchByStageCountdown's tail from the actor
  * dispatch; the sub-state handlers are void, so LIVE-OUT is memory only and the comparison is RAM
- * (dumpState) minus STACK_SCRATCH; register file not compared. SP parked in STACK_SCRATCH.
+ * (dumpState) minus stack scratch below the entry SP; register file not compared. SP parked in STACK_SCRATCH.
  *
  * The module drives idiomatic siblings directly; the oracle drives the translated siblings through the
  * routines map (each pair has its own gate). Crafted paths: state < 7 (spawn-step guard), state >= 0x14
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1399 as oracle } from "../../translated/loc_1399.js";
 import { dispatchActorSpawnBySubStateAndPaceCadence } from "../dispatchActorSpawnBySubStateAndPaceCadence.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -46,7 +46,7 @@ const RELOAD_TABLE = 0x13d3; // STATE_TIMER_RELOAD_TABLE (ROM)
 const SP0 = 0x8ff0;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

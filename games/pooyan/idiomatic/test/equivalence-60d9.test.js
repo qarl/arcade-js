@@ -10,7 +10,7 @@
  * no match enqueues a sound (unless type 3) and returns normally (true). The idiomatic
  * module composes the real idiomatic seed/scan/handler chain; the oracle drives translated.
  *
- * Cycle-free memory-equivalence gate: compared on RAM (dumpState, minus STACK_SCRATCH). No
+ * Cycle-free memory-equivalence gate: compared on RAM (dumpState, minus stack scratch below the entry SP). No
  * register survives the terminating skip, so the register file is not compared — the
  * module's forwarded boolean is the contract alongside RAM. SP is parked in STACK_SCRATCH
  * so the seed call's push, the chain's pushes, and the skip's pop-af+ret drop out of the
@@ -35,7 +35,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_60d9 as oracle } from "../../translated/loc_60d9.js";
 import { markHitFlagSeedActorAndScanEnemyRecords } from "../markHitFlagSeedActorAndScanEnemyRecords.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -60,7 +60,7 @@ const SEED_FIELDS = [0x00, 0x01, 0x02, 0x12, 0x16, 0x17]; // the bytes initActor
 const SP_SCRATCH = 0x8ff0;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP_SCRATCH);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

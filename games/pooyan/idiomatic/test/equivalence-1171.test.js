@@ -17,7 +17,7 @@
  * This is the cycle-free / memory-equivalence gate. The oracle reaches 0x119a (and its 0x381e /
  * 0x0020 callees) through m.call trampolines whose pushes — and 0x119a's skip-pop — land in
  * STACK_SCRATCH (sp seated there) and are excluded; the module calls the idiomatic sibling
- * directly. The contract compared is RAM (dumpState, minus STACK_SCRATCH). serviceEnemySpawns reads no
+ * directly. The contract compared is RAM (dumpState, minus stack scratch below the entry SP). serviceEnemySpawns reads no
  * register back (it calls this then unconditionally rets), so there is no register live-out and no
  * boolean is returned; RAM is the whole contract.
  *
@@ -39,7 +39,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_1171 as oracle } from "../../translated/loc_1171.js";
 import { tickSpawnTimerAndSeedFreeEnemy } from "../tickSpawnTimerAndSeedFreeEnemy.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -57,7 +57,7 @@ const STRIDE = 0x18;
 const rec = (i) => RECORDS + i * STRIDE;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

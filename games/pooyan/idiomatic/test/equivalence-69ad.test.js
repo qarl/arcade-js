@@ -6,7 +6,7 @@
  *
  * This is the CYCLE-FREE / memory-equivalence gate (docs/decompiler-pipeline). The routine WRITES
  * work RAM through advancePairedDescendingObjectStep, so each case uses a FRESH clone per side: the oracle runs on one clone,
- * stepPairedDescendingObjects on another, compared on the go-forward contract — RAM (dumpState) minus STACK_SCRATCH.
+ * stepPairedDescendingObjects on another, compared on the go-forward contract — RAM (dumpState) minus stack scratch below the entry SP.
  * pc/SP/cycles are NOT compared. LIVE-OUT is memory only: stepPairedDescendingObjects's caller (runPerFrameObjectSubPasses) issues it and
  * moves on, consuming no register result; the oracle's shadow-register (exx) juggling only protects
  * its loop counter and stride and leaves no game state, so no register is compared. The sequencer
@@ -33,7 +33,7 @@ import { loc_69ad as oracle } from "../../translated/loc_69ad.js";
 import { stepPairedDescendingObjects } from "../stepPairedDescendingObjects.js";
 import { advancePairedDescendingObjectStep } from "../advancePairedDescendingObjectStep.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -49,7 +49,7 @@ const STRIDE = 0x18;
 const PAIRS = 8;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

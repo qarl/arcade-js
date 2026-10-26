@@ -4,7 +4,7 @@
  * then advance the state and nudge the primary record".
  *
  * The cycle-free / memory-equivalence gate (docs/decompiler-pipeline): a fresh clone per side, the
- * oracle on one and nudgeLeadActorAndAdvanceOnDelay on the other, compared on RAM (dumpState, minus STACK_SCRATCH) PLUS the
+ * oracle on one and nudgeLeadActorAndAdvanceOnDelay on the other, compared on RAM (dumpState, minus stack scratch below the entry SP) PLUS the
  * declared register live-out A. pc/SP/cycles are deliberately not compared.
  *
  * INPUTS: IX (the dispatched record; the dispatcher preloads it to the actor table base 0x8a80) and
@@ -36,7 +36,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2497 as oracle } from "../../translated/loc_2497.js";
 import { nudgeLeadActorAndAdvanceOnDelay } from "../nudgeLeadActorAndAdvanceOnDelay.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -57,7 +57,7 @@ const TAMPER_STRIKES_TERMINATOR = 0x8df9;
 const SEED_A = 0x5a; // an arbitrary seated A to prove the early return leaves it untouched
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
 }

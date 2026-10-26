@@ -8,7 +8,7 @@
  * back. (The even-frame twin at 0x23ec walks the same cursor the other way.)
  *
  * CYCLE-FREE / memory-equivalence gate. Each case runs the oracle on a FRESH clone and the module on
- * another, compared on RAM (dumpState, minus STACK_SCRATCH). The routine is memory-only (a plain-ret
+ * another, compared on RAM (dumpState, minus stack scratch below the entry SP). The routine is memory-only (a plain-ret
  * "pattern A" callee — movePlayerDownAndTickStatusRender falls straight through, reading no register back), so no return.
  *
  * NOTE FOR THE LEAD: 0x8f37 is not yet in names.js. This module and test import TILE_ANIM_PARITY from
@@ -33,7 +33,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2405 as oracle } from "../../translated/loc_2405.js";
 import { advanceTileAnimForwardOnOdd } from "../advanceTileAnimForwardOnOdd.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, TILE_ANIM_CURSOR, TILE_ANIM_PARITY } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -45,14 +45,14 @@ const test = ROM_PRESENT
 
 const TARGET = 0x2405;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 const WRAP = 0x37; // tile code at/above which the cursor steps + reseeds
 const SEED = 0x34; // reseed code stamped into the freshly-entered cell
 
-/** First RAM difference on the go-forward contract: whole dump, skipping the dead STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
-  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+/** First RAM difference on the go-forward contract: whole dump, skipping the dead stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
+  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** Machine with parity tick = `tick`, cursor -> `cursor`, and the tile at the cursor = `tile`. */
@@ -61,7 +61,7 @@ function craft(tick, cursor, tile) {
   m.mem.write8(TILE_ANIM_PARITY, tick);
   m.mem.write16(TILE_ANIM_CURSOR, cursor);
   m.mem.write8(cursor, tile);
-  m.regs.sp = 0x8fe0; // inside STACK_SCRATCH: the ret's pop reads dead, diff-excluded RAM
+  m.regs.sp = 0x8fe0; // inside STACK_SCRATCH: the ret only pops (reads) the word at SP
   return m;
 }
 
@@ -89,7 +89,7 @@ test("CAPTURE: real 0x2405 dispatches replay identically (if reached)", () => {
     const c = cap.clone();
     oracle(o);
     advanceTileAnimForwardOnOdd(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
   }
   console.log(`  CAPTURE: ${caps.length} real 0x2405 dispatch(es) replayed identically`);

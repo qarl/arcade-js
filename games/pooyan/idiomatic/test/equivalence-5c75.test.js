@@ -8,7 +8,7 @@
  * clone per side: the oracle runs on one clone, storeActorAnimationPointer on another, and
  * they are compared on the go-forward contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) — the memory-only footprint.
+ *     RAM (dumpState, minus stack scratch below the entry SP) — the memory-only footprint.
  *
  * SP/pc are deliberately NOT compared: the oracle's terminal `m.ret` pops the modelled
  * stack (moving SP and pc), the stack ABI the direct-call layer replaces with a JS return.
@@ -21,7 +21,7 @@
  *
  * Jobs:
  *   1. EQUAL — real captured dispatches (0x5c75 fires ~4x in the attract demo game) PLUS
- *      crafted states: oracle vs module leave identical RAM (−STACK_SCRATCH).
+ *      crafted states: oracle vs module leave identical RAM (− stack scratch below the entry SP).
  *   2. WRITE-SET — on a crafted case the oracle's ONLY work-RAM writes are the three bytes
  *      (iy+0x0c), (iy+0x0d), (iy+0x0e); documents the exact footprint.
  *   3. CRAFTED — pre-dirty (iy+0x0c..0x0e) to 0xAA identically on both sides and confirm
@@ -38,7 +38,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5c75 as oracle } from "../../translated/loc_5c75.js";
 import { storeActorAnimationPointer } from "../storeActorAnimationPointer.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -50,9 +50,9 @@ const test = ROM_PRESENT
 
 const TARGET = 0x5c75;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0); // crafted entries keep the reset SP 0, so no scratch cell lies below it
 
-/** First RAM difference on the go-forward contract (whole dump minus STACK_SCRATCH). */
+/** First RAM difference on the go-forward contract (whole dump minus stack scratch below the entry SP). */
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();
   const b = mb.dumpState();

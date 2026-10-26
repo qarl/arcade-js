@@ -7,7 +7,7 @@
  * PLAY_STATE_INDEX to 6.
  *
  * This is the CYCLE-FREE / memory-equivalence gate. The routine WRITES RAM, so every case
- * uses a FRESH clone per side and the contract is RAM (dumpState, minus STACK_SCRATCH).
+ * uses a FRESH clone per side and the contract is RAM (dumpState, minus stack scratch below the entry SP).
  * There is no register live-out (memory-only teardown), so only RAM is compared.
  *
  * Jobs:
@@ -29,7 +29,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2ae8 as oracle } from "../../translated/loc_2ae8.js";
 import { clearActorArenaAndCounters } from "../clearActorArenaAndCounters.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   ACTOR_TABLE,
@@ -53,9 +53,9 @@ const COUNTERS = [SPAWN_PHASE_COUNTER, WAVE_ARRIVAL_COUNTER, ROPE_SEGMENT_COUNT]
 const STATE_AFTER = 6;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
-/** First RAM difference minus the STACK_SCRATCH region. firstStateDiff's own excludeAddr
+/** First RAM difference minus the stack scratch below the entry SP. firstStateDiff's own excludeAddr
  * skips dead-stack cells in a single pass. */
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

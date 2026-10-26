@@ -6,7 +6,7 @@
  * oracle `ret c`s (balanced) and the module returns false so the caller keeps scanning. An empty
  * slot is initialised, a spawn column/velocity/timer built, and the scan-state head run; the
  * oracle then `pop af; ret`s one frame up and the module returns true so the caller aborts its
- * sweep. Compared on RAM (dumpState) minus STACK_SCRATCH plus the forwarded boolean; the register
+ * sweep. Compared on RAM (dumpState) minus stack scratch below the entry SP plus the forwarded boolean; the register
  * file is not compared. Entry registers IX/C/E are the param-default bridge.
  *
  * Cases are CRAFTED: a plain attract boot does not seat an empty slot at this point. The spawn
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_572b as oracle } from "../../translated/loc_572b.js";
 import { spawnEnemyIntoFreeActorSlot } from "../spawnEnemyIntoFreeActorSlot.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -55,7 +55,7 @@ const SUBSTATE_0 = 0x8d47; // first sub-state byte
 const SP0 = 0x8ff0; // inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

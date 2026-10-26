@@ -3,7 +3,7 @@
  * Memory-equivalence test for accrueCreditFromCoin1Pulse (ROM 0x5a56, Pooyan) — variant-C drip step.
  *
  * SEATING: BALANCED (plain ret / tail-calls) -> WIRE. Void handler: no register survives, so LIVE-OUT
- * is memory only and the comparison is RAM (dumpState) minus STACK_SCRATCH. SP parked in STACK_SCRATCH
+ * is memory only and the comparison is RAM (dumpState) minus stack scratch below the entry SP. SP parked in STACK_SCRATCH
  * so nested pushes (emitPresetSound / the accumulate tail) drop out.
  *
  * Crafted paths: ring phase != 1 (inert but for the rl), phase 1 with no coord carry (ret nc), and
@@ -20,7 +20,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_5a56 as oracle } from "../../translated/loc_5a56.js";
 import { accrueCreditFromCoin1Pulse } from "../accrueCreditFromCoin1Pulse.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, INPUT_PORT0, DRIP_RING_C, SCORE_DRIP_ACCUM, COINAGE_CONFIG } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -32,7 +32,7 @@ const test = ROM_PRESENT
 
 const SP0 = 0x8ff0;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

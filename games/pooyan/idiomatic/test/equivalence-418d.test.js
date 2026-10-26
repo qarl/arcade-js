@@ -8,7 +8,7 @@
  * the animation once more, decrements it to 0, and blanks the record's sprite band).
  *
  * CYCLE-FREE / memory-equivalence gate. The routine WRITES RAM, so every case uses a FRESH clone
- * per side. Contract: RAM (dumpState minus STACK_SCRATCH) ONLY — every callee is memory-only and no
+ * per side. Contract: RAM (dumpState minus stack scratch below the entry SP) ONLY — every callee is memory-only and no
  * caller reads a register back (the shared tail is entered by fall-through / dispatch). pc/SP/cycles
  * are NOT compared.
  *
@@ -34,7 +34,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_418d as oracle } from "../../translated/loc_418d.js";
 import { advanceObjectCountdownAndEmitDisplayCommand } from "../advanceObjectCountdownAndEmitDisplayCommand.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -51,7 +51,7 @@ const TIMER = 0x11;   // countdown timer offset
 const SEED = 0x16;    // source of the command offset + rec+0x13 value
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

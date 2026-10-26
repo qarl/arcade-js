@@ -6,7 +6,7 @@
  * source is 0x270a when (0x88bc) bit0 is set, else 0x270e.
  *
  * CYCLE-FREE / memory-equivalence gate. The routine WRITES RAM, so each case uses a FRESH clone
- * per side, compared on RAM (dumpState, minus STACK_SCRATCH). pc/SP/cycles are not compared (the
+ * per side, compared on RAM (dumpState, minus stack scratch below the entry SP). pc/SP/cycles are not compared (the
  * oracle drives them through m.step/push/ret, the stack ABI the direct-call layer replaces).
  * wrapRenderPhaseAndPaintTileTriplet has NO register live-out — its callers (tickStatusRenderRingAndRedrawOnWrap / clampActorYAndAdvanceRenderPhase / movePlayerVerticallyAndTickStatusRender) tail into it and
  * read nothing back — so the contract is memory alone. The oracle's fetchWordFromTableIndex / loc_3325 sub-calls
@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_23ad as oracle } from "../../translated/loc_23ad.js";
 import { wrapRenderPhaseAndPaintTileTriplet } from "../wrapRenderPhaseAndPaintTileTriplet.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -47,7 +47,7 @@ const VRAM_BASE = 0x8425; //    STATUS_RENDER_VRAM_BASE (first 2x2 anchor)
 const FIELD_STRIDE = 0x40; //   two rows between the three status cells
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x9000);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

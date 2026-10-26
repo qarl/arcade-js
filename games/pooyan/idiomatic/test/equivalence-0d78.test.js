@@ -8,7 +8,7 @@
  * continues into beginTwoPlayerStartOfLife. The dissolved tails (startOnePlayerGameOnCredit, beginTwoPlayerStartOfLife -> startNewGamePlay) run their idiomatic
  * modules; equality is therefore transitive on those gates.
  *
- * Cycle-free memory-equivalence: a fresh clone per side, RAM (dumpState) minus STACK_SCRATCH.
+ * Cycle-free memory-equivalence: a fresh clone per side, RAM (dumpState) minus stack scratch below the entry SP.
  * No register live-out. SP parked in dead stack scratch.
  *
  * Jobs:
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0d78 as oracle } from "../../translated/loc_0cf8.js";
 import { startSelectedPlayerGameConsumingCredits } from "../startSelectedPlayerGameConsumingCredits.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -47,7 +47,7 @@ const RING_START = 0xc0;
 const SP0 = 0x8ff0;
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

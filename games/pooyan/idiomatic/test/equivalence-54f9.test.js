@@ -12,7 +12,7 @@
  * translated fetchByteFromTableIndex / initSpawnedActorRecordAndDeriveSpeed through the registry.
  *
  * Cycle-free / memory-equivalence gate: fresh clone per side, compared on RAM (dumpState, minus
- * STACK_SCRATCH). pc/SP/cycles/registers are NOT compared (seedFirstFreeActorBlockFromSpawnTypeTable has no register live-out — the
+ * stack scratch below the entry SP). pc/SP/cycles/registers are NOT compared (seedFirstFreeActorBlockFromSpawnTypeTable has no register live-out — the
  * seed's caller reads only memory). Inputs are the block pointer (IX), the stride (DE) and the
  * count (B), bridged via the register defaults, plus the block bytes, the schedule cursor
  * (0x8d12) and the round counter (0x8907) poked identically on both sides.
@@ -34,7 +34,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_54f9 as oracle } from "../../translated/loc_54f9.js";
 import { seedFirstFreeActorBlockFromSpawnTypeTable } from "../seedFirstFreeActorBlockFromSpawnTypeTable.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { u16 } from "../../../../core/int.js";
 import { STACK_SCRATCH, FORMATION_TABLE, ROUND_COUNTER } from "../names.js";
 
@@ -50,7 +50,7 @@ const STRIDE = 0x18;
 const KIND_FIELD = 0x17;
 const CURSOR = 0x8d12; // schedule cursor (low nibble indexes the spawn-type table)
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 function ramDiffMinusStack(ma, mb) {
   return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);

@@ -9,7 +9,7 @@
  *
  * movePlayerDownAndTickStatusRender is a void handler (no register live-out): the module calls the idiomatic siblings
  * directly, the oracle drives the translated siblings through the routines map, so equivalence
- * is RAM (dumpState) minus STACK_SCRATCH. SP is parked in STACK_SCRATCH so nested pushes drop
+ * is RAM (dumpState) minus stack scratch below the entry SP. SP is parked in STACK_SCRATCH so nested pushes drop
  * out of the diff. The render ring is seeded so the render tail returns before the blit.
  *
  * Jobs:
@@ -32,7 +32,7 @@ import { loc_236a as oracle } from "../../translated/loc_236a.js";
 import { movePlayerDownAndTickStatusRender } from "../movePlayerDownAndTickStatusRender.js";
 import { Machine } from "../../machine.js";
 import { u8 } from "../../../../core/int.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH,
   ACTOR_TABLE,
@@ -60,7 +60,7 @@ const ACTIVE = 0x08; //   aim bit 3
 const SP0 = 0x8ff0; //    inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

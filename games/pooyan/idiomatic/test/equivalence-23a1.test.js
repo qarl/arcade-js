@@ -8,7 +8,7 @@
  * SEATING: BALANCED-WIRE. The oracle has a plain `ret nz` (net SP 0) on the still-counting
  * branch and falls through (tail) into wrapRenderPhaseAndPaintTileTriplet — itself a plain-ret routine — on wrap; net
  * SP 0 either way. A void state-machine tail: no register is read back, so the register file
- * is not compared; equivalence is RAM (dumpState) minus STACK_SCRATCH, SP parked in scratch so
+ * is not compared; equivalence is RAM (dumpState) minus stack scratch below the entry SP, SP parked in scratch so
  * the render tail's nested pushes drop out of the diff.
  *
  * Jobs:
@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_23a1 as oracle } from "../../translated/loc_23a1.js";
 import { tickStatusRenderRingAndRedrawOnWrap } from "../tickStatusRenderRingAndRedrawOnWrap.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -43,7 +43,7 @@ const PHASE = 0x88bc; // STATUS_RENDER_PHASE — mod-4 render phase
 const SP0 = 0x8ff0; // inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

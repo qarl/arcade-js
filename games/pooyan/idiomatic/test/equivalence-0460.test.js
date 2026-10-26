@@ -8,7 +8,7 @@
  * CYCLE-FREE / memory-equivalence gate. The routine takes no register inputs and its only output
  * is memory (the painted panel), so each case runs on a FRESH clone per side and the contract is:
  *
- *     RAM (dumpState, minus STACK_SCRATCH).
+ *     RAM (dumpState, minus stack scratch below the entry SP).
  *
  * Jobs:
  *   1. CAPTURE (best-effort) — hook 0x0460 in a real run; any dispatch must agree in RAM.
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0460 as oracle } from "../../translated/loc_0460.js";
 import { renderPanelFromTable } from "../renderPanelFromTable.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, PANEL_TILE_SOURCE, PANEL_VRAM_DEST } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -42,10 +42,10 @@ const VIDEO_RAM_LO = 0x8400;
 const VIDEO_RAM_HI = 0x8800;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0); // crafted entries keep the reset SP 0, so no scratch cell lies below it
 
-function ramDiffMinusStack(ma, mb) {
-  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
+  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** Build a machine with the 30-byte source seeded by `fill(i)` and all video RAM pre-dirtied. */
@@ -83,7 +83,7 @@ test("CAPTURE: real 0x0460 dispatches — renderPanelFromTable == oracle in RAM 
     const c = cap.clone();
     oracle(o);
     renderPanelFromTable(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
   }
   console.log(`  CAPTURE: ${CAPS.length} real dispatch(es) checked`);

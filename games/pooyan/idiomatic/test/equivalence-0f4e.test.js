@@ -6,7 +6,7 @@
  * The enqueue is ungated (unlike the 0x0ea2 append).
  *
  * Cycle-free memory-equivalence gate: writes work RAM, so a FRESH clone per side, compared on
- * RAM (dumpState minus STACK_SCRATCH). LIVE-OUT is memory only: the helper leaves the advanced
+ * RAM (dumpState minus stack scratch below the entry SP). LIVE-OUT is memory only: the helper leaves the advanced
  * pointer in A, but every enqueue site reloads A, so A is NOT part of the contract and is not
  * compared. The helper's push/pop framing lands in STACK_SCRATCH and is excluded.
  *
@@ -26,7 +26,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_0f4e as oracle } from "../../translated/loc_0f4e.js";
 import { queueSoundCommands82And95 } from "../queueSoundCommands82And95.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, SOUND_RING_WRITE_PTR, HIGH_SCORE_TABLE } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -42,7 +42,7 @@ const RING_LAST = 0x5e;
 const CMDS = [0x82, 0x95]; // the two fixed bytes, in enqueue order
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 const nextTail = (t) => (t === RING_LAST ? RING_FIRST : t + 1);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 

@@ -5,7 +5,7 @@
  *
  * The module dissolves the render tail (wrapRenderPhaseAndPaintTileTriplet) into a direct call and keeps the two frozen
  * plain-ret helpers (loc_23d7, loc_23ec) as m.call. clampActorYAndAdvanceRenderPhase is a void handler (no register
- * survives), so equivalence is RAM (dumpState) minus STACK_SCRATCH, SP parked in dead stack.
+ * survives), so equivalence is RAM (dumpState) minus stack scratch below the entry SP, SP parked in dead stack.
  *
  * The no-work arm pins the tile-anim cursor low byte to 0xe6, its target byte below 0x35, and the 7
  * integrity flags clear, so the scan finds nothing and the routine returns after the sprite-Y trio.
@@ -27,7 +27,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2334 as oracle } from "../../translated/loc_2334.js";
 import { clampActorYAndAdvanceRenderPhase } from "../clampActorYAndAdvanceRenderPhase.js";
 import { Machine, withOmittedRet } from "../../machine.js";
-import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -47,7 +47,7 @@ const SP0 = 0x8ff0; //     inside STACK_SCRATCH
 const CALLER_RET = 0xfffc; // caller's return word the seam completes on the moved-0 arm
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

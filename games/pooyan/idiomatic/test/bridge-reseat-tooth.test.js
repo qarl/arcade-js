@@ -29,6 +29,7 @@ import { advanceEnemyAnimationPhase } from "../advanceEnemyAnimationPhase.js";
 import { loc_3d5c as oracle3d5c } from "../../translated/loc_3d5c.js";
 import { Machine } from "../../machine.js";
 import { bridgeReseatEquivalent } from "../../../../core/bridge-reseat.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 import { adjustSpawnColumn } from "../adjustSpawnColumn.js";
 import { fetchByteFromTableIndex } from "../fetchByteFromTableIndex.js";
 import { setActorAnimation } from "../setActorAnimation.js";
@@ -63,7 +64,7 @@ const SP0 = 0x8ff0; //        inside STACK_SCRATCH (the oracle's push/pop/ret la
 const REC_3D5C = 0x8a80; //   advanceEnemyAnimationPhase record base (from equivalence-3d5c)
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 /** The b0602b4f mutant: loc_5733 verbatim MINUS its `m.regs.ix = ix` re-seat (idiomatic/loc_5733.js:77). */

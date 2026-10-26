@@ -7,7 +7,7 @@
  * The routine WRITES NO RAM, so its only go-forward contract is the value it returns in A.
  * Both sides run on fresh clones; they must agree on:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) — trivially, since neither writes — AND the
+ *     RAM (dumpState, minus stack scratch below the entry SP) — trivially, since neither writes — AND the
  *     returned accumulator, derived from the ORACLE clone's regs.a (never the module).
  *
  * Jobs:
@@ -26,7 +26,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_22d0 as oracle } from "../../translated/loc_22d0.js";
 import { foldTargetPresenceBits } from "../foldTargetPresenceBits.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, ENEMY_TARGET_REC0 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -41,13 +41,13 @@ const STRIDE = 0x18;
 const REC1 = (ENEMY_TARGET_REC0 + STRIDE) & 0xffff;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0); // crafted entries keep the reset SP 0, so no scratch cell lies below it
 
-/** First RAM difference on the go-forward contract: whole dump minus STACK_SCRATCH. */
-function ramDiffMinusStack(ma, mb) {
+/** First RAM difference on the go-forward contract: whole dump minus stack scratch below the entry SP. */
+function ramDiffMinusStack(ma, mb, dead = inDeadStack) {
   const a = ma.dumpState();
   const b = mb.dumpState();
-  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  return firstStateDiff(a, b, (off) => ma.stateOffsetToAddr(off), dead);
 }
 
 /** Seed the two record byte-0s and pre-dirty a window around them so any stray write shows. */
@@ -91,7 +91,7 @@ test("CAPTURE: real 0x22d0 dispatches — foldTargetPresenceBits == oracle in RA
     const c = cap.clone();
     oracle(o);
     const acc = foldTargetPresenceBits(c);
-    const d = ramDiffMinusStack(o, c);
+    const d = ramDiffMinusStack(o, c, deadStackBelow(STACK_SCRATCH, cap.regs.sp));
     assert.equal(d, null, d && `RAM diff at ${hx(d.addr ?? 0)}: oracle=${d.a} module=${d.b}`);
     assert.equal(acc, o.regs.a, `A live-out: module ${hx(acc)} != oracle ${hx(o.regs.a)}`);
     assert.equal(c.regs.a, o.regs.a, `module must SET A (side effect) for the translated cp 0x03: c ${hx(c.regs.a)} != o ${hx(o.regs.a)}`);

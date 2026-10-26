@@ -8,7 +8,7 @@
  * The module dissolves every callee (2e45/0c45/0020/0010/2e52/3325) to a direct idiomatic call; the
  * oracle drives the same frozen callees through the routines map. retractRopeSegment is a void handler — no
  * register survives to a caller (the rope-cell driver reads none back) — so the register file is not
- * compared; equivalence is RAM (dumpState) minus STACK_SCRATCH, SP parked in dead stack so the
+ * compared; equivalence is RAM (dumpState) minus stack scratch below the entry SP, SP parked in dead stack so the
  * oracle's nested dispatch pushes drop out of the diff.
  *
  * Two crafted cells: cell 0's timer is the terminal 0x28 column (paired-cell merge skipped) and
@@ -30,7 +30,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_2f2f as oracle } from "../../translated/loc_2f2f.js";
 import { retractRopeSegment } from "../retractRopeSegment.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -49,7 +49,7 @@ const FORMATION = 0x8c48; //   FORMATION_TABLE + 0x18 (formation index 0 -> slot
 const SP0 = 0x8ff0; //         inside STACK_SCRATCH
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

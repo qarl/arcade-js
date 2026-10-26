@@ -6,7 +6,7 @@
  * HUNTER_RECORD_PTR (rst 0x10 fill = 0, landing on the bare-ret idleLaunchStateNoop).
  *
  * CYCLE-FREE / memory-equivalence gate. The routine WRITES RAM, so every case uses a FRESH clone
- * per side. Contract: RAM (dumpState minus STACK_SCRATCH) ONLY — there is no register live-out: the
+ * per side. Contract: RAM (dumpState minus stack scratch below the entry SP) ONLY — there is no register live-out: the
  * oracle leaves scratch in A/HL/B across its three exits and the per-frame launch dispatcher reads
  * none of them back. pc/SP/cycles are NOT compared.
  *
@@ -32,7 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_28ad as oracle } from "../../translated/loc_28ad.js";
 import { advanceLaunchOnDelayAndClearHunterRecord } from "../advanceLaunchOnDelayAndClearHunterRecord.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, LAUNCH_STATE, PLAY_MODE_LATCH, HUNTER_SPAWN_COUNTDOWN, HUNTER_RECORD_PTR } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -46,7 +46,7 @@ const REC = 0x8b00;        // work-RAM record the clear pointer targets (disjoin
 const REC_LEN = 0x18;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();

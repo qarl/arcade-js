@@ -9,7 +9,7 @@
  * on one clone, blankTileColumn on another, and they are compared on the go-forward
  * contract:
  *
- *     RAM (dumpState, minus STACK_SCRATCH) + the declared register live-out (HL).
+ *     RAM (dumpState, minus stack scratch below the entry SP) + the declared register live-out (HL).
  *
  * pc is deliberately NOT compared. The oracle drives pc through m.step/m.ret (a modelled
  * fetch + stack pop the direct-call layer replaces with a JS return); comparing it would
@@ -45,7 +45,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_02b1 as oracle } from "../../translated/loc_02b1.js";
 import { blankTileColumn } from "../blankTileColumn.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -58,9 +58,9 @@ const test = ROM_PRESENT
 const TILE_BLANK = 0x10;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8ffe);
 
-/** First RAM difference minus the STACK_SCRATCH region (neither side writes it here). */
+/** First RAM difference minus the stack scratch below the entry SP (neither side writes it here). */
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();
   const b = mb.dumpState();

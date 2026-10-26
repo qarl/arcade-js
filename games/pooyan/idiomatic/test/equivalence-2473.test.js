@@ -8,7 +8,7 @@
  * that tamper value at (BC). Both converge to bump the base Y (IX+0x04) by 0x10, clear (IX+0x1e),
  * then load shape table 0x26c1 via the pattern-A shape loader (seedFourRecordsAndCopyDisplayTiles -> copyDisplayTilesIntoActorRecords).
  *
- * Comparison is the go-forward contract: RAM (dumpState) minus STACK_SCRATCH, plus — on the expiry
+ * Comparison is the go-forward contract: RAM (dumpState) minus stack scratch below the entry SP, plus — on the expiry
  * path — the register live-out the shape loader leaves (IX past the copied run, B, HL, A), all
  * derived from the ORACLE clone. The early frame-delay return sets no register, so only RAM is
  * compared there. dropLeadActorAfterDelay is reached only through the actor-state dispatch (no direct callers), so
@@ -31,7 +31,7 @@ import { loc_2473 as oracle } from "../../translated/loc_2473.js";
 import { dropLeadActorAfterDelay } from "../dropLeadActorAfterDelay.js";
 import { seedFourRecordsAndCopyDisplayTiles } from "../seedFourRecordsAndCopyDisplayTiles.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, TAMPER_STRIKES_STATE10, SHAPE_TABLE_26C1 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -44,7 +44,7 @@ const test = ROM_PRESENT
 const REC = 0x8a80; // an actor record base (work RAM); the shape loader copies 4 records from here
 const BC_TARGET = 0x8b00; // BC sink for the tamper overlap arm (work RAM, outside the record span)
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, 0x8fe0);
 
 // The record footprint the routine writes (offsets from REC).
 const OFF_STATE = 0x02;   // actor state, bumped on the zero-expiry arm

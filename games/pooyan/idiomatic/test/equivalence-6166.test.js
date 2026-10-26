@@ -11,7 +11,7 @@
  *
  * Cycle-free memory-equivalence gate: the oracle drives the translated chain (its own sound
  * helper + pop-af skip), the module drives the idiomatic chain; both compared on RAM
- * (dumpState, minus STACK_SCRATCH). No register survives the terminating skip (its dropped
+ * (dumpState, minus stack scratch below the entry SP). No register survives the terminating skip (its dropped
  * pop-af clobbers A/flags), so the register file is not compared; the module returns false.
  *
  * SP is parked in STACK_SCRATCH so the inner sound call's pushes and the skip's pop-af+ret all
@@ -35,7 +35,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6166 as oracle } from "../../translated/loc_6166.js";
 import { resetActorRecordQueueSoundAndAbortFrame } from "../resetActorRecordQueueSoundAndAbortFrame.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -54,7 +54,7 @@ const RESET_FIELDS = [
 ];
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP_SCRATCH);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

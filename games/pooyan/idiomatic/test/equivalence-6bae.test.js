@@ -5,7 +5,7 @@
  * sprite-display-list rebuild rebuildSpriteDisplayList.
  *
  * REGISTER BRIDGE: cmd = m.regs.de. Each case seats a FREE ring slot so the enqueue path writes and
- * the command bytes join the compared RAM. Compared on RAM (dumpState) minus STACK_SCRATCH; SP is
+ * the command bytes join the compared RAM. Compared on RAM (dumpState) minus stack scratch below the entry SP; SP is
  * parked in STACK_SCRATCH so the oracle's push/ret drop out of the diff.
  *
  * Jobs: 1. EQUAL over several DE values; 2. DE-THREADED (two commands produce different RAM, so the
@@ -22,7 +22,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_6bae as oracle } from "../../translated/loc_6bae.js";
 import { queueDisplayCommandAndRebuildSpriteList } from "../queueDisplayCommandAndRebuildSpriteList.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH, DISPLAY_CMD_RING_WRITE_PTR } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -38,7 +38,7 @@ const RING_SLOT_LOW = 0xc0;
 const CMD_HI_SLOT = RING_PAGE + RING_SLOT_LOW; // where the enqueue stores the command's high byte
 
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, SP0);
 const BASE = ROM_PRESENT ? new Machine(ROM).clone() : null;
 
 function ramDiffMinusStack(ma, mb) {

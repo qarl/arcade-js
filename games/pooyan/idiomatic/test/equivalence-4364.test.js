@@ -7,7 +7,7 @@
  * band (blankActorSpriteBand zeroes 0x17 bytes from ix).
  *
  * CYCLE-FREE / memory-equivalence gate. The routine WRITES RAM, so every case uses a FRESH clone
- * per side. Contract: RAM (dumpState minus STACK_SCRATCH) ONLY — advanceObjectFallStepThenBlankBandOnLand is a table-dispatched
+ * per side. Contract: RAM (dumpState minus stack scratch below the entry SP) ONLY — advanceObjectFallStepThenBlankBandOnLand is a table-dispatched
  * handler (sibling countdownThenRearmTurnAnimationByFlag) and no caller consumes a result register; the exit registers/flags
  * differ per path (A + flags on the timer path, carry on the airborne path, the tail callee's HL/B
  * on the landing path), so there is NO declared register live-out. pc/SP/cycles are NOT compared.
@@ -34,7 +34,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { loc_4364 as oracle } from "../../translated/loc_4364.js";
 import { advanceObjectFallStepThenBlankBandOnLand } from "../advanceObjectFallStepThenBlankBandOnLand.js";
 import { Machine } from "../../machine.js";
-import { firstStateDiff } from "../../../../core/equivalence.js";
+import { deadStackBelow, firstStateDiff } from "../../../../core/equivalence.js";
 import { STACK_SCRATCH } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -55,7 +55,7 @@ const BAND_LEN = 0x17; // bytes blankActorSpriteBand blanks from the record base
 const LANDING_ROW = 0x1e;
 const hx = (v) => "0x" + (v & 0xffff).toString(16);
 
-const inDeadStack = (addr) => addr != null && addr >= STACK_SCRATCH.lo && addr < STACK_SCRATCH.hi;
+const inDeadStack = deadStackBelow(STACK_SCRATCH, STACK_SCRATCH.hi - 0x20);
 
 function ramDiffMinusStack(ma, mb) {
   const a = ma.dumpState();
