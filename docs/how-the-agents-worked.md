@@ -116,7 +116,7 @@ against MAME — and the support it needs:
 The pattern that carries it is large batches fanned out aggressively — roughly forty to fifty
 routines at a time, one file per routine (two rewrites never touch the
 same file, so they parallelize without colliding), each run through a fixed loop: rewrite → prove
-each routine's own memory-equivalence gate → review independently → fix → commit. The lead never
+it memory-equivalent to the oracle (almost always in a gate of its own) → review independently → fix → commit. The lead never
 hand-verifies a routine and never lets an author's own confidence stand in for the gate.
 
 ## What this does not show

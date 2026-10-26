@@ -92,3 +92,10 @@ green/verified. The one item this audit opened — the `audio_gate.py` selftest 
 this same done-marker commit by a selftest-only fix that changes no gate verdict. frogger is DONE.
 Proposer≠confirmer: this DONE.md's commit is re-audited in full by a SECOND independent agent via
 `review_gate` (reviewer-rule R40) — not a read of this file.
+
+## Correction — 2026-10-26
+
+**The idiomatic-equivalence row's "every routine == the frozen oracle" is too strong.** Not every `ROUTINES` entry has an
+`equivalence-<addr>.test.js` of its own. The frogger entries without one are listed in
+`tools/equivalence-debt.txt`, which `tools/test/equivalence-coverage.test.js` holds so the list can only
+shrink. This note does not re-run or change the row's test result.

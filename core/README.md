@@ -37,9 +37,10 @@ audio a thin, swappable layer. A game supplies the trigger map + samples in `gam
 
 **The idiomatic rewrite is layered, not in-place.** The translated ROM in `games/<x>/translated/`
 is deliberately close to the original assembly. Idiomatic, memory-equivalent rewrites of individual
-routines live in `games/<x>/idiomatic/` (the go-forward layer; the older strict `optimized/` is
-superseded and deleted per-routine) and are swapped in via the manifest — only after passing the
-memory-equivalence gate against the oracle. See [idiomatic generation](../docs/idiomatic-generation.md).
+routines live in `games/<x>/idiomatic/` (the older strict `optimized/` layer it replaced is gone) and
+run in place of the oracle routines when the manifest selects `runtime: "idiomatic"`. Almost every one
+has its own memory-equivalence gate against the oracle; the exceptions are listed in
+[`tools/equivalence-debt.txt`](../tools/equivalence-debt.txt). See [idiomatic generation](../docs/idiomatic-generation.md).
 
 **A shared board is factored out on the second game.** DK's hardware lives in `boards/dkong/`.
 When a second romset reuses it (DK Jr. / DK3 / Mario Bros family), it just references

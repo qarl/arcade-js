@@ -288,9 +288,10 @@ at 2× speed; over this 35-second run the largest single-frame difference is 0.1
   wrong, or the tracer is missing an entry point and the map is simply incomplete. Both are work;
   neither is a pass. Treating them as gaps hid 836 bytes of live code for two weeks.
 - **Thousands of unit tests** (`npm test`), with mutation patches recorded next to the
-  assertions they justify, so a test that cannot fail is visible as such. Each idiomatic rewrite
-  additionally carries a memory-equivalence test against the frozen oracle, with deliberately-broken
-  twins it must catch.
+  assertions they justify, so a test that cannot fail is visible as such. Almost every idiomatic
+  rewrite also carries its own memory-equivalence test against the frozen oracle, nearly always with
+  deliberately-broken twins it must catch; the routines without one are listed in
+  `tools/equivalence-debt.txt`.
 - **State and write diffs.** RAM and the hardware write surface are diffed independently of
   pixels, which separates "the CPU translation is wrong" from "the video model is wrong."
 
@@ -316,7 +317,7 @@ games/                one directory per romset, listed in games/registry.js (sta
     manifest.js       declares its cpu + board + rom set + inputs + metadata
     machine.js        wires the board to the ROM images and the routine layer
     translated/       the assembly-JS translation of the ROM (the frozen oracle)
-    idiomatic/        readable-JS rewrites, each gated memory-equivalent to the oracle
+    idiomatic/        readable-JS rewrites + their memory-equivalence gates vs the oracle
     gameplay.md       how the game is played (public research)
     mechanisms.md     how it works, grounded against MAME
     DONE.md           the done-audit
@@ -341,7 +342,7 @@ share `core/cpu/z80.js`, but each names its own board (`dkong`, `frogger`). The 
 wires that board's memory map and I/O to the ROM images and to the routine layer the manifest's
 `runtime` selects: `"idiomatic"` (the Runtime column above) dispatches every routine listed in
 `idiomatic/names.js` to its readable rewrite, while the faithful `translated/` layer stays as the
-frozen oracle each rewrite is gated memory-equivalent against — and is what runs, on the
+frozen oracle the equivalence gates compare the rewrites against — and is what runs, on the
 cycle-driven engine, when `runtime` is absent.
 A board is named for the **MAME machine config** it implements —
 usually identical to the driver file (`dkong`), but not always: The Pit runs the `thepit` config

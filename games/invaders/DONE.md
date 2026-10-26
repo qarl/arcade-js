@@ -92,3 +92,10 @@ gates are green under their own gates and re-verified; gameplay and all three co
 byte-exact vs MAME (kill/death ROM-produced, with teeth). The sole residual — the attract DEMO's sub-frame
 pixel-phase divergence past ~10-13s — is an inherent, honestly-documented §4 clock-free mid-ISR-phase limit on
 a demo-only cosmetic surface, not an open criterion. invaders is DONE at commit `ea63cc19`.
+
+## Correction — 2026-10-26
+
+**The idiomatic-equivalence row's "Every idiomatic routine equals the frozen oracle" is too strong.** Not every `ROUTINES` entry has an
+`equivalence-<addr>.test.js` of its own. The invaders entries without one are listed in
+`tools/equivalence-debt.txt`, which `tools/test/equivalence-coverage.test.js` holds so the list can only
+shrink. This note does not re-run or change the row's test result.

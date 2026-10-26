@@ -119,3 +119,10 @@ frame-130 mutation tooth**, confirming the `emitEnemySlotEntry` short-record dis
 honest, bounded, player-invisible, and correctly gated. **tempest is DONE at commit `0599e3e0`** (== HEAD ==
 `origin/main`). This `DONE.md` is unstaged working-tree; its commit will be cleared by an independent R40
 confirmer that re-runs this full audit.
+
+## Correction — 2026-10-26
+
+**The idiomatic-equivalence row's "Every idiomatic routine equals the frozen oracle" is too strong.** Not every `ROUTINES` entry has an
+`equivalence-<addr>.test.js` of its own. The tempest entries without one are listed in
+`tools/equivalence-debt.txt`, which `tools/test/equivalence-coverage.test.js` holds so the list can only
+shrink. This note does not re-run or change the row's test result.

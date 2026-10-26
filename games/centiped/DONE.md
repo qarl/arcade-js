@@ -93,3 +93,10 @@ idiomatic-equivalence, and browser boot are all green under their own gates and 
 `--done` gate PASSes all four sub-checks with verified fork-floor + completeness teeth; and the three named
 residues (attract clock-free fork, trackball input-model boundary, high-score initials-entry) are each honest,
 bounded, and player-invisible with the correct gating. centiped is DONE at commit `e3f923b8`.
+
+## Correction — 2026-10-26
+
+**The idiomatic-equivalence row's "Every idiomatic routine equals the frozen oracle" is too strong.** Not every `ROUTINES` entry has an
+`equivalence-<addr>.test.js` of its own. The centiped entries without one are listed in
+`tools/equivalence-debt.txt`, which `tools/test/equivalence-coverage.test.js` holds so the list can only
+shrink. This note does not re-run or change the row's test result.

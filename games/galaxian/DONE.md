@@ -87,3 +87,10 @@ reachability proof.
 Open, not decided in this correction: the `idiomatic_gate` exemption for register writes after `return`
 was found too loose; galaxian's count under the tightened rule is measured and with Jimmy-prime for
 decision.
+
+## Correction — 2026-10-26
+
+**The idiomatic-equivalence row's "Every idiomatic routine equals the frozen oracle" is too strong.** Not every `ROUTINES` entry has an
+`equivalence-<addr>.test.js` of its own. The galaxian entries without one are listed in
+`tools/equivalence-debt.txt`, which `tools/test/equivalence-coverage.test.js` holds so the list can only
+shrink. This note does not re-run or change the row's test result.

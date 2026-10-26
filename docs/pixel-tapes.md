@@ -1,7 +1,7 @@
 # Poke-tapes: pixel-validating the distant routines
 
 **This is a required step of the idiomatic layer, not an optional extra. Do it for every game.**
-Decompiling a game's routines and proving each memory-equivalent to the frozen oracle establishes that
+Decompiling a game's routines and proving them memory-equivalent to the frozen oracle establishes that
 the port's *logic* matches the lift — `[code]`. It does not establish that the port *renders* those
 routines the way the real machine does — `[seen]`. The [pixel gate](pixel-gate.md) supplies `[seen]`,
 but only for the states its tape actually reaches.
