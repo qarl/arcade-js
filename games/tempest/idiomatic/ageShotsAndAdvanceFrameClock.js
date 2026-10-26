@@ -40,22 +40,28 @@ import { initWaveStateCountingSpikes } from "./initWaveStateCountingSpikes.js";
  * (the clamped enemy budget), loc_10f / REDRAW_COUNTER, and the wave state re-seeded by the
  * called routines.
  *
+ * x and y are the X/Y the ROM enters with. Returns the exit [X, Y] the ROM leaves. X is loaded by the
+ * timer bump (loc_40), the shot age walk (run past 0, then reloaded from loc_3d) and the two callees (each
+ * leaves 0xff), so it is the last of those that ran, else the incoming x. Y is loaded only by the positive
+ * arm's shot scan: the index of the first shot past the threshold, or 0xff when the scan runs out; else
+ * the incoming y.
+ *
  * Grounding: [seen].
  */
-export function ageShotsAndAdvanceFrameClock(m) {
+export function ageShotsAndAdvanceFrameClock(m, x = m.regs.x, y = m.regs.y) {
   const { mem8 } = m;
 
   if (mem8[PLAYER_FINE_ANGLE] < 0x80) {
     // ----- positive arm -----
     // Bump the timer cell only when a gate is live and a limit is not yet reached.
     if ((mem8[loc_455] | mem8[PLAYER_SHAPE_SUM]) !== 0 && 0x17 < mem8[loc_42]) {
-      const x = mem8[loc_40];
+      x = mem8[loc_40];
       mem8[u8(GAME_MODE + x)] = u8(mem8[u8(GAME_MODE + x)] + 1);
     }
-    if (mem8[SPIKE_ACTIVE_FLAG] !== 0) return;
+    if (mem8[SPIKE_ACTIVE_FLAG] !== 0) return [x, y];
     if ((mem8[FIRE_GATE] | mem8[TIMED_OBJECT_COUNT]) === 0) {
       // Reset unless any live shot has already grown past the threshold.
-      let y = mem8[ENEMY_SLOT_TOP];
+      y = mem8[ENEMY_SLOT_TOP];
       let anyBig = false;
       for (;;) {
         const v = mem8[u16(ENEMY_DEPTH + y)];
@@ -63,19 +69,19 @@ export function ageShotsAndAdvanceFrameClock(m) {
         y = u8(y - 1);
         if (y >= 0x80) break;
       }
-      if (!anyBig) { initWaveStateCountingSpikes(m); clearActiveShots(m); }
+      if (!anyBig) { initWaveStateCountingSpikes(m); x = clearActiveShots(m); }
     }
-    if ((mem8[INPUT_DEBOUNCED] & 0x60) === 0) return;
-    if ((mem8[STATUS_FLAGS] & 0x80) === 0) return;
-    if ((mem8[DSW1_SNAPSHOT] & 0x43) !== 0x40) return;
-    initWaveStateCountingSpikes(m);
-    return;
+    if ((mem8[INPUT_DEBOUNCED] & 0x60) === 0) return [x, y];
+    if ((mem8[STATUS_FLAGS] & 0x80) === 0) return [x, y];
+    if ((mem8[DSW1_SNAPSHOT] & 0x43) !== 0x40) return [x, y];
+    x = initWaveStateCountingSpikes(m);
+    return [x, y];
   }
 
   // ----- negative arm -----
-  if ((mem8[ACTIVE_OBJECT_COUNT] | mem8[ACTIVE_ENEMY_COUNT] | mem8[TIMED_OBJECT_COUNT]) !== 0) return;
+  if ((mem8[ACTIVE_OBJECT_COUNT] | mem8[ACTIVE_ENEMY_COUNT] | mem8[TIMED_OBJECT_COUNT]) !== 0) return [x, y];
   // Age each live shot by a fixed step, snapping to zero at the ceiling.
-  for (let x = mem8[ENEMY_SLOT_TOP]; ; ) {
+  for (x = mem8[ENEMY_SLOT_TOP]; ; ) {
     const cur = mem8[u16(ENEMY_DEPTH + x)];
     if (cur !== 0) {
       const v = cur + 0x0f;
@@ -86,8 +92,8 @@ export function ageShotsAndAdvanceFrameClock(m) {
   }
 
   let proceed;
-  const idx = mem8[loc_3d];
-  if (mem8[u8(SLOT_COUNTDOWN + idx)] !== 0x01) {
+  x = mem8[loc_3d];
+  if (mem8[u8(SLOT_COUNTDOWN + x)] !== 0x01) {
     // Advance one counter; proceed once it crosses the ceiling.
     const v = mem8[PLAYER_SHOT_DEPTH] + 0x0f;
     mem8[PLAYER_SHOT_DEPTH] = u8(v);
@@ -102,10 +108,11 @@ export function ageShotsAndAdvanceFrameClock(m) {
     mem8[DEPTH_LO] = u8(hi);
     proceed = u8(hi) === 0xfa;
   }
-  if (!proceed) return;
+  if (!proceed) return [x, y];
 
   mem8[GAME_MODE] = 0x06;
-  clearActiveShots(m);
+  x = clearActiveShots(m);
   const sum = u8(mem8[ENEMY_TOTAL_COUNT] + mem8[ENEMY_TYPE_COUNT] + mem8[FIRE_GATE]);
   mem8[FIRE_GATE] = sum >= 0x3f ? 0x3f : sum;
+  return [x, y];
 }

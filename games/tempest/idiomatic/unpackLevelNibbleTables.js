@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-import { u16 } from "../../../core/int.js";
+import { u8, u16 } from "../../../core/int.js";
 import { LEVEL_GEOM_LO, LEVEL_GEOM_HI, loc_9f, COLOR_RAM, COLOR_RAM_8, LEVEL_LAYOUT_PACKED } from "./names.js";
 
 /**
@@ -20,7 +20,9 @@ import { LEVEL_GEOM_LO, LEVEL_GEOM_HI, loc_9f, COLOR_RAM, COLOR_RAM_8, LEVEL_LAY
  *
  * Live-out: the eight-entry low table loc_19..loc_20, the eight-entry high table loc_21..loc_28, and their
  * color-RAM mirrors at loc_800.. / loc_808.. — the working tube geometry consumed by the renderer.
- * Grounding: [seen].
+ *
+ * Returns the exit [X, Y] the ROM leaves: the read index after the eight-step walk, and Y = 0xff (the walk
+ * runs Y past 0). Grounding: [seen].
  */
 export function unpackLevelNibbleTables(m) {
   const { mem8 } = m;
@@ -41,4 +43,5 @@ export function unpackLevelNibbleTables(m) {
     mem8[u16(COLOR_RAM_8 + y)] = hi;
     x--;
   }
+  return [u8(x), 0xff];
 }

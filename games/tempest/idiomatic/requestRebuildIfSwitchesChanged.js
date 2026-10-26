@@ -23,18 +23,20 @@ import { switchesUnchangedReturn } from "./switchesUnchangedReturn.js";
  * same cached targets from.
  *
  * Live-out: on a mismatch, the pending-rebuild request bits raised by raiseRebuildRequestBits;
- * the snapshot cells refreshed by decodeOptionSwitches either way. Grounding: [seen].
+ * the snapshot cells refreshed by decodeOptionSwitches either way. Returns decodeOptionSwitches' exit [X, Y],
+ * which is the ROM's (neither tail loads X or Y). Grounding: [seen].
  */
 export function requestRebuildIfSwitchesChanged(m) {
   const { mem8 } = m;
   // Refresh the live snapshot cells from the hardware switch reads before comparing.
-  decodeOptionSwitches(m);
+  const exit = decodeOptionSwitches(m);
   // Match = both masked fields still equal their cached targets (top 5 bits of DSW2, low 2 of difficulty).
   const match =
     (mem8[DSW2_SNAPSHOT] & 0xf8) === mem8[INPUT_SNAPSHOT_HI] &&
     (mem8[DSW_DIFFICULTY] & 0x03) === mem8[INPUT_SNAPSHOT_LO];
   // Unchanged: shared no-op tail, no rebuild requested.
-  if (match) return switchesUnchangedReturn();
+  if (match) switchesUnchangedReturn();
   // Changed: raise the pending-rebuild request bits for the control-block rebuilder.
-  return raiseRebuildRequestBits(m);
+  else raiseRebuildRequestBits(m);
+  return exit;
 }

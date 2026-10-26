@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for tickEnemyPacingCountdown (ROM 0xc9af-0xc9f0) -- clears $04, decrements $48,x; when $48|$49 == 0 it
 // hands off to reloadPacingFromPeakSlot and returns, else it picks the next non-empty slot via the $3f toggle and arms the
-// $02/$00 timers. The idiomatic dissolves the m.call(0xc9f1) into a direct reloadPacingFromPeakSlot(m). Live-out is memory
-// only (A/X/Y at RTS differ per exit path, so incidental). A leaf: the module omits the ROM ret and the seam
+// $02/$00 timers. The idiomatic dissolves the m.call(0xc9f1) into a direct reloadPacingFromPeakSlot(m). Live-out is RAM
+// plus the exit [X, Y] it returns (it differs per exit path; the frame loop carries it to the sound loader's
+// stash), which the CRAFTED arms compare on both exit paths (the CAPTURE arm may capture none). A leaf: the module omits the ROM ret and the seam
 // completes it, so arms compare RAM (-stack), NOT pc/SP.
 // Run: node --test games/tempest/idiomatic/test/equivalence-c9af.test.js
 
@@ -42,7 +43,8 @@ const CAPS = ROM_PRESENT ? captureDispatches(16, 2000) : [];
 test("CAPTURE: real 0xc9af dispatches -- tickEnemyPacingCountdown == oracle in RAM (-stack)", () => {
   for (const cap of CAPS) {
     const o = cap.clone(), c = cap.clone();
-    oracle(o); tickEnemyPacingCountdown(c);
+    oracle(o); { c.regs.x ^= 0xff; c.regs.y ^= 0xff; // m.regs poisoned: this routine takes no entry X/Y, so its exit must not depend on them
+      assert.deepEqual(tickEnemyPacingCountdown(c), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
   }
   console.log(`  CAPTURE: ${CAPS.length} dispatch(es) checked`);
@@ -59,12 +61,32 @@ test("CRAFTED pick-slot: gate byte survives -> slot chosen, $02/$00 timers armed
   };
   const o = new Machine(ROM, OPTS); seed(o);
   const c = new Machine(ROM, OPTS); seed(c);
-  oracle(o); tickEnemyPacingCountdown(c);
+  oracle(o); c.regs.x ^= 0xff; c.regs.y ^= 0xff;
+  assert.deepEqual([o.regs.x, o.regs.y], [0x00, 0x06], "positive control: the oracle exits the pick-slot path");
+  assert.deepEqual(tickEnemyPacingCountdown(c), [o.regs.x, o.regs.y], "exit [X, Y]");
   assert.equal(ramDiff(o, c), null, "RAM equal on the pick-slot path");
   assert.equal(c.mem.read8(SLOT_COUNTDOWN), 0x02, "$48 decremented");
   assert.equal(c.mem.read8(GAME_MODE_PENDING), 0x02, "$02 timer = 0x02");
   assert.equal(c.mem.read8(GAME_MODE), 0x0a, "$00 timer = 0x0a");
   assert.equal(c.mem.read8(MODE_DELAY_TIMER), 0x00, "$04 cleared");
+});
+
+// The toggle moves the pick to slot 1, so the exit X (the picked slot) differs from the ticked slot loc_3d.
+test("CRAFTED pick-slot toggled: exit X is the toggled slot, not loc_3d", () => {
+  const seed = (m) => {
+    m.mem.write8(loc_3d, 0x00);
+    m.mem.write8(SLOT_COUNTDOWN, 0x03);
+    m.mem.write8(SLOT_COUNTDOWN_HI, 0x02); // slot 1 non-empty
+    m.mem.write8(ACTIVE_SLOT_COUNT, 0x01); // toggle on
+    m.mem.write8(LEVEL_ID, 0x00); // toggles to 1
+    m.mem.write8(loc_47, 0x05); // $46+1 -> Y = 6
+  };
+  const o = new Machine(ROM, OPTS); seed(o);
+  const c = new Machine(ROM, OPTS); seed(c);
+  oracle(o); c.regs.x ^= 0xff; c.regs.y ^= 0xff;
+  assert.deepEqual([o.regs.x, o.regs.y], [0x01, 0x06], "positive control: the oracle picks slot 1");
+  assert.deepEqual(tickEnemyPacingCountdown(c), [o.regs.x, o.regs.y], "exit [X, Y]");
+  assert.equal(ramDiff(o, c), null, "RAM equal on the toggled pick-slot path");
 });
 
 test("CRAFTED gate-zero: $48|$49 spent -> the dissolved reloadPacingFromPeakSlot hand-off runs", () => {
@@ -78,7 +100,9 @@ test("CRAFTED gate-zero: $48|$49 spent -> the dissolved reloadPacingFromPeakSlot
   };
   const o = new Machine(ROM, OPTS); seed(o);
   const c = new Machine(ROM, OPTS); seed(c);
-  oracle(o); tickEnemyPacingCountdown(c);
+  oracle(o); c.regs.x ^= 0xff; c.regs.y ^= 0xff;
+  assert.deepEqual([o.regs.x, o.regs.y], [0xff, 0x30], "positive control: the oracle exits through c9f1");
+  assert.deepEqual(tickEnemyPacingCountdown(c), [o.regs.x, o.regs.y], "exit [X, Y]");
   assert.equal(ramDiff(o, c), null, "RAM equal on the c9f1 hand-off path");
   assert.equal(c.mem.read8(WAVE_PEAK_SEED), 0x2f, "c9f1 wrote max-1 to $126");
 });

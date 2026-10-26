@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for seedModeParamsFromMaskedFlags (ROM 0xca18) -- masks $05 &= 0x3f, then lays a fixed init block:
-// $3e=0, $02=0x1a, $00=0x0a, $04=0xa0, $016b=0x01, $01=0x0a. Live-out is RAM only (A is store scratch no
-// caller reads), so every arm compares RAM (-stack). Pure leaf (no dispatch): the seam completes it by
+// $3e=0, $02=0x1a, $00=0x0a, $04=0xa0, $016b=0x01, $01=0x0a. Live-out is RAM plus the entry X/Y it hands back
+// as its exit pair (A is store scratch no caller reads), so every arm compares RAM (-stack) and the CAPTURE arm
+// also the returned pair. Pure leaf (no dispatch): the seam completes it by
 // omitting the ROM ret. No POKEY reads. Seeds set $05's high bits (must survive the mask only in their low
 // six) and pre-dirty the block so both the mask and the constant stores are observable.
 // Run: node --test games/tempest/idiomatic/test/equivalence-ca18.test.js
@@ -42,9 +43,14 @@ const CAPS = ROM_PRESENT ? captureDispatches(16, 2000) : [];
 test("CAPTURE: real 0xca18 dispatches -- seedModeParamsFromMaskedFlags == oracle in RAM (-stack)", () => {
   for (const cap of CAPS) {
     const o = cap.clone(), c = cap.clone();
-    oracle(o); seedModeParamsFromMaskedFlags(c);
+    oracle(o); { const ex = c.regs.x, ey = c.regs.y; c.regs.x ^= 0xff; c.regs.y ^= 0xff; // entry X/Y go in as arguments
+      assert.deepEqual(seedModeParamsFromMaskedFlags(c, ey, ex), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
+    // No-argument call on an unpoisoned clone: the parameter defaults must read Y and X from the right registers.
+    assert.ok(cap.regs.x !== cap.regs.y && cap.regs.x !== 0 && cap.regs.y !== 0, "positive control: entry X/Y distinct and nonzero, so a zero or swapped default shows");
+    assert.deepEqual(seedModeParamsFromMaskedFlags(cap.clone()), [o.regs.x, o.regs.y], "no-argument call: defaults read the entry Y/X");
   }
+  assert.ok(CAPS.length > 0, "no capture to check the defaults on");
   console.log(`  CAPTURE: ${CAPS.length} dispatch(es) checked`);
 });
 

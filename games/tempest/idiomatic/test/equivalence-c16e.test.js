@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for buildLevelLayout (ROM 0xc16e-0xc1c2) -- a CALLER that dissolves jsr $aa13 and jsr $c235
 // into direct idiomatic calls, then primes flags and unpacks a clamped $c1fd table entry into the four
-// per-column arrays. Effect is memory only, so each arm compares RAM (dumpState minus STACK_SCRATCH). The
+// per-column arrays. Live-out is RAM plus the exit [X, Y] it returns (table index, 0xff), so each arm compares RAM
+// (dumpState minus STACK_SCRATCH) and the CAPTURE arm also the returned pair. The
 // sub-calls can read POKEY random on some states, so CRAFTED runs both arms on clones of one seeded base
 // (poly-frozen); CAPTURE clones each real dispatch. Caller: the module omits the ROM ret, seam completes it.
 // Run: node --test games/tempest/idiomatic/test/equivalence-c16e.test.js
@@ -42,7 +43,8 @@ const CAPS = ROM_PRESENT ? captureDispatches(16, 3000) : [];
 test("CAPTURE: real 0xc16e dispatches -- buildLevelLayout == oracle in RAM (-stack)", () => {
   for (const cap of CAPS) {
     const o = cap.clone(), c = cap.clone();
-    oracle(o); buildLevelLayout(c);
+    oracle(o); { c.regs.x ^= 0xff; c.regs.y ^= 0xff; // m.regs poisoned: this routine takes no entry X/Y, so its exit must not depend on them
+      assert.deepEqual(buildLevelLayout(c), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
   }
   console.log(`  CAPTURE: ${CAPS.length} dispatch(es) checked`);

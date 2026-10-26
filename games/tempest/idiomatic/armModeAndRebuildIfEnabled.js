@@ -18,15 +18,18 @@ import { rebuildControlBlocksFromTemplate } from "./rebuildControlBlocksFromTemp
  * only when its low two bits show a queued request does it call rebuildControlBlocksFromTemplate.
  *
  * Live-out: $5 = 0, $1 = 0x02, and (when it does not bail) $0 = 0x00; on the full path the control blocks
- * are rebuilt. Grounding: [seen].
+ * are rebuilt.
+ *
+ * y and x are the Y and X the ROM enters with. Returns the exit [X, Y] the ROM leaves: the rebuild's when
+ * it runs, else the incoming x and y (nothing else here loads either). Grounding: [seen].
  */
-export function armModeAndRebuildIfEnabled(m) {
+export function armModeAndRebuildIfEnabled(m, y = m.regs.y, x = m.regs.x) {
   const { mem8 } = m;
   mem8[STATUS_FLAGS] = 0x00;         // clear status/flags
   mem8[MODE_DISPATCH_SEL] = 0x02;    // arm the dispatch selector
-  if (mem8[EAROM_MODE] !== 0) return;         // EAROM busy -> bail
-  if ((mem8[IN0_PORT] & 0x10) === 0) return;  // feature disabled -> bail
+  if (mem8[EAROM_MODE] !== 0) return [x, y];         // EAROM busy -> bail
+  if ((mem8[IN0_PORT] & 0x10) === 0) return [x, y];  // feature disabled -> bail
   mem8[GAME_MODE] = 0x00;                      // idle mode
-  if ((mem8[PENDING_WORK_FLAGS] & 0x03) === 0) return; // nothing queued -> bail
-  rebuildControlBlocksFromTemplate(m);
+  if ((mem8[PENDING_WORK_FLAGS] & 0x03) === 0) return [x, y]; // nothing queued -> bail
+  return rebuildControlBlocksFromTemplate(m);
 }

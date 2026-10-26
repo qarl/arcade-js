@@ -2,8 +2,8 @@
 // Memory-equivalence for stepActiveShots (ROM 0xa18f-0xa1e3) -- loops every slot 0x0b..0: slots 8+ integrate a
 // 16-bit velocity into their position pair (and clear past the edge, via jsr $a1e4), slots below 8 step a
 // counter and advance it (via jsr $a1fa), clearing at the far limit. The idiomatic side dissolves both
-// jsrs into direct calls (consuming advanceShotAndScoreLaneHit's returned slot index). Live-out is memory only, so each arm
-// compares RAM (dumpState minus STACK_SCRATCH). Run: node --test games/tempest/idiomatic/test/equivalence-a18f.test.js
+// jsrs into direct calls (consuming advanceShotAndScoreLaneHit's returned exit pair). Live-out is RAM plus the exit [X, Y]
+// it returns, so the CAPTURE and CRAFTED arms compare RAM (dumpState minus STACK_SCRATCH) and the returned pair. Run: node --test games/tempest/idiomatic/test/equivalence-a18f.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
@@ -41,7 +41,8 @@ const CAPS = ROM_PRESENT ? captureDispatches(16, 2000) : [];
 test("CAPTURE: real 0xa18f dispatches -- stepActiveShots == oracle in RAM (-stack)", () => {
   for (const cap of CAPS) {
     const o = cap.clone(), c = cap.clone();
-    oracle(o); stepActiveShots(c);
+    oracle(o); { const ey = c.regs.y; c.regs.x ^= 0xff; c.regs.y ^= 0xff; // entry Y goes in as the argument; the routine takes no entry X
+      assert.deepEqual(stepActiveShots(c, ey), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
   }
   console.log(`  CAPTURE: ${CAPS.length} dispatch(es) checked`);
@@ -71,7 +72,8 @@ function seed(m) {
 test("CRAFTED: all four branches (both dissolves) -- RAM equal to the oracle", () => {
   const o = new Machine(ROM, OPTS); seed(o);
   const c = new Machine(ROM, OPTS); seed(c);
-  oracle(o); stepActiveShots(c);
+  o.regs.y = 0x5a; c.regs.y = 0xa5;
+  oracle(o); assert.deepEqual(stepActiveShots(c, 0x5a), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's");
   assert.equal(ramDiff(o, c), null, "RAM equal after the full slot sweep");
   assert.equal(c.mem.read8(SLOT_STATE + 0x0a), 0x12, "carry propagated into the high byte");
   assert.equal(c.mem.read8(loc_2e6 + 0x0a), 0x20, "low byte wrapped");

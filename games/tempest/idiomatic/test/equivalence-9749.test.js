@@ -3,7 +3,8 @@
 // derives a delta (table scan when $05 bit7 is clear; a clamped $50 when set), folds it through $2b/$2c/$2a,
 // rings the sound gate on a changed $2a, and commits $2a/$2b/$2c to $0200/$0201/$51. The idiomatic side
 // dissolves jsr 97c5 (delta in A) and jsr ccb5 (X = $0111, Y = entry Y) into direct idiomatic calls.
-// Live-out is memory only, so each arm compares RAM (dumpState minus STACK_SCRATCH).
+// Live-out is RAM plus the exit [X, Y] the routine returns. Each arm compares RAM (dumpState minus STACK_SCRATCH),
+// and the CAPTURE arm and the register-path arms also compare the returned X/Y with the oracle's.
 // Run: node --test games/tempest/idiomatic/test/equivalence-9749.test.js
 
 import nodeTest from "node:test";
@@ -14,7 +15,7 @@ import { loc_9749 as oracle } from "../../translated/loc_9749.js";
 import { rotateBlasterAroundRim } from "../rotateBlasterAroundRim.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, STATUS_FLAGS, SPINNER_ACCUM, RIM_ROT_OFFSET, loc_2a, loc_2b, COORD_LIST_PTR_LO, TUBE_GEOM_FLAG, PLAYER_SEGMENT, PLAYER_FINE_ANGLE, loc_31, loc_32 } from "../names.js";
+import { STACK_SCRATCH, STATUS_FLAGS, SPINNER_ACCUM, RIM_ROT_OFFSET, loc_2a, loc_2b, COORD_LIST_PTR_LO, TUBE_GEOM_FLAG, PLAYER_SEGMENT, PLAYER_FINE_ANGLE, loc_31, loc_32, ENEMY_SLOT_TOP, ENEMY_DEPTH, ENEMY_SEGMENT } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -42,8 +43,12 @@ const CAPS = ROM_PRESENT ? captureDispatches(16, 4000) : [];
 test("CAPTURE: real 0x9749 dispatches -- rotateBlasterAroundRim == oracle in RAM (-stack)", () => {
   for (const cap of CAPS) {
     const o = cap.clone(), c = cap.clone();
-    oracle(o); rotateBlasterAroundRim(c);
+    const ex = c.regs.x, ey = c.regs.y;
+    c.regs.x ^= 0xff; c.regs.y ^= 0xff; // the entry registers go in as arguments, never through the file
+    oracle(o); const [x, y] = rotateBlasterAroundRim(c, ey, ex);
     assert.equal(ramDiff(o, c), null);
+    assert.equal(y, o.regs.y, "returned exit Y = the oracle's Y");
+    assert.equal(x, o.regs.x, "returned exit X = the oracle's X");
   }
   console.log(`  CAPTURE: ${CAPS.length} dispatch(es) checked`);
 });
@@ -68,6 +73,51 @@ test("CRAFTED: $05 bit7 CLEAR -- delta comes from the table scan (97c5 path)", (
   const c = new Machine(ROM, OPTS); seed(c);
   oracle(o); rotateBlasterAroundRim(c);
   assert.equal(ramDiff(o, c), null, "RAM equal on the scan path");
+});
+
+test("CRAFTED: scan path with a target found -- the delta left in Y is the returned exit Y", () => {
+  const seed = (m) => {
+    m.mem.write8(PLAYER_FINE_ANGLE, 0x00);
+    m.mem.write8(STATUS_FLAGS, 0x00);     // bit7 clear -> scan path
+    m.mem.write8(RIM_ROT_OFFSET, 0x12);
+    m.mem.write8(TUBE_GEOM_FLAG, 0x00);
+    m.mem.write8(ENEMY_SLOT_TOP, 0x04);
+    for (let i = 0; i <= 4; i++) m.mem.write8((ENEMY_DEPTH + i) & 0xffff, 0x00);
+    m.mem.write8((ENEMY_DEPTH + 2) & 0xffff, 0x03); // one target, two lanes from the player
+    m.mem.write8((ENEMY_SEGMENT + 2) & 0xffff, 0x06);
+    m.mem.write8(PLAYER_SEGMENT, 0x04);
+    m.regs.y = 0x5a;
+  };
+  const o = new Machine(ROM, OPTS); seed(o);
+  const c = new Machine(ROM, OPTS); seed(c);
+  oracle(o); const [x, y] = rotateBlasterAroundRim(c, 0x5a);
+  assert.equal(ramDiff(o, c), null, "RAM equal on the found-target scan path");
+  assert.notEqual(o.regs.y, 0x5a, "positive control: the oracle's scan reloaded Y");
+  assert.equal(y, o.regs.y, "returned exit Y = the oracle's Y");
+  assert.equal(x, o.regs.x, "returned exit X = the oracle's X (TUBE_GEOM_FLAG)");
+});
+
+// The aim can find a target in the player's own lane: the signed delta is then 0, which the ROM still moves
+// through Y (tay), so the exit Y is 0 and not the incoming Y. A truthiness test on the delta would lose it.
+test("CRAFTED: scan path with a zero-delta target -- the exit Y is 0, not the incoming Y", () => {
+  const seed = (m) => {
+    m.mem.write8(PLAYER_FINE_ANGLE, 0x00);
+    m.mem.write8(STATUS_FLAGS, 0x00);     // bit7 clear -> scan path
+    m.mem.write8(RIM_ROT_OFFSET, 0x12);
+    m.mem.write8(TUBE_GEOM_FLAG, 0x00);
+    m.mem.write8(ENEMY_SLOT_TOP, 0x04);
+    for (let i = 0; i <= 4; i++) m.mem.write8((ENEMY_DEPTH + i) & 0xffff, 0x00);
+    m.mem.write8((ENEMY_DEPTH + 2) & 0xffff, 0x03); // one target, in the player's lane
+    m.mem.write8((ENEMY_SEGMENT + 2) & 0xffff, 0x04);
+    m.mem.write8(PLAYER_SEGMENT, 0x04);
+    m.regs.y = 0x5a;
+  };
+  const o = new Machine(ROM, OPTS); seed(o);
+  const c = new Machine(ROM, OPTS); seed(c); c.regs.y = 0xa5;
+  oracle(o); const [, y] = rotateBlasterAroundRim(c, 0x5a);
+  assert.equal(o.regs.y, 0x00, "positive control: the oracle's zero-delta scan left Y = 0");
+  assert.equal(y, o.regs.y, "returned exit Y = the oracle's Y");
+  assert.equal(ramDiff(o, c), null, "RAM equal on the zero-delta scan path");
 });
 
 test("CRAFTED: $05 bit7 SET, $50 positive >=0x1f -- capped to 0x1f then $50 consumed", () => {
@@ -142,6 +192,28 @@ test("CRAFTED: ccb5 active -- $05 bit7 SET + $2a != $0200 opens the gate; $31/$3
   assert.equal(c.mem.read8(loc_32), 0x5a, "$32 = entry Y seated by the open sound gate");
   assert.equal(o.mem.read8(loc_31), 0x07, "oracle agrees $31 seated");
   assert.equal(o.mem.read8(loc_32), 0x5a, "oracle agrees $32 seated");
+});
+
+test("STALE-Y: ccb5 path with Y passed explicitly and m.regs.y poisoned on the idiomatic side -- RAM equal", () => {
+  const seedCcb5 = (m) => { seedNested(m); m.regs.y = 0x5a; };
+  const o = new Machine(ROM, OPTS); seedCcb5(o);
+  const c = new Machine(ROM, OPTS); seedCcb5(c);
+  c.regs.y = 0xa5; // a stale register must not reach the sound loader's loc_32 stash
+  oracle(o); rotateBlasterAroundRim(c, 0x5a);
+  assert.equal(ramDiff(o, c), null, "RAM equal with the register poisoned");
+});
+
+test("STALE-Y-LOCKED: locked early return hands back the passed Y, not a poisoned register", () => {
+  const seed = (m) => { m.mem.write8(PLAYER_FINE_ANGLE, 0x81); };
+  const o = new Machine(ROM, OPTS); seed(o); o.regs.y = 0x5a; o.regs.x = 0x3c;
+  const c = new Machine(ROM, OPTS); seed(c); c.regs.y = 0xa5; c.regs.x = 0xc3; // stale registers on the idiomatic side
+  oracle(o); const [x, y] = rotateBlasterAroundRim(c, 0x5a, 0x3c);
+  assert.equal(o.regs.y, 0x5a, "positive control: the oracle's locked exit left Y untouched");
+  assert.equal(o.regs.x, 0x3c, "positive control: the oracle's locked exit left X untouched");
+  assert.equal(o.mem.read8(PLAYER_FINE_ANGLE), 0x81, "positive control: the oracle took the locked early return");
+  assert.equal(ramDiff(o, c), null, "RAM equal on the locked early return");
+  assert.equal(y, o.regs.y, "returned exit Y = the oracle's Y");
+  assert.equal(x, o.regs.x, "returned exit X = the oracle's X");
 });
 
 test("TEETH: a twin that skips the ccb5 gate diverges from the oracle", () => {

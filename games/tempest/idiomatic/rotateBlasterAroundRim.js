@@ -28,11 +28,16 @@ import { cueRimRotationSound } from "./cueRimRotationSound.js";
  *
  * Live-out: PLAYER_SEGMENT ($200) new lane, PLAYER_FINE_ANGLE ($201) new fine angle, RIM_ROT_OFFSET ($51)
  * carried offset; scratch loc_2a/loc_2b ($2a/$2b) and COORD_LIST_PTR_LO ($2c) left as working residue;
- * SPINNER_ACCUM ($50) consumed to 0 on the manual path. Grounding: [seen].
+ * SPINNER_ACCUM ($50) consumed to 0 on the manual path. Returns the exit [X, Y] the ROM leaves. Y is the
+ * auto-aim's segment delta when the aim found a target, else the incoming y untouched. X is TUBE_GEOM_FLAG,
+ * which the ROM loads for the end-of-rim test, when the rotation ran, else the incoming x untouched. The rim
+ * sound's loader stashes the incoming y in loc_32 on the manual path. On the aim path the cue is muted, and
+ * the caller carries the returned Y on to the next pass.
+ * Grounding: [seen].
  */
-export function rotateBlasterAroundRim(m, y = m.regs.y) {
+export function rotateBlasterAroundRim(m, y = m.regs.y, x = m.regs.x) {
   const { mem8 } = m;
-  if (mem8[PLAYER_FINE_ANGLE] & 0x80) return; // rotation pending/locked -- do nothing this frame
+  if (mem8[PLAYER_FINE_ANGLE] & 0x80) return [x, y]; // rotation pending/locked -- do nothing this frame
 
   let a;
   if (mem8[STATUS_FLAGS] & 0x80) {
@@ -44,7 +49,9 @@ export function rotateBlasterAroundRim(m, y = m.regs.y) {
     }
     mem8[SPINNER_ACCUM] = 0x00;           // consume the raw reading
   } else {
-    a = aimSpinnerAtNearestEnemy(m);           // aim mode: auto-aim delta toward nearest enemy
+    let yAim;
+    [a, yAim] = aimSpinnerAtNearestEnemy(m);   // aim mode: auto-aim delta toward nearest enemy
+    if (yAim !== undefined) y = yAim;          // a found target leaves its segment delta in Y
   }
 
   mem8[loc_2b] = a;                            // stash the chosen delta for the sign-flip test below
@@ -68,4 +75,5 @@ export function rotateBlasterAroundRim(m, y = m.regs.y) {
   mem8[PLAYER_SEGMENT] = mem8[loc_2a];         // commit coarse lane
   mem8[PLAYER_FINE_ANGLE] = mem8[loc_2b];      // commit fine angle
   mem8[RIM_ROT_OFFSET] = mem8[COORD_LIST_PTR_LO]; // carry the offset to next frame
+  return [mem8[TUBE_GEOM_FLAG], y];
 }

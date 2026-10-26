@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for clearActiveShots (ROM 0x928f) -- zeros $2d3..$2de then clears $135 and $a6. Live-out is
-// RAM only (A/X are loop scratch no caller reads), so every arm compares RAM (-stack). Pure leaf (no
+// RAM plus the exit X it returns (0xff; ageShotsAndAdvanceFrameClock hands it on), so every arm compares RAM
+// (-stack) and the CAPTURE arm also the exit X. Pure leaf (no
 // dispatch): the seam completes it by omitting the ROM ret. No POKEY reads. Seeds pre-dirty the cells so
 // the clear (and its absence in the mutant) is observable.
 // Run: node --test games/tempest/idiomatic/test/equivalence-928f.test.js
@@ -41,7 +42,8 @@ const CAPS = ROM_PRESENT ? captureDispatches(16, 2000) : [];
 test("CAPTURE: real 0x928f dispatches -- clearActiveShots == oracle in RAM (-stack)", () => {
   for (const cap of CAPS) {
     const o = cap.clone(), c = cap.clone();
-    oracle(o); clearActiveShots(c);
+    oracle(o); { const ey = c.regs.y; c.regs.x ^= 0xff; c.regs.y ^= 0xff; // takes no entry X/Y; returns X and leaves Y alone, so the exit is [X, entry Y]
+      assert.deepEqual([clearActiveShots(c), ey], [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
   }
   console.log(`  CAPTURE: ${CAPS.length} dispatch(es) checked`);

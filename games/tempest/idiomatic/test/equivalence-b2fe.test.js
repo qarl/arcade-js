@@ -2,7 +2,8 @@
 // Memory-equivalence for closeLayerPointer (ROM 0xb2fe-0xb331) -- emits a header record (emitRecordBodyC0), sets the
 // $3b/$3c pointer and toggles a per-slot parity flag, then writes the two-byte word chosen by the new
 // parity through that pointer. The idiomatic side dissolves the jsr $df09 into a direct emitRecordBodyC0(m)
-// call. Live-out is memory only, so each arm compares RAM (dumpState minus STACK_SCRATCH).
+// call. Live-out is RAM plus the exit [X, Y] it returns (the buffer word's high byte, 1), so each arm compares
+// RAM (dumpState minus STACK_SCRATCH) and the CAPTURE arm also compares the returned pair.
 // Run: node --test games/tempest/idiomatic/test/equivalence-b2fe.test.js
 
 import nodeTest from "node:test";
@@ -41,7 +42,8 @@ const CAPS = ROM_PRESENT ? captureDispatches(16, 2000) : [];
 test("CAPTURE: real 0xb2fe dispatches -- closeLayerPointer == oracle in RAM (-stack)", () => {
   for (const cap of CAPS) {
     const o = cap.clone(), c = cap.clone();
-    oracle(o); closeLayerPointer(c);
+    oracle(o); { c.regs.x ^= 0xff; c.regs.y ^= 0xff; // m.regs poisoned: this routine takes no entry X/Y, so its exit must not depend on them
+      assert.deepEqual(closeLayerPointer(c), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
   }
   console.log(`  CAPTURE: ${CAPS.length} dispatch(es) checked`);

@@ -26,7 +26,9 @@ import { spawnEnemyOnTimerExpiry } from "./spawnEnemyOnTimerExpiry.js";
  *
  * Live-out: the aged OBJECT_RECORD_TABLE timers, the freeze gate loc_2f, advanced OBJECT_INDEX_TABLE lane
  * indices, the rebuilt mask in SPIKE_LANE_MASK_ACC and its published copy SPIKE_LANE_MASK_OUT, plus any
- * state spawnEnemyOnTimerExpiry writes. Grounding: [seen].
+ * state spawnEnemyOnTimerExpiry writes. Returns the exit X, 0xff: the ROM counts X down through the
+ * slots and leaves it past 0, and runPerFrameUpdates hands that X to runObjectMotionScripts.
+ * Grounding: [seen].
  */
 export function tickSpawnSlotTimers(m) {
   const { mem8 } = m;
@@ -72,4 +74,5 @@ export function tickSpawnSlotTimers(m) {
 
   // Publish the rebuilt spike-lane mask for the rest of the frame.
   mem8[SPIKE_LANE_MASK_OUT] = mem8[SPIKE_LANE_MASK_ACC];
+  return 0xff; // the exit X: the slot scan runs X past 0
 }

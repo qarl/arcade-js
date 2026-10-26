@@ -49,7 +49,8 @@ const seed = (m) => {
 test("CAPTURE: real 0xc9f1 dispatches -- reloadPacingFromPeakSlot == oracle in RAM (-stack)", () => {
   for (const cap of CAPS) {
     const o = cap.clone(), c = cap.clone();
-    oracle(o); reloadPacingFromPeakSlot(c);
+    oracle(o); { c.regs.x ^= 0xff; c.regs.y ^= 0xff; // m.regs poisoned: this routine takes no entry X/Y, so its exit must not depend on them
+      assert.deepEqual(reloadPacingFromPeakSlot(c), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
   }
   console.log(`  CAPTURE: ${CAPS.length} dispatch(es) checked`);

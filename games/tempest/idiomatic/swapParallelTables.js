@@ -15,15 +15,19 @@ import { SWEEP_STAGE, loc_3bc } from "./names.js";
  * loc_3bc entry into temporaries and write each back into the other table's slot. A plain paired swap
  * across the whole width.
  *
- * Live-out: both 18-entry tables at SWEEP_STAGE and loc_3bc, with their contents exchanged. Grounding: [seen].
+ * Live-out: both 18-entry tables at SWEEP_STAGE and loc_3bc, with their contents exchanged.
+ *
+ * Returns the exit [X, Y] the ROM leaves: X = 0xff (the walk runs X past 0) and Y = slot 0's old loc_3bc
+ * byte (the last value swapped through Y). Grounding: [seen].
  */
 export function swapParallelTables(m) {
   const { mem8 } = m;
+  let hi = 0;
   for (let x = 0x11; x >= 0; x--) { // 18 slots, high index down to 0
     const lo = mem8[u16(SWEEP_STAGE + x)]; // hold this slot's SWEEP_STAGE value
-    const hi = mem8[u16(loc_3bc + x)]; // hold this slot's loc_3bc value
+    hi = mem8[u16(loc_3bc + x)]; // hold this slot's loc_3bc value
     mem8[u16(loc_3bc + x)] = lo; // loc_3bc <- SWEEP_STAGE
     mem8[u16(SWEEP_STAGE + x)] = hi; // SWEEP_STAGE <- loc_3bc
   }
-  return;
+  return [0xff, hi];
 }

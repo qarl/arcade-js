@@ -2,9 +2,9 @@
 // Memory-equivalence for resetLevelPlayfieldSlots (ROM 0xc90c-0xc93f) -- the per-slot state reset. It runs rebuildControlBlocksIfRequested and
 // buildLevelLayout (and clearChannelStagingBlock when STATUS_FLAGS is negative), clears SLOT_COUNTDOWN_HI, seeds every slot from ACTIVE_SLOT_COUNT down to 0
 // (SLOT_COUNTDOWN,slot = DSW_BONUS_CONFIG; PLAYER_LEVEL_TBL,slot = 0xff), clears LEVEL_ID and SPIKE_TABLE_GUARD, reloads loc_3d from ACTIVE_SLOT_COUNT, then
-// TAIL-DELEGATES to selectWaveStartSlot. Contract is RAM-equivalence (dumpState minus STACK_SCRATCH); no register is
-// compared -- resetLevelPlayfieldSlots takes no live-in register and tail-jmps selectWaveStartSlot, so its exit registers are the
-// delegate's (both layers run the identical selectWaveStartSlot from the identical clone, so RAM equality suffices).
+// TAIL-DELEGATES to selectWaveStartSlot. Contract is RAM-equivalence (dumpState minus STACK_SCRATCH) plus the exit [X, Y]
+// it returns -- resetLevelPlayfieldSlots takes no live-in register and tail-jmps selectWaveStartSlot, so its exit registers are the
+// delegate's, which the CAPTURE arm compares with the oracle's.
 // Oracle is the frozen translated resetLevelPlayfieldSlots.
 // Run: node --test games/tempest/idiomatic/test/equivalence-c90c.test.js
 
@@ -51,7 +51,8 @@ test("CAPTURE: real 0xc90c dispatches -- resetLevelPlayfieldSlots == oracle in R
     let threw = false;
     try { oracle(o); } catch { threw = true; } // a real dispatch may reach an unimplemented callee arm
     if (threw) continue; // both layers would throw identically there; nothing to compare
-    resetLevelPlayfieldSlots(c);
+    { c.regs.x ^= 0xff; c.regs.y ^= 0xff; // m.regs poisoned: this routine takes no entry X/Y, so its exit must not depend on them
+      assert.deepEqual(resetLevelPlayfieldSlots(c), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
     checked++;
   }

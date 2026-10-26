@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for stepSpikeTableCollapse (ROM 0xa7d2-0xa830) -- remap the 8-entry $03fe table against the $0115
 // reference, OR-folding the results into $29; if every entry becomes zero, $0115 is cleared. No-op when
-// $0115 starts zero. Live-out is RAM only (A/X/Y are loop scratch), so each side runs on a clone and the
-// contract is RAM (dumpState, minus STACK_SCRATCH). A leaf: the module omits the ROM ret and the seam
-// completes it, so the arms compare RAM (-stack), NOT pc/SP.
+// $0115 starts zero. Each side runs on a clone and the contract is RAM (dumpState, minus STACK_SCRATCH)
+// plus the returned exit Y, which dispatchFramePhaseHandler hands to the mode handler. A leaf: the module
+// omits the ROM ret and the seam completes it, so the arms compare RAM (-stack) and Y, NOT pc/SP.
 // Run: node --test games/tempest/idiomatic/test/equivalence-a7d2.test.js
 
 import nodeTest from "node:test";
@@ -48,8 +48,9 @@ const seedTable = (m, ref, vals) => {
 test("CAPTURE: real 0xa7d2 dispatches -- stepSpikeTableCollapse == oracle in RAM (-stack)", () => {
   for (const cap of CAPS) {
     const o = cap.clone(), c = cap.clone();
-    oracle(o); stepSpikeTableCollapse(c);
+    oracle(o); const y = stepSpikeTableCollapse(c, c.regs.y);
     assert.equal(ramDiff(o, c), null);
+    assert.equal(y, o.regs.y, "returned exit Y = the oracle's Y");
   }
   console.log(`  CAPTURE: ${CAPS.length} dispatch(es) checked`);
 });
@@ -58,7 +59,7 @@ test("CRAFTED: negative reference -- shrink/rail/neighbour mix leaves a nonzero 
   const vals = [0x30, 0x00, 0x50, 0x05, 0x00, 0xe0, 0x10, 0x00];
   const o = new Machine(ROM, OPTS); seedTable(o, 0x80, vals);
   const c = new Machine(ROM, OPTS); seedTable(c, 0x80, vals);
-  oracle(o); stepSpikeTableCollapse(c);
+  oracle(o); assert.equal(stepSpikeTableCollapse(c, c.regs.y), o.regs.y, "returned exit Y = the oracle's Y");
   assert.equal(ramDiff(o, c), null, "RAM equal after remap");
   assert.equal(c.mem.read8(SLOT_LOOP_INDEX), 0xff, "$37 loop counter ran to 0xff");
   assert.equal(c.mem.read8(SPIKE_TABLE_GUARD), 0x80, "$0115 kept (fold was nonzero)");
@@ -68,17 +69,27 @@ test("CRAFTED: positive reference, all mid entries -> every result 0 -> $0115 cl
   const vals = [0x03, 0x05, 0x02, 0x06, 0x04, 0x01, 0x07, 0x03];
   const o = new Machine(ROM, OPTS); seedTable(o, 0x40, vals);
   const c = new Machine(ROM, OPTS); seedTable(c, 0x40, vals);
-  oracle(o); stepSpikeTableCollapse(c);
+  oracle(o); assert.equal(stepSpikeTableCollapse(c, c.regs.y), o.regs.y, "returned exit Y = the oracle's Y");
   assert.equal(ramDiff(o, c), null, "RAM equal after remap");
   assert.equal(c.mem.read8(loc_29), 0x00, "fold is zero");
   assert.equal(c.mem.read8(SPIKE_TABLE_GUARD), 0x00, "$0115 cleared");
+});
+
+test("CRAFTED: positive reference, empty lowest slot -> exit Y = the guard (0x40), not the entry Y", () => {
+  const vals = [0x00, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40];
+  const o = new Machine(ROM, OPTS); seedTable(o, 0x40, vals); o.regs.y = 0x5a;
+  const c = new Machine(ROM, OPTS); seedTable(c, 0x40, vals); c.regs.y = 0x33; // poisoned
+  oracle(o);
+  assert.equal(o.regs.y, 0x40, "control: the oracle loaded the guard into Y on the empty slot");
+  assert.equal(stepSpikeTableCollapse(c, 0x5a), 0x40, "returned exit Y = the oracle's Y");
+  assert.equal(ramDiff(o, c), null, "RAM equal after remap");
 });
 
 test("CRAFTED: zero reference is a no-op (RAM untouched)", () => {
   const vals = [0x30, 0x11, 0x50, 0x05, 0x22, 0xe0, 0x10, 0x77];
   const o = new Machine(ROM, OPTS); seedTable(o, 0x00, vals);
   const c = new Machine(ROM, OPTS); seedTable(c, 0x00, vals);
-  oracle(o); stepSpikeTableCollapse(c);
+  oracle(o); assert.equal(stepSpikeTableCollapse(c, c.regs.y), o.regs.y, "returned exit Y = the oracle's Y");
   assert.equal(ramDiff(o, c), null, "RAM equal (both no-op)");
   assert.equal(c.mem.read8(loc_29), 0x33, "accumulator untouched");
 });

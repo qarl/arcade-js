@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for tickWaveSpawnCadence (ROM 0x9149, second entry of selectWaveStartSlot.js) vs the
-// frozen loc_9149, whole path to its rts. Contract: RAM minus STACK_SCRATCH. No register live-out: the only
-// return site is c7bd's rts-dispatch back into the frame loop at 0xc7b3, whose next jsr (c891) loads A/Y and
-// sets C/V/N/Z before reading them; X is only saved/restored there (ccc7 via $31/$32). D: loc_9149 cld's only
+// frozen loc_9149, whole path to its rts. Contract: RAM minus STACK_SCRATCH, plus the exit [X, Y] it returns
+// (compared on the CAPTURE and STALE-REGS arms). Its only return site is c7bd's rts-dispatch back into the frame
+// loop at 0xc7b3, whose next jsr (c891) may hand X and Y to the sound loader (ccc7 stashes them in $31/$32). D: loc_9149 cld's only
 // on its tick path, and D is set only by c891's $016c checksum trap. POKEY RANDOM is frozen on both sides.
 // Run: node --test games/tempest/idiomatic/test/equivalence-9149.test.js
 
@@ -16,7 +16,7 @@ import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import {
   STACK_SCRATCH, GAME_MODE, MODE_DELAY_TIMER, STATUS_FLAGS, loc_3d, INPUT_EDGE_FLAGS, PLAYER_SEGMENT, PASS_COUNTER,
-  loc_102, DEPTH_CEILING, SPINNER_ACCUM, RIM_ROT_OFFSET, loc_9f, POKEY1_RANDOM,
+  loc_102, DEPTH_CEILING, SPINNER_ACCUM, RIM_ROT_OFFSET, loc_9f, POKEY1_RANDOM, loc_31, loc_32,
 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -82,7 +82,8 @@ test("CAPTURE: real 0x9149 dispatches -- tickWaveSpawnCadence == oracle in RAM (
     let threw = false;
     try { oracle(o); } catch { threw = true; }
     if (threw) continue;
-    tickWaveSpawnCadence(c);
+    { const ex = c.regs.x, ey = c.regs.y; c.regs.x ^= 0xff; c.regs.y ^= 0xff; // entry X/Y go in as arguments
+      assert.deepEqual(tickWaveSpawnCadence(c, ey, ex), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
     arms.add(armKey(cap));
     checked++;
@@ -141,6 +142,21 @@ for (const [label, pokes, witness, cap] of ARMS) {
 
 // BUG twin: forgets the trailing edge-flag trim for the entry's high bits (c7bd always sets bit7 first).
 const broken = (m) => { const hi = m.mem8[INPUT_EDGE_FLAGS] & 0xf8; tickWaveSpawnCadence(m); m.mem8[INPUT_EDGE_FLAGS] |= hi; };
+
+// R37: with sound enabled the phase-3 intro cue reaches the loader, which stashes X/Y in loc_31/loc_32. The
+// ROM's X/Y there are the handler's entry X (the GAME_MODE byte the frame dispatcher loaded) and entry Y; the
+// port must hand them over explicitly, never the register file: poison m.regs on the idiomatic side. The
+// returned exit [X, Y] (entry X, Y = the phase it loads) must be the oracle's too.
+test("STALE-REGS: the phase-3 intro cue stashes the dispatcher's X and the entry Y with m.regs poisoned", () => {
+  const { o, c } = pair([[PASS_COUNTER, 0], [MODE_DELAY_TIMER, 0x04], [INPUT_EDGE_FLAGS, 0], sign(true), [GAME_MODE, 0x16],
+    [loc_31, 0x11], [loc_32, 0x22]]);
+  o.regs.x = 0x16; o.regs.y = 0x4d; // what the dispatcher (ldx GAME_MODE) and the previous frame leave
+  c.regs.x = 0xa5; c.regs.y = 0x5a;
+  oracle(o); const exit = tickWaveSpawnCadence(c, 0x4d, 0x16);
+  assert.equal(ramDiff(o, c), null, "RAM equal with m.regs poisoned");
+  assert.deepEqual([o.mem.read8(loc_31), o.mem.read8(loc_32)], [0x16, 0x4d], "positive control: the oracle's cue stashed X/Y");
+  assert.deepEqual(exit, [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's");
+});
 
 test("TEETH: the untrimmed-edge-flag twin diverges at INPUT_EDGE_FLAGS (crafted + every real dispatch)", () => {
   const { o, c } = pair(ARMS[0][1]);

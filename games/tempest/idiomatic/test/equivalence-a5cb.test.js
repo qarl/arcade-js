@@ -2,7 +2,8 @@
 // Memory-equivalence for initWaveStateCountingSpikes (ROM 0xa5cb-0xa617) -- sets $00=0x20, $0106|=0x80, clears
 // $0104/$0107/$5c/$0123, $0105=2, counts nonzero $03ac..$03bb into $0123; if that count is nonzero and
 // $9f<7 loads the param block ($04=0x1e,$00=0x0a,$02=0x20,$0123=0x80); finally $0125=0xff. Live-out is
-// memory only, so each side runs on a clone and the contract is RAM (dumpState, minus STACK_SCRATCH).
+// RAM plus the exit X it returns (0xff), so each side runs on a clone and the contract is RAM (dumpState, minus
+// STACK_SCRATCH), with the CAPTURE arm also comparing the exit X.
 // A leaf: the module omits the ROM ret and the seam completes it.
 // Run: node --test games/tempest/idiomatic/test/equivalence-a5cb.test.js
 
@@ -42,7 +43,8 @@ const CAPS = ROM_PRESENT ? captureDispatches(16, 2000) : [];
 test("CAPTURE: real 0xa5cb dispatches -- initWaveStateCountingSpikes == oracle in RAM (-stack)", () => {
   for (const cap of CAPS) {
     const o = cap.clone(), c = cap.clone();
-    oracle(o); initWaveStateCountingSpikes(c);
+    oracle(o); { const ey = c.regs.y; c.regs.x ^= 0xff; c.regs.y ^= 0xff; // takes no entry X/Y; returns X and leaves Y alone, so the exit is [X, entry Y]
+      assert.deepEqual([initWaveStateCountingSpikes(c), ey], [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
   }
   console.log(`  CAPTURE: ${CAPS.length} dispatch(es) checked`);

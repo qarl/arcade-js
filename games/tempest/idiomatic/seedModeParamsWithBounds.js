@@ -16,9 +16,12 @@ import { GAME_MODE, MODE_DISPATCH_SEL, GAME_MODE_PENDING, MODE_DELAY_TIMER, loc_
  * starting them one step apart.
  *
  * Live-out: GAME_MODE, GAME_MODE_PENDING, MODE_DELAY_TIMER, MODE_DISPATCH_SEL, and the cursor-span pair
- * loc_14e/loc_14d. Grounding: [seen].
+ * loc_14e/loc_14d.
+ *
+ * y and x are the Y and X the ROM enters with; it loads neither, so it returns them unchanged as its exit
+ * [X, Y]. Grounding: [seen].
  */
-export function seedModeParamsWithBounds(m) {
+export function seedModeParamsWithBounds(m, y = m.regs.y, x = m.regs.x) {
   const { mem8 } = m;
   mem8[GAME_MODE] = 0x0a;            // live mode
   mem8[GAME_MODE_PENDING] = 0x00;   // no mode pending
@@ -26,5 +29,5 @@ export function seedModeParamsWithBounds(m) {
   mem8[MODE_DISPATCH_SEL] = 0x12;   // pre-doubled trampoline selector
   mem8[loc_14e] = 0x19;             // far cursor of the animated span
   mem8[loc_14d] = 0x18;             // near cursor of the animated span
-  return;
+  return [x, y];
 }

@@ -16,6 +16,7 @@ import { firstStateDiff } from "../../../../core/equivalence.js";
 import { u16 } from "../../../../core/int.js";
 import {
   STACK_SCRATCH, SLOT_LOOP_INDEX, SCRIPT_WALK_CONTINUE, SCRIPT_CURSOR, ENEMY_SLOT_TOP, LANE_ENEMY_COUNT_1, ENEMY_ANIM_DELTA, ENEMY_ANIM_ACCUM, PLAYER_FINE_ANGLE, ENEMY_SCRIPT_CURSOR, ENEMY_DEPTH, MOTION_SCRIPT_TABLE,
+  STATUS_FLAGS, loc_31, loc_32,
 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
@@ -44,8 +45,9 @@ test("CAPTURE: real 0x9b1e dispatches -- runObjectMotionScripts == oracle in RAM
     let threw = false;
     try { oracle(o); } catch { threw = true; }
     if (threw) continue; // a real dispatch may reach an unimplemented arm inside dispatchSlotMotionHandler
-    runObjectMotionScripts(c);
+    const [x, y] = runObjectMotionScripts(c);
     assert.equal(ramDiff(o, c), null);
+    assert.deepEqual([x, y], [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's");
     checked++;
   }
   console.log(`  CAPTURE: ${checked}/${CAPS.length} dispatch(es) compared`);
@@ -100,6 +102,32 @@ test("CRAFTED (walk): one active slot runs the dispatchSlotMotionHandler pass --
   if (threw) { console.log("  CRAFTED (walk): oracle hit an unimplemented dispatchSlotMotionHandler arm -- skipped"); return; }
   runObjectMotionScripts(c);
   assert.equal(ramDiff(o, c), null, "RAM equal after the walk + tail");
+});
+
+// R37: each tail sound cue reaches the loader, which stashes X/Y in loc_31/loc_32. With sound enabled, the
+// walk running over empty slots (X left at 0) and both sign flips, the port must hand the loader the ROM's
+// X (the walk's last index) and Y (the sum), never the register file: poison m.regs on the idiomatic side.
+test("STALE-REGS: both tail cues stash the oracle's X/Y with m.regs poisoned on the idiomatic side", () => {
+  for (const [acc, delta, lanes, cue] of [[0x08, 0x7c, 0x00, "cueSpikeCollisionSound"], [0xf8, 0x10, 0x01, "requestMotionFlipSound"]]) {
+    const seed = (m) => {
+      m.mem.write8(STATUS_FLAGS, 0x80);       // sound enabled
+      m.mem.write8(PLAYER_FINE_ANGLE, 0x00);  // the walk runs
+      m.mem.write8(ENEMY_SLOT_TOP, 0x04);
+      for (let i = 0; i <= 4; i++) m.mem.write8((ENEMY_DEPTH + i) & 0xffff, 0x00); // no occupied slot
+      m.mem.write8(ENEMY_ANIM_ACCUM, acc);
+      m.mem.write8(ENEMY_ANIM_DELTA, delta);
+      m.mem.write8(LANE_ENEMY_COUNT_1, lanes);
+      m.mem.write8(loc_31, 0x11); m.mem.write8(loc_32, 0x22);
+      m.regs.x = 0x3c; m.regs.y = 0x4d;
+    };
+    const o = new Machine(ROM, OPTS); seed(o);
+    const c = new Machine(ROM, OPTS); seed(c);
+    c.regs.x = 0xa5; c.regs.y = 0x5a;
+    oracle(o); const [x, y] = runObjectMotionScripts(c, 0x3c);
+    assert.equal(ramDiff(o, c), null, `${cue}: RAM equal with m.regs poisoned`);
+    assert.notEqual(o.mem.read8(loc_32), 0x22, `${cue}: positive control -- the oracle's loader stashed Y`);
+    assert.deepEqual([x, y], [o.regs.x, o.regs.y], `${cue}: returned exit [X, Y] = the oracle's`);
+  }
 });
 
 test("TEETH: a twin that skips the ENEMY_ANIM_ACCUM accumulate MUST diverge in RAM", () => {

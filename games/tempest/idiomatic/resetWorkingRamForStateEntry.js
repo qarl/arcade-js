@@ -22,7 +22,10 @@ import { buildLevelLayout } from "./buildLevelLayout.js";
  * count SPIKED_SEGMENT_COUNT ($123).
  *
  * Live-out: whatever the six leaves clear/seed, plus RIM_COLOR_ANIM=0xff, ENEMY_ANIM_ACCUM=0xff, and
- * SPIKED_SEGMENT_COUNT=0. Grounding: [seen].
+ * SPIKED_SEGMENT_COUNT=0.
+ *
+ * Returns the exit [X, Y] the ROM leaves: buildLevelLayout's (the closing stores write no register).
+ * Grounding: [seen].
  */
 export function resetWorkingRamForStateEntry(m) {
   const { mem8 } = m;
@@ -32,9 +35,10 @@ export function resetWorkingRamForStateEntry(m) {
   seedSlotRandomTags(m);
   clearEightByteTableAndFlag(m);
   clearByte50(m);
-  buildLevelLayout(m);
+  const exit = buildLevelLayout(m);
   // Arm the two animation cursors high; clear the spiked-segment count.
   mem8[RIM_COLOR_ANIM] = 0xff;
   mem8[ENEMY_ANIM_ACCUM] = 0xff;
   mem8[SPIKED_SEGMENT_COUNT] = 0x00;
+  return exit;
 }

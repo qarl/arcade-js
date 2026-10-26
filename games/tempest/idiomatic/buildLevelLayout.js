@@ -25,7 +25,10 @@ import { buildTubeLaneCoords } from "./buildTubeLaneCoords.js";
  * COLOR_RAM_8), filling the eight-column geometry/colour arrays.
  *
  * Live-out: PROJ_Y_REF, REDRAW_COUNTER, the cleared LEVEL_LAYOUT_TRIGGER, the display header words, and the
- * eight-entry LEVEL_GEOM_LO/HI and COLOR_RAM/COLOR_RAM_8 arrays. Grounding: [seen].
+ * eight-entry LEVEL_GEOM_LO/HI and COLOR_RAM/COLOR_RAM_8 arrays.
+ *
+ * Returns the exit [X, Y] the ROM leaves: the table index after the eight-step walk, and Y = 0xff (the walk
+ * runs Y past 0). Grounding: [seen].
  */
 export function buildLevelLayout(m) {
   const { mem8 } = m;
@@ -53,4 +56,5 @@ export function buildLevelLayout(m) {
     mem8[u16(COLOR_RAM_8 + y)] = hi;
     idx = u8(idx - 1);
   }
+  return [idx, 0xff];
 }

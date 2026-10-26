@@ -17,7 +17,9 @@ import { LANE_FILL_INIT, INITIAL_ACTIVE_COUNT, FIRE_GATE, LANE_LIMIT } from "./n
  * write it into all sixteen body cells $3ac..$3ac+0x0f, counting X down from 0x0f to 0.
  *
  * Live-out: $3ab (header / active count) and the sixteen per-lane cells $3ac..$3bb, all
- * seeded for the wave the spawner is about to build. Grounding: [seen].
+ * seeded for the wave the spawner is about to build.
+ *
+ * Returns the exit X the ROM leaves, 0xff (the fill runs X past 0); Y is not touched. Grounding: [seen].
  */
 export function seedPerLaneSpikeArray(m) {
   const { mem8 } = m;
@@ -25,4 +27,5 @@ export function seedPerLaneSpikeArray(m) {
   const fill = mem8[LANE_FILL_INIT];            // per-lane fill constant read from $15a once
   // Fill the sixteen per-lane body cells $3ac..$3bb with the constant (X: 0x0f down to 0).
   for (let x = 0x0f; x >= 0; x--) mem8[u16(LANE_LIMIT + x)] = fill;
+  return 0xff;
 }

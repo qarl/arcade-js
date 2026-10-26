@@ -28,7 +28,8 @@ import { selectWaveStartSlot } from "./selectWaveStartSlot.js";
  *
  * Live-out: SLOT_COUNTDOWN[0..count] seeded from the bonus config, PLAYER_LEVEL_TBL[0..count]=0xff,
  * SLOT_COUNTDOWN_HI/LEVEL_ID/SPIKE_TABLE_GUARD cleared, loc_3d reset to ACTIVE_SLOT_COUNT, and the
- * rebuilt level layout — plus whatever selectWaveStartSlot leaves. Grounding: [seen].
+ * rebuilt level layout — plus whatever selectWaveStartSlot leaves, including its exit [X, Y] (the ROM's,
+ * since selectWaveStartSlot loads both before reading either). Grounding: [seen].
  */
 export function resetLevelPlayfieldSlots(m) {
   const { mem8 } = m;

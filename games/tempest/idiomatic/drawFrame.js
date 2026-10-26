@@ -37,7 +37,10 @@ import { drawTimedObjectList } from "./drawTimedObjectList.js";
  *
  * Live-out: the whole per-frame vector display list (built by the eight subsystems into the VG
  * record area), PLAYER_SHAPE_SUM (0x11b) when the player layer ran the checksum, the cleared
- * REDRAW_COUNTER (0x114), and the two list-header words (0x2000/0x2001). Grounding: [seen].
+ * REDRAW_COUNTER (0x114), and the two list-header words (0x2000/0x2001).
+ *
+ * Returns the exit [X, Y] the ROM leaves: the last layer close's (the closing stores write no register).
+ * Grounding: [seen].
  */
 export function drawFrame(m) {
   const { mem8 } = m;
@@ -92,10 +95,11 @@ export function drawFrame(m) {
   // Layer 0x08 — timed objects (spikes, flippers timers, etc.).
   seatDrawCursor(m, 0x08);
   drawTimedObjectList(m);
-  closeLayerPointer(m, 0x08);
+  const exit = closeLayerPointer(m, 0x08);
 
   // Close out the frame: clear the change-counter and latch the two list-header words.
   mem8[REDRAW_COUNTER] = 0x00;
   mem8[VEC_LIST_HEADER_LO] = mem8[VECHEAD0_FRAME];
   mem8[VEC_LIST_HEADER_HI] = mem8[VECHEAD1_FRAME];
+  return exit;
 }

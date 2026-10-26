@@ -18,7 +18,10 @@ import { GAME_MODE, STATUS_FLAGS, ACTIVE_SLOT_COUNT, PLAYER_LEVEL_TBL, WAVE_PEAK
  * 0x14, or 0x10 when the status byte STATUS_FLAGS (loc_5) is negative (bit7 set).
  *
  * Live-out: WAVE_PEAK_SEED (loc_126) reloaded with peak-1; GAME_MODE (loc_0) set to the next
- * requested mode (0x14 / 0x10). Grounding: [seen].
+ * requested mode (0x14 / 0x10).
+ *
+ * Returns the exit [X, Y] the ROM leaves: X = 0xff (the scan runs X past 0) and Y = the peak, loaded before
+ * the decrement. Grounding: [seen].
  */
 export function reloadPacingFromPeakSlot(m) {
   const { mem8 } = m;
@@ -34,4 +37,5 @@ export function reloadPacingFromPeakSlot(m) {
   // Reseed pacing floor with peak-1 (0 stays 0), then request the next mode.
   mem8[WAVE_PEAK_SEED] = max === 0 ? 0 : (max - 1) & 0xff;
   mem8[GAME_MODE] = (mem8[STATUS_FLAGS] & 0x80) ? 0x10 : 0x14; // 0x10 when loc_5 negative
+  return [0xff, max];
 }

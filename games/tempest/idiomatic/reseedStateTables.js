@@ -41,7 +41,10 @@ import { partitionByteToFineCoarseSeed } from "./partitionByteToFineCoarseSeed.j
  * Live-out: the whole enemy-parameter cell family — ENEMY_CLIMB_DELTA_LO_* and HI_*,
  * ENEMY_BAND_THRESHOLD_*, CANDIDATE_LANE_0/1, OBJECT_VELOCITY_LO/HI, HIT_DISTANCE_THRESHOLD,
  * INITIAL_ACTIVE_COUNT, FLYER_SLOT_TOP, LIST_SELECT_FLAGS — plus every destination cell the
- * table walk wrote, and the scratch key loc_2b. Grounding: [seen].
+ * table walk wrote, and the scratch key loc_2b.
+ *
+ * Returns the exit [X, Y] the ROM leaves: the last fold's X and Y seeds (nothing after it loads either).
+ * Grounding: [seen].
  */
 export function reseedStateTables(m) {
   const { mem8, mem16 } = m;
@@ -141,4 +144,5 @@ export function reseedStateTables(m) {
   mem8[ENEMY_CLIMB_DELTA_HI_1] = 254;
   mem8[CANDIDATE_LANE_1] = 1;
   mem8[CANDIDATE_LANE_0] = 1;   // both candidate-lane cells start at 1
+  return [x160, y160];
 }

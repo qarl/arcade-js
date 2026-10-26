@@ -3,8 +3,8 @@
 // in loc_2e, walks loc_2db slots y=10..0 forming delta = |entry - threshold|, and for qualifying slots
 // retires/spawns via retireSpawnedObject (near), spawnLaneEnemyAndAward (far band 4) or activateSlotAndRespawn (far other bands); afterwards, if
 // HIT_TALLY,x reads 0xff it clears SLOT_STATE,x/HIT_TALLY,x and drops ACTIVE_OBJECT_COUNT. Inputs are A (threshold) and X
-// (slot index); the routine ends with a plain RTS and produces no return value, so the contract is RAM
-// only (dumpState minus STACK_SCRATCH) -- no register is a live-out. Oracle is the frozen translated
+// (slot index). The contract is RAM (dumpState minus STACK_SCRATCH) plus the returned exit Y (0xff), which
+// spawnEntityIntoFreeSlot returns to runFrameStateUpdaters for stepActiveShots. Oracle is the frozen translated
 // resolveSlotProximityInteractions; the three internal JSRs are dissolved to direct calls in the idiomatic layer.
 // Run: node --test games/tempest/idiomatic/test/equivalence-a463.test.js
 
@@ -52,8 +52,9 @@ test("CAPTURE: real 0xa463 dispatches -- resolveSlotProximityInteractions == ora
     let threw = false;
     try { oracle(o); } catch { threw = true; } // a real dispatch may reach an unimplemented spawn/retire arm
     if (threw) continue; // both layers would throw identically there; nothing to compare
-    resolveSlotProximityInteractions(c);
+    const y = resolveSlotProximityInteractions(c);
     assert.equal(ramDiff(o, c), null, "RAM equal for a captured dispatch");
+    assert.equal(y, o.regs.y, "returned exit Y = the oracle's Y");
     checked++;
   }
   console.log(`  CAPTURE: ${checked}/${CAPS.length} dispatch(es) compared`);

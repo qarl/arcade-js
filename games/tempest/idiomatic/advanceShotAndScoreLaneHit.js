@@ -30,9 +30,10 @@ import { addBcdScoreAndAwardAtThreshold } from "./addBcdScoreAndAwardAtThreshold
  *
  * Live-out: LANE_LIMIT,y (shrunk/cleared), HIT_TALLY,x (bumped), LANE_TARGET_FLAG,y (=0xc0), the award
  * scratch loc_29/loc_2a/loc_2b, SLOT_STATE (cleared on a spent shot), ACTIVE_OBJECT_COUNT (decremented
- * on a spent shot), plus the score and any sound queued by the callees. Returns the slot index live at
- * exit (the reloaded SLOT_LOOP_INDEX when a hit fired, else the entry x) so the caller resumes on the
- * right slot. Grounding: [code].
+ * on a spent shot), plus the score and any sound queued by the callees. Returns the exit [X, Y] the ROM
+ * leaves. X is the slot index live at exit (the reloaded SLOT_LOOP_INDEX when a hit fired, else the entry
+ * x), so the caller resumes on the right slot. Y is the award's exit Y when a hit fired and scoring was
+ * armed, else the target segment the routine indexes the lane tables with. Grounding: [code].
  */
 export function advanceShotAndScoreLaneHit(m, x = m.regs.x) {
   const { mem8 } = m;
@@ -40,9 +41,9 @@ export function advanceShotAndScoreLaneHit(m, x = m.regs.x) {
   const y = mem8[u16(TARGET_SEG + x)];
   const limit = mem8[u16(LANE_LIMIT + y)];
   // No target left in this lane -> nothing to score; hand the slot index straight back.
-  if (limit === 0) return x;
+  if (limit === 0) return [x, y];
 
-  let xEff = x;
+  let xEff = x, yOut = y;
   // counter = how far this shot has travelled down its lane so far.
   const counter = mem8[u16(SLOT_STATE + x)];
   // The shot has reached (or passed) the target's depth: register the hit.
@@ -55,7 +56,8 @@ export function advanceShotAndScoreLaneHit(m, x = m.regs.x) {
     mem8[loc_2a] = 0x00;
     mem8[loc_2b] = 0x00;
     mem8[loc_29] = 0x01;
-    addBcdScoreAndAwardAtThreshold(m, 0xff);                                        // award
+    const [, awardY] = addBcdScoreAndAwardAtThreshold(m, 0xff);                     // award
+    if (awardY !== undefined) yOut = awardY;                                // unarmed, the award leaves Y alone
     // Reload the live slot from the shared loop index -- the award path may have re-entered the loop.
     xEff = mem8[SLOT_LOOP_INDEX];
   }
@@ -65,5 +67,5 @@ export function advanceShotAndScoreLaneHit(m, x = m.regs.x) {
     mem8[u16(SLOT_STATE + xEff)] = 0x00;
     mem8[ACTIVE_OBJECT_COUNT] = mem8[ACTIVE_OBJECT_COUNT] - 1;
   }
-  return xEff;
+  return [xEff, yOut];
 }

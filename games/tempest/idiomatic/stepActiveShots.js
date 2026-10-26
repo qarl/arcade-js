@@ -25,14 +25,20 @@ import { primeTopObjectOnTargetMatch } from "./primeTopObjectOnTargetMatch.js";
  *
  * Live-out: updated SLOT_STATE / loc_2e6 position bytes for every live slot, cleared slots at the limits,
  * decremented ACTIVE_ENEMY_COUNT / ACTIVE_OBJECT_COUNT, SLOT_LOOP_INDEX left at 0xff, plus any scoring the
- * lane-hit and prime helpers apply. Grounding: [seen].
+ * lane-hit and prime helpers apply. y is the Y the ROM enters with: the high slots come first in the
+ * sweep and nothing before a retire touches Y, so it is exactly what primeTopObjectOnTargetMatch's insert
+ * chain sees (and its sound loader and object insert stash). Returns the exit [X, Y] the ROM leaves: X is
+ * the last slot index the sweep worked on (advanceShotAndScoreLaneHit's when it ran on that slot), and Y is
+ * advanceShotAndScoreLaneHit's exit Y from the last live low slot, or the incoming y when no low slot was
+ * live. Grounding: [seen].
  */
-export function stepActiveShots(m) {
+export function stepActiveShots(m, y = m.regs.y) {
   const { mem8 } = m;
 
   mem8[SLOT_LOOP_INDEX] = 0x0b;            // sweep slots 0x0b..0
+  let x;
   for (;;) {
-    const x = mem8[SLOT_LOOP_INDEX];
+    x = mem8[SLOT_LOOP_INDEX];
     if (mem8[u16(SLOT_STATE + x)] !== 0) { // skip inactive slots
       if (x >= 0x08) {
         // high slot: integrate 16-bit velocity into the position pair
@@ -44,7 +50,7 @@ export function stepActiveShots(m) {
         } else {
           // fell past the near edge -> retire the object
           mem8[ACTIVE_ENEMY_COUNT] = mem8[ACTIVE_ENEMY_COUNT] - 1;
-          primeTopObjectOnTargetMatch(m, x);
+          primeTopObjectOnTargetMatch(m, x, y);
           mem8[u16(SLOT_STATE + x)] = 0x00;
         }
       } else {
@@ -52,11 +58,11 @@ export function stepActiveShots(m) {
         let counter = mem8[u16(SLOT_STATE + x)] + 0x09;
         if (mem8[u16(HIT_TALLY + x)] !== 0) counter -= 0x04;
         mem8[u16(SLOT_STATE + x)] = counter;
-        const xEff = advanceShotAndScoreLaneHit(m, x); // may retarget to xEff
-        if (mem8[u16(SLOT_STATE + xEff)] >= 0xf0) {
+        [x, y] = advanceShotAndScoreLaneHit(m, x); // may retarget the slot index
+        if (mem8[u16(SLOT_STATE + x)] >= 0xf0) {
           // reached the far limit -> retire
           mem8[ACTIVE_OBJECT_COUNT] = mem8[ACTIVE_OBJECT_COUNT] - 1;
-          mem8[u16(SLOT_STATE + xEff)] = 0x00;
+          mem8[u16(SLOT_STATE + x)] = 0x00;
         }
       }
     }
@@ -64,4 +70,5 @@ export function stepActiveShots(m) {
     mem8[SLOT_LOOP_INDEX] = next;
     if (next & 0x80) break;                // stop when the index wraps past 0
   }
+  return [x, y];
 }

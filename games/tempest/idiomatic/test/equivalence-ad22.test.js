@@ -2,8 +2,8 @@
 // Memory-equivalence for armRequestedSoundSlot (ROM 0xad22) -- scans the packed request word, and for the first
 // in-range slot builds the paired value, arms selectProjectionScale + resetPerSlotStateTable, and writes a status into $0000. The
 // oracle m.calls the translated callees; the idiomatic dissolves them into direct idiomatic calls. Both
-// are memory-equivalent, so each arm compares RAM (dumpState, minus STACK_SCRATCH). Status is in $0000
-// (RAM), so A/X/Y at RTS are incidental. No POKEY read -> deterministic.
+// are memory-equivalent, so each arm compares RAM (dumpState, minus STACK_SCRATCH). Status is in $0000 (RAM); the
+// exit [X, Y] it returns (the frame loop carries it to the sound loader's stash) is compared too. No POKEY read -> deterministic.
 // Run: node --test games/tempest/idiomatic/test/equivalence-ad22.test.js
 
 import nodeTest from "node:test";
@@ -51,7 +51,8 @@ function seeded() {
 test("CAPTURE: real 0xad22 dispatches -- armRequestedSoundSlot == oracle in RAM (-stack)", () => {
   for (const cap of CAPS) {
     const o = cap.clone(), c = cap.clone();
-    oracle(o); armRequestedSoundSlot(c);
+    oracle(o); { const ex = c.regs.x; c.regs.x ^= 0xff; c.regs.y ^= 0xff; // entry X goes in as the argument; the routine takes no entry Y
+      assert.deepEqual(armRequestedSoundSlot(c, ex), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
   }
   console.log(`  CAPTURE: ${CAPS.length} dispatch(es) checked`);
@@ -59,7 +60,8 @@ test("CAPTURE: real 0xad22 dispatches -- armRequestedSoundSlot == oracle in RAM 
 
 test("CRAFTED: an in-range slot builds $0602, arms ca48+a789, sets $0000 (== oracle, RAM)", () => {
   const o = seeded(), c = seeded();
-  oracle(o); armRequestedSoundSlot(c);
+  o.regs.x = 0x3c; c.regs.x = 0xc3;
+  oracle(o); assert.deepEqual(armRequestedSoundSlot(c, 0x3c), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's");
   assert.equal(ramDiff(o, c), null, "RAM equal after process path");
   assert.equal(c.mem.read8(GAME_MODE), 0x24, "$0000 armed status");
   assert.equal(c.mem.read8(ENEMY_SLOT_FLAGS), 0x00, "a789 cleared the table byte");
@@ -69,7 +71,8 @@ test("CRAFTED: an in-range slot builds $0602, arms ca48+a789, sets $0000 (== ora
 test("CRAFTED: an exhausted word exits idle with $0000 = 0x14 (== oracle, RAM)", () => {
   const o = new Machine(ROM, OPTS); o.mem.write8(REQUEST_BITS, 0x00);
   const c = new Machine(ROM, OPTS); c.mem.write8(REQUEST_BITS, 0x00);
-  oracle(o); armRequestedSoundSlot(c);
+  o.regs.x = 0x3c; c.regs.x = 0xc3;
+  oracle(o); assert.deepEqual(armRequestedSoundSlot(c, 0x3c), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's");
   assert.equal(ramDiff(o, c), null, "RAM equal after idle exit");
   assert.equal(c.mem.read8(GAME_MODE), 0x14, "$0000 idle status");
 });

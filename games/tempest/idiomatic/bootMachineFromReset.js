@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import {
   GAME_MODE, MODE_DISPATCH_SEL, VG_SCALE, IN0_PORT, VEC_LIST_HEADER_LO,
-  POKEY1_AUDF1, POKEY1_SKCTL, POKEY2_AUDF1, POKEY2_SKCTL, LED_FLIP_LATCH,
+  POKEY1_AUDF1, POKEY1_SKCTL, POKEY2_AUDF1, POKEY2_SKCTL, LED_FLIP_LATCH, AVG_RESET_STROBE,
 } from "./names.js";
 import { armEaromReadback } from "./armEaromReadback.js";
 import { rebuildControlBlocksFromTemplate } from "./rebuildControlBlocksFromTemplate.js";
@@ -16,12 +16,16 @@ const SELF_TEST = 0x10;
 // Role in the machine: this is where the CPU lands on power-on/RESET. It brings the whole board up from
 // cold — clears RAM so nothing reads stale bytes, seeds the handful of control cells the wipe cannot cover,
 // then forks on the operator self-test switch: idle (the normal case) boots the game and becomes the main
-// loop; held diverts to the technician diagnostic. Validated by the whole-machine boot, not an isolated test.
+// loop; held diverts to the technician diagnostic. Validated by the bounded equivalence-d93f gate and the whole-machine boot.
 //
-// The reset's stack seat, interrupt-disable, decimal-clear and watchdog/AVG strobes have no engine effect
-// (the engine retires the stack pointer and gates interrupts itself) and are dropped. Grounding: [seen].
+// The reset's stack seat, interrupt-disable, decimal-clear and watchdog strobe have no engine effect (the
+// engine retires the stack pointer and gates interrupts itself) and are dropped. The AVG reset strobe is
+// kept: it sets the AVG done flag (IN0 bit 6) that the self-test path reads. Grounding: [seen].
 export function* bootMachineFromReset(m) {
   const { mem8 } = m;
+
+  // Reset the vector generator (ROM 0xd943 sta $5800), so its done flag reads as idle from the start.
+  mem8[AVG_RESET_STROBE] = 0;
 
   // Wipe the two mapped RAM windows before anything reads them: the low work/stack/video pages and the
   // vector/display pages; the unmapped gap between them is left untouched.

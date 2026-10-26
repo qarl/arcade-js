@@ -2,8 +2,8 @@
 // Memory-equivalence for drawFrame -- draws one frame: each subsystem bracketed by a setup/teardown pair,
 // a conditional carry-chained 40-byte sum into a status cell, then two constants latched into the first
 // two display words. The idiomatic side dissolves every jsr into direct idiomatic calls (the setup and
-// teardown pair takes its layer id explicitly). Live-out is memory only, so each arm compares RAM
-// (dumpState minus STACK_SCRATCH).
+// teardown pair takes its layer id explicitly). Live-out is RAM plus the exit [X, Y] it returns (its last layer
+// close's), so each arm compares RAM (dumpState minus STACK_SCRATCH) and the CAPTURE arm also the returned pair.
 // Run: node --test games/tempest/idiomatic/test/equivalence-b230.test.js
 
 import nodeTest from "node:test";
@@ -42,7 +42,8 @@ const CAPS = ROM_PRESENT ? captureDispatches(12, 6000) : [];
 test("CAPTURE: real 0xb230 dispatches -- drawFrame == oracle in RAM (-stack)", () => {
   for (const cap of CAPS) {
     const o = cap.clone(), c = cap.clone();
-    oracle(o); drawFrame(c);
+    oracle(o); { c.regs.x ^= 0xff; c.regs.y ^= 0xff; // m.regs poisoned: this routine takes no entry X/Y, so its exit must not depend on them
+      assert.deepEqual(drawFrame(c), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
   }
   console.log(`  CAPTURE: ${CAPS.length} dispatch(es) checked`);

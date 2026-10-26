@@ -26,7 +26,11 @@ import {
  *
  * Live-out: both POKEY chips silenced and armed (SKCTL=7, all AUDF/AUDCTL clear), the two 8-byte
  * software sound arrays $c0/$d0 cleared, and the RNG seed cell $720 (either the harvested sample or 0
- * if neither counter moved during the five polls). Grounding: [seen].
+ * if neither counter moved during the five polls).
+ *
+ * Returns the exit [X, Y] the ROM leaves: X = 0xff (the silencing loop runs X past 0) and Y = chip 2's RANDOM
+ * snapshot. The frame loop carries them into its first update, and setupLevelTimers hands them back as its own
+ * exit registers. Grounding: [seen].
  */
 export function resetBothPokeyChips(m) {
   const { mem8 } = m;
@@ -58,4 +62,5 @@ export function resetBothPokeyChips(m) {
   // Clear both AUDCTL control registers last.
   mem8[POKEY1_AUDCTL] = 0;
   mem8[POKEY2_AUDCTL] = 0;
+  return [0xff, y];
 }

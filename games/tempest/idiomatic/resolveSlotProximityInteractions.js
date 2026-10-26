@@ -31,6 +31,7 @@ import { activateSlotAndRespawn } from "./activateSlotAndRespawn.js";
  *
  * Live-out: enemy slots may be retired/spawned/reactivated via the three helpers; on a spent slot, $2d3,x
  * ($2f2,x) and $135 are cleared/decremented. TABLE_CURSOR / SLOT_LOOP_INDEX / $2e hold scan scratch.
+ * Returns the exit Y, 0xff (the scan counts Y down past 0), which callers carry on as their own Y.
  * Grounding: seen.
  */
 export function resolveSlotProximityInteractions(m, a = m.regs.a, x = m.regs.x) {
@@ -89,4 +90,5 @@ export function resolveSlotProximityInteractions(m, a = m.regs.a, x = m.regs.x) 
     mem8[ACTIVE_OBJECT_COUNT] = mem8[ACTIVE_OBJECT_COUNT] - 1;
     mem8[u16(HIT_TALLY + x)] = 0;
   }
+  return 0xff; // the exit Y: the descending lane scan runs Y past 0
 }

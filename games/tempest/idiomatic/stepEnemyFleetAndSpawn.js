@@ -22,7 +22,9 @@ import { spawnEnemyInSlot } from "./spawnEnemyInSlot.js";
  * ticks one toward zero; and if nothing was live or spawned, GAME_MODE is raised to the mode-request 0x12.
  *
  * Live-out: the stepped enemy slots, SPAWN_BUDGET_TIMER (decremented on even frames), SLOT_LOOP_INDEX
- * = 0xff, and GAME_MODE = 0x12 when the bank came up empty. Grounding: [seen].
+ * = 0xff, and GAME_MODE = 0x12 when the bank came up empty. Returns the exit [X, Y] the ROM leaves: X = 0,
+ * the last slot index the walk loaded (no callee changes X), and the threaded y (the spawn path loads no
+ * Y). Grounding: [seen].
  */
 export function stepEnemyFleetAndSpawn(m, y = m.regs.y) {
   const { mem8 } = m;
@@ -47,4 +49,5 @@ export function stepEnemyFleetAndSpawn(m, y = m.regs.y) {
   }
   // Nothing live or spawned -> raise the mode-request byte.
   if (mem8[SPAWN_FOUND_FLAG] === 0) mem8[GAME_MODE] = 0x12;
+  return [0x00, y];
 }

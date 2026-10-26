@@ -48,7 +48,8 @@ for (let i = 0; i < 8; i++) { SLOTS.push(u8(SOUND_VOICE_VALUE + i), u8(SOUND_VOI
 test("CAPTURE: real 0xcd95 dispatches -- resetBothPokeyChips == oracle in RAM (-stack)", () => {
   for (const cap of CAPS) {
     const o = cap.clone(), c = cap.clone();
-    oracle(o); resetBothPokeyChips(c);
+    oracle(o); { c.regs.x ^= 0xff; c.regs.y ^= 0xff; // m.regs poisoned: this routine takes no entry X/Y, so its exit must not depend on them
+      assert.deepEqual(resetBothPokeyChips(c), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
   }
   console.log(`  CAPTURE: ${CAPS.length} dispatch(es) checked`);

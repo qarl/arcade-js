@@ -31,17 +31,23 @@ import { emitFrameLink } from "./emitFrameLink.js";
 // into display words 0x2000/0x2001.
 //
 // dFlag carries the CPU decimal flag in from the bridge: an earlier stage may leave it set, and the
-// subtract below must BCD-correct its accumulator to match the hardware when it is. Grounding: [seen].
-export function buildFrameVectors(m, dFlag = m.regs.fD) {
+// subtract below must BCD-correct its accumulator to match the hardware when it is.
+//
+// x and y are the X/Y the ROM enters with (seedFramePhaseAndTick's exit registers). Returns the exit [X, Y]
+// the ROM leaves, which survive the main loop's wait (the IRQ restores both) into the next update's
+// dispatcher, whose spike pre-pass may reload Y before the mode handler. Both drawing paths end in
+// closeLayerPointer, whose exit registers they return (Y = 1). The settled-frame early return writes no
+// register, so it returns the incoming [x, y]. Grounding: [seen].
+export function buildFrameVectors(m, x = m.regs.x, y = m.regs.y, dFlag = m.regs.fD) {
   const { mem8, mem16 } = m;
 
   resetMathboxInputs(m); // clear the math-box / frame work cells
 
   // Frame already settled: guard cell matches its checkpoint and the pending flag is clear.
-  if (mem8[VEC_LIST_HEADER_LO] === mem8[VECHEAD0_LEVEL] && mem8[LEVEL_LAYOUT_TRIGGER] === 0) return;
+  if (mem8[VEC_LIST_HEADER_LO] === mem8[VECHEAD0_LEVEL] && mem8[LEVEL_LAYOUT_TRIGGER] === 0) return [x, y];
 
   // Mode zero routes the entire draw through the frame builder.
-  if (mem8[MODE_DISPATCH_SEL] === 0) { drawFrame(m); return; }
+  if (mem8[MODE_DISPATCH_SEL] === 0) return drawFrame(m); // its last layer close's exit registers
 
   seatDrawCursor(m, 0x00);
   const changed = emitFrameLink(m); // true = a change was published; skip the checksum path
@@ -52,8 +58,8 @@ export function buildFrameVectors(m, dFlag = m.regs.fD) {
       const ptr = mem16[DRAW_RECORD_PTR_LO];
       let a = 0x0e;
       let carry = 1; // seeded set
-      for (let y = 0x27; y >= 0; y--) {
-        const v = mem8[u16(ptr + y)];
+      for (let i = 0x27; i >= 0; i--) {
+        const v = mem8[u16(ptr + i)];
         const c = carry ? 1 : 0;
         const diff = a - v - (1 - c);
         carry = diff >= 0 ? 1 : 0; // borrow flag is the binary result in both modes
@@ -75,7 +81,8 @@ export function buildFrameVectors(m, dFlag = m.regs.fD) {
     }
   }
 
-  closeLayerPointer(m, 0x00);
+  const exit = closeLayerPointer(m, 0x00);
   mem8[VEC_LIST_HEADER_LO] = mem8[VECHEAD0_PLAY];
   mem8[VEC_LIST_HEADER_HI] = mem8[VECHEAD1_PLAY];
+  return exit; // the layer close's exit registers (the header stores write none)
 }

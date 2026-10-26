@@ -3,7 +3,8 @@
 // score trio, range-checks the high byte against $0156, and on a qualifying result (with a per-slot $48,x
 // counter under six) bumps the counter, fires sound requestScoreAwardSound, and sets $0124. The oracle runs the translated
 // sound via m.call; the idiomatic dissolves it to requestSoundIfEnabled(A=0x4f) threading the slot x and y. Live-out is
-// memory only (registers at RTS incidental), so both sides run on a clone and the contract is RAM (-stack).
+// memory plus the exit [X,Y], which the routine returns because bumpLevelEnemyQuota hands it to the award sound's loader
+// (loc_31/loc_32). Both sides run on a clone; the contract is RAM (-stack) plus the returned exit registers.
 // Run: node --test games/tempest/idiomatic/test/equivalence-ca6c.test.js
 
 import nodeTest from "node:test";
@@ -42,8 +43,9 @@ const CAPS = ROM_PRESENT ? captureDispatches(16, 4000) : [];
 test("CAPTURE: real 0xca6c dispatches -- addBcdScoreAndAwardAtThreshold == oracle in RAM (-stack)", () => {
   for (const cap of CAPS) {
     const o = cap.clone(), c = cap.clone();
-    oracle(o); addBcdScoreAndAwardAtThreshold(c);
+    oracle(o); const [x, y] = addBcdScoreAndAwardAtThreshold(c);
     assert.equal(ramDiff(o, c), null);
+    assert.deepEqual([x, y ?? c.regs.y], [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's (Y undefined = untouched)");
   }
   console.log(`  CAPTURE: ${CAPS.length} dispatch(es) checked`);
 });
@@ -65,7 +67,7 @@ function seed(m) {
 test("CRAFTED: BCD add lands the score, then the award bumps the counter and sets $0124", () => {
   const o = new Machine(ROM, OPTS); seed(o);
   const c = new Machine(ROM, OPTS); seed(c);
-  oracle(o); addBcdScoreAndAwardAtThreshold(c);
+  oracle(o); { const [x, y] = addBcdScoreAndAwardAtThreshold(c); assert.deepEqual([x, y ?? c.regs.y], [o.regs.x, o.regs.y], "returned exit [X, Y]"); }
   assert.equal(ramDiff(o, c), null, "RAM equal after add + award");
   assert.equal(c.mem.read8(loc_40), 0x11, "$40 score low");
   assert.equal(c.mem.read8(loc_41), 0x22, "$41 score mid");
@@ -75,10 +77,15 @@ test("CRAFTED: BCD add lands the score, then the award bumps the counter and set
 });
 
 test("GATED: with $05 bit7 clear the routine is a no-op vs the oracle", () => {
-  const prep = (m) => { seed(m); m.mem.write8(STATUS_FLAGS, m.mem.read8(STATUS_FLAGS) & 0x7f); };
+  // Distinctive entry X/Y so an unarmed exit that invents a Y (or loses the X) shows.
+  const prep = (m) => { seed(m); m.mem.write8(STATUS_FLAGS, m.mem.read8(STATUS_FLAGS) & 0x7f); m.regs.x = 0x12; m.regs.y = 0x77; };
   const o = new Machine(ROM, OPTS); prep(o);
-  const c = new Machine(ROM, OPTS); prep(c);
-  oracle(o); addBcdScoreAndAwardAtThreshold(c);
+  const c = new Machine(ROM, OPTS); prep(c); c.regs.x = 0xa5; c.regs.y = 0xa5;
+  oracle(o);
+  assert.deepEqual([o.regs.x, o.regs.y], [0x12, 0x77], "positive control: the oracle leaves the entry pair");
+  { const [x, y] = addBcdScoreAndAwardAtThreshold(c, 0x12);
+    assert.equal(y, undefined, "unarmed exit leaves Y untouched (returns undefined)");
+    assert.deepEqual([x, y ?? 0x77], [o.regs.x, o.regs.y], "returned exit [X, entry Y]"); }
   assert.equal(ramDiff(o, c), null, "RAM equal on the gated-off path");
   assert.equal(c.mem.read8(loc_40), 0x00, "score untouched when gated off");
 });
@@ -90,4 +97,39 @@ test("TEETH: mutating an addend byte makes the idiomatic diverge from the oracle
   c.mem.write8(loc_29, 0x33); // non-default: different low addend
   addBcdScoreAndAwardAtThreshold(c);
   assert.notEqual(ramDiff(o, c), null, "the RAM diff FAILED to catch the changed addend");
+});
+
+// Exit-register matrix: every armed exit of the routine (the unarmed exit is the GATED test), over loc_3d in {0,1}; loc_3d=1 makes y (3) differ from the slot (1).
+// The oracle's m.step targets are traced so the award, counter-full, zSaved+carry, hi==0, hi==2-odd, loop-borrow and no-carry exits are proven reached (positive control).
+test("EXIT-REGS MATRIX: returned [X, Y] == the oracle's on every exit path", () => {
+  const base = new Machine(ROM, OPTS);
+  const seen = { award: 0, cntFull: 0, zSavedCarry: 0, hiZero: 0, hiTwoOdd: 0, loopBorrow: 0, noCarry: 0 };
+  for (const p of [0, 1]) for (const x0 of [0x03, 0x08, 0x38]) for (const b2b of [0x00, 0x49])
+    for (const iv of [0x00, 0x01, 0x02, 0x03, 0x10]) for (const cnt of [0x02, 0x06]) for (const mid of [0x00, 0x99]) {
+      const m = base.clone();
+      m.mem.write8(STATUS_FLAGS, m.mem.read8(STATUS_FLAGS) | 0x80);
+      m.mem.write8(loc_3d, p);
+      m.mem.write8(loc_29, 0x11); m.mem.write8(loc_2a, 0x22); m.mem.write8(loc_2b, b2b);
+      for (let k = 0; k < 6; k++) m.mem.write8(loc_40 + k, k % 3 === 1 ? mid : 0x00);
+      m.mem.write8(BONUS_LIFE_INTERVAL, iv);
+      m.mem.write8(SLOT_COUNTDOWN + p, cnt);
+      m.regs.x = x0; m.regs.y = 0x77;
+      const o = m.clone(), c = m.clone(), pcs = new Set();
+      const step = o.step;
+      o.step = function (pc, cy) { pcs.add(pc); return step.call(this, pc, cy); };
+      oracle(o);
+      const [x, y] = addBcdScoreAndAwardAtThreshold(c);
+      const tag = `p=${p} x=${x0} $2b=${b2b} $0156=${iv} cnt=${cnt} mid=${mid}`;
+      assert.equal(ramDiff(o, c), null, tag);
+      assert.deepEqual([x, y ?? c.regs.y], [o.regs.x, o.regs.y], tag);
+      if (pcs.has(0xcae4)) seen.award++;
+      if (pcs.has(0xcae2) && !pcs.has(0xcae4)) seen.cntFull++;
+      if (pcs.has(0xcabd) && !pcs.has(0xcab0)) seen.zSavedCarry++;
+      if (pcs.has(0xcac0) && iv === 0) seen.hiZero++;
+      if (pcs.has(0xcad9)) seen.hiTwoOdd++;
+      if (pcs.has(0xcace)) seen.loopBorrow++;
+      if (pcs.has(0xcabb) && !pcs.has(0xcabd)) seen.noCarry++;
+    }
+  for (const [k, n] of Object.entries(seen)) assert.ok(n > 0, `exit path ${k} never reached`);
+  console.log(`  EXIT-REGS MATRIX: ${JSON.stringify(seen)}`);
 });

@@ -3,7 +3,8 @@
 // underflows and whose RNG roll beats the per-wave gate, copies the spawn fields into the first free
 // destination slot and cues the sound via a dissolved jsr $ccbd -> gateSound8f(m, x, y). Live-out is memory
 // (the destination slot fields, the reseeded timer, the wave index $a6, and the sound cells ccbd stamps);
-// the internal loop counters are scratch, so each arm compares RAM (dumpState minus STACK_SCRATCH). POKEY
+// the routine returns the exit [X, Y] the ROM leaves, so each arm compares RAM (dumpState minus STACK_SCRATCH) and
+// the CAPTURE arm also the returned pair. POKEY
 // polys are frozen so RANDOM ($60ca) is stable across both arms -> the RNG gate is deterministic (0xff).
 // Run: node --test games/tempest/idiomatic/test/equivalence-a2a6.test.js
 
@@ -49,7 +50,8 @@ const CAPS = ROM_PRESENT ? captureDispatches(16, 4000) : [];
 test("CAPTURE: real 0xa2a6 dispatches -- spawnClimbersFromSourceSlots == oracle in RAM (-stack, poly frozen)", () => {
   for (const cap of CAPS) {
     const o = freezePokey(cap.clone()), c = freezePokey(cap.clone());
-    oracle(o); spawnClimbersFromSourceSlots(c);
+    oracle(o); { const ex = c.regs.x, ey = c.regs.y; c.regs.x ^= 0xff; c.regs.y ^= 0xff; // entry X/Y go in as arguments
+      assert.deepEqual(spawnClimbersFromSourceSlots(c, ex, ey), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
   }
   console.log(`  CAPTURE: ${CAPS.length} dispatch(es) checked`);

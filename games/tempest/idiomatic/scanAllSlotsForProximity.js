@@ -17,12 +17,17 @@ import { resolveSlotProximityInteractions } from "./resolveSlotProximityInteract
  * index, letting it fold that slot against the coordinate set and retire/spawn as its rules dictate.
  *
  * Live-out: nothing of its own -- all state changes ($2d3,x teardown, live count $135, spawns) happen
- * inside resolveSlotProximityInteractions per visited slot. Grounding: [seen].
+ * inside resolveSlotProximityInteractions per visited slot.
+ *
+ * y is the Y the ROM enters with. Returns the exit [X, Y] the ROM leaves: X = 0xff (the walk runs X past 0)
+ * and Y = the last resolveSlotProximityInteractions exit Y, or the incoming y when no slot is live.
+ * Grounding: [seen].
  */
-export function scanAllSlotsForProximity(m) {
+export function scanAllSlotsForProximity(m, y = m.regs.y) {
   const { mem8 } = m;
   for (let x = 7; x >= 0; x--) {                              // visit all eight slots, high index first
     const entry = mem8[SLOT_STATE + x];                       // this slot's state byte (0 = dead slot)
-    if (entry !== 0) resolveSlotProximityInteractions(m, entry, x); // live slot: entry is the threshold, x the index
+    if (entry !== 0) y = resolveSlotProximityInteractions(m, entry, x); // live slot: entry is the threshold, x the index
   }
+  return [0xff, y];
 }

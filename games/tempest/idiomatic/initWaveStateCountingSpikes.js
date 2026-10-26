@@ -22,7 +22,7 @@ import { GAME_MODE, GAME_MODE_PENDING, MODE_DELAY_TIMER, DEPTH_ACCUM_LO, loc_9f,
  *
  * Live-out: the reset wave batch (loc_0/loc_104/loc_107/loc_5c/loc_105/loc_106), the spike tally loc_123
  * (count, or 0x80 marker), the intro timers loc_4/loc_2 when armed, and the ready latch loc_125.
- * Grounding: [seen].
+ * Returns the exit X the ROM leaves, 0xff (the tally runs X past 0); Y is not touched. Grounding: [seen].
  */
 export function initWaveStateCountingSpikes(m) {
   const { mem8 } = m;
@@ -43,4 +43,5 @@ export function initWaveStateCountingSpikes(m) {
     mem8[SPIKED_SEGMENT_COUNT] = 0x80;                         // loc_123 intro marker
   }
   mem8[WAVE_PHASE_LATCH] = 0xff;                               // loc_125 ready latch
+  return 0xff;
 }

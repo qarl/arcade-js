@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for tickActiveSoundSlot (ROM 0xad6e-0xadcd) -- a CALLER that dissolves three m.calls into direct
 // idiomatic calls: foldStepIntoFraction (fold/clamp the active slot value, consuming its returned A), requestWriteLowRegions (arm the
-// merge with mask 3), and armRequestedSoundSlot (walk the request word). Effect is memory only, so each side runs on a
-// clone and the contract is RAM (dumpState, minus STACK_SCRATCH).
+// merge with mask 3), and armRequestedSoundSlot (walk the request word). Live-out is RAM plus the exit [X, Y] it
+// returns, so each side runs on a clone and the contract is RAM (dumpState, minus STACK_SCRATCH), with the CAPTURE
+// arm also comparing the returned pair.
 // Run: node --test games/tempest/idiomatic/test/equivalence-ad6e.test.js
 
 import nodeTest from "node:test";
@@ -48,7 +49,8 @@ const CAPS = ROM_PRESENT ? captureDispatches(16, 2000) : [];
 test("CAPTURE: real 0xad6e dispatches -- tickActiveSoundSlot == oracle in RAM (-stack)", () => {
   for (const cap of CAPS) {
     const o = cap.clone(), c = cap.clone();
-    oracle(o); tickActiveSoundSlot(c);
+    oracle(o); { const ex = c.regs.x, ey = c.regs.y; c.regs.x ^= 0xff; c.regs.y ^= 0xff; // entry X/Y go in as arguments
+      assert.deepEqual(tickActiveSoundSlot(c, ey, ex), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
   }
   console.log(`  CAPTURE: ${CAPS.length} dispatch(es) checked`);

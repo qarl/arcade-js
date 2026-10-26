@@ -26,22 +26,28 @@ import { requestSoundIfEnabled } from "./requestSoundIfEnabled.js";
  *
  * Live-out: the score triplet loc_40/41/42(+y); and, on a qualifying award, the incremented
  * per-slot counter SLOT_COUNTDOWN+loc_3d, RIM_COLOR_ANIM = 0x20, and a queued sound request.
+ * Returns the exit [X, Y] the ROM leaves, because bumpLevelEnemyQuota hands them straight to its own
+ * award sound (whose loader stashes them in loc_31/loc_32): Y is the bank offset; X is loc_3d when the
+ * award path ran, BONUS_LIFE_INTERVAL once the threshold test has loaded it, else the incoming x.
+ * Unarmed, the ROM touches neither register: X is returned as passed and Y as undefined (unchanged).
  * Grounding: [seen].
  */
 export function addBcdScoreAndAwardAtThreshold(m, x = m.regs.x) {
   const { mem8 } = m;
-  if ((mem8[STATUS_FLAGS] & 0x80) === 0) return; // gated off unless scoring is armed (STATUS_FLAGS bit 7)
+  if ((mem8[STATUS_FLAGS] & 0x80) === 0) return [x, undefined]; // gated off unless scoring is armed (STATUS_FLAGS bit 7)
   const y = mem8[loc_3d] === 0 ? 0 : 3;          // bank offset: 0 for player 1, 3 for player 2
 
   // Bump a per-slot counter when it is still under six, then chime and raise a flag.
   const doAward = () => {
     const sx = mem8[loc_3d];
     const cnt = mem8[u8(SLOT_COUNTDOWN + sx)];
-    if (cnt >= 0x06) return;
+    if (cnt >= 0x06) return [sx, y];
     mem8[u8(SLOT_COUNTDOWN + sx)] = cnt + 1;
     requestSoundIfEnabled(m, 0x4f, sx, y); // sound, threading this slot's index and y
     mem8[RIM_COLOR_ANIM] = 0x20;
+    return [sx, y]; // the sound loader hands X/Y back unchanged
   };
+  let xOut = x; // the X the ROM is left holding, for the caller
 
   // Add the low two BCD bytes of the amount into the score triplet, carrying the low add into the
   // mid add. Small indices draw the amount from the fixed SCORE_VALUE tables; large ones use the
@@ -76,6 +82,7 @@ export function addBcdScoreAndAwardAtThreshold(m, x = m.regs.x) {
   // Decide whether to run the threshold branch or award directly.
   if (!zSaved) {
     const hv = mem8[BONUS_LIFE_INTERVAL];
+    xOut = hv; // the ROM loads the interval into X for this compare
     if (hv !== 0) {
       const cmpv = mem8[loc_2b];
       if (hv <= cmpv) return doAward();
@@ -84,13 +91,14 @@ export function addBcdScoreAndAwardAtThreshold(m, x = m.regs.x) {
   }
 
   // Threshold branch.
-  if (!carry) return;
+  if (!carry) return [xOut, y];
   const hi = mem8[BONUS_LIFE_INTERVAL];
-  if (hi === 0) return;
+  xOut = hi; // reloaded into X for the threshold arithmetic
+  if (hi === 0) return [xOut, y];
   if (hi < 0x03) {
     if (hi !== 0x02) return doAward();
     if ((a & 0x01) === 0) return doAward();
-    return;
+    return [xOut, y];
   }
   // Repeatedly subtract the threshold; land the award on an exact multiple.
   for (;;) {
@@ -98,6 +106,6 @@ export function addBcdScoreAndAwardAtThreshold(m, x = m.regs.x) {
     a = r.value;
     if (a === 0) return doAward();
     if (!r.carry) continue; // no borrow -> keep subtracting
-    return;
+    return [xOut, y];
   }
 }

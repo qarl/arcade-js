@@ -33,7 +33,8 @@ import { clearReadyLatchPair } from "./clearReadyLatchPair.js";
  * (STATUS_FLAGS bit 7) clear the seed. Tail-delegate into reseedWaveWorkingSet.
  *
  * Live-out: loc_29 (floor), DEPTH_CEILING/loc_127 (start slot), WAVE_PEAK_SEED (cleared on sign), plus
- * everything the reseed chain writes. Memory only — no register live-out.
+ * everything the reseed chain writes. The ROM holds the floor in Y and the start index in X, and enters
+ * reseedWaveWorkingSet with them; returns its exit [X, Y].
  *
  * Grounding: [seen]
  */
@@ -63,7 +64,7 @@ export function selectWaveStartSlot(m) {
 
   // On the sign flag, retire the seed so it does not carry into the next wave.
   if ((mem8[STATUS_FLAGS] & 0x80) !== 0) mem8[WAVE_PEAK_SEED] = 0;
-  return reseedWaveWorkingSet(m);
+  return reseedWaveWorkingSet(m, floor, idx);
 }
 
 /**
@@ -84,17 +85,22 @@ export function selectWaveStartSlot(m) {
  *
  * Live-out: loc_3d, SEG_SPREAD_A_LO_3/4, DEPTH_LO, PLAYER_SEGMENT, RIM_ROT_OFFSET, PASS_COUNTER,
  * MODE_DELAY_TIMER, and on intro TUBE_GEOM_FLAG/GAME_MODE/MODE_DISPATCH_SEL/loc_9f plus the unpacked
- * tables; byte 0x50 cleared. Memory only.
+ * tables; byte 0x50 cleared.
+ *
+ * y and x are the Y and X the ROM enters with. The ROM loads X from LEVEL_ID and then from STATUS_FLAGS, and
+ * the table swap and the intro unpack each leave X and Y of their own; tickWaveSpawnCadence is entered with
+ * the X/Y that sequence leaves, and its exit [X, Y] is returned.
  *
  * Grounding: [seen]
  */
-export function reseedWaveWorkingSet(m) {
+export function reseedWaveWorkingSet(m, y = m.regs.y, x = m.regs.x) {
   const { mem8 } = m;
 
   // Latch the active seat; a non-zero seat means swap in that level's parallel tables.
   const seat = mem8[LEVEL_ID];
   mem8[loc_3d] = seat;
-  if (seat !== 0) swapParallelTables(m);
+  x = seat;
+  if (seat !== 0) [x, y] = swapParallelTables(m);
 
   // Fresh-wave geometry/pacing defaults.
   mem8[SEG_SPREAD_A_LO_4] = 4;
@@ -106,19 +112,20 @@ export function reseedWaveWorkingSet(m) {
 
   // Sign flag set => a real level intro: prime the intro state and arm the intro delay.
   let count = 0;
-  if ((mem8[STATUS_FLAGS] & 0x80) !== 0) {
+  x = mem8[STATUS_FLAGS]; // the ROM tests the sign flag through X
+  if ((x & 0x80) !== 0) {
     mem8[PASS_COUNTER] = 20;
     mem8[TUBE_GEOM_FLAG] = 0xff;
     mem8[GAME_MODE] = 22;
     mem8[MODE_DISPATCH_SEL] = 8;
     mem8[loc_9f] = 0;
-    unpackLevelNibbleTables(m);
+    [x, y] = unpackLevelNibbleTables(m);
     count = 0x10;
   }
   mem8[MODE_DELAY_TIMER] = count;
 
   clearByte50(m);
-  return tickWaveSpawnCadence(m);
+  return tickWaveSpawnCadence(m, y, x);
 }
 
 /**
@@ -142,11 +149,19 @@ export function reseedWaveWorkingSet(m) {
  * GAME_MODE=2, and clear byte 0x50. Finally trim INPUT_EDGE_FLAGS to its low 3 bits.
  *
  * Live-out: PASS_COUNTER, MODE_DELAY_TIMER, INPUT_EDGE_FLAGS, and on a spawn loc_102+seat,
- * PLAYER_LEVEL_TBL+seat, loc_9f, SLOT_COUNTDOWN, GAME_MODE plus all the spawn-chain tables. Memory only.
+ * PLAYER_LEVEL_TBL+seat, loc_9f, SLOT_COUNTDOWN, GAME_MODE plus all the spawn-chain tables.
+ *
+ * The intro sound's loader stashes the X/Y it is called with (loc_31/loc_32), so it is handed the ROM's:
+ * y and x are the Y and X this routine is entered with (as a frame handler, X is the GAME_MODE byte the
+ * dispatcher loaded to select it), and nothing here changes either before the cue. Entered by falling
+ * through from reseedWaveWorkingSet the cue cannot fire: that path has just set PASS_COUNTER to 0 or 20, so
+ * the phase step either does not run or lands on 0x99, never 3. Returns the exit [X, Y] the ROM leaves:
+ * after a spawn, X = 0xff (seedPerLaneSpikeArray's) and Y = reseedStateTables' exit Y; otherwise the
+ * incoming x and Y = MODE_DELAY_TIMER, which the ROM loads into Y for the edge-mask test.
  *
  * Grounding: [seen]
  */
-export function tickWaveSpawnCadence(m) {
+export function tickWaveSpawnCadence(m, y = m.regs.y, x = m.regs.x) {
   const { mem8 } = m;
 
   // Run down the frame counter; underflow drives one phase step.
@@ -158,7 +173,7 @@ export function tickWaveSpawnCadence(m) {
     const phase = bcdSubByte(prev, 1).value;
     mem8[MODE_DELAY_TIMER] = phase;
     if ((u8(prev - 1) & 0x80) !== 0) mem8[INPUT_EDGE_FLAGS] = 0x10; // phase itself underflowed
-    if (phase === 3) requestLevelIntroSound(m); // cue the intro sound at phase 3
+    if (phase === 3) requestLevelIntroSound(m, x, y); // cue the intro sound at phase 3
     mem8[PASS_COUNTER] = 20;
   }
 
@@ -182,13 +197,16 @@ export function tickWaveSpawnCadence(m) {
     mem8[loc_9f] = entry;
     // Build the new enemy: unpack tables, reseed state, seed spikes, clear the ready latch.
     unpackLevelNibbleTables(m);
-    reseedStateTables(m);
-    seedPerLaneSpikeArray(m);
+    [, y] = reseedStateTables(m);
+    x = seedPerLaneSpikeArray(m);
     clearReadyLatchPair(m);
     mem8[GAME_MODE] = 2;
     clearByte50(m);
+  } else {
+    y = mem8[MODE_DELAY_TIMER]; // the ROM loads the phase into Y for the edge-mask test
   }
 
   // Keep only the low 3 edge bits for the next frame.
   mem8[INPUT_EDGE_FLAGS] = mem8[INPUT_EDGE_FLAGS] & 0x07;
+  return [x, y];
 }

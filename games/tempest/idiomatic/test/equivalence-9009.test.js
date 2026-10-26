@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for runWaveInit (ROM 0x9009-0x9024) -- an init sequence: run four setup subroutines
 // (reseedStateTables, seedPerLaneSpikeArray, resetWorkingRamForStateEntry, clearReadyLatchPair) in order, then seed DEPTH_LO = 250 and clear
-// SPIKE_ACTIVE_FLAG/DEPTH_HI/MODE_DISPATCH_SEL. No input register; ends with a plain return (not a tail-delegate) and no caller
-// reads a register back, so live-out is RAM only (dumpState minus STACK_SCRATCH). Oracle is the frozen
+// SPIKE_ACTIVE_FLAG/DEPTH_HI/MODE_DISPATCH_SEL. No input register; ends with a plain return (not a tail-delegate). Live-out
+// is RAM (dumpState minus STACK_SCRATCH) plus the exit [X, Y] it returns (resetWorkingRamForStateEntry's), which
+// bumpLevelEnemyQuota hands back as its own; the CAPTURE arm compares it. Oracle is the frozen
 // translated runWaveInit.
 // Run: node --test games/tempest/idiomatic/test/equivalence-9009.test.js
 
@@ -58,7 +59,8 @@ test("CAPTURE: real 0x9009 dispatches -- runWaveInit == oracle in RAM (-stack)",
     let threw = false;
     try { oracle(o); } catch { threw = true; } // a callee may reach an unimplemented arm on a real dispatch
     if (threw) continue; // both layers would throw identically there; nothing to compare
-    runWaveInit(c);
+    { c.regs.x ^= 0xff; c.regs.y ^= 0xff; // m.regs poisoned: this routine takes no entry X/Y, so its exit must not depend on them
+      assert.deepEqual(runWaveInit(c), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
     checked++;
   }

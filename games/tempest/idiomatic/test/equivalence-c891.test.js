@@ -2,7 +2,7 @@
 // Equivalence for seedFramePhaseAndTick (ROM 0xc891-0xc90b) -- the per-frame dispatcher. It sets speed/mode cells from
 // the coin input + phase counters, then a common tail advances FRAME_COUNTER and fires the sub-steps advanceLevelCounter
 // (c8d2), stepEaromTransfer (odd frames) and requestActiveSoundCue (when SOUND_STEP_GATE is live), threading the slot index X/Y from one to
-// the next. Contract: RAM (dumpState minus STACK_SCRATCH). The ROM's decimal-mode arm (SED gated on
+// the next. Contract: RAM (dumpState minus STACK_SCRATCH), plus the exit [X, Y] it returns (compared on the CAPTURE and CRAFTED setup arms). The ROM's decimal-mode arm (SED gated on
 // DECIMAL_MODE_FLAG != 0 && loc_9f > 0x13) is DEAD -- DECIMAL_MODE_FLAG is the checksum 0xa7 ^ fold(ROM[0xaace..0xaad8]) of a
 // fixed program-ROM span, which is 0, so the gate never opens (verified statically and by a MAME tap over
 // gameplay). The idiomatic routine omits it; on every reachable state D is left untouched, matching the
@@ -17,11 +17,14 @@ import { existsSync, readFileSync } from "node:fs";
 
 import { loc_c891 as oracle } from "../../translated/loc_c891.js";
 import { seedFramePhaseAndTick } from "../seedFramePhaseAndTick.js";
+import { advanceLevelCounter } from "../advanceLevelCounter.js";
 import { stepEaromTransfer } from "../stepEaromTransfer.js";
 import { requestActiveSoundCue } from "../requestActiveSoundCue.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, FRAME_COUNTER, SOUND_STEP_GATE } from "../names.js";
+import {
+  STACK_SCRATCH, FRAME_COUNTER, SOUND_STEP_GATE, GAME_MODE, MODE_DISPATCH_SEL, PHASE_COUNTER, loc_a2, loc_31, loc_32, IN0_PORT,
+} from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -50,7 +53,8 @@ test("CAPTURE: real 0xc891 dispatches -- seedFramePhaseAndTick == oracle in RAM 
     let threw = false;
     try { oracle(o); } catch { threw = true; }
     if (threw) continue;
-    seedFramePhaseAndTick(c);
+    { const ex = c.regs.x, ey = c.regs.y; c.regs.x ^= 0xff; c.regs.y ^= 0xff; // entry X/Y go in as arguments
+      assert.deepEqual(seedFramePhaseAndTick(c, ex, ey), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
     assert.equal(c.regs.fD, o.regs.fD, "decimal-flag live-out matches");
     checked++;
@@ -75,6 +79,46 @@ test("CRAFTED: requestActiveSoundCue reached (odd frame + SOUND_STEP_GATE live) 
   }
   console.log(`  CRAFTED ccfa: ${checked} states`);
   assert.ok(checked >= 1, "no state reached the ccfa tail cleanly");
+});
+
+// The setup branches that feed X/Y, from a live state with crafted cells. Entry X/Y are 0x5a and the per-seed ey (0xa5,
+// or 1 for C and E, which tells the loaded PHASE_COUNTER apart from the entry Y), and m.regs is poisoned, so a dropped
+// PHASE_COUNTER load or a discarded c81b exit shows in RAM or the pair.
+const SETUP_SEEDS = [
+  // A: odd phase, PHASE_COUNTER 1, gate armed -> the Y=1 branch (mode 0x0a), no level step.
+  { name: "A odd phase Y=1", ey: 0xa5, cells: { 0x05: 0x00, 0x0a: 0x01, 0x06: 0x01, 0xa2: 0x80, 0x4e: 0x20, 0x03: 0x01, 0x0c: 0x01, 0x09: 0x01 },
+    control: (o) => o.mem8[GAME_MODE] === 0x0a && o.mem8[MODE_DISPATCH_SEL] === 0x16 && o.regs.y === 0x01 },
+  // B: even phase, PHASE_COUNTER 2, advance pending, even frame, sound live -> c81b's exit [0, 1] reaches the loader.
+  { name: "B even phase c81b", ey: 0xa5, cells: { 0x05: 0x00, 0x0a: 0x00, 0x06: 0x02, 0x4e: 0x20, 0x03: 0x01, 0x0c: 0x01, 0x09: 0x01 },
+    control: (o, pcs) => !pcs.has(0xc8a9) && o.mem8[PHASE_COUNTER] === 0x01 && (o.mem8[FRAME_COUNTER] & 1) === 0 },
+  // C: odd phase, PHASE_COUNTER 3 (>= 2), gate armed -> mode 0x14 then c81b. Entry Y 1 would take the Y=1 branch.
+  { name: "C odd phase Y>=2", ey: 0x01, cells: { 0x05: 0x00, 0x0a: 0x01, 0x06: 0x03, 0xa2: 0x80, 0x4e: 0x20, 0x03: 0x01, 0x0c: 0x01, 0x09: 0x01 },
+    control: (o, pcs) => pcs.has(0xc8ca) && o.mem8[loc_a2] === 0x00 && o.mem8[PHASE_COUNTER] === 0x02 && (o.mem8[FRAME_COUNTER] & 1) === 0 },
+  // D: even phase, PHASE_COUNTER 2, no advance pending ($4e&0x60 = 0) -> c81b hands back the entry X.
+  { name: "D even phase c81b no advance", ey: 0xa5, cells: { 0x05: 0x00, 0x0a: 0x00, 0x06: 0x02, 0x4e: 0x00, 0x03: 0x01, 0x0c: 0x01, 0x09: 0x01 },
+    control: (o) => o.mem8[PHASE_COUNTER] === 0x02 && o.regs.x === 0x5a && o.regs.y === 0x00 },
+  // E: odd phase, PHASE_COUNTER 2 (the >= 2 boundary), gate armed -> mode 0x14 then c81b, not the Y=1 branch.
+  { name: "E odd phase Y=2", ey: 0x01, cells: { 0x05: 0x00, 0x0a: 0x01, 0x06: 0x02, 0xa2: 0x80, 0x4e: 0x20, 0x03: 0x01, 0x0c: 0x01, 0x09: 0x01 },
+    control: (o, pcs) => pcs.has(0xc8ca) && o.mem8[loc_a2] === 0x00 },
+];
+
+test("CRAFTED setup: PHASE_COUNTER load and c81b exit thread to the loader -- RAM, loc_31/loc_32 and [X, Y] equal", () => {
+  assert.ok(CAPS.length > 0, "no capture to seed from");
+  for (const { name, ey, cells, control } of SETUP_SEEDS) {
+    const base = freezePokey(CAPS[CAPS.length - 1].clone());
+    for (const [a, v] of Object.entries(cells)) base.mem.write8(+a, v);
+    base.regs.x = 0x5a; base.regs.y = ey;
+    assert.notEqual(base.mem8[IN0_PORT] & 0x10, 0, `${name}: coin input bit4 set, so setup is not skipped`);
+    const o = base.clone(), pcs = new Set();
+    { const st = o.step.bind(o); o.step = (pc, cy) => { pcs.add(pc); return st(pc, cy); }; }
+    oracle(o);
+    assert.ok(control(o, pcs), `${name}: positive control -- the oracle took the intended branch`);
+    if (name[0] === "B" || name[0] === "C") assert.deepEqual([o.regs.x, o.regs.y, o.mem8[loc_31], o.mem8[loc_32]], [0, 1, 0, 1], `${name}: c81b ran, its exit stashed`);
+    const c = base.clone(); c.regs.x = 0x33; c.regs.y = 0xcc;
+    assert.deepEqual(seedFramePhaseAndTick(c, 0x5a, ey), [o.regs.x, o.regs.y], `${name}: returned exit [X, Y]`);
+    assert.deepEqual([c.mem8[loc_31], c.mem8[loc_32]], [o.mem8[loc_31], o.mem8[loc_32]], `${name}: loc_31/loc_32`);
+    assert.equal(ramDiff(o, c), null, `${name}: RAM equal`);
+  }
 });
 
 // A full copy of seedFramePhaseAndTick identical EXCEPT the ccfa call hands over the stale (entry-register) X/Y

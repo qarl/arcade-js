@@ -19,12 +19,13 @@ import { rotateBlasterAroundRim } from "./rotateBlasterAroundRim.js";
  * guard ($16b := 0) so the arming is spent. Every path tail-calls rotateBlasterAroundRim to move the shooter.
  *
  * Live-out: MODE_DELAY_TIMER ($04) decremented; on expiry GAME_MODE ($00) := GAME_MODE_PENDING ($02) and
- * MODE_DELAY_GUARD ($16b) := 0. Returns the spinner update's result. Grounding: [seen].
+ * MODE_DELAY_GUARD ($16b) := 0. Returns the spinner update's result, the exit [X, Y] the ROM leaves: no path
+ * here loads X or Y, so the spinner update is entered with this routine's y and x. Grounding: [seen].
  */
-export function commitPendingModeAfterDelay(m, y = m.regs.y) {
+export function commitPendingModeAfterDelay(m, y = m.regs.y, x = m.regs.x) {
   const { mem8 } = m;
   // Guard still set: this frame is not eligible to run the countdown; just service the spinner and leave.
-  if ((mem8[FRAME_COUNTER] & mem8[MODE_DELAY_GUARD]) !== 0) return rotateBlasterAroundRim(m, y);
+  if ((mem8[FRAME_COUNTER] & mem8[MODE_DELAY_GUARD]) !== 0) return rotateBlasterAroundRim(m, y, x);
 
   // Tick the delay timer down, clamped at zero (no wrap past 0x00).
   let count = mem8[MODE_DELAY_TIMER];
@@ -37,5 +38,5 @@ export function commitPendingModeAfterDelay(m, y = m.regs.y) {
     mem8[GAME_MODE] = mem8[GAME_MODE_PENDING];
     mem8[MODE_DELAY_GUARD] = 0x00;
   }
-  return rotateBlasterAroundRim(m, y); // every path ends by advancing the blaster around the tube rim
+  return rotateBlasterAroundRim(m, y, x); // every path ends by advancing the blaster around the tube rim
 }

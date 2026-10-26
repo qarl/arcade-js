@@ -24,7 +24,10 @@ import { emitRecordBodyC0 } from "./emitRecordBodyC0.js";
  * word (dst) and writes the chosen lo/hi pair into dst and dst+1.
  *
  * Live-out: loc_3b/loc_3c hold the base-pointer word for this slot; the parity flag 0x415+slot is toggled;
- * and the two bytes at the ($3b) target are overwritten with the selected buffer pointer. Grounding: [seen].
+ * and the two bytes at the ($3b) target are overwritten with the selected buffer pointer.
+ *
+ * Returns the exit [X, Y] the ROM leaves: X = the selected buffer word's high byte (it is stored through A
+ * from X) and Y = 1 (the two stores index Y = 0, then 1). Grounding: [seen].
  */
 export function closeLayerPointer(m, a = m.regs.a) {
   const { mem8, mem16 } = m;
@@ -53,4 +56,5 @@ export function closeLayerPointer(m, a = m.regs.a) {
   const dst = mem16[WORK_PTR_LO];
   mem8[u16(dst)] = lo;
   mem8[u16(dst + 1)] = hi;
+  return [hi, 0x01];
 }

@@ -2,7 +2,8 @@
 // Memory-equivalence for scanAllSlotsForProximity (ROM 0xa454-0xa461) -- scans slots x=7..0 of the SLOT_STATE table and,
 // for each nonzero entry, invokes resolveSlotProximityInteractions with that entry (threshold) and x (slot index). The oracle's
 // jsr resolveSlotProximityInteractions sits mid-loop (its return address is a normal JSR return, dissolved into a direct call
-// in the idiomatic layer), so this is not a tail dispatcher: no live-out register, and no seam tooth.
+// in the idiomatic layer), so this is not a tail dispatcher, and there is no seam tooth. It returns the exit
+// [X, Y] (0xff, the last proximity pass's Y or the entry Y), which the CAPTURE arm compares.
 // resolveSlotProximityInteractions preserves X across its body, so the oracle's loop counter survives the call; the idiomatic
 // layer threads x as a JS loop variable. Contract is RAM (dumpState minus STACK_SCRATCH); the oracle's
 // push/rts land in STACK_SCRATCH and are excluded. Oracle is the frozen translated scanAllSlotsForProximity.
@@ -48,7 +49,8 @@ test("CAPTURE: real 0xa454 dispatches -- scanAllSlotsForProximity == oracle in R
     let threw = false;
     try { oracle(o); } catch { threw = true; } // a real slot may reach an unimplemented sub-arm
     if (threw) continue; // both layers would throw identically there; nothing to compare
-    scanAllSlotsForProximity(c);
+    { const ey = c.regs.y; c.regs.x ^= 0xff; c.regs.y ^= 0xff; // entry Y goes in as the argument; the routine takes no entry X
+      assert.deepEqual(scanAllSlotsForProximity(c, ey), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
     checked++;
   }

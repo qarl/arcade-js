@@ -31,12 +31,14 @@ import { resolveSlotProximityInteractions } from "./resolveSlotProximityInteract
  *
  * Live-out: on a spawn, the seeded slot across SLOT_STATE/TARGET_SEG/loc_2c0/HIT_TALLY, the bumped
  * ACTIVE_OBJECT_COUNT, and the queued spawn sound / proximity resolution; loc_29 holds the computed
- * gate count. Grounding: [seen].
+ * gate count. Y is threaded through: the spawn sound's loader stashes it in loc_32, so the sound gets the
+ * caller's incoming y, and the routine returns the exit Y the ROM leaves -- 0xff after a spawn (the
+ * proximity scan's leftover), else y untouched. Grounding: [seen].
  */
-export function spawnEntityIntoFreeSlot(m) {
+export function spawnEntityIntoFreeSlot(m, y = m.regs.y) {
   const { mem8 } = m;
 
-  if (mem8[PLAYER_FINE_ANGLE] & 0x80) return; // player not spawnable
+  if (mem8[PLAYER_FINE_ANGLE] & 0x80) return y; // player not spawnable
 
   let gate;
   if (mem8[STATUS_FLAGS] & 0x80) {
@@ -53,7 +55,7 @@ export function spawnEntityIntoFreeSlot(m) {
     gate = mem8[loc_29];
   }
 
-  if (gate === 0) return; // gate closed -> no spawn
+  if (gate === 0) return y; // gate closed -> no spawn
 
   for (let x = 7; x >= 0; x--) {
     if (mem8[u16(SLOT_STATE + x)] !== 0) continue; // occupied slot
@@ -62,9 +64,9 @@ export function spawnEntityIntoFreeSlot(m) {
     mem8[u16(TARGET_SEG + x)] = mem8[PLAYER_SEGMENT];    // seed segment from the player
     mem8[u16(loc_2c0 + x)] = mem8[PLAYER_FINE_ANGLE];    // seed fine angle from the player
     mem8[u16(HIT_TALLY + x)] = 0;
-    // The spawn/sound chain stamps the slot index into loc_31/loc_32; pass it explicitly.
-    requestEnemySpawnSound(m, x);
-    resolveSlotProximityInteractions(m, mem8[PLAYER_SHOT_DEPTH], x);
-    break; // only the first free slot is filled
+    // The sound loader stashes X/Y into loc_31/loc_32: X is this slot, Y the caller's untouched y.
+    requestEnemySpawnSound(m, x, y);
+    return resolveSlotProximityInteractions(m, mem8[PLAYER_SHOT_DEPTH], x); // only the first free slot is filled
   }
+  return y;
 }

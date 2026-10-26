@@ -31,7 +31,14 @@ import { requestActiveSoundCue } from "./requestActiveSoundCue.js";
  * the register file. A decimal-mode arm in the original is dead here (see the note at the tail).
  *
  * Live-out: GAME_MODE, MODE_DISPATCH_SEL, loc_a2, PHASE_COUNTER, FRAME_COUNTER, INPUT_EDGE_FLAGS, plus the
- * side effects of advanceLevelCounter / stepEaromTransfer / requestActiveSoundCue. Grounding: [seen].
+ * side effects of advanceLevelCounter / stepEaromTransfer / requestActiveSoundCue.
+ *
+ * x and y are the X/Y the ROM enters with: the exit registers of the mode handler dispatchFramePhaseHandler
+ * ran (or, when its DSW gate skipped the pass, the ones it was entered with). Whichever of them the setup and
+ * the odd-frame EAROM step leave unloaded reach the sound loader when SOUND_STEP_GATE is live, and it stashes
+ * them in loc_31/loc_32. Returns the exit [X, Y] (the loader hands both back unchanged), which the frame loop
+ * enters buildFrameVectors with.
+ * Grounding: [seen].
  */
 export function seedFramePhaseAndTick(m, x = m.regs.x, y = m.regs.y) {
   const { mem8 } = m;
@@ -72,4 +79,5 @@ export function seedFramePhaseAndTick(m, x = m.regs.x, y = m.regs.y) {
   // fixed checksum that is always 0, so the gate never opens. Verified statically and by observation of the
   // running game, where DECIMAL_MODE_FLAG is written 0 every time.)
   if ((mem8[INPUT_EDGE_FLAGS] & 0x80) !== 0) mem8[INPUT_EDGE_FLAGS] = 0x00;
+  return [x, y];
 }

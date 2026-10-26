@@ -2,8 +2,9 @@
 // Memory-equivalence for buildSortedSoundRequest (ROM 0xac3f-0xad21) -- a CALLER that dissolves three m.calls into direct
 // idiomatic calls: clearChannelStagingBlock (conditional block-clear), queueEaromRegionSave (arm the merge with mask 4), and the
 // fall-through armRequestedSoundSlot (walk the request word). It bubble-sorts each channel's record rows counting passes,
-// records per-channel pass counts, nudges a running total, and derives a packed request byte. Effect is
-// memory only, so each side runs on a clone and the contract is RAM (dumpState, minus STACK_SCRATCH).
+// records per-channel pass counts, nudges a running total, and derives a packed request byte. Live-out is RAM
+// plus the exit [X, Y] it returns (the request walker's), so each side runs on a clone and the contract is RAM
+// (dumpState, minus STACK_SCRATCH), with the CAPTURE and REQUEST-ZERO arms also comparing the returned pair.
 // Run: node --test games/tempest/idiomatic/test/equivalence-ac3f.test.js
 
 import nodeTest from "node:test";
@@ -49,7 +50,8 @@ const CAPS = ROM_PRESENT ? captureDispatches(16, 4000) : [];
 test("CAPTURE: real 0xac3f dispatches -- buildSortedSoundRequest == oracle in RAM (-stack)", () => {
   for (const cap of CAPS) {
     const o = cap.clone(), c = cap.clone();
-    oracle(o); buildSortedSoundRequest(c);
+    oracle(o); { c.regs.x ^= 0xff; c.regs.y ^= 0xff; // m.regs poisoned: this routine takes no entry X/Y, so its exit must not depend on them
+      assert.deepEqual(buildSortedSoundRequest(c), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
   }
   console.log(`  CAPTURE: ${CAPS.length} dispatch(es) checked`);
@@ -91,6 +93,19 @@ function advanceCursor(y) {
   y = u8(y - 1);
   return y;
 }
+
+// loc_3d = 0x33 derives a request byte of 0, so the walker exits at once with the X it was handed (the channel
+// loop's 0xff), making that hand-off observable.
+test("CRAFTED REQUEST-ZERO: the walker's exit X is the channel index handed to it (m.regs poisoned)", () => {
+  const seed = (m) => { m.mem.write8(loc_3d, 0x33); m.regs.x = 0x21; m.regs.y = 0x5a; };
+  const o = new Machine(ROM, OPTS); seed(o);
+  const c = new Machine(ROM, OPTS); seed(c); c.regs.x = 0xa5; c.regs.y = 0xa5;
+  oracle(o);
+  assert.equal(o.mem.read8(REQUEST_BITS), 0x00, "positive control: the request byte is 0");
+  assert.deepEqual([o.regs.x, o.regs.y], [0xff, 0x14], "positive control: the oracle's walker exits with X = 0xff");
+  assert.deepEqual(buildSortedSoundRequest(c), [o.regs.x, o.regs.y], "returned exit [X, Y]");
+  assert.equal(ramDiff(o, c), null, "RAM equal");
+});
 
 test("TEETH: a faithful twin that drops the request byte's ADC carry-in diverges from the oracle", () => {
   const o = new Machine(ROM, OPTS); fillWindow(o); o.mem.write8(STATUS_FLAGS, 0xff); o.mem.write8(DSW1_SNAPSHOT, 0x00);

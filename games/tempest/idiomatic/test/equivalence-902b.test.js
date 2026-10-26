@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for resetWorkingRamForStateEntry (ROM 0x902b) -- the new-game reset spine: run six subsystem resets
 // (clearActiveShots, clearShotTableAndStateFlags, seedSlotRandomTags, clearEightByteTableAndFlag, clearByte50, buildLevelLayout) in order, then set $0124=$0148=0xff and
-// $0123=0x00. Live-out is memory only (A/X at RTS incidental), so each side runs on a clone and the
-// contract is RAM (dumpState, minus STACK_SCRATCH). A body-then-return routine: the module omits the ROM
+// $0123=0x00. Live-out is RAM plus the exit [X, Y] it returns (buildLevelLayout's), so each side runs on a clone
+// and the contract is RAM (dumpState, minus STACK_SCRATCH) plus that pair (compared on the CAPTURE arm). A body-then-return routine: the module omits the ROM
 // ret and the seam completes it, so the arms compare RAM (-stack), NOT pc/SP.
 //   POKEY coupling: seedSlotRandomTags draws slot tags from $60ca (POKEY1 RANDOM), clock-coupled. We freeze the
 // polys (clear SK_RESET) so both arms read the SAME RANDOM byte on every load, keeping the fill
@@ -48,7 +48,8 @@ const CAPS = ROM_PRESENT ? captureDispatches(16, 4000) : [];
 test("CAPTURE: real 0x902b dispatches -- resetWorkingRamForStateEntry == oracle in RAM (-stack, poly frozen)", () => {
   for (const cap of CAPS) {
     const o = freezePokey(cap.clone()), c = freezePokey(cap.clone());
-    oracle(o); resetWorkingRamForStateEntry(c);
+    oracle(o); { c.regs.x ^= 0xff; c.regs.y ^= 0xff; // m.regs poisoned: this routine takes no entry X/Y, so its exit must not depend on them
+      assert.deepEqual(resetWorkingRamForStateEntry(c), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
   }
   console.log(`  CAPTURE: ${CAPS.length} dispatch(es) checked`);

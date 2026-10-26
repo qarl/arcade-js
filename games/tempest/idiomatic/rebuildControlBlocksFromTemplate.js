@@ -24,11 +24,13 @@ import { raiseRebuildRequestBits } from "./raiseRebuildRequestBits.js";
  *   6. Clear the two request bits (flags & 0xfc), leaving any higher bits untouched.
  *
  * Live-out: mode marker loc_100; the slot-value block (loc_606..) and glyph-param block (loc_706..); the
- * snapshot cells loc_71e/loc_71f; pending-work flags 0x1c9 with the low two bits cleared. Grounding: [seen].
+ * snapshot cells loc_71e/loc_71f; pending-work flags 0x1c9 with the low two bits cleared. Returns the exit
+ * [X, Y] the ROM leaves: X = 0xff (the fill runs X past 0) and requestRebuildIfSwitchesChanged's exit Y.
+ * Grounding: [seen].
  */
 export function rebuildControlBlocksFromTemplate(m) {
   const { mem8 } = m;
-  requestRebuildIfSwitchesChanged(m); // refresh snapshot; raise a request bit on a switch change
+  const [, y] = requestRebuildIfSwitchesChanged(m); // refresh snapshot; raise a request bit on a switch change
   mem8[loc_100] = 0x08; // mode/state marker for the block system
   // Fully-idle machine (all three activity sources clear) => force both rebuild requests on.
   if ((mem8[loc_71b] | mem8[loc_71c] | mem8[loc_71d]) === 0) raiseRebuildRequestBits(m);
@@ -46,4 +48,5 @@ export function rebuildControlBlocksFromTemplate(m) {
     mem8[INPUT_SNAPSHOT_LO] = mem8[DSW_DIFFICULTY] & 0x03;
   }
   mem8[PENDING_WORK_FLAGS] = flags & 0xfc; // consume the two request bits, keep the rest
+  return [0xff, y];
 }

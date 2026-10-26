@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Equivalence for dispatchListSetupByColumn (ROM 0x9a87) -- a lone `txa` (A=X) that falls through into the RTS-trick
 // COMPUTED-JUMP dispatcher at 0x9a88. The idiomatic form dissolves the txa+fall-through into passing X
-// as the dispatch index: dispatchListSetupByColumn(m, x) === dispatchCoordListSetup(m, x). The five list-setup entries are selected by
-// X (0..4) and none reads the incoming A/Y/X as data (X is the dispatch index, consumed), so this is a
-// tail delegation -- the exit registers are the delegate's, NOT dispatchListSetupByColumn's. Contract is RAM
+// as both the dispatch index and the slot index: dispatchListSetupByColumn(m, x) ===
+// dispatchCoordListSetup(m, x, x). The five list-setup entries are selected by A=X (0..4); X is read only by
+// entry 2 (selectClimberSpawnLane) as its slot index, the other entries ignore it. This is a tail delegation --
+// the exit registers are the delegate's, NOT dispatchListSetupByColumn's. Contract is RAM
 // (dumpState minus STACK_SCRATCH); the oracle's stack gymnastics land in STACK_SCRATCH and are excluded.
 // Run: node --test games/tempest/idiomatic/test/equivalence-9a87.test.js
 
@@ -79,6 +80,26 @@ test("CRAFTED: each entry index X=0..4 -- dispatchListSetupByColumn == oracle in
   assert.ok(checked >= 1, "no entry could be provisioned -- seed is inert");
 });
 
+// R37 arm: the column must reach the selected handler by the explicit arg, never by a stale register.
+// The idiomatic side gets the column as its arg while m.regs.x holds a poison value; the oracle side
+// keeps the real X. A rewrite that leaks the column into the callee's A slot and lets the callee's X
+// fall back to m.regs.x makes entry 2 (selectClimberSpawnLane) index its cells by the poison and diverge.
+test("STALE-X: column passed explicitly, m.regs.x poisoned on the idiomatic side only -- == oracle in RAM (-stack)", () => {
+  let checked = 0;
+  const arms = [...CAPS.map((cap) => [cap, cap.regs.x]), ...[0, 1, 2, 3, 4].map((x) => [seedBase(x), x])];
+  for (const [base, x] of arms) {
+    const o = base.clone(), c = base.clone();
+    let threw = false;
+    try { oracle(o); } catch { threw = true; }
+    if (threw) continue;
+    c.regs.x = (x + 0x0b) & 0xff; // poison: a different, still in-range-for-RAM slot index
+    dispatchListSetupByColumn(c, x);
+    assert.equal(ramDiff(o, c), null, `RAM equal for column X=${x} with m.regs.x poisoned`);
+    checked++;
+  }
+  assert.ok(checked >= 1, "no arm could be provisioned -- the stale-X check is inert");
+});
+
 test("TEETH: a twin that dispatches the WRONG entry (x^1) diverges in RAM", () => {
   let caught = false, tried = 0;
   for (const x of [0, 1, 2, 3, 4]) {
@@ -91,7 +112,7 @@ test("TEETH: a twin that dispatches the WRONG entry (x^1) diverges in RAM", () =
     if (flipped > 4) continue;
     const c = base.clone();
     let brokeThrew = false;
-    try { dispatchCoordListSetup(c, flipped); } catch { brokeThrew = true; } // twin: dispatch the wrong index
+    try { dispatchCoordListSetup(c, flipped, x); } catch { brokeThrew = true; } // twin: dispatch the wrong index
     if (brokeThrew) continue;
     tried++;
     if (ramDiff(o, c) !== null) { caught = true; break; }

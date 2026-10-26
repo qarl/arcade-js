@@ -3,8 +3,9 @@
 // limit; on reaching it, clamps the limit cell, bumps the hit tally, flags the target, then chimes
 // (jsr $ccf6) and awards (jsr $ca6c); after two hits it resets the counter and drops a life. The
 // idiomatic side dissolves the two jsr into direct requestSegmentHitSound / addBcdScoreAndAwardAtThreshold calls. Output is RAM plus the
-// exit slot index X (loaded from $37 on the work path, entry X on the skip path), so each arm compares
-// RAM (dumpState minus STACK_SCRATCH) and the returned X vs o.regs.x.
+// exit [X, Y]: X is the slot index (loaded from $37 on the work path, entry X on the skip path), Y the award's
+// exit Y on an armed hit, else the target segment. Each arm compares RAM (dumpState minus STACK_SCRATCH) and
+// the returned X/Y vs o.regs.x/o.regs.y.
 // Run: node --test games/tempest/idiomatic/test/equivalence-a1fa.test.js
 
 import nodeTest from "node:test";
@@ -38,12 +39,13 @@ function captureDispatches(K, maxFrames) {
 }
 const CAPS = ROM_PRESENT ? captureDispatches(16, 3000) : [];
 
-test("CAPTURE: real 0xa1fa dispatches -- advanceShotAndScoreLaneHit == oracle in RAM (-stack) and X live-out", () => {
+test("CAPTURE: real 0xa1fa dispatches -- advanceShotAndScoreLaneHit == oracle in RAM (-stack) and X/Y live-out", () => {
   for (const cap of CAPS) {
     const o = cap.clone(), c = cap.clone();
-    oracle(o); const x = advanceShotAndScoreLaneHit(c);
+    oracle(o); const [x, y] = advanceShotAndScoreLaneHit(c);
     assert.equal(ramDiff(o, c), null);
     assert.equal(x, o.regs.x, "returned X must equal oracle exit X");
+    assert.equal(y, o.regs.y, "returned Y must equal oracle exit Y");
   }
   console.log(`  CAPTURE: ${CAPS.length} dispatch(es) checked`);
 });
@@ -60,7 +62,7 @@ function seed(m, s) {
   m.mem.write8(u16(HIT_TALLY + (s.s37 ?? 0x02)), s.tally37 ?? 0x00); // work-path xEff tally
 }
 
-test("CRAFTED: limit-not-reached / reached / reached+second-hit -- advanceShotAndScoreLaneHit == oracle (RAM + X)", () => {
+test("CRAFTED: limit-not-reached / reached / reached+second-hit -- advanceShotAndScoreLaneHit == oracle (RAM + X/Y)", () => {
   const cases = [
     { tag: "limit 0 -> early return", limit: 0x00, counter: 0x20 },
     { tag: "counter < limit -> skip path, xEff = entry X", limit: 0x40, counter: 0x10 },
@@ -72,9 +74,11 @@ test("CRAFTED: limit-not-reached / reached / reached+second-hit -- advanceShotAn
   for (const s of cases) {
     const o = new Machine(ROM, OPTS); seed(o, s);
     const c = new Machine(ROM, OPTS); seed(c, s);
-    oracle(o); const x = advanceShotAndScoreLaneHit(c);
+    o.regs.y = 0x5a; c.regs.y = 0xa5; // the routine loads Y before reading it
+    oracle(o); const [x, y] = advanceShotAndScoreLaneHit(c);
     assert.equal(ramDiff(o, c), null, s.tag);
     assert.equal(x, o.regs.x, `X live-out: ${s.tag}`);
+    assert.equal(y, o.regs.y, `Y live-out: ${s.tag}`);
   }
 });
 

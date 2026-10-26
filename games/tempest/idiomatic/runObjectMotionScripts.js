@@ -28,13 +28,17 @@ import { requestMotionFlipSound } from "./requestMotionFlipSound.js";
  * Finally, when ENEMY_ANIM_ACCUM leaves the [0x0f, 0xc0] band it negates ENEMY_ANIM_DELTA to reverse the
  * sweep direction.
  *
- * xIn seeds the value the loop leaves in X for the tail sound cue: no routine in this dispatch subtree
- * rewrites X, so after the walk X = the last non-empty slot processed (or the incoming X if the walk seated
- * none). lastX mirrors that and is threaded to the tail sound cue that stores it.
+ * The two tail sound cues are handed the X and Y the ROM holds at those calls, because the sound loader
+ * stashes both in loc_31/loc_32. X is reloaded from SLOT_LOOP_INDEX at the top of every walk iteration,
+ * occupied slot or not, and the motion handlers hand it back unchanged, so after the walk X = the index
+ * of the last iteration (0 unless ENEMY_SLOT_TOP starts negative); with the walk skipped it is the
+ * incoming xIn. Y is the accumulated sum itself (the ROM moves it through Y to store it).
  *
  * Live-out: each occupied slot's ENEMY_SCRIPT_CURSOR,x is advanced; ENEMY_ANIM_ACCUM holds the new sweep
  * accumulator and ENEMY_ANIM_DELTA its (possibly negated) step; SCRIPT_CURSOR/SLOT_LOOP_INDEX/SCRIPT_WALK_
- * CONTINUE are left as loop residue; sound cues may have been queued. Grounding: [seen].
+ * CONTINUE are left as loop residue; sound cues may have been queued. Returns the exit [X, Y] (X as above,
+ * Y = the new ENEMY_ANIM_ACCUM), which the next pass, stepActiveShots, receives as its incoming Y.
+ * Grounding: [seen].
  */
 export function runObjectMotionScripts(m, xIn = m.regs.x) {
   const { mem8 } = m;
@@ -44,8 +48,8 @@ export function runObjectMotionScripts(m, xIn = m.regs.x) {
     mem8[SLOT_LOOP_INDEX] = mem8[ENEMY_SLOT_TOP];
     do {
       const x = mem8[SLOT_LOOP_INDEX];
+      lastX = x; // every iteration reloads X from the loop index, occupied slot or not
       if (mem8[u16(ENEMY_DEPTH + x)] !== 0) {
-        lastX = x; // the slot the loop leaves in X
         mem8[SCRIPT_WALK_CONTINUE] = 1;
         mem8[SCRIPT_CURSOR] = mem8[u16(ENEMY_SCRIPT_CURSOR + x)];
         do {
@@ -65,9 +69,9 @@ export function runObjectMotionScripts(m, xIn = m.regs.x) {
   mem8[ENEMY_ANIM_ACCUM] = sum;
   if ((sum ^ old148) & 0x80) {                  // the accumulate crossed a sign boundary
     if (sum & 0x80) {
-      cueSpikeCollisionSound(m, lastX); // the loop's leftover X feeds the sound cue; Y stays the loop's leftover
+      cueSpikeCollisionSound(m, lastX, sum); // X = the walk's leftover index, Y = the sum
     } else if (mem8[LANE_ENEMY_COUNT_1] !== 0 && (mem8[PLAYER_FINE_ANGLE] & 0x80) === 0) {
-      requestMotionFlipSound(m, lastX);
+      requestMotionFlipSound(m, lastX, sum);
     }
   }
 
@@ -75,4 +79,5 @@ export function runObjectMotionScripts(m, xIn = m.regs.x) {
   const v = mem8[ENEMY_ANIM_ACCUM];
   const negate = (v & 0x80) === 0 ? v >= 0x0f : v < 0xc1;
   if (negate) mem8[ENEMY_ANIM_DELTA] = u8((mem8[ENEMY_ANIM_DELTA] ^ 0xff) + 1);
+  return [lastX, sum]; // the sound loader hands X/Y back unchanged, so these are the exit registers
 }

@@ -22,7 +22,10 @@ import { reloadPacingFromPeakSlot } from "./reloadPacingFromPeakSlot.js";
  * 0, else 0x02; and request GAME_MODE (0x0) = 0x0a.
  *
  * Live-out: MODE_DELAY_TIMER, the decremented SLOT_COUNTDOWN pair, MODE_DISPATCH_SEL (conditionally),
- * the toggled LEVEL_ID, GAME_MODE_PENDING, and GAME_MODE. Grounding: [seen].
+ * the toggled LEVEL_ID, GAME_MODE_PENDING, and GAME_MODE.
+ *
+ * Returns the exit [X, Y] the ROM leaves: reloadPacingFromPeakSlot's when the pair is spent, else the chosen
+ * slot and its incremented PLAYER_LEVEL_TBL byte. Grounding: [seen].
  */
 export function tickEnemyPacingCountdown(m) {
   const { mem8 } = m;
@@ -33,8 +36,7 @@ export function tickEnemyPacingCountdown(m) {
   mem8[cur] = mem8[cur] - 1;
   // Whole two-byte pair spent -> reload the wave's pacing and stop.
   if ((mem8[SLOT_COUNTDOWN] | mem8[SLOT_COUNTDOWN_HI]) === 0) {
-    reloadPacingFromPeakSlot(m);
-    return;
+    return reloadPacingFromPeakSlot(m);
   }
   // This tick zeroed the active slot -> flag the dispatch and set the mode delay.
   x = mem8[loc_3d];
@@ -52,4 +54,5 @@ export function tickEnemyPacingCountdown(m) {
   const y = u8(mem8[u8(PLAYER_LEVEL_TBL + x)] + 1);
   mem8[GAME_MODE_PENDING] = y === 0 ? 0x1c : 0x02;
   mem8[GAME_MODE] = 0x0a;
+  return [x, y];
 }

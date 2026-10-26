@@ -3,8 +3,8 @@
 // requests both rebuild flags via raiseRebuildRequestBits when the three sources are idle, then per request bit copies a
 // template block into $0606 or fills $0706 with ones, optionally latches the control snapshot into
 // $071e/$071f, and clears the low two request bits of $01c9. The idiomatic side dissolves jsr $ac20 and
-// jsr $ac36 into direct calls. Live-out is memory only (A/X/Y at RTS are incidental), so each arm compares
-// RAM (dumpState minus STACK_SCRATCH). Run: node --test games/tempest/idiomatic/test/equivalence-abac.test.js
+// jsr $ac36 into direct calls. Live-out is RAM plus the exit [X, Y] it returns, so each arm compares RAM
+// (dumpState minus STACK_SCRATCH) and the CAPTURE arm also the returned pair. Run: node --test games/tempest/idiomatic/test/equivalence-abac.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
@@ -42,7 +42,8 @@ const CAPS = ROM_PRESENT ? captureDispatches(16, 4000) : [];
 test("CAPTURE: real 0xabac dispatches -- rebuildControlBlocksFromTemplate == oracle in RAM (-stack)", () => {
   for (const cap of CAPS) {
     const o = cap.clone(), c = cap.clone();
-    oracle(o); rebuildControlBlocksFromTemplate(c);
+    oracle(o); { c.regs.x ^= 0xff; c.regs.y ^= 0xff; // m.regs poisoned: this routine takes no entry X/Y, so its exit must not depend on them
+      assert.deepEqual(rebuildControlBlocksFromTemplate(c), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
   }
   console.log(`  CAPTURE: ${CAPS.length} dispatch(es) checked`);

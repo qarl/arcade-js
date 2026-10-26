@@ -13,8 +13,8 @@
 // RANDOM constant). Freezing the clones makes CAPTURE deterministic; a fresh machine already has skctl 0.
 //   Sound gate: ccc3 only stamps when $05 bit7 is set. CRAFTED/TEETH open it ($05 = 0x80) or the $32 stamp
 // (and thus the register teeth) would be toothless.
-//   Live-out is RAM (a618's A/X/Y at RTS are incidental, like every dissolve caller), so each arm compares
-// the RAM diff (dumpState minus STACK_SCRATCH). An omitted-ret rewrite.
+//   Live-out is RAM plus the exit [X, Y] it returns (0, the threaded Y; the frame loop carries it to the sound
+// loader's stash), so each arm compares the RAM diff (dumpState minus STACK_SCRATCH) and the CAPTURE arm the pair. An omitted-ret rewrite.
 // Run: node --test games/tempest/idiomatic/test/equivalence-a618.test.js
 
 import nodeTest from "node:test";
@@ -58,7 +58,8 @@ const CAPS = ROM_PRESENT ? captureDispatches(16, 6000) : [];
 test("CAPTURE: real 0xa618 dispatches -- stepEnemyFleetAndSpawn == oracle in RAM (-stack, poly frozen)", () => {
   for (const cap of CAPS) {
     const o = freezePokey(cap.clone()), c = freezePokey(cap.clone());
-    oracle(o); stepEnemyFleetAndSpawn(c);
+    oracle(o); { const ey = c.regs.y; c.regs.x ^= 0xff; c.regs.y ^= 0xff; // entry Y goes in as the argument; the routine takes no entry X
+      assert.deepEqual(stepEnemyFleetAndSpawn(c, ey), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
   }
   console.log(`  CAPTURE: ${CAPS.length} dispatch(es) checked`);
@@ -90,6 +91,28 @@ test("CRAFTED: live slot integrates+steps, free slots spawn; RAM == oracle and $
   assert.equal(c.mem.read8(SPAWN_FOUND_FLAG), 0xff, "live slot marked the frame active");
   assert.equal(c.mem.read8(SLOT_LOOP_INDEX), 0xff, "slot counter fell through to 0xff");
   assert.equal(c.mem.read8(loc_32), o.mem.read8(loc_32), "threaded register stamped identically into $32");
+});
+
+// All 16 slots free, so no live slot's a721 overwrites the entry Y: with a spawn budget every spawn stamps the entry
+// Y into $32, and without one the routine exits with it untouched. The other arms all have a live slot.
+test("CRAFTED all-free: entry Y reaches $32 and the exit, with and without a spawn budget (m.regs poisoned)", () => {
+  for (const budget of [0x08, 0x00]) {
+    const seed = (m) => {
+      freezePokey(m);
+      m.mem.write8(STATUS_FLAGS, 0x80);
+      m.mem.write8(SPAWN_BUDGET_TIMER, budget);
+      for (let x = 0; x < 16; x++) m.mem.write8(u16(ENEMY_SLOT_FLAGS + x), 0x00);
+      m.regs.x = 0x00; m.regs.y = 0x33;
+    };
+    const o = new Machine(ROM, OPTS); seed(o);
+    const c = new Machine(ROM, OPTS); seed(c); c.regs.x = 0x5a; c.regs.y = 0xa5;
+    oracle(o);
+    assert.deepEqual([o.regs.x, o.regs.y], [0x00, 0x33], `budget ${budget}: positive control -- the oracle exits with the entry Y`);
+    if (budget) assert.equal(o.mem.read8(loc_32), 0x33, "positive control -- a spawn stamped the entry Y into $32");
+    assert.deepEqual(stepEnemyFleetAndSpawn(c, 0x33), [o.regs.x, o.regs.y], `budget ${budget}: returned exit [X, Y]`);
+    assert.equal(c.mem.read8(loc_32), o.mem.read8(loc_32), `budget ${budget}: $32`);
+    assert.equal(ramDiff(o, c), null, `budget ${budget}: RAM equal`);
+  }
 });
 
 test("TEETH (register thread): threading the STALE entry Y instead of a721's return diverges in $32", () => {

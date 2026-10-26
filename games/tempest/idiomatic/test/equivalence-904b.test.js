@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for autoAdvanceRimRotation -- folds the sign-extended scroll delta into the long accumulator,
 // steps the 16-bit position by a fixed stride, flags saturation, and on a zero high-difference rebuilds
-// the position seeds, then tail-delegates jmp 0x9749 (dissolved into the idiomatic rotateBlasterAroundRim, Y threaded).
-// Live-out is memory only, so each arm compares RAM (dumpState minus STACK_SCRATCH). The routine seats
+// the position seeds, then tail-delegates jmp 0x9749 (dissolved into the idiomatic rotateBlasterAroundRim, X/Y threaded).
+// Live-out is RAM plus the rotation's exit [X, Y], which it returns, so each arm compares RAM (dumpState minus
+// STACK_SCRATCH) and the CAPTURE arm also the returned pair. The routine seats
 // state then tail-calls, so it is an omitted-ret dispatch (SP-tooth). $0201 bit7 is seeded to steer the
 // delegated spinner update to its deterministic early-out.
 // Run: node --test games/tempest/idiomatic/test/equivalence-904b.test.js
@@ -40,7 +41,8 @@ const CAPS = ROM_PRESENT ? captureDispatches(16, 3000) : [];
 test("CAPTURE: real 0x904b dispatches -- autoAdvanceRimRotation == oracle in RAM (-stack)", () => {
   for (const cap of CAPS) {
     const o = cap.clone(), c = cap.clone();
-    oracle(o); autoAdvanceRimRotation(c);
+    oracle(o); { const ey = c.regs.y; c.regs.x ^= 0xff; c.regs.y ^= 0xff; // entry Y goes in as the argument; the routine takes no entry X
+      assert.deepEqual(autoAdvanceRimRotation(c, ey), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
   }
   console.log(`  CAPTURE: ${CAPS.length} dispatch(es) checked`);

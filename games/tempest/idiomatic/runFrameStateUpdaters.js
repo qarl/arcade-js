@@ -24,15 +24,27 @@ import { ageShotsAndAdvanceFrameClock } from "./ageShotsAndAdvanceFrameClock.js"
  * object-pending flag), run the extra updater ageShotsAndAdvanceFrameClock ($a504).
  *
  * Live-out: no cell is written directly except the bit7 clear of SPIKED_SEGMENT_COUNT; the frame's real
- * output is the composed state left by the six callees. Grounding: [seen].
+ * output is the composed state left by the six callees.
+ *
+ * Register flow: several callees reach the sound loader (loc_31/loc_32 stash X/Y) or the object insert
+ * (loc_35/loc_36 stash X/Y), so each is handed the X/Y the ROM holds at that point. y is the Y this
+ * routine is entered with; rotateBlasterAroundRim, ageTimedObjects and spawnEntityIntoFreeSlot each
+ * return the Y they leave and it is carried to the next pass (advanceMovingSpike leaves Y alone). The
+ * spike's X is the rotation's exit X (x is the X this routine is entered with): TUBE_GEOM_FLAG, which the
+ * rotation loads for its end-of-rim test whenever the spike can move (both skip on the same
+ * PLAYER_FINE_ANGLE bit7, and the rotation clears it). stepActiveShots loads X before any later pass reads
+ * it, so the X the passes between leave is not carried. Returns the exit [X, Y] the ROM leaves:
+ * stepActiveShots', or the extra updater's when it runs (entered with stepActiveShots').
+ * Grounding: [seen].
  */
-export function runFrameStateUpdaters(m) {
+export function runFrameStateUpdaters(m, y = m.regs.y, x = m.regs.x) {
   const { mem8 } = m;
   mem8[SPIKED_SEGMENT_COUNT] = mem8[SPIKED_SEGMENT_COUNT] & 0x7f; // drop the per-frame bit7, keep the tally
-  rotateBlasterAroundRim(m);                  // player rim rotation from spinner/aim
-  advanceMovingSpike(m);                      // step the moving spike
-  ageTimedObjects(m);                         // age timed objects
-  spawnEntityIntoFreeSlot(m);                 // seat a new enemy into a free slot
-  stepActiveShots(m);                         // advance the live shots
-  if (mem8[PLAYER_FINE_ANGLE] & 0x80) ageShotsAndAdvanceFrameClock(m); // extra pass only when $201 bit7 set
+  [x, y] = rotateBlasterAroundRim(m, y, x);   // player rim rotation from spinner/aim
+  advanceMovingSpike(m, x, y);                // step the moving spike
+  [, y] = ageTimedObjects(m, y);              // age timed objects
+  y = spawnEntityIntoFreeSlot(m, y);          // seat a new enemy into a free slot
+  [x, y] = stepActiveShots(m, y);             // advance the live shots
+  if (mem8[PLAYER_FINE_ANGLE] & 0x80) return ageShotsAndAdvanceFrameClock(m, x, y); // extra pass only when $201 bit7 set
+  return [x, y];
 }

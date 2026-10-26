@@ -20,18 +20,22 @@ import { clearReadyLatchPair } from "./clearReadyLatchPair.js";
  * flags: SPIKE_ACTIVE_FLAG, DEPTH_HI, and MODE_DISPATCH_SEL. It is tail-reached from bumpLevelEnemyQuota.
  *
  * Live-out: the four passes' reseeded tables/spikes/RAM/latches, plus DEPTH_LO = 250 with DEPTH_HI = 0
- * (depth counter primed) and SPIKE_ACTIVE_FLAG / MODE_DISPATCH_SEL cleared to 0. Grounding: [seen].
+ * (depth counter primed) and SPIKE_ACTIVE_FLAG / MODE_DISPATCH_SEL cleared to 0.
+ *
+ * Returns the exit [X, Y] the ROM leaves: resetWorkingRamForStateEntry's (clearReadyLatchPair and the closing
+ * stores write no register). Grounding: [seen].
  */
 export function runWaveInit(m) {
   const { mem8 } = m;
 
   reseedStateTables(m);            // repopulate the shared per-wave state tables
   seedPerLaneSpikeArray(m);        // lay out this wave's spikes, one per lane
-  resetWorkingRamForStateEntry(m); // clear working RAM for the state being entered
+  const exit = resetWorkingRamForStateEntry(m); // clear working RAM for the state being entered
   clearReadyLatchPair(m);          // drop the paired ready latches
 
   mem8[DEPTH_LO] = 250;            // prime the tube-depth counter (low byte)
   mem8[SPIKE_ACTIVE_FLAG] = 0;     // no spike active yet
   mem8[DEPTH_HI] = 0;              // depth high byte
   mem8[MODE_DISPATCH_SEL] = 0;     // reset the mode dispatch selector
+  return exit;
 }

@@ -12,7 +12,8 @@ import { ACTIVE_ENEMY_COUNT, ACTIVE_OBJECT_COUNT, SLOT_STATE } from "./names.js"
  * Behavior: it walks SLOT_STATE from index 0x0b down to 0, storing 0x00 into each of the 12 cells, then
  * clears ACTIVE_OBJECT_COUNT and ACTIVE_ENEMY_COUNT to 0x00.
  *
- * Live-out: the 12-byte SLOT_STATE array and the two count cells, all zeroed. Grounding: [seen].
+ * Live-out: the 12-byte SLOT_STATE array and the two count cells, all zeroed. Returns the exit X the ROM
+ * leaves, 0xff (the clear runs X past 0); Y is not touched. Grounding: [seen].
  */
 export function clearActiveShots(m) {
   const { mem8 } = m;
@@ -21,4 +22,5 @@ export function clearActiveShots(m) {
   // Clear the two associated flag cells.
   mem8[ACTIVE_OBJECT_COUNT] = 0x00;   // running object count
   mem8[ACTIVE_ENEMY_COUNT] = 0x00;    // running enemy count
+  return 0xff;
 }

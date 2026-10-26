@@ -22,17 +22,22 @@ import { TIMED_OBJECT_COUNT, SHAPE_ID, SHAPE_ACTIVE, SHAPE_ANIM, TIMED_OBJ_LIMIT
  * (SHAPE_ACTIVE+i = 0).
  *
  * Live-out: the SHAPE_ANIM counters (advanced), freed SHAPE_ACTIVE slots, and TIMED_OBJECT_COUNT
- * rebuilt as the count of slots still animating (0 => no more work next frame).
+ * rebuilt as the count of slots still animating (0 => no more work next frame). Returns the exit [X, Y].
+ * The ROM indexes the per-type tables through Y, so it leaves Y = the type of the last live slot walked
+ * (the lowest-numbered one), or the caller's y untouched when the pass is skipped or no slot is live.
+ * runFrameStateUpdaters carries it into the spawn pass, whose sound loader stashes it in loc_32. X is 0xff
+ * when the walk ran (it runs X past 0), else the caller's x untouched.
  *
  * Grounding: [seen].
  */
-export function ageTimedObjects(m) {
+export function ageTimedObjects(m, y, x) {
   const { mem8 } = m;
-  if (mem8[TIMED_OBJECT_COUNT] === 0) return; // nothing pending this frame
+  if (mem8[TIMED_OBJECT_COUNT] === 0) return [x, y]; // nothing pending this frame
   mem8[TIMED_OBJECT_COUNT] = 0; // rebuilt below as the live-slot count
   for (let i = 7; i >= 0; i--) {
     if (mem8[u16(SHAPE_ACTIVE + i)] === 0) continue; // empty slot
     const type = mem8[u16(SHAPE_ID + i)];
+    y = type; // the ROM holds the type in Y
     // Advance this slot's animation counter by its per-type step (8-bit wrap).
     const next = u8(mem8[u16(SHAPE_ANIM + i)] + mem8[u16(TIMED_OBJ_STEP_TABLE + type)]);
     mem8[u16(SHAPE_ANIM + i)] = next;
@@ -42,4 +47,5 @@ export function ageTimedObjects(m) {
       mem8[u16(SHAPE_ACTIVE + i)] = 0; // reached its limit -> free the slot
     }
   }
+  return [0xff, y];
 }

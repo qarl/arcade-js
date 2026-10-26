@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for decodeOptionSwitches -- slices $0e00 into three table lookups ($0156/$0158/$00ac/$00ad),
 // stashes $0e00 to $000a, writes $0009 = $0d00 ^ 2, then folds $00ad through assemblePotStatusByte and stores its
-// return to $016a. A (the assemblePotStatusByte return) is the register live-out, so the arms assert regs.a AND RAM
-// (-stack); the oracle's jsr push16 scratch lands in the excluded window when SP is high.
+// return to $016a. The arms assert regs.a AND RAM (-stack), and the CAPTURE arm also the exit [X, Y] the port
+// returns (its last X and Y indexes); the oracle's jsr push16 scratch lands in the excluded window when SP is high.
 // Run: node --test games/tempest/idiomatic/test/equivalence-d6bb.test.js
 
 import nodeTest from "node:test";
@@ -41,7 +41,8 @@ const CAPS = ROM_PRESENT ? captureDispatches(16, 4000) : [];
 test("CAPTURE: real 0xd6bb dispatches -- decodeOptionSwitches == oracle in RAM (-stack) and regs.a", () => {
   for (const cap of CAPS) {
     const o = cap.clone(), c = cap.clone();
-    oracle(o); decodeOptionSwitches(c);
+    oracle(o); { c.regs.x ^= 0xff; c.regs.y ^= 0xff; // m.regs poisoned: this routine takes no entry X/Y, so its exit must not depend on them
+      assert.deepEqual(decodeOptionSwitches(c), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
     assert.equal(c.regs.a, o.regs.a, "regs.a live-out");
   }

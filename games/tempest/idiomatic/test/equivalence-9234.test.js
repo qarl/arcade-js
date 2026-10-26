@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for seedPerLaneSpikeArray (ROM 0x9234) -- seeds $3ab from $15b and fills $3ac..$3bb from $15a.
-// Live-out is RAM only (A/X are loop scratch no caller reads), so every arm compares RAM (-stack). It is a
+// Live-out is RAM plus the exit X it returns (0xff; tickWaveSpawnCadence hands it on as its own exit X), so every
+// arm compares RAM (-stack) and the CAPTURE arm also the exit X. It is a
 // pure leaf (no dispatch), so the seam completes it by omitting its ROM ret. No POKEY reads.
 // Run: node --test games/tempest/idiomatic/test/equivalence-9234.test.js
 
@@ -40,7 +41,8 @@ const CAPS = ROM_PRESENT ? captureDispatches(16, 2000) : [];
 test("CAPTURE: real 0x9234 dispatches -- seedPerLaneSpikeArray == oracle in RAM (-stack)", () => {
   for (const cap of CAPS) {
     const o = cap.clone(), c = cap.clone();
-    oracle(o); seedPerLaneSpikeArray(c);
+    oracle(o); { const ey = c.regs.y; c.regs.x ^= 0xff; c.regs.y ^= 0xff; // takes no entry X/Y; returns X and leaves Y alone, so the exit is [X, entry Y]
+      assert.deepEqual([seedPerLaneSpikeArray(c), ey], [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
   }
   console.log(`  CAPTURE: ${CAPS.length} dispatch(es) checked`);

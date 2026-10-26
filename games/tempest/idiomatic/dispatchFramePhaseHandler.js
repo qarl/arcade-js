@@ -35,6 +35,13 @@ import { stepEnemyFleetAndSpawn } from "./stepEnemyFleetAndSpawn.js";
  * unused/zero entry the caller never selects, kept here as null to preserve the offset>>1 indexing.
  *
  * Live-out: INPUT_EDGE_FLAGS bit7 set, plus all the frame-phase state the pre-pass and selected handler write.
+ *
+ * y and x are the Y and X the ROM enters with: the exit registers of the previous update's buildFrameVectors
+ * (of resetBothPokeyChips on the first update). Several handlers carry Y down to the sound loader and object
+ * insert (both stash it in RAM). It passes through the pre-pass, which may reload it, to the handler. The
+ * ROM then loads X with the mode byte to index the table, so every handler is entered with X = GAME_MODE;
+ * the handlers take (m, y, x). Returns the exit [X, Y] the ROM leaves, which the main loop hands to
+ * seedFramePhaseAndTick: the handler's, or the incoming x and y when the DSW gate skips the pass.
  * Grounding: [seen].
  */
 const TABLE = [
@@ -42,11 +49,11 @@ const TABLE = [
   seedModeParamsFromMaskedFlags, tickWaveSpawnCadence, autoAdvanceRimRotation, seedModeParamsWithBounds, reseedWaveWorkingSet, seedModeParamsMinimal, runFrameStateUpdaters, armModeAndRebuildIfEnabled, stepEnemyFleetAndSpawn,
 ];
 
-export function dispatchFramePhaseHandler(m) {
+export function dispatchFramePhaseHandler(m, y = m.regs.y, x = m.regs.x) {
   const { mem8 } = m;
-  if ((mem8[DSW1_COINAGE] & 0x83) === 0x82) return;
-  stepSpikeTableCollapse(m);
-  const i = mem8[GAME_MODE];
+  if ((mem8[DSW1_COINAGE] & 0x83) === 0x82) return [x, y];
+  y = stepSpikeTableCollapse(m, y);
+  x = mem8[GAME_MODE];
   mem8[INPUT_EDGE_FLAGS] = mem8[INPUT_EDGE_FLAGS] | 0x80;
-  return TABLE[i >> 1](m);
+  return TABLE[x >> 1](m, y, x); // every handler returns its exit [X, Y]
 }

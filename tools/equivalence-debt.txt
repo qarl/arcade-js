@@ -1,5 +1,3 @@
 # ROUTINES entries with no games/<game>/idiomatic/test/equivalence-<addr>.test.js.
 # Held by tools/test/equivalence-coverage.test.js: a missing gate not listed here fails, and so does a
 # line whose gate now exists. Shrink only. Format: <game> 0x<addr>  <reason>
-tempest 0xc7a0  runMainFrameLoop: coroutine (function*), no per-routine gate
-tempest 0xd93f  bootMachineFromReset: coroutine (function*), no per-routine gate

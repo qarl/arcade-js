@@ -4,10 +4,10 @@
 // otherwise publishes the active pointer and (unless the checkpoint helper reports a change) runs the
 // trampoline dispatch and folds a 40-byte block into a checksum byte via a carry-chained subtract that
 // is DECIMAL-aware when the CPU D flag is live, then latches the two source bytes into the first two
-// display words. Live-out is memory only: the sole caller reads no register back after the call, so each
-// arm compares RAM (dumpState minus STACK_SCRATCH). The trampoline (an unlifted co-SCC member) is left
-// as a machine dispatch; where an arm must drive the checksum path, it is stubbed identically on both
-// clones. The D-flag reproduction is proved by a decimal CRAFTED arm plus a positive control that forces
+// display words. Each arm compares RAM (dumpState minus STACK_SCRATCH), and the exit-register arms also
+// compare the returned exit [X, Y], which runMainFrameLoop carries into the next update's dispatch. The trampoline (an
+// unlifted co-SCC member) is left as a machine dispatch; where an arm must drive the checksum path, it
+// is stubbed identically on both clones. The D-flag reproduction is proved by a decimal CRAFTED arm plus a positive control that forces
 // the binary path and MUST diverge.
 // Run: node --test games/tempest/idiomatic/test/equivalence-b1b6.test.js
 
@@ -19,7 +19,7 @@ import { loc_b1b6 as oracle } from "../../translated/loc_b1b6.js";
 import { buildFrameVectors } from "../buildFrameVectors.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, MODE_DISPATCH_SEL, SCORE_DISPLAY_TIMER, DRAW_RECORD_PTR_LO, VEC_LIST_HEADER_LO, VECHEAD0_PLAY } from "../names.js";
+import { STACK_SCRATCH, MODE_DISPATCH_SEL, SCORE_DISPLAY_TIMER, DRAW_RECORD_PTR_LO, VEC_LIST_HEADER_LO, VECHEAD0_PLAY, VECHEAD0_LEVEL, LEVEL_LAYOUT_TRIGGER } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -52,11 +52,15 @@ test("CAPTURE: real 0xb1b6 dispatches -- buildFrameVectors == oracle in RAM (-st
   let checked = 0;
   for (const cap of CAPS) {
     const o = freezePokey(cap.clone()), c = freezePokey(cap.clone());
+    o.regs.x = 0x3c; o.regs.y = 0x5a; // entry X/Y no drawing path leaves, so a build that moved them must say so
+    c.regs.x = 0xc3; c.regs.y = 0xa5; // the idiomatic side gets them as arguments, never through the file
     let threw = false;
     try { oracle(o); } catch { threw = true; }
     if (threw) continue; // both layers would throw identically at the same unimplemented arm
-    buildFrameVectors(c);
+    const [x, y] = buildFrameVectors(c, 0x3c, 0x5a);
     assert.equal(ramDiff(o, c), null);
+    assert.equal(y, o.regs.y, "returned exit Y = the oracle's Y");
+    assert.equal(x, o.regs.x, "returned exit X = the oracle's X");
     checked++;
   }
   console.log(`  CAPTURE: ${checked}/${CAPS.length} dispatch(es) compared`);
@@ -96,6 +100,47 @@ test("CRAFTED-BINARY: D clear, checksum loop runs -- buildFrameVectors == oracle
   if (threw) { console.log("  CRAFTED-BINARY: oracle threw -- skipped"); return; }
   buildFrameVectors(c);
   assert.equal(ramDiff(o, c), null, "RAM equal after the binary checksum path");
+});
+
+// The non-zero-mode path ends in its own layer close; with an entry Y it never leaves, the returned exit Y
+// must be the oracle's (the main loop carries it into the next update's mode handler).
+test("CRAFTED-EXIT-Y: the non-zero-mode path returns the Y the oracle leaves", () => {
+  if (!ROM_PRESENT) return;
+  let checked = 0;
+  for (const sel of [0x02, 0x04, 0x08]) { // display modes that run to completion on this seed (0x06, 0x0a spin)
+    const base = seedReachChecksum(craftMachine(), { fill: 0x37 });
+    base.mem.write8(MODE_DISPATCH_SEL, sel);
+    const o = freezePokey(base.clone()), c = freezePokey(base.clone());
+    o.regs.x = 0x3c; o.regs.y = 0x5a; c.regs.x = 0xc3; c.regs.y = 0xa5;
+    let threw = false;
+    try { oracle(o); } catch { threw = true; }
+    if (threw) continue;
+    const [x, y] = buildFrameVectors(c, 0x3c, 0x5a);
+    assert.equal(ramDiff(o, c), null, `RAM equal for MODE_DISPATCH_SEL=${sel}`);
+    assert.equal(y, o.regs.y, `returned exit Y = the oracle's for MODE_DISPATCH_SEL=${sel}`);
+    assert.equal(x, o.regs.x, `returned exit X = the oracle's for MODE_DISPATCH_SEL=${sel}`);
+    checked++;
+  }
+  assert.ok(checked >= 1, "no non-zero mode could be provisioned");
+});
+
+// The settled-frame early return writes no register: the exit X/Y are the ones the routine was entered with
+// (seedFramePhaseAndTick's), and the main loop carries them into the next update's dispatch.
+test("CRAFTED-SETTLED: the settled-frame early return hands back the entry X/Y", () => {
+  if (!ROM_PRESENT) return;
+  const seed = (m) => {
+    m.mem.write8(VEC_LIST_HEADER_LO, m.mem.read8(VECHEAD0_LEVEL)); // guard matches its checkpoint
+    m.mem.write8(LEVEL_LAYOUT_TRIGGER, 0x00);                        // no pending trigger
+    m.mem.write8(MODE_DISPATCH_SEL, 0x02);
+    return m;
+  };
+  const o = freezePokey(seed(craftMachine())), c = freezePokey(seed(craftMachine()));
+  o.regs.x = 0x3c; o.regs.y = 0x5a; c.regs.x = 0xc3; c.regs.y = 0xa5;
+  oracle(o);
+  assert.deepEqual([o.regs.x, o.regs.y], [0x3c, 0x5a], "positive control: the oracle's settled return kept X/Y");
+  assert.equal(o.mem.read8(VEC_LIST_HEADER_LO), o.mem.read8(VECHEAD0_LEVEL), "positive control: the oracle took the settled return");
+  assert.deepEqual(buildFrameVectors(c, 0x3c, 0x5a), [0x3c, 0x5a], "returned exit [X, Y] = the entry's");
+  assert.equal(ramDiff(o, c), null, "RAM equal on the settled return");
 });
 
 test("TEETH-SKIP: a twin that never latches the display words diverges from the oracle", () => {

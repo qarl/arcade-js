@@ -17,9 +17,12 @@ import { STATUS_FLAGS, ACTIVE_SLOT_COUNT, GAME_MODE_PENDING, GAME_MODE, MODE_DEL
  * trampoline selector paired with the mode byte).
  *
  * Live-out: STATUS_FLAGS (top two bits cleared), ACTIVE_SLOT_COUNT, GAME_MODE_PENDING, GAME_MODE,
- * MODE_DELAY_TIMER, MODE_DELAY_GUARD, MODE_DISPATCH_SEL. Grounding: [seen].
+ * MODE_DELAY_TIMER, MODE_DELAY_GUARD, MODE_DISPATCH_SEL.
+ *
+ * y and x are the Y and X the ROM enters with; it loads neither, so it returns them unchanged as its exit
+ * [X, Y]. Grounding: [seen].
  */
-export function seedModeParamsFromMaskedFlags(m) {
+export function seedModeParamsFromMaskedFlags(m, y = m.regs.y, x = m.regs.x) {
   const { mem8 } = m;
   mem8[STATUS_FLAGS] = mem8[STATUS_FLAGS] & 0x3f; // keep only the low six bits (clear play/active flags)
   mem8[ACTIVE_SLOT_COUNT] = 0x00;                 // no active slots
@@ -28,4 +31,5 @@ export function seedModeParamsFromMaskedFlags(m) {
   mem8[MODE_DELAY_TIMER] = 0xa0;                   // promotion countdown
   mem8[MODE_DELAY_GUARD] = 0x01;                   // guard holding the pending transition
   mem8[MODE_DISPATCH_SEL] = 0x0a;                  // pre-doubled trampoline selector
+  return [x, y];
 }

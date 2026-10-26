@@ -2,9 +2,9 @@
 // Memory-equivalence for bumpLevelEnemyQuota (ROM 0xc98c-0xc9ae). Index off loc_3d: read the PLAYER_LEVEL_TBL-slot; while it is
 // below 0x62 increment that slot and loc_9f; seed GAME_MODE = 0x18; when the loc_102-slot is nonzero run the
 // handler chain (seatInPagePointer with the slot value, addBcdScoreAndAwardAtThreshold with X=0xff, requestScoreAwardSound); then TAIL-DELEGATE to
-// runWaveInit. Contract is RAM (dumpState minus STACK_SCRATCH). Registers are NOT compared: the routine takes
-// no input register and tail-jmps runWaveInit, so its exit registers are the delegate's -- both layers run the
-// identical delegate from the identical clone. Oracle is the frozen translated bumpLevelEnemyQuota.
+// runWaveInit. Contract is RAM (dumpState minus STACK_SCRATCH) plus the exit [X, Y] it returns: the routine takes
+// no input register and tail-jmps runWaveInit, so its exit registers are the delegate's, which the CAPTURE arm
+// compares with the oracle's. Oracle is the frozen translated bumpLevelEnemyQuota.
 // Run: node --test games/tempest/idiomatic/test/equivalence-c98c.test.js
 
 import nodeTest from "node:test";
@@ -15,7 +15,7 @@ import { loc_c98c as oracle } from "../../translated/loc_c98c.js";
 import { bumpLevelEnemyQuota } from "../bumpLevelEnemyQuota.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, GAME_MODE, loc_3d, PLAYER_LEVEL_TBL, loc_9f } from "../names.js";
+import { STACK_SCRATCH, GAME_MODE, loc_3d, PLAYER_LEVEL_TBL, loc_9f, STATUS_FLAGS, loc_31, loc_32 } from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -49,7 +49,8 @@ test("CAPTURE: real 0xc98c dispatches -- bumpLevelEnemyQuota == oracle in RAM (-
     let threw = false;
     try { oracle(o); } catch { threw = true; } // a real dispatch may reach an unimplemented arm
     if (threw) continue;                        // both layers would throw identically there
-    bumpLevelEnemyQuota(c);
+    { c.regs.x ^= 0xff; c.regs.y ^= 0xff; // m.regs poisoned: this routine takes no entry X/Y, so its exit must not depend on them
+      assert.deepEqual(bumpLevelEnemyQuota(c), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
     checked++;
   }
@@ -94,6 +95,27 @@ test("CRAFTED: increment block + handler chain + tail-delegate -- RAM equal", ()
     assert.equal(c.mem.read8((PLAYER_LEVEL_TBL + 0x03) & 0xff), o.mem.read8((PLAYER_LEVEL_TBL + 0x03) & 0xff), "slot matches oracle");
     assert.equal(c.mem.read8(loc_9f), o.mem.read8(loc_9f), "loc_9f matches oracle");
   }
+});
+
+// R37: with scoring armed the award sound reaches the loader, which stashes X/Y in loc_31/loc_32. The port
+// must hand it the X/Y the score add left, never the register file: poison m.regs on the idiomatic side.
+test("STALE-REGS: armed award chain with m.regs poisoned on the idiomatic side -- RAM equal", () => {
+  let checked = 0;
+  for (const [idx, trigger] of [[0x00, 0x07], [0x01, 0x01]]) {
+    const arm = (m) => { seed(m, idx, 0x10, trigger); m.mem.write8(STATUS_FLAGS, 0x80); m.regs.x = 0x3c; m.regs.y = 0x4d; };
+    const o = new Machine(ROM, OPTS); arm(o);
+    const c = new Machine(ROM, OPTS); arm(c);
+    c.regs.x = 0xa5; c.regs.y = 0x5a;
+    let threw = false;
+    try { oracle(o); } catch { threw = true; }
+    if (threw) continue;
+    bumpLevelEnemyQuota(c);
+    assert.equal(ramDiff(o, c), null, `RAM equal for idx=${idx} trig=${trigger} with m.regs poisoned`);
+    assert.notEqual(c.mem.read8(loc_31), 0xa5, "the poison never reached loc_31");
+    assert.notEqual(c.mem.read8(loc_32), 0x5a, "the poison never reached loc_32");
+    checked++;
+  }
+  assert.ok(checked >= 1, "no armed case could be provisioned -- the stale-register check is inert");
 });
 
 test("TEETH: a twin that drops the GAME_MODE = 0x18 signature write MUST diverge in RAM", () => {

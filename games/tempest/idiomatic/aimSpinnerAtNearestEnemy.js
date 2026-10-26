@@ -21,8 +21,13 @@ import { signedSegmentDelta } from "./signedSegmentDelta.js";
  * ENEMY_SEGMENT[idx] against the player's PLAYER_SEGMENT via signedSegmentDelta, and return a
  * code by sign: 0x00 already aligned, 0x09 when the enemy is one way, 0xf7 the other way.
  *
- * Live-out: loc_29 (min depth seen) and loc_2a (its slot index) as scratch, and m.regs.a set to
- * the returned turn code (0x00 / 0x09 / 0xf7), consumed by rotateBlasterAroundRim.
+ * Live-out: loc_29 (min depth seen) and loc_2a (its slot index) as scratch. Returns [code, y]: the
+ * turn code (0x00 / 0x09 / 0xf7, or the last depth read when nothing was found), consumed by
+ * rotateBlasterAroundRim, and the Y the ROM leaves -- the signed segment delta itself when a candidate
+ * was found (the ROM moves it through Y to test its sign), undefined when none was (Y untouched). The
+ * caller returns that Y as its exit Y. Its own rim cue is muted on this path ($05 bit7 clear), so the Y
+ * reaches RAM only further down the chain, e.g. runFrameStateUpdaters -> stepActiveShots -> the object
+ * insert's loc_36 stash.
  *
  * Grounding: [seen].
  */
@@ -42,9 +47,9 @@ export function aimSpinnerAtNearestEnemy(m) {
   } while ((x & 0x80) === 0);
 
   const idx = mem8[loc_2a];
-  if (idx & 0x80) return (m.regs.a = a); // none found
+  if (idx & 0x80) return [a, undefined]; // none found
   const diff = signedSegmentDelta(m, mem8[u16(ENEMY_SEGMENT + idx)], mem8[PLAYER_SEGMENT]);
-  if (diff === 0) return (m.regs.a = diff);
-  if (diff & 0x80) return (m.regs.a = 0x09);
-  return (m.regs.a = 0xf7);
+  if (diff === 0) return [diff, diff];
+  if (diff & 0x80) return [0x09, diff];
+  return [0xf7, diff];
 }

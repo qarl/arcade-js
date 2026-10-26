@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for commitPendingModeAfterDelay -- while the guard flag ($03 & $016b) is clear, runs down the delay
 // counter $04; when it lands on zero it arms the next state ($00 = $02) and clears the guard $016b. Every
-// path tail-delegates jmp 0x9749 (dissolved into the idiomatic rotateBlasterAroundRim, Y threaded). Live-out is memory
-// only, so each arm compares RAM (dumpState minus STACK_SCRATCH). The routine seats state then tail-calls,
+// path tail-delegates jmp 0x9749 (dissolved into the idiomatic rotateBlasterAroundRim, X/Y threaded). Live-out is
+// memory plus the rotation's exit [X, Y], which it returns; each arm compares RAM (dumpState minus STACK_SCRATCH)
+// and the STALE-REGS arms also compare the returned pair. The routine seats state then tail-calls,
 // so it is an omitted-ret dispatch (SP-tooth). $0201 bit7 is seeded to steer the delegated update to its
 // deterministic early-out.
 // Run: node --test games/tempest/idiomatic/test/equivalence-c800.test.js
@@ -15,7 +16,10 @@ import { loc_c800 as oracle } from "../../translated/loc_c800.js";
 import { commitPendingModeAfterDelay } from "../commitPendingModeAfterDelay.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, PLAYER_FINE_ANGLE, FRAME_COUNTER, MODE_DELAY_GUARD, MODE_DELAY_TIMER, GAME_MODE, GAME_MODE_PENDING } from "../names.js";
+import {
+  STACK_SCRATCH, PLAYER_FINE_ANGLE, FRAME_COUNTER, MODE_DELAY_GUARD, MODE_DELAY_TIMER, GAME_MODE, GAME_MODE_PENDING,
+  STATUS_FLAGS, SPINNER_ACCUM, RIM_ROT_OFFSET, PLAYER_SEGMENT, TUBE_GEOM_FLAG, loc_31, loc_32,
+} from "../names.js";
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -40,7 +44,8 @@ const CAPS = ROM_PRESENT ? captureDispatches(16, 4000) : [];
 test("CAPTURE: real 0xc800 dispatches -- commitPendingModeAfterDelay == oracle in RAM (-stack)", () => {
   for (const cap of CAPS) {
     const o = cap.clone(), c = cap.clone();
-    oracle(o); commitPendingModeAfterDelay(c);
+    oracle(o); { const ex = c.regs.x, ey = c.regs.y; c.regs.x ^= 0xff; c.regs.y ^= 0xff; // entry X/Y go in as arguments
+      assert.deepEqual(commitPendingModeAfterDelay(c, ey, ex), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
   }
   console.log(`  CAPTURE: ${CAPS.length} dispatch(es) checked`);
@@ -130,4 +135,47 @@ test("SP-TOOTH: the omitted-ret dispatch (moved 0) is seam-placeable", () => {
   const r = seamPlaceable(withOmittedRet, commitPendingModeAfterDelay, TARGET, m);
   assert.equal(r.placeable, true, `commitPendingModeAfterDelay must be seam-placeable; got: ${r.error}`);
   console.log("  SP-TOOTH: omitted-ret dispatch (moved 0) placeable");
+});
+
+// Manual play, lane crossing: the rotation's rim cue stashes X = TUBE_GEOM_FLAG (the rotation loads it for its
+// end-of-rim test) in loc_31 and the entry Y in loc_32. Both paths (the guard path and the countdown tail) must
+// hand the rotation this routine's entry Y, never the register file.
+function seedCue(m, guard) {
+  const w = (a, v) => m.mem.write8(a, v);
+  w(FRAME_COUNTER, 0x01); w(MODE_DELAY_GUARD, guard); w(MODE_DELAY_TIMER, 0x05);
+  w(PLAYER_FINE_ANGLE, 0x00); w(STATUS_FLAGS, 0x80); w(SPINNER_ACCUM, 0x10); w(RIM_ROT_OFFSET, 0x40);
+  w(PLAYER_SEGMENT, 0x0f); w(TUBE_GEOM_FLAG, 0x00); w(loc_31, 0x11); w(loc_32, 0x11);
+  m.regs.x = 0x0a; m.regs.y = 0x4d;
+}
+test("STALE-REGS: guard and tail paths hand the rim cue the entry Y (m.regs poisoned)", () => {
+  for (const [label, guard] of [["guard path", 0x01], ["tail path", 0x00]]) {
+    const o = new Machine(ROM, OPTS); seedCue(o, guard);
+    const c = new Machine(ROM, OPTS); seedCue(c, guard); c.regs.x = 0xa5; c.regs.y = 0xa5;
+    oracle(o);
+    assert.equal(o.mem.read8(loc_32), 0x4d, `${label}: positive control: the oracle's rim cue stashed the entry Y`);
+    assert.equal(o.mem.read8(loc_31), o.mem.read8(TUBE_GEOM_FLAG), `${label}: positive control: the rim cue stashed X = TUBE_GEOM_FLAG`);
+    assert.equal(o.mem.read8(MODE_DELAY_TIMER), guard ? 0x05 : 0x04, `${label}: positive control: the path taken`);
+    const exit = commitPendingModeAfterDelay(c, 0x4d, 0x0a);
+    assert.equal(ramDiff(o, c), null, `${label}: RAM equal`);
+    assert.deepEqual(exit, [o.regs.x, o.regs.y], `${label}: returned exit [X, Y] = the oracle's`);
+  }
+});
+
+// Locked rotation (PLAYER_FINE_ANGLE bit7): the rotation returns at once with the X/Y it was handed, so the exit
+// pair is this routine's entry X/Y. Both paths must hand the rotation the entry X as well as Y.
+test("STALE-REGS locked: guard and tail paths return the entry [X, Y] (m.regs poisoned)", () => {
+  for (const [label, guard] of [["guard path", 0x01], ["tail path", 0x00]]) {
+    const seed = (m) => {
+      m.mem.write8(FRAME_COUNTER, 0x01); m.mem.write8(MODE_DELAY_GUARD, guard); m.mem.write8(MODE_DELAY_TIMER, 0x05);
+      m.mem.write8(PLAYER_FINE_ANGLE, 0x81);
+      m.regs.x = 0x0a; m.regs.y = 0x4d;
+    };
+    const o = new Machine(ROM, OPTS); seed(o);
+    const c = new Machine(ROM, OPTS); seed(c); c.regs.x = 0xa5; c.regs.y = 0xa5;
+    oracle(o);
+    assert.deepEqual([o.regs.x, o.regs.y], [0x0a, 0x4d], `${label}: positive control: the oracle exits with the entry pair`);
+    assert.equal(o.mem.read8(MODE_DELAY_TIMER), guard ? 0x05 : 0x04, `${label}: positive control: the path taken`);
+    assert.deepEqual(commitPendingModeAfterDelay(c, 0x4d, 0x0a), [o.regs.x, o.regs.y], `${label}: returned exit [X, Y]`);
+    assert.equal(ramDiff(o, c), null, `${label}: RAM equal`);
+  }
 });

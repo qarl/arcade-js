@@ -3,9 +3,9 @@
 // walks the 4-byte records at STATE_RESEED_RECORD_TABLE (index 111..3 step -4) scanning each record's source list for the
 // range bracketing the key and storing the resolved byte through the record's destination pointer, then
 // rescales ENEMY_CLIMB_DELTA_LO_0/INITIAL_ACTIVE_COUNT per DSW_DIFFICULTY & 3 and folds ENEMY_CLIMB_DELTA_LO_3/OBJECT_VELOCITY_LO/ENEMY_CLIMB_DELTA_LO_0 through the helper, seeding
-// many loc_01xx cells. reseedStateTables takes no input register and ends with its OWN return (no tail-delegation),
-// and every caller overwrites A/X/Y before reading them, so there is NO live-out register: the contract is
-// pure RAM-equivalence (dumpState minus STACK_SCRATCH). Oracle is the frozen translated reseedStateTables.
+// many loc_01xx cells. reseedStateTables takes no input register and ends with its OWN return (no tail-delegation).
+// It returns the exit [X, Y] its last fold leaves (tickWaveSpawnCadence hands the Y on as its own exit Y), so the
+// contract is RAM (dumpState minus STACK_SCRATCH) plus that returned pair. Oracle is the frozen translated reseedStateTables.
 // Run: node --test games/tempest/idiomatic/test/equivalence-92c5.test.js
 
 import nodeTest from "node:test";
@@ -48,7 +48,8 @@ test("CAPTURE: real 0x92c5 dispatches -- reseedStateTables == oracle in RAM (-st
     let threw = false;
     try { oracle(o); } catch { threw = true; } // a deep list-scan arm may reach an unimplemented helper
     if (threw) continue;                       // both layers would throw identically there
-    reseedStateTables(c);
+    { c.regs.x ^= 0xff; c.regs.y ^= 0xff; // m.regs poisoned: this routine takes no entry X/Y, so its exit must not depend on them
+      assert.deepEqual(reseedStateTables(c), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
     checked++;
   }
@@ -72,7 +73,7 @@ for (const [name, keyByte, modeByte] of [
     let threw = false;
     try { oracle(o); } catch { threw = true; }
     if (threw) { console.log(`  CRAFTED ${name}: oracle threw on this seed -- skipped`); return; }
-    reseedStateTables(c);
+    assert.deepEqual(reseedStateTables(c), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's");
     assert.equal(ramDiff(o, c), null, "RAM equal after the re-seed");
   });
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for seedModeParamsWithBounds (ROM 0xb0e7) -- loads a fixed init block: $00=0x0a, $02=0x00, $04=0xdf,
-// $01=0x12, $014e=0x19, $014d=0x18. Live-out is RAM only (A at RTS incidental), so each arm compares RAM
-// (dumpState, minus STACK_SCRATCH). No POKEY/clock coupling -> the crafted diff is deterministic.
+// $01=0x12, $014e=0x19, $014d=0x18. Live-out is RAM plus the entry X/Y it hands back as its exit pair (A at RTS
+// is incidental), so each arm compares RAM (dumpState, minus STACK_SCRATCH) and the CAPTURE arm the pair. No POKEY/clock coupling -> the crafted diff is deterministic.
 // Run: node --test games/tempest/idiomatic/test/equivalence-b0e7.test.js
 
 import nodeTest from "node:test";
@@ -48,9 +48,14 @@ function seed(m) {
 test("CAPTURE: real 0xb0e7 dispatches -- seedModeParamsWithBounds == oracle in RAM (-stack)", () => {
   for (const cap of CAPS) {
     const o = cap.clone(), c = cap.clone();
-    oracle(o); seedModeParamsWithBounds(c);
+    oracle(o); { const ex = c.regs.x, ey = c.regs.y; c.regs.x ^= 0xff; c.regs.y ^= 0xff; // entry X/Y go in as arguments
+      assert.deepEqual(seedModeParamsWithBounds(c, ey, ex), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
+    // No-argument call on an unpoisoned clone: the parameter defaults must read Y and X from the right registers.
+    assert.ok(cap.regs.x !== cap.regs.y && cap.regs.x !== 0 && cap.regs.y !== 0, "positive control: entry X/Y distinct and nonzero, so a zero or swapped default shows");
+    assert.deepEqual(seedModeParamsWithBounds(cap.clone()), [o.regs.x, o.regs.y], "no-argument call: defaults read the entry Y/X");
   }
+  assert.ok(CAPS.length > 0, "no capture to check the defaults on");
   console.log(`  CAPTURE: ${CAPS.length} dispatch(es) checked`);
 });
 

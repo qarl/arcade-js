@@ -24,7 +24,9 @@ import {
  * assemblePotStatusByte and the merged result recorded in DSW_DIFFICULTY (loc_16a).
  *
  * Live-out: DSW2_SNAPSHOT, DSW1_SNAPSHOT, BONUS_LIFE_INTERVAL, DSW_BONUS_CONFIG, loc_ac, loc_ad, and
- * DSW_DIFFICULTY — the cooked option-config cells consumed across the game. Grounding: seen.
+ * DSW_DIFFICULTY — the cooked option-config cells consumed across the game. Returns the exit [X, Y] the ROM
+ * leaves: the bits 7-6 table index and the two-bit config field, the last values it indexes through X and Y
+ * (the pot/status merge loads neither). Grounding: seen.
  */
 export function decodeOptionSwitches(m) {
   const { mem8 } = m;
@@ -32,10 +34,12 @@ export function decodeOptionSwitches(m) {
   mem8[DSW2_SNAPSHOT] = a0;           // keep a raw snapshot for change-detection
   mem8[BONUS_LIFE_INTERVAL] = mem8[u16(DIP_BONUS_INTERVAL + ((a0 >> 3) & 0x07))]; // bits 5-3 -> bonus interval
   mem8[DSW1_SNAPSHOT] = mem8[DSW1_COINAGE] ^ 0x02; // coinage port loc_d00, bit 1 toggled
-  mem8[DSW_BONUS_CONFIG] = mem8[u16(DIP_PARAM_158 + ((a0 >> 6) & 0x03))]; // bits 7-6 -> bonus config
+  const x = (a0 >> 6) & 0x03;
+  mem8[DSW_BONUS_CONFIG] = mem8[u16(DIP_PARAM_158 + x)]; // bits 7-6 -> bonus config
   const y = a0 & 0x06;               // the two-bit difficulty/config field
   mem8[loc_ac] = mem8[u16(DIP_CONFIG_A + y)]; // paired config entry A
   const ad = mem8[u16(DIP_CONFIG_B + y)];     // paired config entry B
   mem8[loc_ad] = ad;
   mem8[DSW_DIFFICULTY] = assemblePotStatusByte(m, ad); // fold B through the pot/status merge
+  return [x, y];
 }

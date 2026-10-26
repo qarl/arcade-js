@@ -21,7 +21,10 @@ import { runWaveInit } from "./runWaveInit.js";
  * score-award sound. Finally it tail-delegates to runWaveInit to bring the wave up.
  *
  * Live-out: the bumped PLAYER_LEVEL_TBL slot and loc_9f, GAME_MODE=0x18, any score/sound side effects
- * from the trigger chain, and whatever runWaveInit leaves. Grounding: [seen].
+ * from the trigger chain, and whatever runWaveInit leaves. The award sound's loader stashes the X/Y it
+ * is called with (loc_31/loc_32); in the ROM those are what the score add left, so its returned exit
+ * registers are handed on (Y is undefined only when scoring is unarmed, and then the sound gate drops the
+ * cue before the loader runs). Returns the exit [X, Y] the ROM leaves, runWaveInit's. Grounding: [seen].
  */
 export function bumpLevelEnemyQuota(m) {
   const { mem8 } = m;
@@ -39,8 +42,8 @@ export function bumpLevelEnemyQuota(m) {
   const trigger = mem8[u16(loc_102 + idx)];     // parallel per-level trigger slot
   if (trigger !== 0) {
     seatInPagePointer(m, trigger);              // seat it as an in-page pointer
-    addBcdScoreAndAwardAtThreshold(m, 0xff);    // award score at the 0xff threshold
-    requestScoreAwardSound(m);                  // cue the award sound
+    const [x, y] = addBcdScoreAndAwardAtThreshold(m, 0xff); // award score at the 0xff threshold
+    requestScoreAwardSound(m, x, y);            // cue the award sound with the X/Y the score add leaves
   }
 
   return runWaveInit(m);                        // tail-delegate to the wave initializer

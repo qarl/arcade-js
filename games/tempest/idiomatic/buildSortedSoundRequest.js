@@ -36,7 +36,8 @@ import { armRequestedSoundSlot } from "./armRequestedSoundSlot.js";
  *
  * Live-out: the SORT_KEY and SORT_PAYLOAD rows reordered in place, SLOT_METRIC[0..1] (per-channel pass
  * counts), loc_601 (running total), REQUEST_BITS (packed request), STATUS_FLAGS bit6 cleared, and
- * whatever armRequestedSoundSlot arms.
+ * whatever armRequestedSoundSlot arms. Returns armRequestedSoundSlot's exit [X, Y], which it enters with
+ * X = 0xff (the channel walk runs X past 0).
  *
  * Grounding: [seen].
  */
@@ -127,5 +128,5 @@ export function buildSortedSoundRequest(m) {
   let request = (((flag ^ 0x01) << 2) & 0xff) | flag;
   request = u8(request + 0x05 + ((flag >> 6) & 0x01));
   mem8[REQUEST_BITS] = request;
-  return armRequestedSoundSlot(m);
+  return armRequestedSoundSlot(m, channel);
 }

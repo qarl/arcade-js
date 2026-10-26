@@ -13,12 +13,16 @@ import { GAME_MODE, MODE_DISPATCH_SEL, GAME_MODE_PENDING, MODE_DELAY_TIMER } fro
  * pre-doubled trampoline selector paired with the mode byte), GAME_MODE (loc_0) = 0x0a (the live mode),
  * MODE_DELAY_TIMER (loc_4) = 0x14 (the promotion countdown).
  *
- * Live-out: GAME_MODE_PENDING, MODE_DISPATCH_SEL, GAME_MODE, MODE_DELAY_TIMER. Grounding: [seen].
+ * Live-out: GAME_MODE_PENDING, MODE_DISPATCH_SEL, GAME_MODE, MODE_DELAY_TIMER.
+ *
+ * y and x are the Y and X the ROM enters with; it loads neither, so it returns them unchanged as its exit
+ * [X, Y]. Grounding: [seen].
  */
-export function seedModeParamsMinimal(m) {
+export function seedModeParamsMinimal(m, y = m.regs.y, x = m.regs.x) {
   const { mem8 } = m;
   mem8[GAME_MODE_PENDING] = 0x04;   // mode to promote when the delay expires
   mem8[MODE_DISPATCH_SEL] = 0x00;   // pre-doubled trampoline selector
   mem8[GAME_MODE] = 0x0a;            // live mode
   mem8[MODE_DELAY_TIMER] = 0x14;    // promotion countdown
+  return [x, y];
 }

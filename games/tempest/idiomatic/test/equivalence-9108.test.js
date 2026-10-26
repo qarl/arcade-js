@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for reseedWaveWorkingSet (ROM 0x9108, second entry of selectWaveStartSlot.js) vs the
 // frozen loc_9108, whole path to its rts: the reseed body then the fall into loc_9149 (tickWaveSpawnCadence).
-// Contract: RAM minus STACK_SCRATCH. No register live-out: the only return site is c7bd's rts-dispatch back
-// into the frame loop at 0xc7b3, whose next jsr (c891) loads A/Y and sets C/V/N/Z before reading them; X is
-// only saved/restored there (ccc7 via $31/$32). POKEY RANDOM (read on the off-sign spawn) is frozen both sides.
+// Contract: RAM minus STACK_SCRATCH, plus the exit [X, Y] it returns (compared on the CAPTURE arm). Its only
+// return site is c7bd's rts-dispatch back into the frame loop at 0xc7b3, whose next jsr (c891) may hand X and Y
+// to the sound loader (ccc7 stashes them in $31/$32), so the frame loop threads them on. POKEY RANDOM (read on the off-sign spawn) is frozen both sides.
 // Run: node --test games/tempest/idiomatic/test/equivalence-9108.test.js
 
 import nodeTest from "node:test";
@@ -68,7 +68,8 @@ test("CAPTURE: real 0x9108 dispatches -- reseedWaveWorkingSet == oracle in RAM (
     let threw = false;
     try { oracle(o); } catch { threw = true; }
     if (threw) continue;
-    reseedWaveWorkingSet(c);
+    { const ex = c.regs.x, ey = c.regs.y; c.regs.x ^= 0xff; c.regs.y ^= 0xff; // entry X/Y go in as arguments
+      assert.deepEqual(reseedWaveWorkingSet(c, ey, ex), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
     arms.add(`sign=${cap.mem.read8(STATUS_FLAGS) >> 7} seat=${cap.mem.read8(LEVEL_ID) ? 1 : 0}`);
     checked++;

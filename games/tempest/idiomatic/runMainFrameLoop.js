@@ -23,17 +23,23 @@ import { buildFrameVectors } from "./buildFrameVectors.js";
  *
  * Live-out: GAME_MODE ($00) seeded to 0 on entry and IRQ_HEARTBEAT ($53) cleared each update; the frame's
  * real output is the state and display list left by the three passes. Non-terminating: validated by the
- * whole-game boot/convergence, not an isolated equivalence test. Grounding: [seen].
+ * bounded equivalence-c7a0 gate and the whole-game boot/convergence. Grounding: [seen].
+ *
+ * Register flow: this loop writes neither X nor Y, and each pass returns the exit [X, Y] the ROM leaves,
+ * which the next pass is entered with: resetBothPokeyChips' into the first update's dispatch, the mode
+ * handler's into seedFramePhaseAndTick, its into buildFrameVectors, and the build's across the wait (the
+ * IRQ restores both) into the next dispatch. The dispatcher's spike pre-pass may reload Y, and the handlers
+ * and the phase tick pass the X/Y they hold to the sound loader and object insert, which stash them in RAM.
  */
 export function* runMainFrameLoop(m) {
   const { mem8 } = m;
-  resetBothPokeyChips(m);                     // one-time: reset both POKEY sound/IO chips
+  let [x, y] = resetBothPokeyChips(m);         // one-time: reset both POKEY sound/IO chips
   mem8[GAME_MODE] = 0;                         // seed the live game mode/state code to 0
   for (;;) {
     while (mem8[IRQ_HEARTBEAT] < 9) yield;     // frame boundary: wait for nine IRQs (~26.5Hz)
     mem8[IRQ_HEARTBEAT] = 0;                   // consume them, start the next frame's count
-    dispatchFramePhaseHandler(m);             // run the handler for the current mode/phase
-    seedFramePhaseAndTick(m);                 // seed the next phase and advance the frame clock
-    buildFrameVectors(m);                     // build this frame's display vector list
+    [x, y] = dispatchFramePhaseHandler(m, y, x);   // run the handler for the current mode/phase
+    [x, y] = seedFramePhaseAndTick(m, x, y);       // seed the next phase and advance the frame clock
+    [x, y] = buildFrameVectors(m, x, y);       // build this frame's display vector list
   }
 }

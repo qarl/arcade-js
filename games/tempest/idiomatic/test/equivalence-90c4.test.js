@@ -3,7 +3,8 @@
 // selectWaveStartSlot scans the threshold table for a start slot, clamps it up to a wave-derived floor, publishes
 // the index, then falls into reseedWaveWorkingSet (wave-reseed) which falls into tickWaveSpawnCadence (per-frame phase tick).
 // The idiomatic side dissolves every internal jsr into a direct call and OMITS the terminal ret.
-// Live-out is memory only (a per-frame state routine), so the arms compare RAM (dumpState -stack).
+// Live-out is RAM plus the exit [X, Y] the chain returns, so the arms compare RAM (dumpState -stack) and the
+// CAPTURE arm also the returned pair.
 // Run: node --test games/tempest/idiomatic/test/equivalence-90c4.test.js
 
 import nodeTest from "node:test";
@@ -57,7 +58,8 @@ test("CAPTURE: real 0x90c4 dispatches -- selectWaveStartSlot == oracle in RAM (-
     let threw = false;
     try { oracle(o); } catch { threw = true; } // a real dispatch may reach an unimplemented emit arm
     if (threw) continue; // both layers would throw identically there; nothing to compare
-    selectWaveStartSlot(c);
+    { c.regs.x ^= 0xff; c.regs.y ^= 0xff; // m.regs poisoned: this routine takes no entry X/Y, so its exit must not depend on them
+      assert.deepEqual(selectWaveStartSlot(c), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
     checked++;
   }

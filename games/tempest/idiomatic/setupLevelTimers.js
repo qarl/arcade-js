@@ -25,7 +25,8 @@ import { resetBothPokeyChips } from "./resetBothPokeyChips.js";
  * the startup init, and it tail-delegates to resetBothPokeyChips (the POKEY/readout reset).
  *
  * Live-out: MODE_DISPATCH_SEL, GAME_MODE, GAME_MODE_PENDING, MODE_DELAY_TIMER, loc_3d, loc_9f, the
- * swapped table pointers, and whatever the tail reset leaves. Grounding: [seen].
+ * swapped table pointers, and whatever the tail reset leaves. Returns the exit [X, Y] the ROM leaves, the tail
+ * reset's. Grounding: [seen].
  */
 export function setupLevelTimers(m) {
   const { mem8 } = m;

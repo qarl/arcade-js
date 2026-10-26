@@ -3,10 +3,9 @@
 // (MODE_DISPATCH_SEL/GAME_MODE/GAME_MODE_PENDING), and when the level id LEVEL_ID differs from the last-seen loc_3d AND STATUS_FLAGS is
 // negative it installs the new-level timers (MODE_DISPATCH_SEL/GAME_MODE/MODE_DELAY_TIMER, the last picked by loc_117) and swaps
 // the paired tables via swapParallelTables; then it converges: selectProjectionScale, index PLAYER_LEVEL_TBL by loc_3d into loc_9f,
-// runLevelInit (startup init), and TAIL-DELEGATES to resetBothPokeyChips (readout reset). Live-out is RAM only
-// (dumpState minus STACK_SCRATCH): c940 takes no input register and tail-jmps resetBothPokeyChips, so its exit
-// registers are the delegate's -- both layers run the identical delegate from the identical clone, so
-// registers are not part of this routine's contract. Oracle is the frozen translated setupLevelTimers.
+// runLevelInit (startup init), and TAIL-DELEGATES to resetBothPokeyChips (readout reset). Live-out is RAM
+// (dumpState minus STACK_SCRATCH) plus the exit [X, Y] it returns: c940 takes no input register and tail-jmps
+// resetBothPokeyChips, so its exit registers are the delegate's, which the CAPTURE arm compares. Oracle is the frozen translated setupLevelTimers.
 // Run: node --test games/tempest/idiomatic/test/equivalence-c940.test.js
 
 import nodeTest from "node:test";
@@ -53,7 +52,8 @@ test("CAPTURE: real 0xc940 dispatches -- setupLevelTimers == oracle in RAM (-sta
     let threw = false;
     try { oracle(o); } catch { threw = true; } // a real dispatch may reach an unimplemented downstream arm
     if (threw) continue; // both layers would throw identically there; nothing to compare
-    setupLevelTimers(c);
+    { c.regs.x ^= 0xff; c.regs.y ^= 0xff; // m.regs poisoned: this routine takes no entry X/Y, so its exit must not depend on them
+      assert.deepEqual(setupLevelTimers(c), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
     checked++;
   }

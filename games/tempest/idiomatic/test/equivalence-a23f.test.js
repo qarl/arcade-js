@@ -2,9 +2,9 @@
 // Memory-equivalence for spawnEntityIntoFreeSlot -- the free-slot spawn attempt. Bails when PLAYER_FINE_ANGLE is negative; forms a
 // gate (STATUS_FLAGS negative -> INPUT_DEBOUNCED & 0x10; else seed loc_29 from SPIKE_ACTIVE_FLAG and count loc_2b5 entries within 1 of
 // PLAYER_SEGMENT over the loc_2db-gated slots); a zero gate bails. Otherwise it fills the first free SLOT_STATE slot
-// (SLOT_STATE/TARGET_SEG/loc_2c0/HIT_TALLY), bumps ACTIVE_OBJECT_COUNT, and fires the two spawn helpers. spawnEntityIntoFreeSlot takes no input
-// register and returns via a plain RTS with no caller-read exit register, so the contract is RAM only
-// (dumpState minus STACK_SCRATCH); no register is compared. Oracle is the frozen translated spawnEntityIntoFreeSlot.
+// (SLOT_STATE/TARGET_SEG/loc_2c0/HIT_TALLY), bumps ACTIVE_OBJECT_COUNT, and fires the two spawn helpers. It takes the entry Y
+// (the spawn sound's loader stashes it in loc_32) and returns the exit Y, which runFrameStateUpdaters hands to stepActiveShots,
+// so the contract is RAM (dumpState minus STACK_SCRATCH) plus the returned exit Y. Oracle is the frozen translated loc_a23f.
 // Run: node --test games/tempest/idiomatic/test/equivalence-a23f.test.js
 
 import nodeTest from "node:test";
@@ -51,8 +51,9 @@ test("CAPTURE: real 0xa23f dispatches -- spawnEntityIntoFreeSlot == oracle in RA
     let threw = false;
     try { oracle(o); } catch { threw = true; } // a real dispatch may reach an unimplemented helper arm
     if (threw) continue; // both layers would throw identically there; nothing to compare
-    spawnEntityIntoFreeSlot(c);
+    const y = spawnEntityIntoFreeSlot(c);
     assert.equal(ramDiff(o, c), null);
+    assert.equal(y, o.regs.y, "returned exit Y = the oracle's Y");
     checked++;
   }
   console.log(`  CAPTURE: ${checked}/${CAPS.length} dispatch(es) compared`);
@@ -122,4 +123,45 @@ test("TEETH: a twin that skips the ACTIVE_OBJECT_COUNT spawn-count bump MUST div
   broken(c);
   assert.ok(tried > 0, "the broken twin ran");
   assert.notEqual(ramDiff(o, c), null, "the dropped ACTIVE_OBJECT_COUNT bump was NOT caught by the RAM compare");
+});
+
+// The two bail paths return the entry Y. A dirty loc_29 shows which one ran: the angle bail leaves it, the
+// crowding gate overwrites it with the count (0 here, so the gate is closed).
+test("BAIL Y: a negative PLAYER_FINE_ANGLE returns the entry Y before the gate is formed", () => {
+  const seed = (m) => { m.mem.write8(PLAYER_FINE_ANGLE, 0x80); m.mem.write8(STATUS_FLAGS, 0x00); m.mem.write8(loc_29, 0x77); };
+  const o = new Machine(ROM, OPTS); seed(o); o.regs.y = 0x5a;
+  const c = new Machine(ROM, OPTS); seed(c); c.regs.y = 0x33; // poisoned
+  oracle(o);
+  assert.equal(o.mem.read8(loc_29), 0x77, "control: the oracle bailed before the crowding gate");
+  assert.equal(o.regs.y, 0x5a, "control: the oracle left the entry Y");
+  assert.equal(spawnEntityIntoFreeSlot(c, 0x5a), o.regs.y, "returned exit Y = the oracle's Y");
+  assert.equal(ramDiff(o, c), null, "RAM equal on the angle bail");
+});
+
+test("BAIL Y: a closed crowding gate returns the entry Y with no spawn", () => {
+  const seed = (m) => { m.mem.write8(PLAYER_FINE_ANGLE, 0x00); m.mem.write8(STATUS_FLAGS, 0x00); m.mem.write8(loc_29, 0x77); };
+  const o = new Machine(ROM, OPTS); seed(o); o.regs.y = 0x5a;
+  const c = new Machine(ROM, OPTS); seed(c); c.regs.y = 0x33; // poisoned
+  oracle(o);
+  assert.equal(o.mem.read8(loc_29), 0x00, "control: the oracle formed a zero crowding gate");
+  assert.equal(o.mem.read8(ACTIVE_OBJECT_COUNT), 0x00, "control: the oracle spawned nothing");
+  assert.equal(spawnEntityIntoFreeSlot(c, 0x5a), o.regs.y, "returned exit Y = the oracle's Y");
+  assert.equal(ramDiff(o, c), null, "RAM equal on the gate-closed bail");
+});
+
+// Gate open (manual play, fire bit) but every slot 0..7 taken: the slot walk finds nothing, writes no Y, and the
+// routine returns the entry Y, which the caller hands on to stepActiveShots.
+test("NO-FREE-SLOT Y: an open gate with every slot taken returns the entry Y with no spawn", () => {
+  const seed = (m) => {
+    m.mem.write8(PLAYER_FINE_ANGLE, 0x00); m.mem.write8(STATUS_FLAGS, 0x80); m.mem.write8(INPUT_DEBOUNCED, 0x10);
+    for (let i = 0; i < 8; i++) m.mem.write8(SLOT_STATE + i, 0x20);
+    m.mem.write8(ACTIVE_OBJECT_COUNT, 0x03);
+  };
+  const o = new Machine(ROM, OPTS); seed(o); o.regs.y = 0x5a;
+  const c = new Machine(ROM, OPTS); seed(c); c.regs.y = 0x33; // poisoned
+  oracle(o);
+  assert.equal(o.mem.read8(ACTIVE_OBJECT_COUNT), 0x03, "control: the oracle spawned nothing");
+  assert.equal(o.regs.y, 0x5a, "control: the oracle left the entry Y");
+  assert.equal(spawnEntityIntoFreeSlot(c, 0x5a), o.regs.y, "returned exit Y = the oracle's Y");
+  assert.equal(ramDiff(o, c), null, "RAM equal on the no-free-slot path");
 });

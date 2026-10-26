@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for swapParallelTables (ROM 0x92b2) -- swaps the two 18-byte tables $03aa,x <-> $03bc,x for
-// x = 0x11..0. Live-out is RAM only (A/X/Y at RTS are incidental), so each arm compares RAM (dumpState,
-// minus STACK_SCRATCH). No POKEY/clock coupling -> the crafted diff is deterministic.
+// x = 0x11..0. Live-out is RAM plus the exit [X, Y] it returns (0xff, slot 0's old $03bc byte), so the CAPTURE
+// and CRAFTED arms compare RAM (dumpState, minus STACK_SCRATCH) and the returned pair (the CAPTURE arm may capture none). No POKEY/clock coupling -> the crafted diff is deterministic.
 // Run: node --test games/tempest/idiomatic/test/equivalence-92b2.test.js
 
 import nodeTest from "node:test";
@@ -45,7 +45,8 @@ function seed(m) {
 test("CAPTURE: real 0x92b2 dispatches -- swapParallelTables == oracle in RAM (-stack)", () => {
   for (const cap of CAPS) {
     const o = cap.clone(), c = cap.clone();
-    oracle(o); swapParallelTables(c);
+    oracle(o); { c.regs.x ^= 0xff; c.regs.y ^= 0xff; // m.regs poisoned: this routine takes no entry X/Y, so its exit must not depend on them
+      assert.deepEqual(swapParallelTables(c), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
   }
   console.log(`  CAPTURE: ${CAPS.length} dispatch(es) checked`);
@@ -54,7 +55,7 @@ test("CAPTURE: real 0x92b2 dispatches -- swapParallelTables == oracle in RAM (-s
 test("CRAFTED: entry-for-entry swap == oracle (RAM -stack)", () => {
   const o = new Machine(ROM, OPTS); seed(o);
   const c = new Machine(ROM, OPTS); seed(c);
-  oracle(o); swapParallelTables(c);
+  oracle(o); assert.deepEqual(swapParallelTables(c), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's");
   assert.equal(ramDiff(o, c), null);
   // Sanity: the tables actually crossed over.
   assert.equal(c.mem.read8(loc_3bc + 0x05), 0x45, "$03bc,5 holds old $03aa,5");

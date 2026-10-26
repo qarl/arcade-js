@@ -30,12 +30,18 @@ import { gateSound8f } from "./gateSound8f.js";
  * (loc_a6); and ends the destination scan.
  *
  * Live-out: new flyer entries in loc_2db/loc_2b5/loc_2c8, decremented/reloaded ENEMY_TIMER on the
- * source slots, and the bumped ACTIVE_ENEMY_COUNT. Grounding: [seen].
+ * source slots, and the bumped ACTIVE_ENEMY_COUNT.
+ *
+ * x and y are the X/Y the ROM enters with. Returns the exit [X, Y] the ROM leaves. When suppressed it touches
+ * neither, so it returns them unchanged. Otherwise X = 0xff (the slot walk runs X past 0), and Y is the last
+ * value the walk loaded into it: ACTIVE_ENEMY_COUNT, which indexes the spawn-rate table for the RNG gate, or
+ * 0xff once a free-entry scan ran (it runs Y past 0); the incoming y when no slot reached the gate.
+ * Grounding: [seen].
  */
-export function spawnClimbersFromSourceSlots(m) {
+export function spawnClimbersFromSourceSlots(m, x = m.regs.x, y = m.regs.y) {
   const { mem8 } = m;
-  if (mem8[PLAYER_FINE_ANGLE] & 0x80) return; // suppressed while loc_201 bit7 set
-  for (let x = 6; x >= 0; x--) {
+  if (mem8[PLAYER_FINE_ANGLE] & 0x80) return [x, y]; // suppressed while loc_201 bit7 set
+  for (x = 6; x >= 0; x--) {
     if (mem8[u16(ENEMY_DEPTH + x)] === 0) continue;     // slot empty
     if (mem8[u16(ENEMY_DEPTH + x)] < 0x30) continue;    // not yet deep enough to hatch
     if ((mem8[u16(ENEMY_SLOT_DIR + x)] & 0x40) === 0) continue; // not an armed source
@@ -45,8 +51,9 @@ export function spawnClimbersFromSourceSlots(m) {
     mem8[u16(ENEMY_TIMER + x)] = u8(dec + 1); // restore it
     if (mem8[u16(ENEMY_SLOT_FLAGS + x)] & 0x80) continue; // slot flagged done
     // Per-wave difficulty gate: a low RNG roll blocks the hatch, thinning spawns as waves fill up.
-    if (mem8[POKEY1_RANDOM] < mem8[u16(SPAWN_RATE_TABLE + mem8[ACTIVE_ENEMY_COUNT])]) continue;
-    let y = mem8[FLYER_SLOT_TOP]; // scan the flyer destination table for a free entry
+    y = mem8[ACTIVE_ENEMY_COUNT]; // the ROM indexes the spawn-rate table through Y
+    if (mem8[POKEY1_RANDOM] < mem8[u16(SPAWN_RATE_TABLE + y)]) continue;
+    y = mem8[FLYER_SLOT_TOP]; // scan the flyer destination table for a free entry
     while (true) {
       if (mem8[u16(loc_2db + y)] === 0) {
         mem8[u16(loc_2db + y)] = mem8[u16(ENEMY_DEPTH + x)];   // copy depth
@@ -61,4 +68,5 @@ export function spawnClimbersFromSourceSlots(m) {
       if (y & 0x80) break;
     }
   }
+  return [0xff, y];
 }

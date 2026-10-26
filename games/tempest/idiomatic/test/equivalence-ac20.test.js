@@ -3,7 +3,8 @@
 // then either falls into raiseRebuildRequestBits (set the low two $01c9 request bits) or into the shared rts switchesUnchangedReturn
 // (no change). Dissolves all three m.calls into direct idiomatic calls. The oracle m.calls the frozen
 // d6bb/ac36/ac3e; the idiomatic calls the idiomatic ones. All output is RAM (d6bb's writes + $01c9), so
-// each arm compares the RAM diff (minus the dead stack). An omitted-ret rewrite. A/X/Y at RTS incidental.
+// each arm compares the RAM diff (minus the dead stack); the CAPTURE arm also compares the exit [X, Y] it returns
+// (decodeOptionSwitches'). An omitted-ret rewrite.
 // Run: node --test games/tempest/idiomatic/test/equivalence-ac20.test.js
 
 import nodeTest from "node:test";
@@ -51,7 +52,8 @@ function seat(m, s = {}) {
 test("CAPTURE: real 0xac20 dispatches -- requestRebuildIfSwitchesChanged == oracle in RAM (-stack)", () => {
   for (const cap of CAPS) {
     const o = cap.clone(), c = cap.clone();
-    oracle(o); requestRebuildIfSwitchesChanged(c);
+    oracle(o); { c.regs.x ^= 0xff; c.regs.y ^= 0xff; // m.regs poisoned: this routine takes no entry X/Y, so its exit must not depend on them
+      assert.deepEqual(requestRebuildIfSwitchesChanged(c), [o.regs.x, o.regs.y], "returned exit [X, Y] = the oracle's"); }
     assert.equal(ramDiff(o, c), null);
   }
   console.log(`  CAPTURE: ${CAPS.length} dispatch(es) checked`);

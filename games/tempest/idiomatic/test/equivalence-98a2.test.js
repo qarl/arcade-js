@@ -53,8 +53,9 @@ test("CAPTURE: real 0x98a2 dispatches -- tickSpawnSlotTimers == oracle in RAM (-
     let threw = false;
     try { oracle(o); } catch { threw = true; } // an expiry may reach an unimplemented arm inside spawnEnemyOnTimerExpiry
     if (threw) continue;
-    tickSpawnSlotTimers(c);
+    const x = tickSpawnSlotTimers(c);
     assert.equal(ramDiff(o, c), null);
+    assert.equal(x, o.regs.x, "returned exit X = the oracle's X");
     checked++;
   }
   console.log(`  CAPTURE: ${checked}/${CAPS.length} dispatch(es) compared`);

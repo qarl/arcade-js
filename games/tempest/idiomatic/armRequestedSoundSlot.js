@@ -24,20 +24,24 @@ import { resetPerSlotStateTable } from "./resetPerSlotStateTable.js";
  * $0 = 0x24 and return.
  *
  * Live-out: $3d (chosen slot index), $602 (control value), $605/$4e/$50/$604 (per-slot timing seeds), and
- * $0 = 0x24 armed (or 0x14 idle when exhausted). Grounding: [seen].
+ * $0 = 0x24 armed (or 0x14 idle when exhausted).
+ *
+ * x is the X the ROM enters with. Returns the exit [X, Y] the ROM leaves: Y is the status it stores through
+ * Y (0x14 or 0x24). When exhausted, X is the last skipped slot index the walk loaded, or the incoming x when
+ * none was skipped; when armed, X = 0xff (resetPerSlotStateTable's walk runs it past 0). Grounding: [seen].
  */
-export function armRequestedSoundSlot(m) {
+export function armRequestedSoundSlot(m, x = m.regs.x) {
   const { mem8 } = m;
   while (true) {
     if (mem8[REQUEST_BITS] === 0) {
       mem8[GAME_MODE] = 0x14; // exhausted
-      return;
+      return [x, 0x14];
     }
     // Low two bits pick the slot index; consume them from the word.
     mem8[loc_3d] = u8((mem8[REQUEST_BITS] & 0x03) - 1);
     mem8[REQUEST_BITS] = mem8[REQUEST_BITS] >> 1;
     mem8[REQUEST_BITS] = mem8[REQUEST_BITS] >> 1;
-    const x = mem8[loc_3d];
+    x = mem8[loc_3d];
     const n = mem8[u16(SLOT_METRIC + x)];
     if (n === 0 || n >= 0x09) continue; // skip empty / out-of-range slots
     // Scale, invert, and offset the slot byte into the paired value.
@@ -53,6 +57,6 @@ export function armRequestedSoundSlot(m) {
     mem8[REARM_COUNTER] = 0x02;
     resetPerSlotStateTable(m);
     mem8[GAME_MODE] = 0x24; // armed
-    return;
+    return [0xff, 0x24];
   }
 }
