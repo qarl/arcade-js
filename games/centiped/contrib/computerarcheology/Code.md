@@ -4597,7 +4597,7 @@ loc_3fd6:
 3FE9: 20 54 49 4D C5 48 41 52 C4 45 41 53 D9
 
 spinToSelfHalt:
-3FF6: 4C F6 3F        JMP     $3FF6               ; {code.spinToSelfHalt} spin here forever -- the terminal halt after a diagnostic failure
+3FF6: 4C F6 3F        JMP     $3FF6               ; {code.spinToSelfHalt} spin here forever -- the NMI vector's target; no instruction jumps here
 
 ; ---- $3FF9-$3FFF: data ----
 3FF9: 0A F6 3F 04 3B 71 38

@@ -25,7 +25,7 @@ If both marches pass, the test branches on a coin/option bit (bit 4 of `IN1` [se
 
 A failing march reports through a short beep-and-halt path. The number of beeps encodes the fault: a zeropage failure derives its count from the single fail-flag bit, while a page failure folds in the position of the failing byte, and a low-page failure reports in the simpler zeropage style [code]. The reporter drives an audible tone on channel 1 (`AUDF1` [seen], `AUDC1` [seen], armed via `SKCTL` [seen]), toggling the tone on and off in step with the beam — each half of a beep spins through a fixed number of vblank edges on `IN0`, kicking `WATCHDOG` [seen] as it goes so the count can play out — and repeats until the beep counter underflows [code]. It then waits for the service switch before halting the processor in a bare endless loop; because the machine is deliberately hung, only a power cycle clears the fault [code].
 
-The dedicated halt trap `spinToSelfHalt` is the same idea reached from a different arm: a self-jump that hangs the processor forever, writing nothing. It is entered only from a self-test error path (service switch held), so it never runs during a normal boot; it exists purely as the terminal stop for a diagnostic failure [code].
+The halt trap `spinToSelfHalt` is the same idea in a different place: a self-jump that hangs the processor forever, writing nothing. No instruction in the program jumps to it; its only reference is the 6502 NMI vector at 0x3ffa, and the board wires only the IRQ line, so it never runs. It would park the CPU, without kicking the watchdog, if an NMI ever arrived [code].
 
 ## Main-loop spine + dispatchers
 

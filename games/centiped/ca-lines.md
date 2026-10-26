@@ -3496,4 +3496,4 @@
 3fd2	load zero
 3fd4	seed the pointer high byte at 0xfa
 3fd6	jump back to the top of the test-display loop
-3ff6	spin here forever -- the terminal halt after a diagnostic failure
+3ff6	spin here forever -- the NMI vector's target; no instruction jumps here
