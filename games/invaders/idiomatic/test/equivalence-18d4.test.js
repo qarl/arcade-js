@@ -5,8 +5,8 @@
 // there records (pc, SP) and throws a sentinel; the idiomatic side returns its unstarted generator. Compared:
 // RAM minus STACK_SCRATCH at that hand-off. SP (oracle seats 0x2400) is not compared: the idiomatic spine is
 // stack-free and the whole-game tape gates it. HAND-OFF: the return is an enterAttractCycle generator.
-// TEETH: twins skipping initWorkRam / redrawScorePanel diverge at real cells; a twin handing to
-// runAttractCycle (skipping the join) fails the hand-off check.
+// CRAFTED: B poisoned at entry on both sides (the ROM seats B=0 itself). TEETH: twins skipping initWorkRam /
+// redrawScorePanel diverge at real cells; a twin handing to runAttractCycle fails the hand-off check.
 // Run: node --test games/invaders/idiomatic/test/equivalence-18d4.test.js
 
 import nodeTest from "node:test";
@@ -51,8 +51,8 @@ function captureEntry() {
 const ENTRY = ROM_PRESENT ? captureEntry() : null;
 
 // Oracle replay bounded at 0x18df; also tracks the deepest stack write to prove the exclusion covers it.
-function runOracle() {
-  const o = ENTRY.clone();
+function runOracle(entry = ENTRY) {
+  const o = entry.clone();
   let minSp = 0x10000;
   const push16 = o.push16.bind(o);
   o.push16 = (v) => { push16(v); minSp = Math.min(minSp, o.regs.sp); };
@@ -86,6 +86,17 @@ test("EQUAL: bootInit == oracle in RAM (-stack) at the 0x18df hand-off; returns 
   assert.notEqual(c.mem.read8(loc_20cf), 0x08, "the attract join ran eagerly (0x20cf seeded before hand-off)");
 });
 
+// The ROM seats B=0 itself (mvi b,0), so the boot must not depend on the B it is entered with.
+test("EQUAL (crafted): B poisoned at entry on both sides, bootInit still == oracle", () => {
+  for (const b of [0x05, 0xc0]) {
+    const entry = ENTRY.clone(); entry.regs.b = b;
+    const { o } = runOracle(entry);
+    const c = entry.clone(); bootInit(c);
+    const d = ramDiff(o, c);
+    assert.equal(d, null, d && `B=${hx(b)}: RAM diverged at ${hx(d.addr ?? 0)} (oracle=${d.a} idiomatic=${d.b})`);
+  }
+});
+
 test("TEETH: a twin that skips initWorkRam is caught in work RAM", () => {
   const twin = (m) => { redrawScorePanel(m); return enterAttractCycle(m); };
   const { o } = runOracle();
@@ -96,7 +107,7 @@ test("TEETH: a twin that skips initWorkRam is caught in work RAM", () => {
 });
 
 test("TEETH: a twin that skips redrawScorePanel is caught at a real cell", () => {
-  const twin = (m) => { initWorkRam(m); return enterAttractCycle(m); };
+  const twin = (m) => { initWorkRam(m, 0); return enterAttractCycle(m); };
   const { o } = runOracle();
   const c = ENTRY.clone(); twin(c);
   const d = ramDiff(o, c);
@@ -106,7 +117,7 @@ test("TEETH: a twin that skips redrawScorePanel is caught at a real cell", () =>
 });
 
 test("TEETH: a twin that hands off to runAttractCycle (skipping the join) fails the hand-off check", () => {
-  const twin = (m) => { initWorkRam(m); redrawScorePanel(m); return runAttractCycle(m); };
+  const twin = (m) => { initWorkRam(m, 0); redrawScorePanel(m); return runAttractCycle(m); };
   const { o } = runOracle();
   const c = ENTRY.clone();
   const g = twin(c);

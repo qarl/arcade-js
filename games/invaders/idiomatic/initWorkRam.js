@@ -7,8 +7,8 @@ import { WORKRAM_INIT_IMAGE, ALIEN_DRAW_PENDING } from "./names.js";
  *
  * WHAT IT IS
  *   Copies a block of bytes from the fixed ROM initialization image into the base of work RAM. The
- *   copy length is the caller's B register (blockCopy defaults its count from m.regs.b), so this body
- *   serves both a caller-chosen length and the fixed-0xc0 preset that seedWorkRamImage seats first.
+ *   copy length is the caller's `count` (the ROM's B register; 0 means a full 256-byte pass), so this
+ *   body serves both a caller-chosen length and the fixed-0xc0 preset that seedWorkRamImage seats first.
  *   Source is WORKRAM_INIT_IMAGE (0x1b00); destination is the work-RAM base ALIEN_DRAW_PENDING (0x2000).
  *
  * ROLE IN THE MACHINE
@@ -22,9 +22,9 @@ import { WORKRAM_INIT_IMAGE, ALIEN_DRAW_PENDING } from "./names.js";
  *
  * ROM 0x01e6.  Grounding: [seen] (WORKRAM_INIT_IMAGE and ALIEN_DRAW_PENDING are both [seen]).
  *
- * LIVE-OUT: memory only (B bytes of work RAM from 0x2000 up stamped from the ROM image).
+ * LIVE-OUT: memory only (`count` bytes of work RAM from 0x2000 up stamped from the ROM image).
  */
-export function initWorkRam(m) {
-  // Block-copy the caller's B bytes from the ROM template image (0x1b00) into the work-RAM base (0x2000).
-  blockCopy(m, WORKRAM_INIT_IMAGE, ALIEN_DRAW_PENDING);
+export function initWorkRam(m, count = m.regs.b) {
+  // Block-copy the caller's `count` bytes from the ROM template image (0x1b00) into the work-RAM base (0x2000).
+  blockCopy(m, WORKRAM_INIT_IMAGE, ALIEN_DRAW_PENDING, count);
 }

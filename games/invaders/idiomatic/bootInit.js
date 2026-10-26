@@ -27,8 +27,9 @@ import { enterAttractCycle } from "./enterAttractCycle.js";
  * LIVE-OUT: the attract-cycle generator, for the engine to drive.
  */
 export function bootInit(m) {
-  // Seed work RAM from the baked ROM image so every object/sprite/timer cell has its cold-start value.
-  initWorkRam(m);
+  // Seed work RAM from the baked ROM image so every object/sprite/timer cell has its cold-start value. The ROM
+  // seats B=0 first (mvi b,0), and a count of 0 is a full 256-byte pass, so the boot never depends on entry B.
+  initWorkRam(m, 0);
 
   // Paint the static score panel once, so the attract screen has its heads-up furniture from frame one.
   redrawScorePanel(m);
