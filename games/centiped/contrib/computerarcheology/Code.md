@@ -4004,13 +4004,13 @@ loc_3bfc:
 3C08: 10 D1           BPL     $3BDB               ; {code.loc_3bdb} repeat until the beep count underflows
 
 loc_3c0a:
-3C0A: 8D 00 20        STA     $2000               ; {hard.rom} pet the watchdog while waiting to halt
+3C0A: 8D 00 20        STA     $2000               ; {hard.rom} pet the watchdog while the service switch is still held
 3C0D: AD 00 0C        LDA     $0C00               ; read the input port carrying the service switch
 3C10: 29 20           AND     #$20                ; isolate the service-switch bit
 3C12: F0 F6           BEQ     $3C0A               ; {code.loc_3c0a} still held -- keep petting and waiting
 
 loc_3c14:
-3C14: D0 FE           BNE     $3C14               ; {code.loc_3c14} hang the processor forever -- only a power cycle clears the fault
+3C14: D0 FE           BNE     $3C14               ; {code.loc_3c14} hang here without petting the watchdog -- the watchdog resets the board
 
 loc_3c16:
 3C16: AD 01 0C        LDA     $0C01               ; marches passed -- read the coin/option input port

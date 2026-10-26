@@ -3001,11 +3001,11 @@
 3c05	loop for the whole tone-off half of the beep
 3c07	one beep done -- count it off
 3c08	repeat until the beep count underflows
-3c0a	pet the watchdog while waiting to halt
+3c0a	pet the watchdog while the service switch is still held
 3c0d	read the input port carrying the service switch
 3c10	isolate the service-switch bit
 3c12	still held -- keep petting and waiting
-3c14	hang the processor forever -- only a power cycle clears the fault
+3c14	hang here without petting the watchdog -- the watchdog resets the board
 3c16	marches passed -- read the coin/option input port
 3c19	isolate the coin/option bit
 3c1b	clear -- build the on-screen diagnostic

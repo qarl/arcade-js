@@ -276,8 +276,8 @@ function selfTestBeepAndHalt(m, seed, carry) {
     count = (count - 1) & 0xff;
   } while ((count & 0x80) === 0);
 
-  // All beeps played. Wait (kicking the dog) until the operator presses the service switch to acknowledge,
-  // then hang the CPU forever: a self-test error is deliberately sticky, cleared only by a power cycle.
-  while ((mem8[IN0] & SERVICE) === 0) { mem8[WATCHDOG] = 0; } // wait for service, kicking the dog
-  for (;;) { /* halt: an error stops the machine until it is power-cycled */ }
+  // All beeps played. Wait (kicking the dog) while the service switch is still held, then spin WITHOUT
+  // kicking it: on the board the watchdog resets the machine, and with the switch released it boots normally.
+  while ((mem8[IN0] & SERVICE) === 0) { mem8[WATCHDOG] = 0; } // wait for service release, kicking the dog
+  for (;;) { /* halt: the machine hangs here until the watchdog resets it */ }
 }

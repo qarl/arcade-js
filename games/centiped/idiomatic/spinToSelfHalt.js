@@ -18,6 +18,6 @@
  */
 export function spinToSelfHalt(m) {
   // The endless loop is the halt itself: the guest's self-jump becomes a JS infinite for(;;). Nothing in
-  // the body ever changes, so the only way out is the machine being reset or power-cycled externally.
-  for (;;) { /* halt: the machine hangs here until it is power-cycled */ }
+  // the body ever changes, so the only way out is a reset from outside (on the board, the watchdog).
+  for (;;) { /* halt: the machine hangs here until it is reset */ }
 }
