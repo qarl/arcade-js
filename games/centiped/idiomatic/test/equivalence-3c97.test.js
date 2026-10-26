@@ -6,18 +6,20 @@
 // it is never dispatched in a normal boot; the arms drive it from crafted seeds, comparing against the
 // oracle run with its tail loop-back stubbed. It reads the POKEY RANDOM register ($100a) -- clock-coupled
 // -- so both sides pin it to a constant. All observable output is RAM (work + video, both in dumpState);
-// arms compare RAM minus the dead stack.
+// arms compare RAM minus stack scratch below the entry SP.
 // Run: node --test games/centiped/idiomatic/test/equivalence-3c97.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_3c97 as oracle } from "../../translated/loc_3c97.js";
+import { loc_3c97 as oracleRom } from "../../translated/loc_3c97.js";
 import { selfTestChecksumPass } from "../loc_3c97.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -26,9 +28,8 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0x3c97;
 const NEXT = 0x3d57;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // Fresh machine: pin POKEY RANDOM to a constant so the clock-free layer reproduces it, stub the tail.
 function mk(seed = {}) {
@@ -61,7 +62,7 @@ test("TEETH: a wrong BCD countdown lands a wrong $8d and is caught by the RAM di
   oracle(broken);
   broken.mem8[0x008d] = (broken.mem8[0x008d] + 1) & 0xff; // BUG: wrong iteration count
   assert.notEqual(
-    firstStateDiff(o.dumpState(), broken.dumpState(), (off) => broken.stateOffsetToAddr(off), inDeadStack),
+    firstStateDiff(o.dumpState(), broken.dumpState(), (off) => broken.stateOffsetToAddr(off), deadStackAtEntry(o, broken)),
     null,
     "the RAM diff FAILED to catch a wrong $8d",
   );

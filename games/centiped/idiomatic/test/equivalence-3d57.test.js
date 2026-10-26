@@ -8,20 +8,25 @@
 // pre-seeded, comparing against the oracle run one pass (its tail loop-back stubbed). It reads POKEY
 // RANDOM ($100a), pinned to a constant on both sides.
 //
-// Dead stack: this routine uses the stack POINTER as a scratch counter (self-test quirk), so under the
-// oracle every dissolved jsr pushes into an S=0 page-1 stack; the idiomatic layer models the counter with
-// a local and does not push, so the whole page-1 stack is treated as dead scratch here. The routine's real
-// output is zeropage + video RAM, none of it in page 1.
+// Dead stack: this routine reseats the stack POINTER as a scratch row counter (0x3eff txs; S=0 on exit), so
+// under the oracle every later dissolved jsr pushes into an S=0 stack (0x0100, then wrapping to 0x01ff down);
+// the idiomatic layer models the counter with a local and does not push. The first real entry falls through
+// from 0x3c97 with S=0xff (0x3b05 ldx #$ff, 0x3b07 txs, balanced since), so there is no caller frame: the floor
+// is the window top (all of stack scratch skipped, R43 reseat) plus the wrapped 0x0100 push slot, dead because
+// every exit is jmp $3d57 and only a reset (which zeroes page 1) leaves; the rest of page 1 is compared.
 // Run: node --test games/centiped/idiomatic/test/equivalence-3d57.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_3d57 as oracle } from "../../translated/loc_3d57.js";
+import { loc_3d57 as oracleRom } from "../../translated/loc_3d57.js";
 import { selfTestInputPass } from "../loc_3d57.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -30,10 +35,9 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0x3d57;
 const TAIL = 0x3fd6;
-// The whole page-1 stack is dead scratch for this routine (see header).
-const inDeadStack = (a) => a != null && a >= 0x0100 && a < 0x0200;
+const deadStack = (ma, mb) => { const below = deadStackAtEntry(ma, mb); return (a) => a === 0x0100 || below(a); };
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStack(ma, mb));
 
 // Fresh machine: pin the RNG, hold the service switch (bit5 clear), and stub the tail so it returns.
 function mk(seed = {}) {
@@ -43,7 +47,7 @@ function mk(seed = {}) {
   m.io.dsw2 = seed.dsw2 ?? 0x00;
   m.io.in1 = seed.in1 ?? 0xff;
   m.io.inputAssert = { 0: 0x20 }; // service pressed -> IN0 bit5 clear (past the entry wait)
-  m.regs.s = 0xfa;
+  m.regs.s = 0xff; // the real first entry's SP (see header)
   m.mem.write8(0x008a, seed.a8 ?? 0x01); // a set pacing bit so the entry bit-walk exits
   for (const [a, v] of Object.entries(seed.ram || {})) m.mem.write8(Number(a), v);
   return m;
@@ -74,7 +78,7 @@ const CASES = [
   { tag: "lives-select glyph path (DSW2 top = 3)", dsw1: 0x00, dsw2: 0x60, in1: 0x00, ram: commonRam({ 0x01b5: 0x00, 0x0180: 0x09 }) },
 ];
 
-test("CRAFTED: every debounce/draw/score branch == oracle in RAM (-page1)", () => {
+test("CRAFTED: every debounce/draw/score branch == oracle in RAM (-stack)", () => {
   for (const s of CASES) {
     const o = mk(s), c = mk(s);
     oracle(o); selfTestInputPass(c);
@@ -90,7 +94,7 @@ test("TEETH: a wrong bit-grid roll diverges from the oracle", () => {
   oracle(broken);
   broken.mem8[0x0400] = (broken.mem8[0x0400] + 1) & 0xff; // BUG: one wrong grid cell in video RAM
   assert.notEqual(
-    firstStateDiff(o.dumpState(), broken.dumpState(), (off) => broken.stateOffsetToAddr(off), inDeadStack),
+    firstStateDiff(o.dumpState(), broken.dumpState(), (off) => broken.stateOffsetToAddr(off), deadStack(o, broken)),
     null,
     "the RAM diff FAILED to catch a wrong bit-grid cell",
   );

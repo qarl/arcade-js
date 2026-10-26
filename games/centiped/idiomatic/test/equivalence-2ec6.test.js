@@ -2,7 +2,7 @@
 // Memory-equivalence for stepHeadSegment (0x2ec6) -- the lead-segment step. It dissolves the tile
 // resolve/stamp/decrement/advance calls into direct imports and keeps ONE cyclic m.call into the
 // per-segment router (0x2f4f), dissolved by the lead at merge. Observable output is RAM only, so
-// every arm checks the RAM diff minus dead stack. One branch reads the POKEY RANDOM latch (clock-
+// every arm checks the RAM diff minus stack scratch below the entry SP. One branch reads the POKEY RANDOM latch (clock-
 // derived), so both clones seat a constant RNG so a benign entropy read cannot false-diverge.
 // Run: node --test games/centiped/idiomatic/test/equivalence-2ec6.test.js
 
@@ -10,15 +10,17 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_2ec6 as oracle } from "../../translated/loc_2ec6.js";
+import { loc_2ec6 as oracleRom } from "../../translated/loc_2ec6.js";
 import { stepHeadSegment } from "../stepHeadSegment.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import {
-  STACK_SCRATCH,
   loc_43, loc_62, loc_63, loc_72, loc_73, loc_86, loc_87, loc_88, loc_94,
   loc_ef, loc_f0, loc_f3, loc_f4, SFX_TIMER_CH3,
 } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -26,9 +28,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x2ec6;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 const noRng = (m) => { m.io.pokeyRandom = () => 0xff; return m; }; // clock-free constant on both sides
 
 function captureDispatches(K, maxFrames) {

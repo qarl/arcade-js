@@ -10,15 +10,17 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_2059 as oracle } from "../../translated/loc_2059.js";
+import { loc_2059 as oracleRom } from "../../translated/loc_2059.js";
 import { loc_2059 } from "../loc_2059.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import {
-  STACK_SCRATCH,
   loc_00, loc_40, loc_43, loc_60, loc_70, loc_80, loc_88, loc_8b,
   loc_9a, loc_ab, loc_d7, loc_ef, loc_f0,
 } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -26,9 +28,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x2059;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // Run oracle vs rewrite from one seed, with the POKEY poly counter pinned at origin on both sides.
 function diffFrom(cap) {

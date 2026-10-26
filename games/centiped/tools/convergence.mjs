@@ -21,8 +21,9 @@ import { STACK_SCRATCH } from "../idiomatic/names.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const STACK_LO = STACK_SCRATCH.lo, STACK_HI = STACK_SCRATCH.hi; // the guest return-stack window (page-1
-// tail): the idiomatic engine's stack ops land here and are excluded from the diff, exactly as the eq tests
-// do. It is the ONLY region excluded -- real state elsewhere in page 1 (high scores, trackball) is diffed.
+// tail): the idiomatic engine's stack ops land here and are excluded from the diff (the MAME golden's per-frame
+// state is RAM only, no SP, so no per-frame R43 floor can be taken). It is the ONLY region excluded -- real
+// state elsewhere in page 1 (high scores, trackball) is diffed.
 const IRQ_VBLANK = [0, 0, 0, 1]; // per-slot io.vblank for the four 32V IRQs; only scanline 240 is in vblank
 const GAME = dirname(HERE);
 const REPO = dirname(dirname(GAME));

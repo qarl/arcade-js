@@ -8,7 +8,7 @@
 // (poly phase = pokeyLastAccess - pokeyC0). The oracle advances the clock via m.step; the idiomatic layer is
 // clock-free. We neutralize that one engine variable by FREEZING the clock to a constant on both sides so the
 // poly phase is a constant origin throughout (the generalization of holding pokeyC0 at null when a routine,
-// like this one, re-enables SK_RESET mid-body) -- exactly as STACK_SCRATCH neutralizes dead stack. What then
+// like this one, re-enables SK_RESET mid-body) -- exactly as the RAM diff skips stack scratch below the entry SP. What then
 // gets compared is the routine's logic. SP-seam tooth for the omitted-ret leaf.
 // Run: node --test games/centiped/idiomatic/test/equivalence-2872.test.js
 
@@ -16,14 +16,17 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_2872 as oracle } from "../../translated/loc_2872.js";
+import { loc_2872 as oracleRom } from "../../translated/loc_2872.js";
 import { initRoundState } from "../initRoundState.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import {
-  STACK_SCRATCH, loc_53, loc_83, loc_88, loc_9b, loc_9c, loc_9d, loc_9e,
+  loc_53, loc_83, loc_88, loc_9b, loc_9c, loc_9d, loc_9e,
   loc_a2, loc_a3, loc_c8, loc_ff, SPAWN_TIMER,
 } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -31,9 +34,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x2872;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // Freeze the clock to a constant origin so the POKEY poly counter reads the same t[0] on both sides
 // regardless of the SK_RESET write and the read count (the one clock variable the clock-free layer

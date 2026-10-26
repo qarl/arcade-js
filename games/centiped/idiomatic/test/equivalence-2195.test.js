@@ -2,7 +2,7 @@
 // Memory-equivalence for plotConfigTableRow (ROM 0x2195). It draws a config-selected readout through
 // the shared row/glyph/digit writers, threading each writer's exposed exit carry into the next; all
 // observable output is RAM (work + video RAM, both in dumpState), so each arm checks the RAM diff (minus
-// the dead stack). The writers are carry-coupled: the glyph plot's exit carry is php-saved (not its
+// stack scratch below the entry SP). The writers are carry-coupled: the glyph plot's exit carry is php-saved (not its
 // store's carry), which diverges from the store's carry only when the cursor high byte overflows -- so
 // the CRAFTED arm sweeps the flip mask (ef/f3) to exercise that coupled path on both sides.
 // Run: node --test games/centiped/idiomatic/test/equivalence-2195.test.js
@@ -11,11 +11,14 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_2195 as oracle } from "../../translated/loc_2195.js";
+import { loc_2195 as oracleRom } from "../../translated/loc_2195.js";
 import { plotConfigTableRow } from "../plotConfigTableRow.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, CONFIG_DIP_BYTE, loc_91, loc_92, loc_8b, loc_8c, loc_ef, loc_f0, loc_f2, loc_f3, loc_b0 } from "../names.js";
+import { CONFIG_DIP_BYTE, loc_91, loc_92, loc_8b, loc_8c, loc_ef, loc_f0, loc_f2, loc_f3, loc_b0 } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -23,9 +26,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x2195;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];
@@ -36,7 +38,7 @@ function captureDispatches(K, maxFrames) {
 const CAPS = ROM_PRESENT ? captureDispatches(16, 4000) : [];
 
 // Seat a valid output cursor (a real dispatch's column cursor into video RAM) and a caller-return word
-// in the dead stack, so the kept spine writers store in-range and the seam has a real return slot.
+// at the entry SP (compared), so the kept spine writers store in-range and the seam has a real return slot.
 function seat(m, s = {}) {
   m.regs.s = 0xfb;
   m.mem.write8(0x01fc, 0xcd); m.mem.write8(0x01fd, 0xab);
@@ -84,7 +86,7 @@ test("TEETH: a wrong stashed table byte is caught by the RAM diff", () => {
   oracle(broken);
   broken.mem8[loc_b0] = (broken.mem8[loc_b0] + 1) & 0xff; // BUG: a single wrong stashed byte
   assert.notEqual(
-    firstStateDiff(truth, broken.dumpState(), (off) => broken.stateOffsetToAddr(off), inDeadStack),
+    firstStateDiff(truth, broken.dumpState(), (off) => broken.stateOffsetToAddr(off), deadStackAtEntry(o, broken)),
     null,
     "the RAM diff FAILED to catch a wrong stashed byte",
   );

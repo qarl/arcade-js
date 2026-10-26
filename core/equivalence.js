@@ -31,6 +31,14 @@ export function firstStateDiff(a, b, offsetToAddr, excludeAddr) {
   return null;
 }
 
+/** Excludes only stack scratch BELOW the caller's live frame: `liveFloor` is the lowest live stack address at
+ * entry (Z80/8080: SP; 6502: 0x100 + S + 1). Cells from it up are compared, so a write into the caller's
+ * frame is heard; only the pushes a routine makes below it are skipped. */
+export function deadStackBelow(scratch, liveFloor) {
+  const top = Math.min(liveFloor, scratch.hi);
+  return (addr) => addr != null && addr >= scratch.lo && addr < top;
+}
+
 /** First differing register (exactly REG_FIELDS, the CPU's own file), or null when identical. */
 export function firstRegDiff(a, b) {
   for (const k of REG_FIELDS) {

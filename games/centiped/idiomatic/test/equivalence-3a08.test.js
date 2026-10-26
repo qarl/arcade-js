@@ -9,11 +9,14 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_3a08 as oracle } from "../../translated/loc_3a08.js";
+import { loc_3a08 as oracleRom } from "../../translated/loc_3a08.js";
 import { foldHighScoreChecksum } from "../foldHighScoreChecksum.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, HIGH_SCORE_TABLE, HIGH_SCORE_CHECKSUM } from "../names.js";
+import { HIGH_SCORE_TABLE, HIGH_SCORE_CHECKSUM } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -22,9 +25,8 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0x3a08;
 const TABLE_LEN = 0x3d; // 0x0178..0x01b4 inclusive == 61 bytes folded
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // Live-out registers + flags (A/Y data, Z/N from the delta). S/P-byte excluded.
 const regOutDiff = (o, c) => {

@@ -12,11 +12,14 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_3360 as oracle } from "../../translated/loc_3360.js";
+import { loc_3360 as oracleRom } from "../../translated/loc_3360.js";
 import { advanceSegmentColumns } from "../advanceSegmentColumns.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_c5, SEGMENT_MOVE_ACCUM_B, SEGMENT_MOVE_ACCUM, SEGMENT_ROW_CROSS_COUNT, SEGMENT_COL_LIFE_TIMER, SEGMENT_COL_BODY, SEGMENT_RELOAD_TIMER, loc_d3, SEGMENT_MOVE_FRAME_COUNTER } from "../names.js";
+import { loc_c5, SEGMENT_MOVE_ACCUM_B, SEGMENT_MOVE_ACCUM, SEGMENT_ROW_CROSS_COUNT, SEGMENT_COL_LIFE_TIMER, SEGMENT_COL_BODY, SEGMENT_RELOAD_TIMER, loc_d3, SEGMENT_MOVE_FRAME_COUNTER } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -25,9 +28,8 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0x3360;
 const IN1 = 0x0c01;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

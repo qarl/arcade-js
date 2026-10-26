@@ -2,7 +2,7 @@
 // Memory-equivalence for resolveTileCellAtXY (ROM 0x2c2b) -- from A (screen X) and Y (row) build the
 // ($32/$33) tile-cell pointer, clamp the row, wrap the top row, then fetch the cell (folding $ef in when
 // non-empty). TWO live-outs beyond RAM: A = the fetched value (callers cmp/and it) and its N/Z (callers
-// beq/bne it), so the arms compare RAM (dumpState, minus STACK_SCRATCH) AND A/fZ/fN. CAPTURE checks real
+// beq/bne it), so the arms compare RAM (dumpState, minus stack scratch below the entry SP) AND A/fZ/fN. CAPTURE checks real
 // dispatches; CRAFTED drives the wrap / non-wrap / empty-cell / clamp paths (RAM 0x0400-0x07ff filled so
 // the resolved cell is deterministic); TEETH proves the RAM diff catches a twin that skips the top-row wrap.
 // Run: node --test games/centiped/idiomatic/test/equivalence-2c2b.test.js
@@ -11,11 +11,14 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_2c2b as oracle } from "../../translated/loc_2c2b.js";
+import { loc_2c2b as oracleRom } from "../../translated/loc_2c2b.js";
 import { resolveTileCellAtXY } from "../resolveTileCellAtXY.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, TILEMAP_PTR_LO, loc_8b, loc_ef } from "../names.js";
+import { TILEMAP_PTR_LO, loc_8b, loc_ef } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -23,9 +26,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x2c2b;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

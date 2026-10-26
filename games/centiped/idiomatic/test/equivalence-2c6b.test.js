@@ -10,12 +10,15 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_2c6b as oracle } from "../../translated/loc_2c6b.js";
+import { loc_2c6b as oracleRom } from "../../translated/loc_2c6b.js";
 import { detectColumnCollision } from "../detectColumnCollision.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import { u8 } from "../../../../core/int.js";
-import { STACK_SCRATCH, loc_34, loc_44, loc_54, loc_64, loc_8b, loc_8c } from "../names.js";
+import { loc_34, loc_44, loc_54, loc_64, loc_8b, loc_8c } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -23,9 +26,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x2c6b;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];
@@ -39,7 +41,7 @@ const CAPS = ROM_PRESENT ? captureDispatches(16, 1500) : [];
 // which the diff excludes) since the routine is a leaf.
 function make(seed) {
   const m = new Machine(ROM);
-  m.push16(0x1233); // a real caller-return word (the oracle's ret pops it; excluded scratch)
+  m.push16(0x1233); // a real caller-return word (the oracle's ret pops it; compared as the entry frame)
   seed(m);
   return m;
 }

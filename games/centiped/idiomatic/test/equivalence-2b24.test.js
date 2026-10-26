@@ -2,18 +2,21 @@
 // Memory-equivalence for clampCoordToBand (ROM 0x2b24). Advances $73 by A(+carry), clamps into the
 // valid band unless the destination tile cell is occupied, then may hand off to the follow-up stage
 // ($2b60) when $86 is non-negative. Dispatching: it keeps the tail m.call, so oracle and rewrite both
-// run the full chain; equivalence is the RAM diff (minus dead stack).
+// run the full chain; equivalence is the RAM diff (minus stack scratch below the entry SP).
 // Run: node --test games/centiped/idiomatic/test/equivalence-2b24.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_2b24 as oracle } from "../../translated/loc_2b24.js";
+import { loc_2b24 as oracleRom } from "../../translated/loc_2b24.js";
 import { clampCoordToBand } from "../clampCoordToBand.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_63, loc_73, loc_86 } from "../names.js";
+import { loc_63, loc_73, loc_86 } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -21,9 +24,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x2b24;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

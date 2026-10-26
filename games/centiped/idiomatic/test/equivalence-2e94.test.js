@@ -9,19 +9,22 @@
 //     re-seed the wave state (oracle jmp $20e8 == idiomatic seedWaveState).
 // Both idiomatic fns OMIT the ROM ret; the seam completes them. The advance body's internal jsr $2c2b is
 // balanced (push16 then the sub's ret), so it is SP-neutral; the idiomatic side calls resolveTileCellAtXY
-// directly. All guest-stack traffic falls inside STACK_SCRATCH and is excluded from the RAM diff.
+// directly. All guest-stack traffic falls below the entry SP and is excluded from the RAM diff.
 // Run: node --test games/centiped/idiomatic/test/equivalence-2e94.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_2e94 as oracle } from "../../translated/loc_2e94.js";
+import { loc_2e94 as oracleRom } from "../../translated/loc_2e94.js";
 import { advanceHeadOrientationAndStampTile, guardHeadOrientationWrap } from "../advanceHeadOrientation.js";
 import { resolveTileCellAtXY } from "../resolveTileCellAtXY.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_00, TILEMAP_PTR_LO, loc_40, loc_70, loc_8b, loc_ef } from "../names.js";
+import { loc_00, TILEMAP_PTR_LO, loc_40, loc_70, loc_8b, loc_ef } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -30,9 +33,8 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const ADVANCE = 0x2e9d; // the per-tick entry the oracle takes when m.pc === 0x2e9d
 const GUARD = 0x2e94; // the wrap-guard entry (any pc != 0x2e9d)
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // Run the oracle down the advance arm (pc == 0x2e9d) vs the idiomatic advance fn.
 const oracleAdvance = (m) => { m.pc = ADVANCE; return oracle(m); };

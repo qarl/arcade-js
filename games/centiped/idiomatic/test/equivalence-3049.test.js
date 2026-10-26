@@ -1,18 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for tickSpawnCadence (0x3049) -- the per-slot spawn-cadence tick. A leaf whose only
 // live-out is work RAM (in dumpState); it DISSOLVES the frozen 0x21c7 call into a direct idiomatic call,
-// so every arm checks the RAM diff (minus dead stack). The omitted-ret seam completes it.
+// so every arm checks the RAM diff (minus stack scratch below the entry SP). The omitted-ret seam completes it.
 // Run: node --test games/centiped/idiomatic/test/equivalence-3049.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_3049 as oracle } from "../../translated/loc_3049.js";
+import { loc_3049 as oracleRom } from "../../translated/loc_3049.js";
 import { tickSpawnCadence } from "../tickSpawnCadence.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_88, loc_94, loc_87, loc_9c, loc_41, loc_ef, loc_9f } from "../names.js";
+import { loc_88, loc_94, loc_87, loc_9c, loc_41, loc_ef, loc_9f } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -20,9 +23,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x3049;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

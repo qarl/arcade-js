@@ -2,7 +2,7 @@
 // Memory-equivalence for routeSegmentByRange (0x2f4f) -- the per-segment range/collision router. It
 // dissolves the fold/marshal/resolve/stamp/delay calls into direct imports and keeps the ONE cyclic
 // m.call into the slot-loop (0x3031), dissolved by the lead at merge. Observable output is RAM only,
-// so every arm checks the RAM diff minus dead stack. A constant RNG is seated on both sides so any
+// so every arm checks the RAM diff minus stack scratch below the entry SP. A constant RNG is seated on both sides so any
 // benign entropy read deep in the tail cannot false-diverge.
 // Run: node --test games/centiped/idiomatic/test/equivalence-2f4f.test.js
 
@@ -10,15 +10,17 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_2f4f as oracle } from "../../translated/loc_2f4f.js";
+import { loc_2f4f as oracleRom } from "../../translated/loc_2f4f.js";
 import { routeSegmentByRange } from "../routeSegmentByRange.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import {
-  STACK_SCRATCH,
   loc_34, loc_54, loc_62, loc_64, loc_72, loc_80,
   loc_43, loc_63, loc_73, loc_87, loc_88, loc_94, loc_ef, loc_f0,
 } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -26,9 +28,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x2f4f;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 const noRng = (m) => { m.io.pokeyRandom = () => 0xff; return m; };
 
 function captureDispatches(K, maxFrames) {

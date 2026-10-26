@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for decrementActiveObjectDelay (ROM 0x2dae) -- saves the caller index, decrements the
 // active object's $94,X delay counter, and TAIL-falls into the accumulator-advance spine (0x2db6). No
-// register/flag live-out, so the arms compare work RAM (dumpState, minus STACK_SCRATCH). Both sides invoke
+// register/flag live-out, so the arms compare work RAM (dumpState, minus stack scratch below the entry SP). Both sides invoke
 // the SAME frozen 0x2db6, so the only routine-local effect under test is the delay decrement. The dispatch
 // is a +2 tail-transfer (2db6's ret pops the caller slot), so the SP-tooth expects a placeable tail and a
 // stray-stack mutant refused.
@@ -11,11 +11,14 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_2dae as oracle } from "../../translated/loc_2dae.js";
+import { loc_2dae as oracleRom } from "../../translated/loc_2dae.js";
 import { decrementActiveObjectDelay } from "../decrementActiveObjectDelay.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_86, loc_88, loc_8d, loc_94 } from "../names.js";
+import { loc_86, loc_88, loc_8d, loc_94 } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -23,9 +26,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x2dae;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

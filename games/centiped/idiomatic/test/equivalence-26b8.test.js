@@ -3,7 +3,7 @@
 // builds the ($91/$92) draw cursor from the $F6/$F7 orientation bytes and paints two 6-cell vertical runs
 // by dispatching the still-frozen loc_3836 (draw-glyph-and-advance) six times per run, the glyph chosen by
 // a down-counter's sign. It is NOT reached in a 1500-frame attract crawl, so there is no live capture to
-// replay; equivalence is proven on crafted entries (fidelity = RAM minus STACK_SCRATCH; A is left where
+// replay; equivalence is proven on crafted entries (fidelity = RAM minus stack scratch below the entry SP; A is left where
 // loc_3836 parks it on BOTH sides, X is a dead loop local, so live-out is memory only). Because it seats
 // JSR returns around the frozen loc_3836 it also carries an SP-seam tooth.
 // Run: node --test games/centiped/idiomatic/test/equivalence-26b8.test.js
@@ -12,11 +12,14 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_26b8 as oracle } from "../../translated/loc_26b8.js";
+import { loc_26b8 as oracleRom } from "../../translated/loc_26b8.js";
 import { drawGridSideBorders } from "../drawGridSideBorders.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_8b, loc_91, loc_92, loc_a5, loc_a6, loc_ef, loc_f3, loc_f6, loc_f7 } from "../names.js";
+import { loc_8b, loc_91, loc_92, loc_a5, loc_a6, loc_ef, loc_f3, loc_f6, loc_f7 } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -24,12 +27,11 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x26b8;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // A crafted entry: orientation/stride bytes seated so both side-runs' cursors stay inside the 0x0400-0x07FF
-// framebuffer, and a caller-return word seated in dead stack for the withOmittedRet seam.
+// framebuffer, and a caller-return word seated at the entry SP (compared) for the withOmittedRet seam.
 function seed({ f6 = 0x00, f7 = 0x00, ef = 0x00, f3 = 0x00, a5 = 0x03, a6 = 0x02 } = {}) {
   const m = new Machine(ROM);
   m.regs.s = 0xfd;

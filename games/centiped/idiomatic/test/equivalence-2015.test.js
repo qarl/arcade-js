@@ -9,7 +9,7 @@
 // ENTRIES: real loop tops cloned from a clock-free oracle boot driven by tapes/coin_start_play.json (attract,
 // coin, play, game over with an EAROM write) every STRIDE beats, plus every loop top whose window holds a
 // change of $86 (a wave commit), plus crafted pokes on them for arms the tape never reaches (see POKES).
-// COMPARED: RAM minus STACK_SCRATCH, palette, LS259 latch, POKEY regs and the POKEY write trace stamped by
+// COMPARED: RAM minus stack scratch below the entry SP, palette, LS259 latch, POKEY regs and the POKEY write trace stamped by
 // beat (a write a later frame overwrites still counts), EAROM, RNG reads, watchdog kicks (each stamped by
 // beat, exact), the I flag, and the port log: every other write at 0x0800+ (POKEY, palette, EAROM, the 0x1800
 // IRQ acknowledge, LS259), stamped by beat, exact.
@@ -22,7 +22,7 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_2015 as oracle } from "../../translated/loc_2015.js";
+import { loc_2015 as oracleRom } from "../../translated/loc_2015.js";
 import { loc_3b04 as oracleBoot } from "../../translated/loc_3b04.js";
 import { mainLoop } from "../mainLoop.js";
 import { serviceFrameIrq } from "../serviceFrameIrq.js";
@@ -45,7 +45,10 @@ import { scanForRangedCellAndSeed } from "../scanForRangedCellAndSeed.js";
 import { Machine } from "../../machine.js";
 import { buildRoutines } from "../../routines.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_8a, WATCHDOG, IN0 } from "../names.js";
+import { loc_8a, WATCHDOG, IN0 } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -111,11 +114,10 @@ function stopOf(fn) {
 }
 const driveGen = (gen, log) => stopOf(() => { for (;;) { if (gen.next().done) return; log.beat(); } });
 
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 function diff(a, b, la, lb) {
   if (b.regs.s !== lb.s0) return `module moved SP ${hx(lb.s0)} -> ${hx(b.regs.s)}`;
   if (a.regs.s !== la.s0) return `oracle SP ${hx(la.s0)} -> ${hx(a.regs.s)}`;
-  const d = firstStateDiff(a.dumpState(), b.dumpState(), (off) => a.stateOffsetToAddr(off), inDeadStack);
+  const d = firstStateDiff(a.dumpState(), b.dumpState(), (off) => a.stateOffsetToAddr(off), deadStackAtEntry(a, b));
   if (d) return `RAM ${hx(d.addr)}: oracle=${d.a} module=${d.b}`;
   const dev = [
     ["palette", a.mem.paletteRam, b.mem.paletteRam], ["latch", a.io.latch, b.io.latch],

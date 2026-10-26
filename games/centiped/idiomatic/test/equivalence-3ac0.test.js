@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Equivalence for tickEaromWriteback (ROM 0x3ac0) -- the periodic EAROM erase/write state machine. The
-// contract is RAM (dumpState minus STACK_SCRATCH: the loc_f9 cursor + loc_fa phase) AND the ER2055 device
+// contract is RAM (dumpState minus stack scratch below the entry SP: the loc_f9 cursor + loc_fa phase) AND the ER2055 device
 // state (control lines, address/data latch, cells), since the routine both reads (readEaromCell) and writes
 // (0x1600 / 0x1680 strobes) the EAROM. We diff RAM and the earom object; registers are dead (callers reload).
 // Run: node --test games/centiped/idiomatic/test/equivalence-3ac0.test.js
@@ -9,12 +9,15 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_3ac0 as oracle } from "../../translated/loc_3ac0.js";
+import { loc_3ac0 as oracleRom } from "../../translated/loc_3ac0.js";
 import { tickEaromWriteback } from "../tickEaromWriteback.js";
 import { readEaromCell } from "../readEaromCell.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_00, loc_f9, loc_fa, HIGH_SCORE_TABLE } from "../names.js";
+import { loc_00, loc_f9, loc_fa, HIGH_SCORE_TABLE } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -22,9 +25,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x3ac0;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 const EAROM_FIELDS = ["addr", "latch", "cs1", "cs2", "c1", "c2", "ck"];
 const earomDiff = (o, c) => {

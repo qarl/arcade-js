@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Equivalence for loadHighScoreTableFromEarom (ROM 0x3a99) -- read EAROM cells 0x3f..0 into the RAM mirror
-// at HIGH_SCORE_TABLE.. and park loc_f9 at 0xff. The contract is RAM (dumpState minus STACK_SCRATCH: the mirror +
+// at HIGH_SCORE_TABLE.. and park loc_f9 at 0xff. The contract is RAM (dumpState minus stack scratch below the entry SP: the mirror +
 // loc_f9) AND the ER2055 device state, since every fetch drives the EAROM (0x1600 W / 0x1680 ctrl / 0x1700 R).
 // We diff RAM and the earom object directly; A/X are dead (both callers reload), so no register diff.
 // Run: node --test games/centiped/idiomatic/test/equivalence-3a99.test.js
@@ -9,11 +9,14 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_3a99 as oracle } from "../../translated/loc_3a99.js";
+import { loc_3a99 as oracleRom } from "../../translated/loc_3a99.js";
 import { loadHighScoreTableFromEarom } from "../loadHighScoreTableFromEarom.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, HIGH_SCORE_TABLE, loc_f9 } from "../names.js";
+import { HIGH_SCORE_TABLE, loc_f9 } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -21,9 +24,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x3a99;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // ER2055 device-state diff -- the memory-side contract for an EAROM routine.
 const EAROM_FIELDS = ["addr", "latch", "cs1", "cs2", "c1", "c2", "ck"];

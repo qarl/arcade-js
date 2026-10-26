@@ -13,8 +13,8 @@
 // The clock-free idiomatic chain never ticks, so its vblank is frozen at the captured value -- and the
 // tail stores that raw IN0 byte to $bd,X, so a naive capture-replay diverges ONLY on that one clock bit,
 // never on any shadow-store logic. We neutralize that single engine-level clock variable identically on
-// both sides (pinVblank), exactly as equivalence-28bf pins the POKEY poly counter and STACK_SCRATCH
-// neutralizes dead stack; every $07c0/$07f0 shadow cell is still compared byte-exact. Verified null under
+// both sides (pinVblank), exactly as equivalence-28bf pins the POKEY poly counter and the RAM diff
+// skips stack scratch below the entry SP; every $07c0/$07f0 shadow cell is still compared byte-exact. Verified null under
 // BOTH vblank phases, so this hides no logic divergence -- the only difference was the clock bit.
 // Run: node --test games/centiped/idiomatic/test/equivalence-3956.test.js
 
@@ -22,11 +22,14 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_3956 as oracle } from "../../translated/loc_3956.js";
+import { loc_3956 as oracleRom } from "../../translated/loc_3956.js";
 import { storeSpriteShadowEntry } from "../storeSpriteShadowEntry.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, SPRITE_SHADOW_CODE } from "../names.js";
+import { SPRITE_SHADOW_CODE } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -34,9 +37,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x3956;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // Hold IN0 bit6 (screen vblank) constant so the interrupt tail's 0x0c00 read is identical on both sides:
 // the oracle path STEPS (m.cycles advances, tick() recomputes vblank), while the clock-free idiomatic

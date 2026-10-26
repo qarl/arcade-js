@@ -7,7 +7,7 @@
 // ENTRIES: real dispatches -- the oracle reset entry (0x3b04) is run on power-on machines (DSW / EAROM
 // variants) and on warm resets of states cloned from a clock-free oracle tape run, and cloned at its
 // `jmp $200e`.
-// COMPARED: RAM minus STACK_SCRATCH, palette, LS259 latch, POKEY regs, EAROM, RNG reads, watchdog kicks
+// COMPARED: RAM minus stack scratch below the entry SP, palette, LS259 latch, POKEY regs, EAROM, RNG reads, watchdog kicks
 // (each stamped by beat, exact), and the port log: every other write at 0x0800+ (POKEY, palette, EAROM, the
 // 0x1800 IRQ acknowledge, LS259, the ignored ROM-space stores), stamped by beat, exact.
 // SP: the module leaves SP as entered (asserted); the oracle's SP equals its entry SP at the bound (asserted;
@@ -20,7 +20,7 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_200e as oracle } from "../../translated/loc_200e.js";
+import { loc_200e as oracleRom } from "../../translated/loc_200e.js";
 import { loc_3b04 as oracleReset } from "../../translated/loc_3b04.js";
 import { loc_200e } from "../loc_200e.js";
 import { initRoundState } from "../initRoundState.js";
@@ -30,7 +30,10 @@ import { serviceFrameIrq } from "../serviceFrameIrq.js";
 import { Machine } from "../../machine.js";
 import { buildRoutines } from "../../routines.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_8a, WATCHDOG } from "../names.js";
+import { loc_8a, WATCHDOG } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -92,11 +95,10 @@ function stopOf(fn) {
 }
 const driveGen = (gen, log) => stopOf(() => { for (;;) { if (gen.next().done) return; log.beat(); } });
 
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 function diff(a, b, la, lb) {
   if (b.regs.s !== lb.s0) return `module moved SP ${hx(lb.s0)} -> ${hx(b.regs.s)}`;
   if (a.regs.s !== la.s0) return `oracle SP ${hx(la.s0)} -> ${hx(a.regs.s)}`;
-  const d = firstStateDiff(a.dumpState(), b.dumpState(), (off) => a.stateOffsetToAddr(off), inDeadStack);
+  const d = firstStateDiff(a.dumpState(), b.dumpState(), (off) => a.stateOffsetToAddr(off), deadStackAtEntry(a, b));
   if (d) return `RAM ${hx(d.addr)}: oracle=${d.a} module=${d.b}`;
   const dev = [
     ["palette", a.mem.paletteRam, b.mem.paletteRam], ["latch", a.io.latch, b.io.latch],

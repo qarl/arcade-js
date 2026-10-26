@@ -2,18 +2,21 @@
 // Memory-equivalence for advanceSegmentSlotLoop (0x3031) -- decrement the slot index and route: on
 // underflow it dissolves into the spawn-cadence tick; otherwise it keeps the ONE cyclic m.call back
 // into the per-segment router (0x2f4f), dissolved by the lead at merge. Observable output is RAM
-// only, so every arm checks the RAM diff minus dead stack; a constant RNG is seated on both sides.
+// only, so every arm checks the RAM diff minus stack scratch below the entry SP; a constant RNG is seated on both sides.
 // Run: node --test games/centiped/idiomatic/test/equivalence-3031.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_3031 as oracle } from "../../translated/loc_3031.js";
+import { loc_3031 as oracleRom } from "../../translated/loc_3031.js";
 import { advanceSegmentSlotLoop } from "../advanceSegmentSlotLoop.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_34, loc_87, loc_88, loc_94 } from "../names.js";
+import { loc_34, loc_87, loc_88, loc_94 } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -21,9 +24,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x3031;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 const noRng = (m) => { m.io.pokeyRandom = () => 0xff; return m; };
 
 function captureDispatches(K, maxFrames) {

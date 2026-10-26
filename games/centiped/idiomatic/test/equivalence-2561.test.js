@@ -4,7 +4,7 @@
 // and on the last count commits the wave (clears working cells, refreshes the checksum snapshot, fans
 // the state block, tail-draws the grid borders). Live-out is RAM plus the write-only side latches
 // (0x1c02-0x1c04, not in dumpState). Each side runs on a clone; the contract is RAM (dumpState, minus
-// STACK_SCRATCH and the per-cap SP window the oracle's sub-calls scribble below SP). The commit arm
+// stack scratch below the entry SP, to 0x40 under it, where the oracle's sub-calls scribble). The commit arm
 // descends into the RNG-driven playfield reseed (reads $100A -> writes $60/$8d/$8e/$d8) and re-arms the
 // poly counter mid-routine, so the crafted arms force the RANDOM register to the poly-origin constant on
 // BOTH sides (see craft()); every non-RNG cell is still asserted in full.
@@ -14,11 +14,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_2561 as oracle } from "../../translated/loc_2561.js";
+import { loc_2561 as oracleRom } from "../../translated/loc_2561.js";
 import { loc_2561 } from "../loc_2561.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { stampEntry, deadStackAtEntry, deadStackDeepAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -26,12 +28,9 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x2561;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 function capDiff(ma, mb) {
-  const spAbs = 0x0100 | ma.regs.s;
-  const excl = (a) => a != null && ((a > spAbs - 0x40 && a <= spAbs) || inDeadStack(a));
-  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), excl);
+  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackDeepAtEntry(0x40, ma, mb));
 }
 
 function captureDispatches(K, maxFrames) {

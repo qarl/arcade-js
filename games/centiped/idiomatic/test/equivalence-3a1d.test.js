@@ -2,8 +2,8 @@
 // Equivalence for validateOrResetHighScores (ROM 0x3a1d) -- copy the ROM template into zeropage 0x02..,
 // probe the checksum (loc_3a08), and either keep the validated top entry or wipe the table to zero. Live-out
 // is RAM only (loc_02.. scratch, loc_1a.. promoted entry, HIGH_SCORE_TABLE.. table, HIGH_SCORE_CONFIG_BYTE config, HIGH_SCORE_CHECKSUM fold
-// via loc_3a08). We compare dumpState minus STACK_SCRATCH; the oracle's balanced push/call/ret scratch lives
-// in that excluded page-1 window, while the idiomatic side calls foldHighScoreChecksum without touching the
+// via loc_3a08). We compare dumpState minus stack scratch below the entry SP; the oracle's balanced push/call/ret scratch lives
+// below the entry SP, in that excluded window, while the idiomatic side calls foldHighScoreChecksum without touching the
 // stack. Registers are dead (loc_3b04 jmps to 0x200e, which reloads).
 // Run: node --test games/centiped/idiomatic/test/equivalence-3a1d.test.js
 
@@ -11,11 +11,14 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_3a1d as oracle } from "../../translated/loc_3a1d.js";
+import { loc_3a1d as oracleRom } from "../../translated/loc_3a1d.js";
 import { validateOrResetHighScores } from "../validateOrResetHighScores.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_02, loc_1a, HIGH_SCORE_TABLE, loc_017a, loc_0181, HIGH_SCORE_CONFIG_BYTE, HIGH_SCORE_CHECKSUM, CONFIG_DIP_BYTE } from "../names.js";
+import { loc_02, loc_1a, HIGH_SCORE_TABLE, loc_017a, loc_0181, HIGH_SCORE_CONFIG_BYTE, HIGH_SCORE_CHECKSUM, CONFIG_DIP_BYTE } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -23,9 +26,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x3a1d;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // The fold loc_3a08 computes over 0x0178..0x01b4 (offsets 0..0x3c), seeded 0xff. Setting HIGH_SCORE_CHECKSUM to this
 // value makes the delta zero (checksum "unchanged" -> the validate path is taken).

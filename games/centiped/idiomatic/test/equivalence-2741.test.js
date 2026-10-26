@@ -4,8 +4,8 @@
 // it lays status rows, folds an input bit into the phase accumulator $9a, advances the spawn-column
 // counter $c0, and on a full cycle either re-arms a slot or (spawn pending) drives the whole respawn
 // sequence. Live-out is RAM plus write-only side latches (not in dumpState). Each side runs on a clone;
-// the contract is RAM (dumpState, minus STACK_SCRATCH and the per-cap SP window the oracle's sub-calls
-// scribble below SP). The respawn sub-chain reads $100A (POKEY RANDOM) via the dissolved 0x231f/0x21c7/
+// the contract is RAM (dumpState, minus stack scratch below the entry SP, to 0x40 under it,
+// where the oracle's sub-calls scribble). The respawn sub-chain reads $100A (POKEY RANDOM) via the dissolved 0x231f/0x21c7/
 // 0x20e8, whose value is clock-derived, so the crafted arm idles the poly counter (pokeyC0 null -> $100A
 // is the constant t[0]) and pins the inputs; real boot dispatches early-exit before any RNG read.
 // Run: node --test games/centiped/idiomatic/test/equivalence-2741.test.js
@@ -14,11 +14,13 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_2741 as oracle } from "../../translated/loc_2741.js";
+import { loc_2741 as oracleRom } from "../../translated/loc_2741.js";
 import { loc_2741 } from "../loc_2741.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { stampEntry, deadStackAtEntry, deadStackDeepAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -26,12 +28,9 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x2741;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 function capDiff(ma, mb) {
-  const spAbs = 0x0100 | ma.regs.s;
-  const excl = (a) => a != null && ((a > spAbs - 0x40 && a <= spAbs) || inDeadStack(a));
-  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), excl);
+  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackDeepAtEntry(0x40, ma, mb));
 }
 
 function captureDispatches(K, maxFrames) {

@@ -16,11 +16,15 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_3871 as oracleService, loc_3907 as oracleBuild } from "../../translated/loc_3871.js";
+import { loc_3871 as oracleServiceRom, loc_3907 as oracleBuildRom } from "../../translated/loc_3871.js";
 import { serviceFrameIrq, buildObjectShadowEntry } from "../serviceFrameIrq.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_bb, SHADOW_SIGN_LATCH, loc_bd } from "../names.js";
+import { loc_bb, SHADOW_SIGN_LATCH, loc_bd } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracleService = stampEntry(oracleServiceRom);
+const oracleBuild = stampEntry(oracleBuildRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -29,7 +33,6 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const SERVICE = 0x3871;
 const BUILD = 0x3907;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
 // The interrupt tail (loc_396d) stores each axis's RAW $0c00,X sample into $bd,X for next frame's delta.
 // $0c00 (IN0) bit6 is the screen VBLANK, which the Machine recomputes from m.cycles on every tick (see
@@ -46,7 +49,7 @@ const ramDiff = (ma, mb) =>
     neutralizeVblankShadow(ma).dumpState(),
     neutralizeVblankShadow(mb).dumpState(),
     (off) => ma.stateOffsetToAddr(off),
-    inDeadStack,
+    deadStackAtEntry(ma, mb),
   );
 
 function captureDispatches(TARGET, oracle, K, maxFrames) {

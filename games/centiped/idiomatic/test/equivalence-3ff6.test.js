@@ -18,11 +18,13 @@ import { existsSync, readFileSync } from "node:fs";
 import { Worker } from "node:worker_threads";
 import { setTimeout as delay } from "node:timers/promises";
 
-import { loc_3ff6 as oracle } from "../../translated/loc_3ff6.js";
+import { loc_3ff6 as oracleRom } from "../../translated/loc_3ff6.js";
 import { Machine } from "../../machine.js";
 import { buildRoutines } from "../../routines.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -40,7 +42,6 @@ const SPIN_MS = 250;
 
 class Sentinel extends Error {}
 
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const romAt = (img, a) => img[a - ROM_BASE];
 
 test("ROM: 0x3ff6 is JMP $3ff6, named only by its own operand and the NMI vector", () => {
@@ -58,7 +59,7 @@ test("EQUAL (oracle): one step re-dispatches 0x3ff6 and writes no RAM", () => {
   const before = m.dumpState();
   assert.throws(() => oracle(m), Sentinel, "the oracle did not jump back to 0x3ff6");
   assert.equal(m.pc, TARGET);
-  assert.equal(firstStateDiff(before, m.dumpState(), (off) => m.stateOffsetToAddr(off), inDeadStack), null);
+  assert.equal(firstStateDiff(before, m.dumpState(), (off) => m.stateOffsetToAddr(off), deadStackAtEntry(m)), null);
 });
 
 // Worker probe: flags = [started, machine touches, returned]. Mutants are defined inside the worker.

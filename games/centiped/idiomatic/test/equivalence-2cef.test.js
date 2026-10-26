@@ -4,7 +4,7 @@
 // seeds the coordinate/timer cells while advancing the frozen accumulator spine (0x2db6); on a fully
 // wrapped pointer it tail-hands-off to the table draw (0x2d5c). Both sides invoke the SAME frozen 0x2db6 /
 // 0x2d5c, so only the routine-local scan/erase/seed logic is under test. No register live-out -> compare
-// work RAM (dumpState, minus STACK_SCRATCH). The kept 0x2db6 JSR is balanced (push16 + its ret), so the
+// work RAM (dumpState, minus stack scratch below the entry SP). The kept 0x2db6 JSR is balanced (push16 + its ret), so the
 // terminals are omitted-ret leaves (moved 0); the SP-tooth proves placeable + refuses a strayed SP.
 // Run: node --test games/centiped/idiomatic/test/equivalence-2cef.test.js
 
@@ -12,14 +12,16 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_2cef as oracle } from "../../translated/loc_2cef.js";
+import { loc_2cef as oracleRom } from "../../translated/loc_2cef.js";
 import { scanForRangedCellAndSeed } from "../scanForRangedCellAndSeed.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import {
-  STACK_SCRATCH,
   loc_00, SFX_TIMER_CH1_PRIORITY, FIELD_SCAN_PTR_LO, FIELD_SCAN_PTR_HI, loc_ef, loc_86, loc_88, loc_5f, loc_6f, loc_3f, loc_b2,
 } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -27,9 +29,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x2cef;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

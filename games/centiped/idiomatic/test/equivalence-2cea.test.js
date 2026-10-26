@@ -3,7 +3,7 @@
 // the compare-first entry into the loc_2cc2 arm/clear block: CMP #$0E sets carry = (A >= 0x0E), then JMP
 // $2cc2, whose opening BCS consumes that carry (set -> bail without arming, clear -> arm). It is a pure tail
 // delegate: loc_2cc2 is still frozen, reads the carry AND X through the register bridge, and its RTS returns
-// to this routine's caller. Fidelity = RAM minus STACK_SCRATCH; the routine has no register live-out of its
+// to this routine's caller. Fidelity = RAM minus stack scratch below the entry SP; the routine has no register live-out of its
 // own beyond what loc_2cc2 leaves. Real dispatches are captured and replayed, both carry branches are
 // crafted, and an SP-seam tooth confirms the tail-transfer places (both branches). Teeth include a
 // wrong-threshold twin (flips the branch) and an X-clobber twin (proves X must flow through unchanged).
@@ -13,11 +13,14 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_2cea as oracle } from "../../translated/loc_2cea.js";
+import { loc_2cea as oracleRom } from "../../translated/loc_2cea.js";
 import { enterArmBlockUnlessValueHigh } from "../enterArmBlockUnlessValueHigh.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_34, loc_42, loc_87 } from "../names.js";
+import { loc_34, loc_42, loc_87 } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -25,9 +28,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x2cea;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];
@@ -38,7 +40,7 @@ function captureDispatches(K, maxFrames) {
 const CAPS = ROM_PRESENT ? captureDispatches(8, 380) : [];
 
 // A crafted entry: A is the compared value, X the index loc_2cc2 stamps ($34,X), plus a caller-return word
-// in dead stack for the tail transfer.
+// at the entry SP (compared) for the tail transfer.
 function seed(a, x) {
   const m = new Machine(ROM);
   m.regs.s = 0xfd;

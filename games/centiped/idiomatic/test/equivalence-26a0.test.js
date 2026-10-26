@@ -3,7 +3,7 @@
 // nine-byte zero-page blocks loc_02..loc_0a and loc_1a..loc_22 up into the page-1 snapshot buffer
 // (HIGH_SCORE_TABLE..loc_0180 and loc_0181..loc_0189), then TAIL-JUMP to loc_3a08, which XOR-folds
 // 0x0178..0x01b4 into the HIGH_SCORE_CHECKSUM checksum. Live-out is RAM only, so each side runs on a clone and the
-// contract is RAM (dumpState, minus STACK_SCRATCH). The tail transfer is preserved as m.call(0x3a08), so
+// contract is RAM (dumpState, minus stack scratch below the entry SP). The tail transfer is preserved as m.call(0x3a08), so
 // loc_3a08 owns the RTS -- the seam observes the "+2, pc on the caller slot" translated-tail-transfer
 // case, not the omitted-ret case.
 //
@@ -15,11 +15,14 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_26a0 as oracle } from "../../translated/loc_26a0.js";
+import { loc_26a0 as oracleRom } from "../../translated/loc_26a0.js";
 import { copyZpStateToSnapshot } from "../copyZpStateToSnapshot.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_c1, loc_c2, loc_02, loc_1a, HIGH_SCORE_TABLE, loc_0181, HIGH_SCORE_CHECKSUM } from "../names.js";
+import { loc_c1, loc_c2, loc_02, loc_1a, HIGH_SCORE_TABLE, loc_0181, HIGH_SCORE_CHECKSUM } from "../names.js";
+import { stampEntry, deadStackAtEntry, deadStackDeepAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -27,9 +30,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x26a0;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];
@@ -41,9 +43,8 @@ const CAPS = ROM_PRESENT ? captureDispatches(16, 1500) : [];
 
 test("CAPTURE: real 0x26a0 dispatches -- copyZpStateToSnapshot == oracle in RAM (-stack)", () => {
   for (const cap of CAPS) {
-    const spAbs = 0x0100 | cap.regs.s;
     const capDiff = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(),
-      (off) => ma.stateOffsetToAddr(off), (a) => a != null && ((a > spAbs - 0x40 && a <= spAbs) || inDeadStack(a)));
+      (off) => ma.stateOffsetToAddr(off), deadStackDeepAtEntry(0x40, ma, mb));
     const o = cap.clone(), c = cap.clone();
     oracle(o); copyZpStateToSnapshot(c);
     assert.equal(capDiff(o, c), null);

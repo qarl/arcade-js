@@ -2,7 +2,7 @@
 // Memory-equivalence for rebuildSegmentSpriteTables (ROM 0x231f) -- rebuild a segment's five 12-entry
 // sprite tables (loc_34/loc_44/loc_54/loc_64/loc_74) from the loc_9a/loc_9c/loc_ab counters and the
 // loc_43/loc_53/loc_73 descriptor rows, mirroring values via the dissolved loc_382d negate. Live-out is
-// RAM only, so each side runs on a clone and the contract is RAM (dumpState, minus STACK_SCRATCH).
+// RAM only, so each side runs on a clone and the contract is RAM (dumpState, minus stack scratch below the entry SP).
 //
 // POKEY NOTE -- the step-4 fill loop reads $100A (POKEY_RANDOM) twice per iteration. $100A's value tracks the
 // PREVIOUS pokey access's clock, so a clock-free layer matches the oracle's SECOND read only while the
@@ -15,14 +15,17 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_231f as oracle } from "../../translated/loc_231f.js";
+import { loc_231f as oracleRom } from "../../translated/loc_231f.js";
 import { rebuildSegmentSpriteTables } from "../rebuildSegmentSpriteTables.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import {
-  STACK_SCRATCH, loc_88, loc_94, loc_9c, loc_9a, loc_ab, loc_34, loc_00,
+  loc_88, loc_94, loc_9c, loc_9a, loc_ab, loc_34, loc_00,
   loc_f0, loc_8b, loc_73, loc_43, loc_53, loc_f4, loc_fe, loc_97,
 } from "../names.js";
+import { stampEntry, deadStackAtEntry, deadStackDeepAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -30,9 +33,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x231f;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];
@@ -45,9 +47,8 @@ const CAPS = ROM_PRESENT ? captureDispatches(16, 1500) : [];
 test("CAPTURE: real 0x231f dispatches -- rebuildSegmentSpriteTables == oracle in RAM (-stack)", () => {
   assert.ok(CAPS.length > 0, "boot must dispatch 0x231f at least once");
   for (const cap of CAPS) {
-    const spAbs = 0x0100 | cap.regs.s;
     const capDiff = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(),
-      (off) => ma.stateOffsetToAddr(off), (a) => a != null && ((a > spAbs - 0x40 && a <= spAbs) || inDeadStack(a)));
+      (off) => ma.stateOffsetToAddr(off), deadStackDeepAtEntry(0x40, ma, mb));
     const o = cap.clone(), c = cap.clone();
     oracle(o); rebuildSegmentSpriteTables(c);
     assert.equal(capDiff(o, c), null);

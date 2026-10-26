@@ -3,7 +3,7 @@
 // 1 when the loc_ab entry is 0 and the CONFIG_DIP_BYTE threshold clears the loc_a9 gate), mirror it into loc_51
 // (two's-complemented -- the dissolved loc_382d negate -- when POKEY RANDOM $100A bit2 is set), then seed
 // the constant spawn cells loc_71/loc_61/loc_41/loc_a1/SFX_TIMER_CH4. Live-out is RAM only, so each side runs on
-// a clone and the contract is RAM (dumpState, minus STACK_SCRATCH). $100A is read exactly ONCE, so its
+// a clone and the contract is RAM (dumpState, minus stack scratch below the entry SP). $100A is read exactly ONCE, so its
 // value depends only on the pokey state captured at entry -- clock-free reads it byte-identically.
 // Run: node --test games/centiped/idiomatic/test/equivalence-21c7.test.js
 
@@ -11,14 +11,17 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_21c7 as oracle } from "../../translated/loc_21c7.js";
+import { loc_21c7 as oracleRom } from "../../translated/loc_21c7.js";
 import { seedSegmentSpawnState } from "../seedSegmentSpawnState.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import {
-  STACK_SCRATCH, loc_88, loc_ab, CONFIG_DIP_BYTE, loc_a9, OBJECT_Y_STEER, loc_51, loc_f0,
+  loc_88, loc_ab, CONFIG_DIP_BYTE, loc_a9, OBJECT_Y_STEER, loc_51, loc_f0,
   loc_71, loc_61, loc_41, loc_a1, SFX_TIMER_CH4,
 } from "../names.js";
+import { stampEntry, deadStackAtEntry, deadStackDeepAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -26,9 +29,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x21c7;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];
@@ -41,9 +43,8 @@ const CAPS = ROM_PRESENT ? captureDispatches(16, 1500) : [];
 test("CAPTURE: real 0x21c7 dispatches -- seedSegmentSpawnState == oracle in RAM (-stack)", () => {
   assert.ok(CAPS.length > 0, "boot must dispatch 0x21c7 at least once");
   for (const cap of CAPS) {
-    const spAbs = 0x0100 | cap.regs.s;
     const capDiff = (ma, mb) => firstStateDiff(ma.dumpState(), mb.dumpState(),
-      (off) => ma.stateOffsetToAddr(off), (a) => a != null && ((a > spAbs - 0x40 && a <= spAbs) || inDeadStack(a)));
+      (off) => ma.stateOffsetToAddr(off), deadStackDeepAtEntry(0x40, ma, mb));
     const o = cap.clone(), c = cap.clone();
     oracle(o); seedSegmentSpawnState(c);
     assert.equal(capDiff(o, c), null);

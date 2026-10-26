@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for steerObjectRowTarget (ROM 0x2280). It commits a row target, may clear a tile
 // cell, and steers a drift cell before dispatching a distance-fold step; all output is RAM (in
-// dumpState), so each arm checks the RAM diff (minus the dead stack). The distance-fold step (0x2c96)
+// dumpState), so each arm checks the RAM diff (minus stack scratch below the entry SP). The distance-fold step (0x2c96)
 // is a spine routine kept as an m.call, run as the frozen fallback on both sides here. An omitted-ret
 // rewrite (the seam completes the ret).
 // Run: node --test games/centiped/idiomatic/test/equivalence-2280.test.js
@@ -10,14 +10,17 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_2280 as oracle } from "../../translated/loc_2280.js";
+import { loc_2280 as oracleRom } from "../../translated/loc_2280.js";
 import { steerObjectRowTarget } from "../steerObjectRowTarget.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import {
-  STACK_SCRATCH, loc_71, loc_61, loc_f0, loc_88, loc_ab, loc_8d, loc_ef, OBJECT_Y_STEER,
+  loc_71, loc_61, loc_f0, loc_88, loc_ab, loc_8d, loc_ef, OBJECT_Y_STEER,
   TILEMAP_PTR_LO, TILEMAP_PTR_HI, loc_8b,
 } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -25,9 +28,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x2280;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];
@@ -37,7 +39,7 @@ function captureDispatches(K, maxFrames) {
 }
 const CAPS = ROM_PRESENT ? captureDispatches(16, 4000) : [];
 
-// Seat a caller-return word in the dead stack, a tile pointer into RAM, and the input A in a param.
+// Seat a caller-return word at the entry SP (compared), a tile pointer into RAM, and the input A in a param.
 function seat(m, s = {}) {
   m.regs.s = 0xf0;
   m.mem.write8(0x01f1, 0xcd); m.mem.write8(0x01f2, 0xab);

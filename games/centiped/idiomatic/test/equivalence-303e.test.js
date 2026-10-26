@@ -1,18 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for loc_303e (0x303e) -- seeds two zero-page cells then tail-dispatches. Observable
 // output is RAM only (the seeded cells plus whatever the tail chain writes), so every arm checks the RAM
-// diff minus dead stack. A "+2 dispatcher": the tail chain runs its own ret, so the seam sees SP +2.
+// diff minus stack scratch below the entry SP. A "+2 dispatcher": the tail chain runs its own ret, so the seam sees SP +2.
 // Run: node --test games/centiped/idiomatic/test/equivalence-303e.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_303e as oracle } from "../../translated/loc_303e.js";
+import { loc_303e as oracleRom } from "../../translated/loc_303e.js";
 import { loc_303e } from "../loc_303e.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_34, loc_b2, loc_87, loc_88, loc_94 } from "../names.js";
+import { loc_34, loc_b2, loc_87, loc_88, loc_94 } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -20,9 +23,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x303e;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

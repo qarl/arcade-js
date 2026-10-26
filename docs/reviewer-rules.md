@@ -813,3 +813,16 @@ canvas, every key binding, a coin's clip). Node cannot exercise the browser audi
 + Safari 0-input bugs were runtime-only), so the system runs it there — no human confirm. A DONE-marker review
 (R40) of a game outside `BROWSER_GAMES` runs both tools itself and records their lines.
 *See docs/runbook.md §5 web-worker contract + web/machine-factory.js + tools/done_gate.py check_browser.*
+
+## R43 [D] an equivalence gate excludes only stack scratch below the caller's live frame
+
+A RAM diff that skips the whole `STACK_SCRATCH` window cannot hear a rewrite that writes into its caller's
+stack frame. A reviewer of any equivalence gate checks that its stack exclusion is
+`deadStackBelow(STACK_SCRATCH, floor)` (`core/equivalence.js`) with the floor taken from the ENTRY machine:
+Z80/8080 `regs.sp`, 6502 `0x100 + regs.s + 1`. A floor above the entry SP is allowed only where the gate
+names the stack words the oracle itself consumes and rewrites (a popped argument, an `inc sp`), and a floor
+at the window top only where the routine reseats the stack (reset, an S-as-counter `txs`); such a gate may
+also skip the reseated stack's own push slots outside the window, each named with why it is dead. A whole-run
+trace gate takes the floor per sampled frame (the shallower of the two runs' SPs; inside an interrupt, the SP of
+the code it interrupted). Any other widening is a FAIL, however green the gate.
+*See docs/runbook.md §4 (Fidelity).*

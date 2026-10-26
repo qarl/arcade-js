@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for commitSegmentCoord (ROM 0x2a90). Stores A into $64+X then tail-transfers into
 // loc_2a92 (kept as a cyclic m.call). Dispatching: oracle and rewrite both run the full tail chain, so
-// equivalence is the RAM diff (minus dead stack). pokeyRandom is neutralised: the tail chain's clock-
+// equivalence is the RAM diff (minus stack scratch below the entry SP). pokeyRandom is neutralised: the tail chain's clock-
 // derived RNG would otherwise diverge under the idiomatic layer's cycle-free execution.
 // Run: node --test games/centiped/idiomatic/test/equivalence-2a90.test.js
 
@@ -9,11 +9,14 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_2a90 as oracle } from "../../translated/loc_2a90.js";
+import { loc_2a90 as oracleRom } from "../../translated/loc_2a90.js";
 import { commitSegmentCoord } from "../commitSegmentCoord.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_64 } from "../names.js";
+import { loc_64 } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -21,9 +24,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x2a90;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 const neutralize = (m) => { m.io.pokeyRandom = () => 0xff; return m; };
 
 function captureDispatches(K, maxFrames) {

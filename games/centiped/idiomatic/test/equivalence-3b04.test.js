@@ -12,7 +12,7 @@
 // ENTRIES: the reset vector's real dispatch on power-on machines (DSW / EAROM variants) and on warm
 // (watchdog) resets of states cloned from a clock-free oracle tape run; crafted RAM faults (one read hook,
 // identical both sides) for the march-error beepers.
-// COMPARED: RAM (normal boot: minus STACK_SCRATCH; self-test: all of it), palette, LS259 latch, POKEY regs
+// COMPARED: RAM (normal boot: minus stack scratch below the entry SP; self-test: all of it), palette, LS259 latch, POKEY regs
 // (self-test: the POKEY write trace stamped by IN0-read count), EAROM, RNG reads, watchdog kicks (every kick,
 // stamped by beat and IN0 read, exact), and the port log: every other write at 0x0800+ (POKEY, palette, EAROM,
 // the 0x1800 IRQ acknowledge, LS259, the ignored `sta $2400`), stamped the same way, exact. A page-1 cell the
@@ -28,7 +28,7 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_3b04 as oracle } from "../../translated/loc_3b04.js";
+import { loc_3b04 as oracleRom } from "../../translated/loc_3b04.js";
 import { coldBootReset } from "../coldBootReset.js";
 import { serviceFrameIrq } from "../serviceFrameIrq.js";
 import { loadHighScoreTableFromEarom } from "../loadHighScoreTableFromEarom.js";
@@ -37,7 +37,10 @@ import { loc_200e } from "../loc_200e.js";
 import { Machine } from "../../machine.js";
 import { buildRoutines } from "../../routines.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_8a, IN0, IN1 } from "../names.js";
+import { loc_8a, IN0, IN1 } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -134,24 +137,24 @@ function stopOf(fn) {
 }
 const driveGen = (gen, log) => stopOf(() => { for (;;) { if (gen.next().done) return; log.beat(); } });
 
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 function diff(a, b, la, lb, selfTest) {
   if (b.regs.s !== lb.s0) return `module moved SP ${hx(lb.s0)} -> ${hx(b.regs.s)}`;
-  const oS = selfTest && selfTest.pc === 0x3d57 ? 0x00 : 0xff; // ldx #$ff; txs at 0x3b05; 0x3d57 counts rows in S
+  const oS = selfTest && selfTest.pc === 0x3d57 ? 0x00 : 0xff; // ldx #$ff; txs at 0x3b07; 0x3d57 counts rows in S
   if (a.regs.s !== oS) return `oracle SP ${hx(a.regs.s)}, expected ${hx(oS)}`;
   // I: the module never touches it. The oracle's last cli/sei decides: normal boot ends past `cli` 0x2011.
   if (b.regs.fI !== lb.i0) return "module changed the I flag";
   const w = selfTest ? selfTest.irq : { latch: 0 };
   const oI = w.latch !== undefined || (w.cli !== undefined && w.sei === undefined) ? false : w.sei !== undefined || la.i0;
   if (a.regs.fI !== oI) return `oracle I flag ${a.regs.fI}, expected ${oI}`;
-  // Self-test: no STACK_SCRATCH exclusion; only the oracle's pushed cells, compared by shadow below.
+  // Self-test: no stack exclusion; only the oracle's pushed cells, compared by shadow below.
+  const dead = selfTest ? () => false : deadStackAtEntry(a, b);
   const pushed = (x) => la.stackW.has(x) || lb.stackW.has(x);
-  const skip = (x) => (!selfTest && inDeadStack(x)) || pushed(x);
+  const skip = (x) => dead(x) || pushed(x);
   const d = firstStateDiff(a.dumpState(), b.dumpState(), (off) => a.stateOffsetToAddr(off), skip);
   if (d) return `RAM ${hx(d.addr)}: oracle=${d.a} module=${d.b}`;
   const sh = (m, l, x) => (l.stackW.has(x) ? l.shadow.get(x) : m.mem8[x]);
   for (const x of new Set([...la.stackW, ...lb.stackW])) {
-    if (!selfTest && inDeadStack(x)) continue;
+    if (dead(x)) continue;
     if (sh(a, la, x) !== sh(b, lb, x)) return `stack shadow ${hx(x)}: oracle=${sh(a, la, x)} module=${sh(b, lb, x)}`;
   }
   const dev = [

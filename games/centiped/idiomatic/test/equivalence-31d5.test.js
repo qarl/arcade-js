@@ -9,11 +9,14 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_31d5 as oracle } from "../../translated/loc_31d5.js";
+import { loc_31d5 as oracleRom } from "../../translated/loc_31d5.js";
 import { transposeScreenBitmap } from "../transposeScreenBitmap.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, TILEMAP_PTR_LO, TILEMAP_PTR_HI, loc_8b, loc_8d, loc_8e, loc_ef, loc_0100 } from "../names.js";
+import { TILEMAP_PTR_LO, TILEMAP_PTR_HI, loc_8b, loc_8d, loc_8e, loc_ef, loc_0100 } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -22,9 +25,8 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0x31d5;
 const VRAM_LO = 0x0400, VRAM_HI = 0x07c0; // 0x0400-0x07BF is video RAM
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

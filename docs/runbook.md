@@ -377,7 +377,13 @@ feeds the next batch's targets.
   **transient debt state, never done** — a seam throw is the signal to DISSOLVE, never to leave the routine
   translated. Silence reads as oversight.
 - Fidelity = **memory-equivalence**: RAM minus stack scratch + `pc` + `SP` + declared live-out; **never
-  the full register file, never cycles**. **Derive live-out from the oracle, never the module header** (a
+  the full register file, never cycles**. **Stack scratch means only the cells below the caller's live frame**
+  (`core/equivalence.js` `deadStackBelow(STACK_SCRATCH, floor)`): the floor is the entry SP's lowest live
+  address (Z80/8080 `sp`; 6502 `0x100 + s + 1`). Raise it to the oracle's exit SP only where the oracle
+  rewrites stack words it consumed itself (a popped argument, an `inc sp`): those are dead once it returns.
+  Where the routine reseats the stack (reset), take the floor from the SP the ROM seats. Every cell from the
+  floor up is compared, so a write into the caller's frame is heard; never exclude the whole window to make a
+  gate pass. **Derive live-out from the oracle, never the module header** (a
   gate whose excluded set matches its module asserts the divergence — green on broken, red on correct).
   When a routine's live-out **is** a register, add a **standing register-comparison arm** — a memory-only
   gate passes a register-valued rewrite that is wholly wrong. Every gate carries teeth. Test by

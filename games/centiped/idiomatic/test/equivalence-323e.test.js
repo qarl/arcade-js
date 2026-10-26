@@ -2,21 +2,24 @@
 // Memory-equivalence for buildSortedObjectTable (0x323e) -- advances the decimal rate accumulators, then
 // inserts the two active objects into the key-sorted slot table. A leaf whose live-out is work RAM (in
 // dumpState); it KEEPS the frozen 0x2d5c call (LEAVE_MCALL spine), so on the rebuild path both sides run
-// the same oracle callee and the diff still cancels. Every arm checks the RAM diff (minus dead stack).
+// the same oracle callee and the diff still cancels. Every arm checks the RAM diff (minus stack scratch below the entry SP).
 // Run: node --test games/centiped/idiomatic/test/equivalence-323e.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_323e as oracle } from "../../translated/loc_323e.js";
+import { loc_323e as oracleRom } from "../../translated/loc_323e.js";
 import { buildSortedObjectTable } from "../buildSortedObjectTable.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import {
-  STACK_SCRATCH, loc_a8, loc_aa, loc_ac, loc_a9, loc_ab, loc_ad,
+  loc_a8, loc_aa, loc_ac, loc_a9, loc_ab, loc_ad,
   loc_fb, loc_fc, loc_89, loc_018e, loc_018f, loc_0190, loc_0191, loc_02,
 } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -25,9 +28,8 @@ const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM 
 
 const TARGET = 0x323e;
 const SLOT_LO = 0x02, SLOT_HI = 0x19; // the eight 3-byte slot records
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

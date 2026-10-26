@@ -4,7 +4,7 @@
 // the moment it jumps to 0x3fd6 (a live run never gets there -- UNREACHED proves it, with positive controls).
 // Neither side returns, so both are bounded identically: an instrumented write8 throws a sentinel at the
 // second watchdog kick after entry (one whole loop pass, then the next pass's pacing walk), and a read budget
-// throws if either side spins. Compared: RAM minus STACK_SCRATCH; no register live-out (it never returns).
+// throws if either side spins. Compared: RAM minus stack scratch below the entry SP; no register live-out (it never returns).
 // TEETH: a twin that eats one pacing phase is caught at $8a; the dispatch counter fires on a crafted run.
 // Run: node --test games/centiped/idiomatic/test/equivalence-3fd6.test.js
 
@@ -12,14 +12,17 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_3fd6 as oracle } from "../../translated/loc_3fd6.js";
+import { loc_3fd6 as oracleRom } from "../../translated/loc_3fd6.js";
 import { loc_3d57 as oracleCaller } from "../../translated/loc_3d57.js";
 import { loc_3fd6 } from "../loc_3fd6.js";
 import { loc_3d57 } from "../loc_3d57.js";
 import { Machine } from "../../machine.js";
 import { buildRoutines } from "../../routines.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, WATCHDOG, loc_8a } from "../names.js";
+import { WATCHDOG, loc_8a } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -38,9 +41,8 @@ const READ_BUDGET = 2_000_000;
 class Sentinel extends Error {}
 class Spin extends Error {}
 
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // Instrument one machine: the `kicks`-th watchdog write throws Sentinel, the read budget throws Spin.
 function bound(m, kicks) {

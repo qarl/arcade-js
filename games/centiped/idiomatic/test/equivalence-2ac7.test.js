@@ -3,19 +3,21 @@
 // previous slot; once it runs past the first slot the strip is done and the routine returns (the seam
 // supplies the ret), otherwise it re-enters the mover carrying the stepped cursor -- a DIRECT idiomatic
 // tail call, so the re-entry is exercised by running the whole slot walk (a wrong step lands on the wrong
-// slot and diverges), not a routine-map stub. Equivalence is the RAM diff (minus dead stack).
+// slot and diverges), not a routine-map stub. Equivalence is the RAM diff (minus stack scratch below the entry SP).
 // Run: node --test games/centiped/idiomatic/test/equivalence-2ac7.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_2ac7 as oracle } from "../../translated/loc_2ac7.js";
+import { loc_2ac7 as oracleRom } from "../../translated/loc_2ac7.js";
 import { advanceSegmentLoopIndex } from "../advanceSegmentLoopIndex.js";
 import { moveCentipedeSegment } from "../moveCentipedeSegment.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -23,9 +25,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x2ac7;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 test("CRAFTED: past the first slot -> return (RTS), no RAM change vs oracle", () => {
   // X == 0 -> DEX underflows to 0xff -> the routine returns; the oracle takes the bare RTS.

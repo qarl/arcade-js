@@ -5,7 +5,7 @@
 // (0x2ac7 / 0x2a92 / 0x2aa6 / 0x2a90), all kept as cyclic m.calls until merge; the dissolved callees
 // (loadObjectTileInputs, resolveTileCellAtXY, detectColumnCollision, foldSignedMagnitude, negateA) run
 // as direct JS. Dispatching: oracle and rewrite both run the full chain (which recurses through the
-// whole segment sweep), so equivalence is the RAM diff (minus dead stack). pokeyRandom is neutralised:
+// whole segment sweep), so equivalence is the RAM diff (minus stack scratch below the entry SP). pokeyRandom is neutralised:
 // the sweep's clock-derived RNG would otherwise diverge under the idiomatic layer's cycle-free execution.
 // Run: node --test games/centiped/idiomatic/test/equivalence-2962.test.js
 
@@ -13,11 +13,14 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_2962 as oracle } from "../../translated/loc_2962.js";
+import { loc_2962 as oracleRom } from "../../translated/loc_2962.js";
 import { moveCentipedeSegment } from "../moveCentipedeSegment.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_34 } from "../names.js";
+import { loc_34 } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -25,9 +28,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x2962;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 const neutralize = (m) => { m.io.pokeyRandom = () => 0xff; return m; };
 
 function captureDispatches(K, maxFrames) {

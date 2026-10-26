@@ -1,27 +1,29 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for loc_2b86 (ROM 0x2b86-0x2b91) -- the second entry into loc_2b79's range: just the
 // $43-mask gate tail, GATE loc_42 = 0x28 only when (loc_43 & 0xaf) != 0. Live-out is memory only (A/flags at
-// RTS are incidental), so each side runs on a clone and the contract is RAM (dumpState, minus STACK_SCRATCH).
+// RTS are incidental), so each side runs on a clone and the contract is RAM (dumpState, minus stack scratch below the entry SP).
 // Run: node --test games/centiped/idiomatic/test/equivalence-2b86.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_2b86 as oracle } from "../../translated/loc_2b79.js";
+import { loc_2b86 as oracleRom } from "../../translated/loc_2b79.js";
 import { loc_2b86 } from "../loc_2b79.js";
 import { Machine } from "../../machine.js";
 import { firstStateDiff } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_42, loc_43 } from "../names.js";
+import { loc_42, loc_43 } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
 const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM_DIR))) : null;
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 const SENTINEL42 = 0x99;
 function seeded(c43) {

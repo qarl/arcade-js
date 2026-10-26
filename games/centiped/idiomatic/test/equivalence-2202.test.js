@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for advanceColumnHeadingState (ROM 0x2202). It steps a column's heading/dwell
 // state (work RAM) then tail-transfers into the row-target steerer; all output is RAM (in dumpState),
-// so each arm checks the RAM diff (minus the dead stack). The steerer (0x2280) is a concurrent batch
+// so each arm checks the RAM diff (minus stack scratch below the entry SP). The steerer (0x2280) is a concurrent batch
 // routine kept as an m.call, run as the frozen fallback on both sides here.
 // Run: node --test games/centiped/idiomatic/test/equivalence-2202.test.js
 
@@ -9,14 +9,17 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_2202 as oracle } from "../../translated/loc_2202.js";
+import { loc_2202 as oracleRom } from "../../translated/loc_2202.js";
 import { advanceColumnHeadingState } from "../advanceColumnHeadingState.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import {
-  STACK_SCRATCH, loc_43, loc_41, loc_00, loc_f2, loc_a1, loc_51, OBJECT_X_DRIFT_STASH, loc_61,
+  loc_43, loc_41, loc_00, loc_f2, loc_a1, loc_51, OBJECT_X_DRIFT_STASH, loc_61,
   OBJECT_Y_STEER, loc_71, loc_ef, POKEY_RANDOM, CONFIG_DIP_BYTE, TILEMAP_PTR_LO, TILEMAP_PTR_HI,
 } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -24,9 +27,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x2202;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];
@@ -36,7 +38,7 @@ function captureDispatches(K, maxFrames) {
 }
 const CAPS = ROM_PRESENT ? captureDispatches(16, 4000) : [];
 
-// Seat a caller-return word in the dead stack and a tile pointer into RAM (the steerer's cell store).
+// Seat a caller-return word at the entry SP (compared) and a tile pointer into RAM (the steerer's cell store).
 function seat(m, s = {}) {
   m.regs.s = 0xf0;
   m.mem.write8(0x01f1, 0xcd); m.mem.write8(0x01f2, 0xab);

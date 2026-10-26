@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory-equivalence for loc_2505 (ROM 0x2505) -- a thin entry that tail-forwards to the segment
 // sprite-table rebuild (0x231f) and returns. Live-out is RAM only; each side runs on a clone and the
-// contract is RAM (dumpState, minus STACK_SCRATCH and the per-cap SP window the oracle's sub-call
-// scribbles below SP). Since the body IS rebuildSegmentSpriteTables, the crafted arm drives the RNG
+// contract is RAM (dumpState, minus stack scratch below the entry SP, to 0x40 under it, where the
+// oracle's sub-call scribbles). Since the body IS rebuildSegmentSpriteTables, the crafted arm drives the RNG
 // fill loop with the poly counter idle (pokeyC0 null -> $100A constant on both sides).
 // Run: node --test games/centiped/idiomatic/test/equivalence-2505.test.js
 
@@ -10,12 +10,14 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_2505 as oracle } from "../../translated/loc_2505.js";
+import { loc_2505 as oracleRom } from "../../translated/loc_2505.js";
 import { loc_2505 } from "../loc_2505.js";
 import { rebuildSegmentSpriteTables } from "../rebuildSegmentSpriteTables.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH } from "../names.js";
+import { stampEntry, markEntry, deadStackAtEntry, deadStackDeepAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -23,14 +25,11 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x2505;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 
-// A per-cap diff that also excludes the page-1 window just below SP, where the oracle's m.call chain
+// A per-cap diff that also excludes the page-1 window just below the entry SP, where the oracle's m.call chain
 // leaves return-slot scribble the direct-call idiomatic layer does not.
 function capDiff(ma, mb) {
-  const spAbs = 0x0100 | ma.regs.s;
-  const excl = (a) => a != null && ((a > spAbs - 0x40 && a <= spAbs) || inDeadStack(a));
-  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), excl);
+  return firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackDeepAtEntry(0x40, ma, mb));
 }
 
 function captureDispatches(K, maxFrames) {
@@ -65,12 +64,12 @@ function craftFill(cap) {
 
 test("CRAFTED: the tail-forward drives the rebuild fill loop identically (RAM -stack)", () => {
   assert.ok(CAPS.length > 0);
-  const o = craftFill(CAPS[0]), c = craftFill(CAPS[0]), r = craftFill(CAPS[0]);
+  const o = craftFill(CAPS[0]), c = markEntry(craftFill(CAPS[0])), r = markEntry(craftFill(CAPS[0]));
   oracle(o);
   loc_2505(c);
   rebuildSegmentSpriteTables(r); // the forwarder must equal a direct call to its target
   assert.equal(capDiff(o, c), null, "loc_2505 vs oracle");
-  assert.equal(firstStateDiff(c.dumpState(), r.dumpState(), (off) => c.stateOffsetToAddr(off), inDeadStack),
+  assert.equal(firstStateDiff(c.dumpState(), r.dumpState(), (off) => c.stateOffsetToAddr(off), deadStackAtEntry(c, r)),
     null, "loc_2505 vs a direct rebuildSegmentSpriteTables");
 });
 

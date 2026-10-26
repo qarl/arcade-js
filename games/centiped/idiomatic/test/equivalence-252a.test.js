@@ -2,7 +2,7 @@
 // Memory equivalence for seedStateBlockConstants (ROM 0x252a) -- stamp the $ef-$f8 block with its fixed
 // startup constants, drive the flip-screen latch + ignored $2400 store with 0x80, clear $bd/$bf. LIVE-OUT
 // is RAM only (every caller's next op is a JSR that reloads A), so each side runs on a clone and the
-// contract is the RAM diff (dumpState minus STACK_SCRATCH). The routine is BRANCH-FREE and input-free, so
+// contract is the RAM diff (dumpState minus stack scratch below the entry SP). The routine is BRANCH-FREE and input-free, so
 // the CRAFTED arm is EXHAUSTIVE path coverage; the CAPTURE arm typically finds 0 dispatches because attract
 // mode never reaches the coined spawn/respawn spines (loc_23da/loc_2741) that call it.
 // Run: node --test games/centiped/idiomatic/test/equivalence-252a.test.js
@@ -11,14 +11,17 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_252a as oracle } from "../../translated/loc_252a.js";
+import { loc_252a as oracleRom } from "../../translated/loc_252a.js";
 import { seedStateBlockConstants } from "../seedStateBlockConstants.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import {
-  STACK_SCRATCH, loc_ef, loc_f0, loc_f1, loc_f2, loc_f3, loc_f4, loc_f5, loc_f6, loc_f7, loc_f8,
+  loc_ef, loc_f0, loc_f1, loc_f2, loc_f3, loc_f4, loc_f5, loc_f6, loc_f7, loc_f8,
   loc_bd, loc_bf,
 } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -31,9 +34,8 @@ const CONSTS = [
   [loc_f0, 0xf8], [loc_f3, 0xff], [loc_f4, 0xfe], [loc_f8, 0xfc], [loc_f1, 0xe0], [loc_ef, 0xc0],
   [loc_f2, 0x40], [loc_f5, 0xbf], [loc_f7, 0x03], [loc_f6, 0x3f], [loc_bd, 0x00], [loc_bf, 0x00],
 ];
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

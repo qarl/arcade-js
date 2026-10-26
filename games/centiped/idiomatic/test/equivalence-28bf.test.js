@@ -7,9 +7,9 @@
 // The POKEY RANDOM read (0x100A) is CLOCK-DEPENDENT (poly phase = m.cycles delta) and the idiomatic layer
 // is clock-free, so a naive capture-replay would diverge only on the RNG timing, not on any logic defect.
 // We neutralize that one engine-level variable by holding the poly counter at origin (io.pokeyC0 = null ->
-// constant t[0]) on BOTH sides, exactly as STACK_SCRATCH neutralizes dead stack -- the RNG value is then
+// constant t[0]) on BOTH sides, exactly as the RAM diff skips stack scratch below the entry SP -- the RNG value is then
 // identical and deterministic, and the routine's logic (pointer build, seed gating, tally, stamp, sweep)
-// is what gets compared. Fidelity = RAM minus STACK_SCRATCH; the 0x1404 palette write is real hardware
+// is what gets compared. Fidelity = RAM minus stack scratch below the entry SP; the 0x1404 palette write is real hardware
 // state but is not in the RAM diff (palette RAM is not dumped). SP-seam tooth for the seated dispatches.
 // Run: node --test games/centiped/idiomatic/test/equivalence-28bf.test.js
 
@@ -17,14 +17,17 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_28bf as oracle } from "../../translated/loc_28bf.js";
+import { loc_28bf as oracleRom } from "../../translated/loc_28bf.js";
 import { resetPlayfieldAndSeedMushrooms } from "../resetPlayfieldAndSeedMushrooms.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import {
-  STACK_SCRATCH, loc_88, loc_8b, loc_8d, loc_8e, loc_8f, loc_c2, loc_d7, loc_ef,
+  loc_88, loc_8b, loc_8d, loc_8e, loc_8f, loc_c2, loc_d7, loc_ef,
   POKEY_RANDOM, loc_0400, loc_0500, loc_0600, loc_0700,
 } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -32,9 +35,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x28bf;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 // Hold the POKEY poly counter at origin so the RANDOM read is the constant t[0] on both sides (the one
 // engine-level clock variable the clock-free layer cannot reproduce -- see the header).
@@ -52,7 +54,7 @@ function captureDispatches(K, maxFrames) {
 const CAPS = ROM_PRESENT ? captureDispatches(4, 30) : [];
 
 // A crafted fresh entry (pokeyC0 already null -> RNG pinned), with $88/$EF seated and a caller-return word
-// in dead stack for the loc_2932 tail dispatch.
+// at the entry SP (compared) for the loc_2932 tail dispatch.
 function seed({ p88 = 0x00, ef = 0x00 } = {}) {
   const m = new Machine(ROM);
   m.regs.s = 0xfd;

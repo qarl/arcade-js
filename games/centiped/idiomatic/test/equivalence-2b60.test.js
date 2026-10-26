@@ -2,18 +2,21 @@
 // Memory-equivalence for routeByCoordDelta (ROM 0x2b60). Gates on the signed $72-$8d delta ($ef
 // inverts the bail side); routes to the $72/$62 fixup ($2b79, dissolved) or -- when the magnitude
 // is >= 5 -- to the arm-flag tail ($2b86, kept as m.call). Dispatching: oracle and rewrite both run
-// the full chain; equivalence is the RAM diff (minus dead stack).
+// the full chain; equivalence is the RAM diff (minus stack scratch below the entry SP).
 // Run: node --test games/centiped/idiomatic/test/equivalence-2b60.test.js
 
 import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_2b60 as oracle } from "../../translated/loc_2b60.js";
+import { loc_2b60 as oracleRom } from "../../translated/loc_2b60.js";
 import { routeByCoordDelta } from "../routeByCoordDelta.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, loc_72, loc_8d, loc_ef } from "../names.js";
+import { loc_72, loc_8d, loc_ef } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -21,9 +24,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x2b60;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

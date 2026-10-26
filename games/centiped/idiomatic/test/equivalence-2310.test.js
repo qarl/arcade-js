@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Memory+register equivalence for loadObjectTileInputs (ROM 0x2310) -- copy $54,x into $8b, derive the
 // ±1 step from the sign of $44,x into Y, load $64,x into A. LIVE-OUT is RAM $8b PLUS the registers A and
-// Y (both read back by the frozen caller loc_2c2b), so each arm asserts the RAM diff (minus STACK_SCRATCH)
+// Y (both read back by the frozen caller loc_2c2b), so each arm asserts the RAM diff (minus stack scratch below the entry SP)
 // AND o.regs.a/o.regs.y. Flags are not live-out (loc_2c2b's lsr a overwrites them).
 // Run: node --test games/centiped/idiomatic/test/equivalence-2310.test.js
 
@@ -9,12 +9,15 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_2310 as oracle } from "../../translated/loc_2310.js";
+import { loc_2310 as oracleRom } from "../../translated/loc_2310.js";
 import { loadObjectTileInputs } from "../loadObjectTileInputs.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
 import { u8 } from "../../../../core/int.js";
-import { STACK_SCRATCH, loc_44, loc_54, loc_64, loc_8b } from "../names.js";
+import { loc_44, loc_54, loc_64, loc_8b } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -22,9 +25,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x2310;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];

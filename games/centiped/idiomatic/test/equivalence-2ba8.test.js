@@ -2,7 +2,7 @@
 // Memory-equivalence for stampEmptyTileCell (ROM 0x2ba8) -- when the cell at ($32) is empty and its
 // column class is stampable, write 0x3f^$ef through the pointer, first bumping $d7,X (X=$88) for the
 // bumped sub-class. A leaf with no register/flag live-out (callers reload X or tail-return), so the arms
-// compare RAM (dumpState, minus STACK_SCRATCH) only. CAPTURE checks real dispatches; CRAFTED drives the
+// compare RAM (dumpState, minus stack scratch below the entry SP) only. CAPTURE checks real dispatches; CRAFTED drives the
 // class table (empty/occupied, guard/bump/write-only, both $ef orientations); TEETH proves the RAM diff
 // catches a twin that bumps the counter for a write-only column.
 // Run: node --test games/centiped/idiomatic/test/equivalence-2ba8.test.js
@@ -11,11 +11,14 @@ import nodeTest from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 
-import { loc_2ba8 as oracle } from "../../translated/loc_2ba8.js";
+import { loc_2ba8 as oracleRom } from "../../translated/loc_2ba8.js";
 import { stampEmptyTileCell } from "../stampEmptyTileCell.js";
 import { Machine, withOmittedRet } from "../../machine.js";
 import { firstStateDiff, seamPlaceable } from "../../../../core/equivalence.js";
-import { STACK_SCRATCH, TILEMAP_PTR_LO, TILEMAP_PTR_HI, loc_ef, loc_88, loc_d7 } from "../names.js";
+import { TILEMAP_PTR_LO, TILEMAP_PTR_HI, loc_ef, loc_88, loc_d7 } from "../names.js";
+import { stampEntry, deadStackAtEntry } from "./_stackFloor.js";
+
+const oracle = stampEntry(oracleRom);
 
 const ROM_DIR = new URL("../../rom/", import.meta.url);
 const ROM_PRESENT = existsSync(new URL("maincpu.bin", ROM_DIR));
@@ -23,9 +26,8 @@ const ROM = ROM_PRESENT ? new Uint8Array(readFileSync(new URL("maincpu.bin", ROM
 const test = ROM_PRESENT ? nodeTest : (name, fn) => nodeTest(name, { skip: "ROM not built" }, fn);
 
 const TARGET = 0x2ba8;
-const inDeadStack = (a) => a != null && a >= STACK_SCRATCH.lo && a < STACK_SCRATCH.hi;
 const ramDiff = (ma, mb) =>
-  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), inDeadStack);
+  firstStateDiff(ma.dumpState(), mb.dumpState(), (off) => ma.stateOffsetToAddr(off), deadStackAtEntry(ma, mb));
 
 function captureDispatches(K, maxFrames) {
   const caps = [];
