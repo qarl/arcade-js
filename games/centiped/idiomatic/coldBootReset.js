@@ -30,8 +30,7 @@ const SERVICE = 0x20;
  * The self-test marches poll the beam and the service switch, so they are inherently clock-coupled. [code]
  *
  * A generator: the normal path delegates into the main-loop spine, whose vblank yields propagate up to the
- * clock-free engine. Isolated capture-replay can't drive a forever-yielding boot, so this spine entry is
- * engine-validated (whole-machine convergence) rather than by an isolated capture test.
+ * clock-free engine. Its gate, equivalence-3b04, drives both sides to the same bound and compares them.
  */
 export function* coldBootReset(m) {
   const { mem8 } = m;
@@ -122,6 +121,7 @@ function runSelfTest(m) {
     }
     if (((cell + 1) & 0xff) === 0) break;
   }
+  mem8[WATCHDOG] = 0; // 0x3b84 sta $2000: kick once the zeropage march passes
 
   // Whole-page RAM march. Same walking-bit test as above, but now addressed through a 16-bit pointer built
   // from loc_8b (low, held at 0) and loc_8c (high, the page number), so it can sweep a full 256-byte page at
@@ -149,6 +149,7 @@ function runSelfTest(m) {
       }
       if (((y + 1) & 0xff) === 0) break;
     }
+    mem8[WATCHDOG] = 0; // 0x3ba4 sta $2000: kick after each page passes
     // Advance to the next page, remapping 2 -> 4 so the unmapped pages are jumped, and stop once past page 7.
     let next = (page + 1) & 0xff;
     if (next === 2) next = 4; // remap: skip the unmapped pages
@@ -196,7 +197,7 @@ function runSelfTest(m) {
     break;
   }
 
-  // Input-response screen: prove the controls work. Spin until the operator releases the service switch, shift
+  // Input-response screen: prove the controls work. Spin while the service switch is idle (until it is held), shift
   // the pacing value in loc_8a, kick the watchdog each pass (so the board is not reset out from under the test
   // while we wait), and break out the moment any of the top three IN1 control bits changes from idle-high
   // (i.e. a control was actuated).
@@ -278,6 +279,6 @@ function selfTestBeepAndHalt(m, seed, carry) {
 
   // All beeps played. Wait (kicking the dog) while the service switch is still held, then spin WITHOUT
   // kicking it: on the board the watchdog resets the machine, and with the switch released it boots normally.
-  while ((mem8[IN0] & SERVICE) === 0) { mem8[WATCHDOG] = 0; } // wait for service release, kicking the dog
+  do { mem8[WATCHDOG] = 0; } while ((mem8[IN0] & SERVICE) === 0); // 0x3c0a kicks before each switch test
   for (;;) { /* halt: the machine hangs here until the watchdog resets it */ }
 }

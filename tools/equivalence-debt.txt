@@ -1,26 +1,5 @@
 # ROUTINES entries with no games/<game>/idiomatic/test/equivalence-<addr>.test.js.
 # Held by tools/test/equivalence-coverage.test.js: a missing gate not listed here fails, and so does a
 # line whose gate now exists. Shrink only. Format: <game> 0x<addr>  <reason>
-centiped 0x200e  loc_200e: coroutine (function*), no per-routine gate
-centiped 0x2015  mainLoop: coroutine (function*), no per-routine gate
-centiped 0x3b04  coldBootReset: coroutine (function*), no per-routine gate
-dkong 0x0000  boot: coroutine (function*), no per-routine gate
-dkong 0x02bd  mainLoop: coroutine (function*), no per-routine gate
-frogger 0x0341  drainForegroundThenYieldEachVblank: coroutine (function*), no per-routine gate
-frogger 0x0368  endForegroundPassAtPaceTail: coroutine (function*), no per-routine gate
-invaders 0x0a80  runAttractAnimTask: coroutine (function*), no per-routine gate
-invaders 0x0a93  typePacedSpriteRun: coroutine (function*), no per-routine gate
-invaders 0x0ab1  waitShortDelay: coroutine (function*), no per-routine gate
-invaders 0x0ab6  waitLongDelay: coroutine (function*), no per-routine gate
-invaders 0x0acf  typeAttractBlock: coroutine (function*), no per-routine gate
-invaders 0x0ad7  waitFrames: coroutine (function*), no per-routine gate
-invaders 0x0aea  runAttractCycle: coroutine (function*), no per-routine gate
-invaders 0x0b89  finishAttractCycle: coroutine (function*), no per-routine gate
-invaders 0x1815  drawScoreAdvanceTable: coroutine (function*), no per-routine gate
-invaders 0x1837  typeSecondDrawScript: coroutine (function*), no per-routine gate
-invaders 0x183a  typeDrawScript: coroutine (function*), no per-routine gate
-invaders 0x184c  typeDrawScriptRecord: coroutine (function*), no per-routine gate
-invaders 0x189e  runHandshakedAttractAnim: coroutine (function*), no per-routine gate
-invaders 0x18df  enterAttractCycle: coroutine (function*), no per-routine gate
 tempest 0xc7a0  runMainFrameLoop: coroutine (function*), no per-routine gate
 tempest 0xd93f  bootMachineFromReset: coroutine (function*), no per-routine gate
