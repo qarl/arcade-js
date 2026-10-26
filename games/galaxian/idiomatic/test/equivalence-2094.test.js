@@ -12,12 +12,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { craft, ramDiff, romsPresent, STUBS } from "./_bootSetup.js";
+import { craft, ramDiff as rawRamDiff, romsPresent, STUBS } from "./_bootSetup.js";
 import { objectGridWalkLoopEpilogue as cand } from "../objectGridWalkLoopEpilogue.js";
 import { loc_2094 as oracle } from "../../translated/loc_2094.js";
 import { routeObjectGridCellDraw } from "../routeObjectGridCellDraw.js";
 
 const skip = romsPresent() ? false : "ROM images are gitignored; none assembled";
+
+// The entry is mid-walk: [hl][bc] are the walk's own loop locals (pushed at 0x207d, popped here, re-pushed on
+// each djnz pass); the caller's frame starts at the return word above them, so that is the live floor.
+const ramDiff = (o, c, e) => rawRamDiff(o, c, e, (e.regs.sp + 4) & 0xffff);
 
 const VRAM_LO = 0x5000; // tilemap VRAM page; the delegated slot draw lands here
 const VRAM_HI = 0x5400;

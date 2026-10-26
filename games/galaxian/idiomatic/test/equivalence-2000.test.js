@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 /**
  * loc_2000 (enterMainLoop) -- equivalence vs the frozen translated oracle. Entry is captured at the real
- * cold-boot dispatch of 0x2000. Compared: RAM minus stack scratch, plus the board io; no register live-out
- * (0x200a reloads HL, B is rewritten before any read). Bound: the oracle's clear loop hands off by m.call(0x200a);
+ * cold-boot dispatch of 0x2000. Compared: RAM minus stack scratch below the entry SP, plus the board io; no
+ * register live-out (0x200a reloads HL, B is rewritten before any read). Bound: the oracle's clear loop hands off by m.call(0x200a);
  * a sentinel installed there on both sides stops it; the idiomatic side must return a mainLoop generator
  * without hitting it. The score/HUD block is poked non-zero on both sides so the clear is observable.
  * Teeth: twins clearing 0x1d bytes, starting one byte late or early (each caught at its cell), or returning no
@@ -11,8 +11,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { makeMachine, isStackScratch, romsPresent } from "./_harness.js";
-import { oracleRoutines, ioOf } from "./_coldBoot.js";
+import { makeMachine, STACK_SCRATCH, romsPresent } from "./_harness.js";
+import { oracleRoutines, ioOf, liveFloor } from "./_coldBoot.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 import { buildRoutines } from "../../routines.js";
 import { enterMainLoop as cand } from "../enterMainLoop.js";
 import { mainLoop } from "../mainLoop.js";
@@ -55,8 +56,9 @@ function run(fn, e) {
   }
 }
 
-/** First divergence oracle vs candidate (RAM minus stack scratch, then io), or null. */
+/** First divergence oracle vs candidate (RAM minus stack scratch below the entry SP, then io), or null. */
 function compare(fn, e) {
+  const dead = deadStackBelow(STACK_SCRATCH, liveFloor(e));
   const a = run(oracle, e);
   if (!a.stopped) return "positive control: the oracle did not reach the 0x200a hand-off";
   const b = run(fn, e);
@@ -66,7 +68,7 @@ function compare(fn, e) {
   for (let i = 0; i < A.length; i++) {
     if (A[i] === B[i]) continue;
     const addr = a.m.stateOffsetToAddr(i);
-    if (isStackScratch(addr)) continue;
+    if (dead(addr)) continue;
     return `ram 0x${addr.toString(16)}: ${A[i]} vs ${B[i]}`;
   }
   const x = JSON.stringify(ioOf(a.m)), y = JSON.stringify(ioOf(b.m));

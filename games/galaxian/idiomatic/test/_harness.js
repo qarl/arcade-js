@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // §4 decompile equivalence-test harness (galaxian). Boots a bounded attract state as the shared seed; each
 // equivalence test clones it, pokes a routine's inputs, and runs the idiomatic candidate vs the frozen
-// translated oracle in ISOLATION (no born-live needed). Stack scratch (0x43e0-0x43ff, the return-stack
-// window measured in §3) is masked from the RAM diff.
+// translated oracle in ISOLATION (no born-live needed). Stack scratch below the entry SP (inside 0x43e0-0x43ff,
+// the return-stack window measured in §3) is masked from the RAM diff.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -33,8 +33,9 @@ function romImages() {
 // A bounded attract frame that leaves work RAM populated; before the main-loop return at ~216.
 export const ENTRY_FRAMES = 200;
 
-// Return-stack scratch window (measured §3: the benign stack blip lives in 0x43ea-0x43ff).
-export const isStackScratch = (addr) => addr >= 0x43e0 && addr <= 0x43ff;
+// Return-stack window (measured §3: the benign stack blip lives in 0x43ea-0x43ff); only the part below the
+// entry SP is scratch (core deadStackBelow).
+export const STACK_SCRATCH = { lo: 0x43e0, hi: 0x4400 };
 
 export function makeMachine(overrides) {
   const { rom, gfx, proms } = romImages();

@@ -2,21 +2,21 @@
 // Cold-boot chain equivalence fixtures (galaxian). The boot chain runs once, from a fresh power-on Machine, so
 // its entries are CAPTURED at their real dispatches: the frozen translated oracle boots a fresh machine and
 // every dispatch of a chain entry is cloned at that moment. Each test replays a captured (or crafted) entry
-// through the oracle and the idiomatic candidate and compares work/video/OBJ RAM (return-stack window masked),
-// the board latches the boot drives, the watchdog kick count, and that both hand off to the main loop.
+// through the oracle and the idiomatic candidate and compares work/video/OBJ RAM (stack scratch below the entry
+// SP masked), the board latches the boot drives, the watchdog kick count, and that both hand off to the main loop.
 // The chain ends at 0x2000; both sides reach the same wired enterMainLoop there, whose generator is returned
 // unstarted, so each replay stops exactly at the hand-off.
 // Not compared: SP (the idiomatic layer seats no guest stack; the ROM's `ld sp,0x4400` has no consumer after
 // the hand-off) and the board's unmapped-write counter (the idiomatic seeding drops the ROM's three stores to
 // the unmapped 0x7002/0x7003/0x7005 slots).
-import { makeMachine, romsPresent } from "./_harness.js";
+import { makeMachine, romsPresent, STACK_SCRATCH } from "./_harness.js";
 import { buildRoutines } from "../../routines.js";
+import { deadStackBelow } from "../../../../core/equivalence.js";
 import { enterMainLoop } from "../enterMainLoop.js";
 
 export { romsPresent };
 
-const STACK_LO = 0x43e0;
-const STACK_HI = 0x4400;
+const STACK_HI = STACK_SCRATCH.hi;
 const HANDOFF = 0x2000;
 export const CHAIN = [0x1a55, 0x1a9a, 0x1aca, 0x1b5d, 0x1b70];
 
@@ -48,12 +48,15 @@ export function captures() {
 
 export const isGenerator = (r) => !!r && typeof r.next === "function" && typeof r.throw === "function";
 
-/** Run `fn` on a clone of `entry` (oracle table installed); return the observable end state. */
+/** Live stack floor at an entry: SP, except power-on SP 0 is an empty stack (the first push lands at 0xfffe). */
+export const liveFloor = (entry) => entry.regs.sp || 0x10000;
+
+/** Run `fn` on a clone of `entry` (oracle table installed); return the observable end state + entry floor. */
 export function run(fn, entry) {
   const m = entry.clone();
   m.routines = oracleRoutines();
   const r = fn(m);
-  return { m, handedOff: isGenerator(r) };
+  return { m, handedOff: isGenerator(r), floor: liveFloor(entry) };
 }
 
 export function ioOf(m) {
@@ -65,14 +68,15 @@ export function ioOf(m) {
   };
 }
 
-/** First divergence between two end states (RAM minus the stack window, then io), or null. */
+/** First divergence between two end states (RAM minus stack scratch below the entry SP, then io), or null. */
 export function diff(a, b) {
   if (a.handedOff !== b.handedOff) return `hand-off ${a.handedOff} vs ${b.handedOff}`;
+  const dead = deadStackBelow(STACK_SCRATCH, a.floor);
   const A = a.m.dumpState(), B = b.m.dumpState();
   for (let i = 0; i < A.length; i++) {
     if (A[i] === B[i]) continue;
     const addr = a.m.stateOffsetToAddr(i);
-    if (addr >= STACK_LO && addr < STACK_HI) continue;
+    if (dead(addr)) continue;
     return `ram 0x${addr.toString(16)}: ${A[i]} vs ${B[i]}`;
   }
   const x = JSON.stringify(ioOf(a.m)), y = JSON.stringify(ioOf(b.m));

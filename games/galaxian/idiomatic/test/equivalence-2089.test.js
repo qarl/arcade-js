@@ -17,7 +17,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { craft, ramDiff, romsPresent, STUBS } from "./_bootSetup.js";
+import { craft, ramDiff as rawRamDiff, romsPresent, STUBS } from "./_bootSetup.js";
 import { drawAnimatedObjectGridCellAndAdvance as cand } from "../drawAnimatedObjectGridCellAndAdvance.js";
 import { loc_2089 as oracle } from "../../translated/loc_2089.js";
 import { mapPackedCoordToVram } from "../mapPackedCoordToVram.js";
@@ -25,6 +25,10 @@ import { computeTileVariantFromTimer } from "../computeTileVariantFromTimer.js";
 import { drawTileGlyphOrBlock } from "../drawTileGlyphOrBlock.js";
 
 const skip = romsPresent() ? false : "ROM images are gitignored; none assembled";
+
+// The entry is mid-walk: [hl][bc] are the walk's own loop locals (pushed at 0x207d, popped here, re-pushed on
+// each djnz pass); the caller's frame starts at the return word above them, so that is the live floor.
+const ramDiff = (o, c, e) => rawRamDiff(o, c, e, (e.regs.sp + 4) & 0xffff);
 const TIMER = 0x425f;    // per-frame counter feeding the tile-variant fold
 const SENTINEL = 0x55;   // seeded into the glyph target cells so the tile stamp is observable
 const STRAY = 0x50c0;    // a VRAM cell the draws never touch, for the stray-write tooth
